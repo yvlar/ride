@@ -226,6 +226,30 @@ La première version doit rester volontairement simple.
 - partage de rides;
 - mode « Surprise me ».
 
+## Développement
+
+Prérequis : Node.js 22 ou plus récent.
+
+```bash
+cp .env.example .env.local
+npm ci
+npm run dev
+```
+
+L’application démarre sur [http://localhost:3000](http://localhost:3000). Sans clés externes, le fournisseur de routage simulé (`ROUTING_PROVIDER=mock`) est utilisé.
+
+Commandes utiles :
+
+| Commande | Rôle |
+| --- | --- |
+| `npm run dev` | Serveur de développement |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | Vérification TypeScript |
+| `npm test` | Tests Vitest |
+| `npm run build` | Build de production |
+
+Le cahier des charges technique est dans `CURSOR.md`.
+
 ## Critères de succès du MVP
 
 - Un utilisateur peut créer un trajet en moins d’une minute.
