@@ -53,6 +53,14 @@ Before planning, coding, refactoring, debugging, or reviewing functionality, rea
    - the implementation;
    - the tests.
 
+13. When a task targets one functional requirement:
+   - keep that FR as the only delivery target;
+   - map its explicitly referenced and actually applicable BR/NFR requirements before implementation;
+   - do not silently expand the task to another FR;
+   - stop after the target FR is delivered instead of continuing with the next requirement.
+
+14. For the reusable end-to-end FR workflow, use `.cursor/commands/implement-fr.md` through `/implement-fr FR-xxx`.
+
 ## Planning Workflow
 
 Before implementation:
