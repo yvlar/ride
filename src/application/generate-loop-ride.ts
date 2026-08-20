@@ -23,8 +23,27 @@ export type GenerateLoopRideResult =
 
 export async function generateLoopRide(
   input: unknown,
-  routingProvider: RoutingProvider = createRoutingProvider(),
+  routingProvider?: RoutingProvider,
 ): Promise<GenerateLoopRideResult> {
+  let provider = routingProvider;
+  if (!provider) {
+    try {
+      provider = createRoutingProvider();
+    } catch {
+      return {
+        ok: false,
+        error: {
+          code: "PROVIDER_ERROR",
+          message:
+            "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
+          suggestions: [
+            "Vérifiez ROUTING_PROVIDER=mock tant qu’aucun fournisseur réel n’est branché.",
+          ],
+        },
+      };
+    }
+  }
+
   const type =
     typeof input === "object" && input !== null && "type" in input
       ? (input as { type: unknown }).type
@@ -57,7 +76,7 @@ export async function generateLoopRide(
     };
   }
 
-  return generateValidatedLoop(parsed.data, routingProvider);
+  return generateValidatedLoop(parsed.data, provider);
 }
 
 async function generateValidatedLoop(
@@ -84,7 +103,7 @@ async function generateValidatedLoop(
     targetDistanceKm,
   );
 
-  const evaluations = await Promise.all(
+  const settled = await Promise.allSettled(
     waypointSets.map(async (set) => {
       const result = await routingProvider.calculateRoute({
         start: request.start.coordinates,
@@ -104,6 +123,9 @@ async function generateValidatedLoop(
         candidate,
       );
     }),
+  );
+  const evaluations = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
   );
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);

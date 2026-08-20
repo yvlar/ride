@@ -42,7 +42,8 @@ export type RideGenerationErrorCode =
   | "UNSUPPORTED_RIDE_TYPE"
   | "NO_ROUTE_FOUND"
   | "DISTANCE_OUT_OF_TOLERANCE"
-  | "GEOMETRIC_LOOP_REJECTED";
+  | "GEOMETRIC_LOOP_REJECTED"
+  | "PROVIDER_ERROR";
 
 export type RideGenerationError = {
   code: RideGenerationErrorCode;

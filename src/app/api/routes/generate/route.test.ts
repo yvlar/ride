@@ -31,6 +31,7 @@ describe("POST /api/routes/generate (FR-001)", () => {
     expect(payload.meta.requestId).toMatch(
       /^[0-9a-f-]{36}$/i,
     );
+    expect(response.headers.get("cache-control")).toMatch(/no-store/i);
   });
 
   it("rejects a later ride type instead of implementing it", async () => {
@@ -50,5 +51,23 @@ describe("POST /api/routes/generate (FR-001)", () => {
       error: { code: string };
     };
     expect(payload.error.code).toBe("UNSUPPORTED_RIDE_TYPE");
+  });
+
+  it("rejects an oversized body without invoking generation", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/routes/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": "40000",
+        },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toMatch(/no-store/i);
+    const payload = (await response.json()) as { error: { code: string } };
+    expect(payload.error.code).toBe("VALIDATION_ERROR");
   });
 });

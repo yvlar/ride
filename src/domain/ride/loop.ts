@@ -29,8 +29,8 @@ export function createLoopWaypointSets(
   start: Coordinates,
   targetDistanceKm: number,
 ): LoopWaypointSet[] {
-  const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
-  const radiusFactors = [1 / 4, 1 / 3.5, 1 / 3];
+  const bearings = [0, 90, 180, 270];
+  const radiusFactors = [1 / 4, 1 / 3];
   const sets: LoopWaypointSet[] = [];
 
   for (const bearingDeg of bearings) {

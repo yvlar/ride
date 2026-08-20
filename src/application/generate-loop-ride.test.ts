@@ -166,4 +166,33 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.error.bestCandidate?.distanceKm).toBe(400);
     expect(result.error.message).toMatch(/BR-001/);
   });
+
+  it("ignores a failing candidate instead of crashing the Vercel function", async () => {
+    const mock = new MockRoutingProvider();
+    let calls = 0;
+    const flaky: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        calls += 1;
+        if (calls === 1) {
+          throw new Error("upstream timeout");
+        }
+        return mock.calculateRoute(input);
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+      },
+      flaky,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(isWithinDistanceTolerance(result.route.distanceKm, 80)).toBe(true);
+  });
 });
