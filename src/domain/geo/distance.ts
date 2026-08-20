@@ -17,6 +17,18 @@ export function haversineKm(from: Coordinates, to: Coordinates): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+export function initialBearingDeg(from: Coordinates, to: Coordinates): number {
+  const dLon = toRadians(to.longitude - from.longitude);
+  const lat1 = toRadians(from.latitude);
+  const lat2 = toRadians(to.latitude);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+
+  return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+
 export function offsetCoordinates(
   start: Coordinates,
   bearingDeg: number,
