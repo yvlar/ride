@@ -14,6 +14,19 @@ export const CIRCULARITY_CV_THRESHOLD = 0.06;
 export const MIN_ROAD_NETWORK_POINTS = 8;
 
 /**
+ * A destination trace follows a network if it has at least one intermediate
+ * vertex (start → via → destination). The loop threshold of 8 points is too
+ * high for short point-to-point rides (FR-002).
+ */
+export const MIN_DESTINATION_ROAD_POINTS = 3;
+
+/**
+ * Scenic may prefer a modest extra length over the shortest path, but must
+ * not maximize detour up to MAX_DESTINATION_DETOUR_RATIO (FR-002).
+ */
+export const SCENIC_PREFERRED_MAX_RATIO = 1.2;
+
+/**
  * BR-005 — average speeds used to convert an available duration into a distance.
  * Adjustable domain constants; not delegated to a routing provider.
  */

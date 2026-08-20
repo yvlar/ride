@@ -61,6 +61,42 @@ describe("POST /api/routes/generate", () => {
     expect(payload.data.route.destination.label).toBe("Mont-Tremblant");
   });
 
+  it("rejects a destination request missing the destination place (FR-002)", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/routes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "destination",
+          start: GRANBY,
+          style: "curvy",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as { error: { code: string } };
+    expect(payload.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects a destination request missing the driving style (FR-002)", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/routes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "destination",
+          start: GRANBY,
+          destination: TREMBLANT,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as { error: { code: string } };
+    expect(payload.error.code).toBe("VALIDATION_ERROR");
+  });
+
   it("still rejects round_trip instead of implementing FR-003", async () => {
     const response = await POST(
       new Request("http://localhost/api/routes/generate", {

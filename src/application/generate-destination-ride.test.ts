@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { haversineKm, positionToCoordinates } from "@/domain/geo/distance";
+import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/geo/distance";
 import { headingChangePerKm } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
@@ -58,6 +58,65 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(result.route.style).toBe("curvy");
     expect(result.route.destination.label).toBe("Mont-Tremblant");
     expect(result.route.geometry.coordinates.length).toBeGreaterThan(8);
+  });
+
+  it("generates a short nearby destination without inflating the distance (FR-002)", async () => {
+    const mock = new MockRoutingProvider();
+
+    for (const km of [3, 5]) {
+      const nearby = {
+        label: "Nearby",
+        coordinates: offsetCoordinates(GRANBY.coordinates, 90, km),
+      };
+      const direct = await mock.calculateRoute({
+        start: GRANBY.coordinates,
+        destination: nearby.coordinates,
+      });
+
+      const result = await generateDestinationRide(
+        {
+          type: "destination",
+          start: GRANBY,
+          destination: nearby,
+          style: "touring",
+        },
+        mock,
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      expect(result.route.geometry.coordinates.length).toBeGreaterThanOrEqual(3);
+      expect(result.route.distanceKm).toBeLessThanOrEqual(
+        direct.distanceKm * 1.75 + 0.1,
+      );
+    }
+  });
+
+  it("maps a total routing outage to PROVIDER_ERROR", async () => {
+    const down: RoutingProvider = {
+      async calculateRoute() {
+        throw new Error("upstream timeout");
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "curvy",
+      },
+      down,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("PROVIDER_ERROR");
   });
 
   it("prefers a curvier corridor over the fastest mock path (BR-003)", async () => {

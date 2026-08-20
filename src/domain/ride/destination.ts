@@ -12,7 +12,8 @@ import type { Coordinates } from "@/domain/geo/types";
 import {
   DESTINATION_ENDPOINT_TOLERANCE_KM,
   MAX_DESTINATION_DETOUR_RATIO,
-  MIN_ROAD_NETWORK_POINTS,
+  MIN_DESTINATION_ROAD_POINTS,
+  SCENIC_PREFERRED_MAX_RATIO,
   TOURING_TARGET_HEADING_CHANGE_PER_KM,
 } from "./constants";
 import { distanceBoundsKm, distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
@@ -132,7 +133,7 @@ export function evaluateDestinationCandidate(
     last !== null &&
     haversineKm(destination, last) <= DESTINATION_ENDPOINT_TOLERANCE_KM;
   const followsRoadNetwork =
-    candidate.geometry.coordinates.length >= MIN_ROAD_NETWORK_POINTS;
+    candidate.geometry.coordinates.length >= MIN_DESTINATION_ROAD_POINTS;
   const withinDistanceTolerance =
     options.targetDistanceKm === undefined
       ? null
@@ -203,8 +204,13 @@ export function styleRankScore(
   switch (style) {
     case "curvy":
       return twist;
-    case "scenic":
-      return twist * 0.55 + (relativeLength - 1) * 8;
+    case "scenic": {
+      const extraBeyondPreferred = Math.max(
+        0,
+        relativeLength - SCENIC_PREFERRED_MAX_RATIO,
+      );
+      return twist - extraBeyondPreferred * 4;
+    }
     case "touring":
       return (
         -Math.abs(twist - TOURING_TARGET_HEADING_CHANGE_PER_KM) -

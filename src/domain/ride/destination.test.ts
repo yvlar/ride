@@ -64,6 +64,24 @@ function curvyCandidate(): DestinationCandidate {
   );
 }
 
+function threeVertexPath(): DestinationCandidate {
+  const mid = offsetCoordinates(GRANBY, 90, 2);
+  return {
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [mid.longitude, mid.latitude],
+        [TREMBLANT.longitude, TREMBLANT.latitude],
+      ],
+    },
+    segments: [],
+    distanceKm: 170,
+    durationMinutes: 130,
+    waypoints: [],
+  };
+}
+
 describe("createDestinationWaypointSets (FR-002)", () => {
   it("includes a direct corridor and several lateral seeds", () => {
     const sets = createDestinationWaypointSets(GRANBY, TREMBLANT);
@@ -107,6 +125,19 @@ describe("evaluateDestinationCandidate (FR-002)", () => {
     );
 
     expect(evaluation.disproportionateDetour).toBe(true);
+  });
+
+  it("accepts a short road path with only one intermediate vertex", () => {
+    const evaluation = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      threeVertexPath(),
+      { shortestDistanceKm: 170 },
+    );
+
+    expect(evaluation.followsRoadNetwork).toBe(true);
+    expect(evaluation.startsAtStart).toBe(true);
+    expect(evaluation.reachesDestination).toBe(true);
   });
 });
 
@@ -175,6 +206,72 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
       return;
     }
     expect(selection.evaluation.candidate.durationMinutes).toBe(240);
+  });
+
+  it("does not return a 3x detour when a shorter anchored route exists", () => {
+    const triple = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      { ...curvyCandidate(), distanceKm: 540, durationMinutes: 400 },
+      { shortestDistanceKm: 180 },
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [shortest, triple],
+      "curvy",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.distanceKm).toBe(180);
+  });
+
+  it("does not let scenic maximize length up to the detour cap (FR-002)", () => {
+    const nearCap = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      { ...curvyCandidate(), distanceKm: 315, durationMinutes: 250 },
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(styleRankScore("scenic", twistier, 180)).toBeGreaterThan(
+      styleRankScore("scenic", nearCap, 180),
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [shortest, twistier, nearCap],
+      "scenic",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.distanceKm).toBe(210);
+  });
+
+  it("does not rank touring candidates by duration (BR-003)", () => {
+    const slower = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      { ...fastestCandidate(), durationMinutes: 300 },
+      { shortestDistanceKm: 180 },
+    );
+    const faster = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      { ...fastestCandidate(), durationMinutes: 90 },
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(styleRankScore("touring", slower, 180)).toBe(
+      styleRankScore("touring", faster, 180),
+    );
+    expect(styleRankScore("scenic", slower, 180)).toBe(
+      styleRankScore("scenic", faster, 180),
+    );
   });
 
   it("explains a BR-001 miss instead of widening the tolerance", () => {

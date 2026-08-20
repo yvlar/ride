@@ -82,6 +82,8 @@ export async function generateDestinationRide(
   return generateValidatedDestination(
     {
       ...parsed.data,
+      // FR-007 / FR-008 are not applied here; preferences are accepted for
+      // type compatibility with the composed request and ignored until those FRs.
       preferences: parsed.data.preferences ?? {
         avoidHighways: false,
         avoidUnpaved: false,
@@ -122,6 +124,31 @@ async function generateValidatedDestination(
   const candidates = settled.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
+
+  if (candidates.length === 0) {
+    const everyAttemptFailed =
+      settled.length > 0 &&
+      settled.every((result) => result.status === "rejected");
+    return {
+      ok: false,
+      error: everyAttemptFailed
+        ? {
+            code: "PROVIDER_ERROR",
+            message:
+              "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
+            suggestions: ["Réessayez dans quelques instants."],
+          }
+        : {
+            code: "NO_ROUTE_FOUND",
+            message:
+              "Aucun trajet moto n’a pu relier ce départ à cette destination.",
+            suggestions: [
+              "Vérifiez les coordonnées.",
+              "Essayez un autre couple départ / destination.",
+            ],
+          },
+    };
+  }
 
   const preliminary = candidates.map((candidate) =>
     evaluateDestinationCandidate(
