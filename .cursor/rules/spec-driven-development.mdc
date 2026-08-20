@@ -1,0 +1,109 @@
+---
+description: Enforce spec-driven development for the Ride application
+alwaysApply: true
+---
+
+# Spec-Driven Development
+
+The functional source of truth for the Ride application is:
+
+`docs/specs/ride-mvp-spec.md`
+
+Before planning, coding, refactoring, debugging, or reviewing functionality, read the relevant parts of the specification.
+
+## Mandatory Rules
+
+1. Identify the relevant specification requirements before modifying code.
+
+2. Reference requirement IDs such as:
+   - FR-xxx
+   - BR-xxx
+   - NFR-xxx
+
+3. Do not implement behavior that contradicts the specification.
+
+4. If a requested change conflicts with the current specification:
+   - identify the conflict;
+   - explain the impact;
+   - update the specification first;
+   - then implement the code.
+
+5. Do not silently add features that are explicitly outside the MVP scope.
+
+6. Prefer the smallest implementation that fully satisfies the relevant requirements.
+
+7. Keep business rules independent from:
+   - UI frameworks;
+   - map providers;
+   - routing providers;
+   - databases;
+   - external APIs;
+   - infrastructure.
+
+8. Do not couple the Ride domain directly to a specific mapping or routing provider.
+
+9. Add or update tests for the requirements affected by a code change.
+
+10. When possible, tests should reference the requirement ID they validate.
+
+11. Before finishing a task, verify the implementation against the relevant specification requirements.
+
+12. Report any remaining gap between:
+   - the specification;
+   - the implementation;
+   - the tests.
+
+13. When a task targets one functional requirement:
+   - keep that FR as the only delivery target;
+   - map its explicitly referenced and actually applicable BR/NFR requirements before implementation;
+   - do not silently expand the task to another FR;
+   - stop after the target FR is delivered instead of continuing with the next requirement.
+
+14. For the reusable end-to-end FR workflow, use `.cursor/commands/implement-fr.md` through `/implement-fr FR-xxx`.
+
+## Planning Workflow
+
+Before implementation:
+
+1. Read the relevant specification sections.
+2. List the requirement IDs involved.
+3. Inspect the current implementation.
+4. Identify gaps between the code and the specification.
+5. Produce the smallest implementation plan possible.
+6. Avoid modifying unrelated functionality.
+
+## Implementation Workflow
+
+During implementation:
+
+1. Implement only the approved scope.
+2. Preserve Clean Code principles.
+3. Preserve separation of concerns.
+4. Keep domain logic independent from infrastructure.
+5. Reuse existing code when appropriate.
+6. Avoid unnecessary abstractions.
+7. Add or modify tests for affected requirements.
+
+## Verification Workflow
+
+Before declaring the task complete:
+
+1. Run the relevant tests.
+2. Verify each affected requirement.
+3. Check for regressions.
+4. Confirm that no out-of-scope functionality was introduced.
+5. Report the requirement IDs implemented or modified.
+
+## Specification Changes
+
+The specification may evolve.
+
+When changing behavior:
+
+1. update the specification;
+2. update affected requirement IDs or add new ones;
+3. update implementation;
+4. update tests;
+5. ensure all three remain synchronized.
+
+The specification is the functional contract of the Ride application.
