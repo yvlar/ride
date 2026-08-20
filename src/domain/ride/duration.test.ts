@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { durationToEstimatedDistanceKm, resolveTargetDistanceKm } from "./duration";
+import {
+  durationToEstimatedDistanceKm,
+  hoursToMinutes,
+  resolveTargetDistanceKm,
+} from "./duration";
 
 describe("durationToEstimatedDistanceKm (BR-005)", () => {
   it("uses a lower average speed for curvy than for touring", () => {
-    const hours = 2 * 60;
+    const hours = hoursToMinutes(2);
     const curvy = durationToEstimatedDistanceKm(hours, "curvy");
     const scenic = durationToEstimatedDistanceKm(hours, "scenic");
     const touring = durationToEstimatedDistanceKm(hours, "touring");

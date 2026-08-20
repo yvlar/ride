@@ -1,6 +1,8 @@
 import { AVERAGE_SPEED_KMH } from "./constants";
 import type { RideStyle } from "./types";
 
+export { AVERAGE_SPEED_KMH };
+
 /** BR-005 — convert an available duration into an estimated target distance. */
 export function durationToEstimatedDistanceKm(
   durationMinutes: number,
@@ -25,4 +27,8 @@ export function resolveTargetDistanceKm(input: {
     );
   }
   return undefined;
+}
+
+export function hoursToMinutes(hours: number): number {
+  return hours * 60;
 }
