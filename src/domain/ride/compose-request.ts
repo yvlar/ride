@@ -1,4 +1,4 @@
-import { estimateDistanceKmFromDuration } from "@/domain/ride/duration";
+import { durationToEstimatedDistanceKm } from "@/domain/ride/duration";
 import type {
   GenerateRideRequest,
   RideFormError,
@@ -68,7 +68,7 @@ export function composeRideRequest(
   const targetDistanceKm = hasDistance
     ? distanceInput
     : hasDuration
-      ? estimateDistanceKmFromDuration(durationInput, input.style)
+      ? durationToEstimatedDistanceKm(durationInput, input.style)
       : undefined;
 
   const availableDurationMinutes = hasDuration ? durationInput : undefined;

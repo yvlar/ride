@@ -1,24 +1,32 @@
-import type { RideStyle } from "@/domain/ride/types";
+import { AVERAGE_SPEED_KMH } from "./constants";
+import type { RideStyle } from "./types";
 
-/**
- * Average speeds used to convert an available duration into a target
- * distance (BR-005). Adjust these constants without changing adapters.
- */
-export const AVERAGE_SPEED_KMH: Record<RideStyle, number> = {
-  curvy: 55,
-  scenic: 70,
-  touring: 85,
-};
+export { AVERAGE_SPEED_KMH };
 
-export function estimateDistanceKmFromDuration(
+/** BR-005 — convert an available duration into an estimated target distance. */
+export function durationToEstimatedDistanceKm(
   durationMinutes: number,
-  style: RideStyle,
+  style: RideStyle = "touring",
 ): number {
-  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-    throw new Error("availableDurationMinutes must be a positive number");
-  }
+  const speedKmh = AVERAGE_SPEED_KMH[style];
+  return (durationMinutes / 60) * speedKmh;
+}
 
-  return (durationMinutes / 60) * AVERAGE_SPEED_KMH[style];
+export function resolveTargetDistanceKm(input: {
+  targetDistanceKm?: number;
+  availableDurationMinutes?: number;
+  style?: RideStyle;
+}): number | undefined {
+  if (input.targetDistanceKm !== undefined) {
+    return input.targetDistanceKm;
+  }
+  if (input.availableDurationMinutes !== undefined) {
+    return durationToEstimatedDistanceKm(
+      input.availableDurationMinutes,
+      input.style ?? "touring",
+    );
+  }
+  return undefined;
 }
 
 export function hoursToMinutes(hours: number): number {

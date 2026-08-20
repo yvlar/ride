@@ -20,5 +20,7 @@ export function summarizeRideRequest(request: GenerateRideRequest): string {
   const destination =
     request.type === "loop" ? "" : ` vers ${request.destination.label}`;
 
-  return `Demande prête : ${RIDE_TYPE_LABELS[request.type].toLowerCase()}${distance} au départ de ${request.start.label}${destination}, style ${RIDE_STYLE_LABELS[request.style].toLowerCase()}.`;
+  const style = request.style ?? "scenic";
+
+  return `Demande prête : ${RIDE_TYPE_LABELS[request.type].toLowerCase()}${distance} au départ de ${request.start.label}${destination}, style ${RIDE_STYLE_LABELS[style].toLowerCase()}.`;
 }
