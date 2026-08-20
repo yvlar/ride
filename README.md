@@ -238,6 +238,8 @@ npm run dev
 
 L’application démarre sur [http://localhost:3000](http://localhost:3000). Sans clés externes, le fournisseur de routage simulé (`ROUTING_PROVIDER=mock`) est utilisé.
 
+Le projet Vercel `yvlars-projects/ride` est lié au dépôt GitHub. Les poussées vers `main` déploient la production; les autres branches créent des previews. `ROUTING_PROVIDER=mock` est défini pour Development, Preview et Production. Les clés de routage et de carte restent optionnelles jusqu’à l’intégration d’un fournisseur réel.
+
 Commandes utiles :
 
 | Commande | Rôle |
