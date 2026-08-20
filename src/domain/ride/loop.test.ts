@@ -24,6 +24,23 @@ function candidateFromGeometry(
   };
 }
 
+function densify(geometry: LineString, pointsPerSegment = 3): LineString {
+  const coordinates: LineString["coordinates"] = [];
+  for (let index = 0; index < geometry.coordinates.length - 1; index += 1) {
+    const from = geometry.coordinates[index];
+    const to = geometry.coordinates[index + 1];
+    for (let step = 0; step < pointsPerSegment; step += 1) {
+      const t = step / pointsPerSegment;
+      coordinates.push([
+        from[0] + (to[0] - from[0]) * t,
+        from[1] + (to[1] - from[1]) * t,
+      ]);
+    }
+  }
+  coordinates.push(geometry.coordinates[geometry.coordinates.length - 1]);
+  return { type: "LineString", coordinates };
+}
+
 describe("createLoopWaypointSets (FR-001)", () => {
   it("seeds several non-circular waypoint rings around the start", () => {
     const sets = createLoopWaypointSets(GRANBY, 80);
@@ -38,7 +55,8 @@ describe("createLoopWaypointSets (FR-001)", () => {
 
 describe("evaluateLoopCandidate (FR-001)", () => {
   it("rejects a perfect geometric circle as an unacceptable loop", () => {
-    const circle = createCircleLineString(GRANBY, 12, 36);
+    const center = offsetCoordinates(GRANBY, 90, 12);
+    const circle = createCircleLineString(center, 12, 36, 270);
     const evaluation = evaluateLoopCandidate(
       GRANBY,
       80,
@@ -53,34 +71,21 @@ describe("evaluateLoopCandidate (FR-001)", () => {
     const east = offsetCoordinates(GRANBY, 90, 10);
     const northEast = offsetCoordinates(east, 0, 10);
     const north = offsetCoordinates(GRANBY, 0, 10);
-    const extra = offsetCoordinates(GRANBY, 90, 5);
-    const geometry: LineString = {
+    const geometry: LineString = densify({
       type: "LineString",
       coordinates: [
         [GRANBY.longitude, GRANBY.latitude],
-        [extra.longitude, extra.latitude],
         [east.longitude, east.latitude],
         [northEast.longitude, northEast.latitude],
         [north.longitude, north.latitude],
         [GRANBY.longitude, GRANBY.latitude],
       ],
-    };
-    // Pad with interpolated points so the trace looks like a road network.
-    const dense: LineString = {
-      type: "LineString",
-      coordinates: geometry.coordinates.flatMap((point, index, all) => {
-        const next = all[index + 1];
-        if (!next) {
-          return [point];
-        }
-        return [point, [(point[0] + next[0]) / 2, (point[1] + next[1]) / 2]];
-      }),
-    };
+    });
 
     const evaluation = evaluateLoopCandidate(
       GRANBY,
       40,
-      candidateFromGeometry(dense, 40),
+      candidateFromGeometry(geometry, 40),
     );
 
     expect(evaluation.isClosed).toBe(true);
@@ -94,7 +99,7 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
     const east = offsetCoordinates(GRANBY, 90, 20);
     const northEast = offsetCoordinates(east, 0, 20);
     const north = offsetCoordinates(GRANBY, 0, 20);
-    const loopGeometry: LineString = {
+    const loopGeometry = densify({
       type: "LineString",
       coordinates: [
         [GRANBY.longitude, GRANBY.latitude],
@@ -103,36 +108,16 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
         [north.longitude, north.latitude],
         [GRANBY.longitude, GRANBY.latitude],
       ],
-    };
-    const paddedLoop: LineString = {
-      type: "LineString",
-      coordinates: Array.from({ length: 12 }, (_, index) => {
-        const points = loopGeometry.coordinates;
-        const segment = index % (points.length - 1);
-        const t = (index % 3) / 3;
-        const from = points[segment];
-        const to = points[segment + 1];
-        return [
-          from[0] + (to[0] - from[0]) * t,
-          from[1] + (to[1] - from[1]) * t,
-        ];
-      }).concat([loopGeometry.coordinates[0]]),
-    };
+    });
 
-    const outAndBack: LineString = {
+    const outAndBack = densify({
       type: "LineString",
       coordinates: [
         [GRANBY.longitude, GRANBY.latitude],
         [east.longitude, east.latitude],
         [GRANBY.longitude, GRANBY.latitude],
-        [east.longitude, east.latitude],
-        [GRANBY.longitude, GRANBY.latitude],
-        [east.longitude, east.latitude],
-        [GRANBY.longitude, GRANBY.latitude],
-        [east.longitude, east.latitude],
-        [GRANBY.longitude, GRANBY.latitude],
       ],
-    };
+    });
 
     const selection = selectBestLoopCandidate(
       [
@@ -144,7 +129,7 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
         evaluateLoopCandidate(
           GRANBY,
           80,
-          candidateFromGeometry(paddedLoop, 80),
+          candidateFromGeometry(loopGeometry, 80),
         ),
       ],
       80,
@@ -161,17 +146,16 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
     const east = offsetCoordinates(GRANBY, 90, 30);
     const northEast = offsetCoordinates(east, 0, 30);
     const north = offsetCoordinates(GRANBY, 0, 30);
-    const geometry: LineString = {
+    const geometry = densify({
       type: "LineString",
       coordinates: [
         [GRANBY.longitude, GRANBY.latitude],
         [east.longitude, east.latitude],
         [northEast.longitude, northEast.latitude],
         [north.longitude, north.latitude],
-        [offsetCoordinates(GRANBY, 270, 10).longitude, GRANBY.latitude],
         [GRANBY.longitude, GRANBY.latitude],
       ],
-    };
+    });
 
     const selection = selectBestLoopCandidate(
       [

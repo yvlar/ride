@@ -1,5 +1,5 @@
 import { haversineKm, positionToCoordinates } from "@/domain/geo/distance";
-import type { LineString } from "@/domain/geo/types";
+import type { Coordinates, LineString } from "@/domain/geo/types";
 import { OVERLAP_CELL_KM } from "./constants";
 
 type EdgeUsage = {
@@ -12,14 +12,10 @@ type AccumulatedEdges = {
   totalKm: number;
 };
 
-function toLocalKm(
-  origin: { latitude: number; longitude: number },
-  point: { latitude: number; longitude: number },
-) {
-  const latitudeMid = ((origin.latitude + point.latitude) / 2) * (Math.PI / 180);
+function toLocalKm(point: Coordinates) {
   return {
-    east: (point.longitude - origin.longitude) * 111.32 * Math.cos(latitudeMid),
-    north: (point.latitude - origin.latitude) * 111.32,
+    east: point.longitude * 111.32 * Math.cos(point.latitude * (Math.PI / 180)),
+    north: point.latitude * 111.32,
   };
 }
 
@@ -27,23 +23,45 @@ function quantize(valueKm: number): number {
   return Math.round(valueKm / OVERLAP_CELL_KM);
 }
 
-function undirectedEdgeKey(
-  origin: { latitude: number; longitude: number },
-  from: { latitude: number; longitude: number },
-  to: { latitude: number; longitude: number },
-): string {
-  const a = toLocalKm(origin, from);
-  const b = toLocalKm(origin, to);
+function undirectedEdgeKey(from: Coordinates, to: Coordinates): string {
+  const a = toLocalKm(from);
+  const b = toLocalKm(to);
   const aKey = `${quantize(a.east)},${quantize(a.north)}`;
   const bKey = `${quantize(b.east)},${quantize(b.north)}`;
   return aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
 }
 
+function interpolate(
+  from: Coordinates,
+  to: Coordinates,
+  t: number,
+): Coordinates {
+  return {
+    latitude: from.latitude + (to.latitude - from.latitude) * t,
+    longitude: from.longitude + (to.longitude - from.longitude) * t,
+  };
+}
+
+function addEdge(
+  usageByEdge: Map<string, EdgeUsage>,
+  from: Coordinates,
+  to: Coordinates,
+): number {
+  const lengthKm = haversineKm(from, to);
+  if (lengthKm === 0) {
+    return 0;
+  }
+
+  const key = undirectedEdgeKey(from, to);
+  const current = usageByEdge.get(key) ?? { count: 0, lengthKm: 0 };
+  usageByEdge.set(key, {
+    count: current.count + 1,
+    lengthKm: current.lengthKm + lengthKm,
+  });
+  return lengthKm;
+}
+
 function accumulateEdges(geometry: LineString): AccumulatedEdges {
-  const first = geometry.coordinates[0];
-  const origin = first
-    ? positionToCoordinates(first)
-    : { latitude: 0, longitude: 0 };
   const usageByEdge = new Map<string, EdgeUsage>();
   let totalKm = 0;
 
@@ -51,17 +69,14 @@ function accumulateEdges(geometry: LineString): AccumulatedEdges {
     const from = positionToCoordinates(geometry.coordinates[index - 1]);
     const to = positionToCoordinates(geometry.coordinates[index]);
     const lengthKm = haversineKm(from, to);
-    if (lengthKm === 0) {
-      continue;
-    }
+    const steps = Math.max(1, Math.round(lengthKm / OVERLAP_CELL_KM));
 
-    totalKm += lengthKm;
-    const key = undirectedEdgeKey(origin, from, to);
-    const current = usageByEdge.get(key) ?? { count: 0, lengthKm: 0 };
-    usageByEdge.set(key, {
-      count: current.count + 1,
-      lengthKm: current.lengthKm + lengthKm,
-    });
+    let previous = from;
+    for (let step = 1; step <= steps; step += 1) {
+      const current = interpolate(from, to, step / steps);
+      totalKm += addEdge(usageByEdge, previous, current);
+      previous = current;
+    }
   }
 
   return { usageByEdge, totalKm };
@@ -80,7 +95,7 @@ export function measureRepeatedRoadPercent(geometry: LineString): number {
   let repeatedKm = 0;
   for (const usage of usageByEdge.values()) {
     if (usage.count > 1) {
-      repeatedKm += usage.lengthKm * ((usage.count - 1) / usage.count);
+      repeatedKm += usage.lengthKm;
     }
   }
 

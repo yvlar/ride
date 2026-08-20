@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { radiusCoefficientOfVariation, createCircleLineString } from "./geometry";
-import type { Coordinates } from "./types";
+import type { Coordinates, LineString } from "./types";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
 
@@ -11,8 +11,8 @@ describe("radiusCoefficientOfVariation", () => {
   });
 
   it("is higher for a rectangular path", () => {
-    const rectangle = {
-      type: "LineString" as const,
+    const rectangle: LineString = {
+      type: "LineString",
       coordinates: [
         [-72.734, 45.403],
         [-72.5, 45.403],

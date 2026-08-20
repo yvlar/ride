@@ -8,8 +8,10 @@ export type DistanceBoundsKm = {
 /** BR-001 — ±10 % around the requested or estimated distance. */
 export function distanceBoundsKm(targetDistanceKm: number): DistanceBoundsKm {
   return {
-    minDistanceKm: targetDistanceKm * (1 - DISTANCE_TOLERANCE_PERCENT / 100),
-    maxDistanceKm: targetDistanceKm * (1 + DISTANCE_TOLERANCE_PERCENT / 100),
+    minDistanceKm:
+      (targetDistanceKm * (100 - DISTANCE_TOLERANCE_PERCENT)) / 100,
+    maxDistanceKm:
+      (targetDistanceKm * (100 + DISTANCE_TOLERANCE_PERCENT)) / 100,
   };
 }
 

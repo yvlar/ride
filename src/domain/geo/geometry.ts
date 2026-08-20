@@ -56,10 +56,11 @@ export function createCircleLineString(
   center: Coordinates,
   radiusKm: number,
   pointCount: number,
+  startBearingDeg = 0,
 ): LineString {
   const coordinates: LineString["coordinates"] = [];
   for (let index = 0; index <= pointCount; index += 1) {
-    const bearing = (360 * index) / pointCount;
+    const bearing = startBearingDeg + (360 * index) / pointCount;
     const point = offsetCoordinates(center, bearing, radiusKm);
     coordinates.push([point.longitude, point.latitude]);
   }
