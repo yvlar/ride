@@ -16,7 +16,9 @@ const optionalSecret = z.preprocess(
 export const envSchema = z.object({
   ROUTING_PROVIDER: z.preprocess(
     emptyToUndefined,
-    z.enum(["mock", "graphhopper", "valhalla", "osrm"]).default("mock"),
+    z.enum(["mock", "ai-rag", "graphhopper", "valhalla", "osrm"]).default(
+      "ai-rag",
+    ),
   ),
   ROUTING_API_BASE_URL: optionalUrl,
   ROUTING_API_KEY: optionalSecret,

@@ -56,11 +56,12 @@ Le domaine ne doit pas supposer que le projet utilise de façon permanente :
 - GraphHopper;
 - Valhalla;
 - OSRM;
+- un index RAG, un modèle de langage ou un corpus nommé;
 - ni tout autre fournisseur spécifique de carte, de géocodage ou de routage.
 
 Les fournisseurs sont des **détails d’implémentation**. Ils sont accessibles uniquement via des adaptateurs remplaçables. Un changement de fournisseur ne doit pas obliger à réécrire les règles métier.
 
-Cette règle s’applique également aux tuiles, au géocodage et à toute API externe utilisée pour afficher ou calculer un trajet.
+Cette règle s’applique également aux tuiles, au géocodage, à un pipeline RAG et à toute API externe utilisée pour afficher ou calculer un trajet.
 
 ---
 
@@ -232,7 +233,7 @@ La génération doit :
 
 Le MVP affiche **un trajet principal** à la fois. La comparaison de plusieurs variantes simultanées n’est pas requise dans ce périmètre.
 
-Le domaine évalue les candidats. Le fournisseur de routage calcule des chemins; il ne décide pas des règles métier.
+Le domaine évalue les candidats. Le fournisseur de routage calcule des chemins; il ne décide pas des règles métier. Un adaptateur RAG récupère des corridors connus puis compose un tracé : il reste un calculateur de chemins, pas un moteur de règles.
 
 ### FR-012 — Régénération
 
@@ -428,6 +429,14 @@ Le flux principal de configuration d’un trajet est prévu **avant** de rouler.
 
 Les fournisseurs de carte et de routage doivent pouvoir être remplacés sans réécrire les règles métier. Toute intégration passe par une interface interne. Le domaine ne référence pas un fournisseur nommé.
 
+L’adaptateur de routage du MVP est un pipeline RAG :
+
+1. récupérer des corridors routiers connus dans une base de connaissances;
+2. générer un chemin **uniquement** à partir des documents récupérés (aucune coordonnée inventée hors corpus);
+3. renvoyer la géométrie, les segments, la distance et la durée.
+
+Ce pipeline est un détail d’infrastructure. Il ne constitue pas une fonctionnalité de recommandation de sorties. Un remplacement par un moteur de graphe routier reste possible via la même interface interne.
+
 ---
 
 ## 14. Hors périmètre du MVP
@@ -438,7 +447,7 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - sorties de groupe;
 - suivi de motocyclistes;
 - météo;
-- recommandations de trajets par intelligence artificielle;
+- recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’adaptateur de routage RAG qui calcule un chemin à la demande);
 - profils de motos;
 - automatisation des arrêts carburant;
 - import / export GPX;
