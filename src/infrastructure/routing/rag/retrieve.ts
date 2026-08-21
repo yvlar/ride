@@ -45,19 +45,38 @@ export function buildRouteRetrievalQuery(input: ProviderRouteRequest): string {
   return `${kind} moto paved ${styleTerms[style]}`;
 }
 
+function relativeLongitude(longitude: number, originLongitude: number): number {
+  let delta = longitude - originLongitude;
+  while (delta > 180) {
+    delta -= 360;
+  }
+  while (delta < -180) {
+    delta += 360;
+  }
+  return delta;
+}
+
 function requestBBox(stops: Coordinates[]): {
   minLat: number;
   maxLat: number;
-  minLon: number;
-  maxLon: number;
-} {
+  minRelLon: number;
+  maxRelLon: number;
+  originLon: number;
+} | null {
+  const origin = stops[0];
+  if (!origin) {
+    return null;
+  }
   const lats = stops.map((stop) => stop.latitude);
-  const lons = stops.map((stop) => stop.longitude);
+  const relLons = stops.map((stop) =>
+    relativeLongitude(stop.longitude, origin.longitude),
+  );
   return {
     minLat: Math.min(...lats) - SPATIAL_PAD_DEG,
     maxLat: Math.max(...lats) + SPATIAL_PAD_DEG,
-    minLon: Math.min(...lons) - SPATIAL_PAD_DEG,
-    maxLon: Math.max(...lons) + SPATIAL_PAD_DEG,
+    minRelLon: Math.min(...relLons) - SPATIAL_PAD_DEG,
+    maxRelLon: Math.max(...relLons) + SPATIAL_PAD_DEG,
+    originLon: origin.longitude,
   };
 }
 
@@ -65,16 +84,17 @@ export function isSpatiallyRelevant(
   document: RouteKnowledgeDocument,
   stops: Coordinates[],
 ): boolean {
-  if (stops.length === 0) {
+  const box = requestBBox(stops);
+  if (!box) {
     return false;
   }
-  const box = requestBBox(stops);
   const { latitude, longitude } = document.midpoint;
+  const relLon = relativeLongitude(longitude, box.originLon);
   return (
     latitude >= box.minLat &&
     latitude <= box.maxLat &&
-    longitude >= box.minLon &&
-    longitude <= box.maxLon
+    relLon >= box.minRelLon &&
+    relLon <= box.maxRelLon
   );
 }
 

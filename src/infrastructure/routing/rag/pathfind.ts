@@ -8,6 +8,87 @@ type AdjEdge = {
   document: RouteKnowledgeDocument;
 };
 
+type HeapItem = {
+  key: string;
+  dist: number;
+};
+
+class MinHeap {
+  private readonly items: HeapItem[] = [];
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  push(item: HeapItem): void {
+    this.items.push(item);
+    this.bubbleUp(this.items.length - 1);
+  }
+
+  pop(): HeapItem | undefined {
+    const top = this.items[0];
+    const last = this.items.pop();
+    if (top === undefined || last === undefined) {
+      return undefined;
+    }
+    if (this.items.length > 0) {
+      this.items[0] = last;
+      this.sink(0);
+    }
+    return top;
+  }
+
+  private bubbleUp(index: number): void {
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      const currentItem = this.items[index];
+      const parentItem = this.items[parent];
+      if (!currentItem || !parentItem || currentItem.dist >= parentItem.dist) {
+        return;
+      }
+      this.items[index] = parentItem;
+      this.items[parent] = currentItem;
+      index = parent;
+    }
+  }
+
+  private sink(index: number): void {
+    const length = this.items.length;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      let smallest = index;
+      if (
+        left < length &&
+        this.items[left] &&
+        this.items[smallest] &&
+        this.items[left].dist < this.items[smallest].dist
+      ) {
+        smallest = left;
+      }
+      if (
+        right < length &&
+        this.items[right] &&
+        this.items[smallest] &&
+        this.items[right].dist < this.items[smallest].dist
+      ) {
+        smallest = right;
+      }
+      if (smallest === index) {
+        return;
+      }
+      const currentItem = this.items[index];
+      const smallestItem = this.items[smallest];
+      if (!currentItem || !smallestItem) {
+        return;
+      }
+      this.items[index] = smallestItem;
+      this.items[smallest] = currentItem;
+      index = smallest;
+    }
+  }
+}
+
 function edgePenalty(
   document: RouteKnowledgeDocument,
   score: number,
@@ -50,7 +131,12 @@ function buildAdjacency(
 ): Map<string, AdjEdge[]> {
   const adj = new Map<string, AdjEdge[]>();
 
-  const add = (from: GridCell, to: GridCell, cost: number, document: RouteKnowledgeDocument) => {
+  const add = (
+    from: GridCell,
+    to: GridCell,
+    cost: number,
+    document: RouteKnowledgeDocument,
+  ) => {
     const key = cellKey(from);
     const edges = adj.get(key) ?? [];
     edges.push({ to, cost, document });
@@ -66,23 +152,6 @@ function buildAdjacency(
     add(document.toCell, document.fromCell, penalty, document);
   }
   return adj;
-}
-
-function popMin(
-  heap: { key: string; dist: number }[],
-): { key: string; dist: number } | undefined {
-  if (heap.length === 0) {
-    return undefined;
-  }
-  let bestIndex = 0;
-  for (let index = 1; index < heap.length; index += 1) {
-    const candidate = heap[index];
-    const best = heap[bestIndex];
-    if (candidate && best && candidate.dist < best.dist) {
-      bestIndex = index;
-    }
-  }
-  return heap.splice(bestIndex, 1)[0];
 }
 
 /**
@@ -112,11 +181,12 @@ export function pathfindOnRetrieved(
     string,
     { from: string; document: RouteKnowledgeDocument }
   >();
-  const heap: { key: string; dist: number }[] = [{ key: startKey, dist: 0 }];
+  const heap = new MinHeap();
+  heap.push({ key: startKey, dist: 0 });
   const seen = new Set<string>();
 
-  while (heap.length > 0) {
-    const current = popMin(heap);
+  while (heap.size > 0) {
+    const current = heap.pop();
     if (!current || seen.has(current.key)) {
       continue;
     }

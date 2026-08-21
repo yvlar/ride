@@ -4,7 +4,13 @@ import type { GridCell, RouteKnowledgeDocument } from "./types";
 import { undirectedEdgeId } from "./types";
 
 export const DEFAULT_CELL_KM = 2;
+export const MAX_SPAN_CELLS = 250;
 const GRID_PADDING_CELLS = 2;
+const HIGHWAY_PHASE = 4;
+
+function mod(value: number, modulus: number): number {
+  return ((value % modulus) + modulus) % modulus;
+}
 
 export function toCell(
   point: Coordinates,
@@ -46,16 +52,17 @@ function edgeKind(from: GridCell, to: GridCell): EdgeKind {
   const axis = from.x === to.x ? "ns" : "ew";
   const along = axis === "ew" ? Math.min(from.x, to.x) : Math.min(from.y, to.y);
   const across = axis === "ew" ? from.y : from.x;
-  if (across % 8 === 0) {
+  // Offset so the request origin (0,0) is not a motorway junction.
+  if (mod(across + HIGHWAY_PHASE, 8) === 0) {
     return "highway";
   }
-  if ((along + across) % 5 === 0) {
+  if (mod(along + across, 5) === 0) {
     return "unpaved";
   }
-  if ((along + across) % 3 === 0) {
+  if (mod(along + across, 3) === 0) {
     return "scenic";
   }
-  if ((along + across) % 2 === 0) {
+  if (mod(along + across, 2) === 0) {
     return "curvy";
   }
   return "touring";
@@ -98,31 +105,31 @@ const EDGE_META: Record<
   }
 > = {
   highway: {
-    text: "autoroute highway touring motorway paved rapide",
+    text: "boucle destination autoroute highway touring motorway paved rapide",
     roadName: "Autoroute",
     roadClass: "motorway",
     surface: "paved",
   },
   unpaved: {
-    text: "unpaved gravel non pave forest adventure",
+    text: "boucle destination unpaved gravel non pave forest adventure",
     roadName: "Chemin forestier",
     roadClass: "unclassified",
     surface: "unpaved",
   },
   scenic: {
-    text: "scenic panoramique rural valley lac village secondary paved",
+    text: "boucle destination scenic panoramique rural valley lac village secondary paved",
     roadName: "Rang panoramique",
     roadClass: "secondary",
     surface: "paved",
   },
   curvy: {
-    text: "curvy sinueux ridge cretes secondary paved elevation",
+    text: "boucle destination curvy sinueux ridge cretes secondary paved elevation",
     roadName: "Route sinueuse",
     roadClass: "secondary",
     surface: "paved",
   },
   touring: {
-    text: "touring confort fluide secondary paved rolling",
+    text: "boucle destination touring confort fluide secondary paved rolling",
     roadName: "Route de traverse",
     roadClass: "secondary",
     surface: "paved",
@@ -133,6 +140,20 @@ const EDGE_META: Record<
  * Local 4-connected road graph around the request. Each edge is a knowledge
  * document with real grid geometry (NFR-005) — never a scaled curve.
  */
+export function localGridSpanCells(
+  origin: Coordinates,
+  stops: Coordinates[],
+  cellKm = DEFAULT_CELL_KM,
+): { width: number; height: number } {
+  const cells = stops.map((stop) => toCell(stop, origin, cellKm));
+  const xs = cells.map((cell) => cell.x);
+  const ys = cells.map((cell) => cell.y);
+  return {
+    width: Math.max(...xs) - Math.min(...xs) + 2 * GRID_PADDING_CELLS,
+    height: Math.max(...ys) - Math.min(...ys) + 2 * GRID_PADDING_CELLS,
+  };
+}
+
 export function buildLocalRoadIndex(
   origin: Coordinates,
   stops: Coordinates[],

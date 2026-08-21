@@ -9,7 +9,6 @@ import { createRoutingProvider } from "../create-routing-provider";
 import { composeRetrievedRoute } from "./compose";
 import { buildLocalRoadIndex } from "./local-road-index";
 import { RagRoutingProvider } from "./rag-routing-provider";
-import { RoutingKnowledgeError } from "./routing-knowledge-error";
 import {
   undirectedEdgeId,
   type CorridorRetriever,
@@ -57,12 +56,12 @@ function isMostlyRectilinear(coordinates: [number, number][]): boolean {
   return axisAligned / Math.max(1, coordinates.length - 1) > 0.8;
 }
 
-function motorwayShare(segments: { roadClass?: string }[]): number {
+function sinuousShare(segments: { roadName?: string }[]): number {
   if (segments.length === 0) {
     return 0;
   }
   return (
-    segments.filter((segment) => segment.roadClass === "motorway").length /
+    segments.filter((segment) => segment.roadName === "Route sinueuse").length /
     segments.length
   );
 }
@@ -175,7 +174,7 @@ describe("RagRoutingProvider", () => {
         start: GRANBY,
         destination: TREMBLANT,
       }),
-    ).rejects.toBeInstanceOf(RoutingKnowledgeError);
+    ).rejects.toMatchObject({ reason: "empty" });
   });
 
   it("rejects a corpus anchored far from the request (NFR-005)", async () => {
@@ -186,7 +185,74 @@ describe("RagRoutingProvider", () => {
         start: GRANBY,
         destination: TREMBLANT,
       }),
-    ).rejects.toBeInstanceOf(RoutingKnowledgeError);
+    ).rejects.toMatchObject({ reason: "empty" });
+  });
+
+  it("does not place the origin on a motorway junction", () => {
+    const nearby = offsetCoordinates(GRANBY, 90, 4);
+    const originEdges = buildLocalRoadIndex(GRANBY, [GRANBY, nearby]).filter(
+      (document) =>
+        (document.fromCell.x === 0 && document.fromCell.y === 0) ||
+        (document.toCell.x === 0 && document.toCell.y === 0),
+    );
+
+    expect(originEdges.length).toBeGreaterThan(0);
+    expect(
+      originEdges.every((document) => document.roadClass !== "motorway"),
+    ).toBe(true);
+  });
+
+  it("names the unpaved preference when it isolates the start (FR-021)", async () => {
+    const destination = offsetCoordinates(GRANBY, 90, 4);
+    const allowed = new Set([
+      undirectedEdgeId({ x: 0, y: 0 }, { x: 1, y: 0 }),
+      undirectedEdgeId({ x: 1, y: 0 }, { x: 2, y: 0 }),
+    ]);
+    const retriever: CorridorRetriever = {
+      retrieve: async ({ documents }) =>
+        documents
+          .filter((document) => allowed.has(document.id))
+          .map((document) => ({
+            document: { ...document, surface: "unpaved" },
+            score: 2,
+          })),
+    };
+    const provider = new RagRoutingProvider(retriever);
+
+    await expect(
+      provider.calculateRoute({
+        start: GRANBY,
+        destination,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      }),
+    ).rejects.toMatchObject({ reason: "unpaved" });
+  });
+
+  it("rejects a request whose bbox exceeds the indexable grid (FR-021)", async () => {
+    const provider = new RagRoutingProvider();
+    const far = offsetCoordinates(GRANBY, 90, 600);
+
+    await expect(
+      provider.calculateRoute({
+        start: GRANBY,
+        destination: far,
+      }),
+    ).rejects.toMatchObject({ reason: "too_far" });
+  });
+
+  it("routes a long diagonal without timing out the serverless budget", async () => {
+    const provider = new RagRoutingProvider();
+    const destination = offsetCoordinates(GRANBY, 45, 400);
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination,
+      style: "touring",
+    });
+
+    expect(result.distanceKm).toBeGreaterThan(400);
+    expect(
+      result.distanceKm / haversineKm(GRANBY, destination),
+    ).toBeLessThanOrEqual(1.75);
   });
 
   it("lets ride style change the corridor ranking (FR-004, FR-006)", async () => {
@@ -203,8 +269,8 @@ describe("RagRoutingProvider", () => {
       style: "touring",
     });
 
-    expect(motorwayShare(curvy.segments)).toBeLessThanOrEqual(
-      motorwayShare(touring.segments),
+    expect(sinuousShare(curvy.segments)).toBeGreaterThan(
+      sinuousShare(touring.segments),
     );
     expect(curvy.geometry.coordinates).not.toEqual(touring.geometry.coordinates);
   });
@@ -305,7 +371,7 @@ describe("RAG generation through application services", () => {
       return;
     }
     expect(result.error.code).toBe("NO_ROUTE_FOUND");
-    expect(result.error.message).toMatch(/FR-021/);
+    expect(result.error.message).toMatch(/près de cette demande/);
     expect(result.error.suggestions.length).toBeGreaterThan(0);
   });
 
@@ -325,7 +391,7 @@ describe("RAG generation through application services", () => {
       return;
     }
     expect(result.error.code).toBe("NO_ROUTE_FOUND");
-    expect(result.error.message).toMatch(/FR-021/);
+    expect(result.error.message).toMatch(/près de cette demande/);
     expect(result.error.suggestions.length).toBeGreaterThan(0);
   });
 });

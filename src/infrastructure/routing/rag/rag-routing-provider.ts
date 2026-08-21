@@ -1,3 +1,4 @@
+import type { RoutePreferences } from "@/domain/ride/types";
 import type {
   ProviderRouteRequest,
   ProviderRouteResult,
@@ -7,12 +8,23 @@ import { composeRetrievedRoute } from "./compose";
 import {
   buildLocalRoadIndex,
   DEFAULT_CELL_KM,
+  localGridSpanCells,
+  MAX_SPAN_CELLS,
   toCell,
 } from "./local-road-index";
 import { pathfindOnRetrieved } from "./pathfind";
 import { buildRouteRetrievalQuery, isSpatiallyRelevant, LexicalCorridorRetriever } from "./retrieve";
-import { RoutingKnowledgeError } from "./routing-knowledge-error";
-import type { CorridorRetriever, RouteKnowledgeDocument } from "./types";
+import {
+  disconnectedKnowledgeError,
+  emptyKnowledgeError,
+  tooFarKnowledgeError,
+  unpavedKnowledgeError,
+} from "./routing-knowledge-error";
+import type {
+  CorridorRetriever,
+  RetrievedCorridor,
+  RouteKnowledgeDocument,
+} from "./types";
 
 /**
  * NFR-005 / BR-004 — RAG routing adapter on a local road graph.
@@ -28,6 +40,11 @@ export class RagRoutingProvider implements RoutingProvider {
     input: ProviderRouteRequest,
   ): Promise<ProviderRouteResult> {
     const stops = [input.start, ...(input.waypoints ?? []), input.destination];
+    const span = localGridSpanCells(input.start, stops, this.cellKm);
+    if (span.width > MAX_SPAN_CELLS || span.height > MAX_SPAN_CELLS) {
+      throw tooFarKnowledgeError();
+    }
+
     const documents = buildLocalRoadIndex(input.start, stops, this.cellKm);
     const nearby = await this.retriever.retrieve({
       query: buildRouteRetrievalQuery(input),
@@ -39,7 +56,7 @@ export class RagRoutingProvider implements RoutingProvider {
     );
 
     if (retrieved.length === 0) {
-      throw new RoutingKnowledgeError();
+      throw emptyKnowledgeError();
     }
 
     const style = input.style ?? "touring";
@@ -48,21 +65,48 @@ export class RagRoutingProvider implements RoutingProvider {
       const from = stops[index];
       const to = stops[index + 1];
       if (!from || !to) {
-        throw new RoutingKnowledgeError();
+        throw disconnectedKnowledgeError();
       }
-      const part = pathfindOnRetrieved(
-        toCell(from, input.start, this.cellKm),
-        toCell(to, input.start, this.cellKm),
-        retrieved,
-        style,
-        input.preferences,
+      path.push(
+        ...this.pathBetween(from, to, input.start, retrieved, style, input.preferences),
       );
-      if (part === null) {
-        throw new RoutingKnowledgeError();
-      }
-      path.push(...part);
     }
 
     return composeRetrievedRoute(input.start, input.destination, path);
+  }
+
+  private pathBetween(
+    from: ProviderRouteRequest["start"],
+    to: ProviderRouteRequest["start"],
+    origin: ProviderRouteRequest["start"],
+    retrieved: RetrievedCorridor[],
+    style: NonNullable<ProviderRouteRequest["style"]>,
+    preferences: RoutePreferences | undefined,
+  ): RouteKnowledgeDocument[] {
+    const part = pathfindOnRetrieved(
+      toCell(from, origin, this.cellKm),
+      toCell(to, origin, this.cellKm),
+      retrieved,
+      style,
+      preferences,
+    );
+    if (part !== null) {
+      return part;
+    }
+
+    if (preferences?.avoidUnpaved) {
+      const withoutSurface = pathfindOnRetrieved(
+        toCell(from, origin, this.cellKm),
+        toCell(to, origin, this.cellKm),
+        retrieved,
+        style,
+        { ...preferences, avoidUnpaved: false },
+      );
+      if (withoutSurface !== null) {
+        throw unpavedKnowledgeError();
+      }
+    }
+
+    throw disconnectedKnowledgeError();
   }
 }

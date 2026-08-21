@@ -1,7 +1,20 @@
 import type { RideGenerationError } from "@/domain/ride/types";
-import { isRoutingKnowledgeError } from "@/infrastructure/routing/rag/routing-knowledge-error";
+import {
+  isRoutingKnowledgeError,
+  type RoutingKnowledgeError,
+} from "@/infrastructure/routing/rag/routing-knowledge-error";
 
-export function knowledgeUnavailableError(): RideGenerationError {
+export function knowledgeUnavailableError(
+  error?: RoutingKnowledgeError,
+): RideGenerationError {
+  if (error) {
+    return {
+      code: "NO_ROUTE_FOUND",
+      message: error.message,
+      suggestions: error.suggestions,
+    };
+  }
+
   return {
     code: "NO_ROUTE_FOUND",
     message:
@@ -23,4 +36,18 @@ export function allRejectedAreKnowledge(
         result.status === "rejected" && isRoutingKnowledgeError(result.reason),
     )
   );
+}
+
+export function firstKnowledgeError(
+  settled: PromiseSettledResult<unknown>[],
+): RoutingKnowledgeError | undefined {
+  for (const result of settled) {
+    if (
+      result.status === "rejected" &&
+      isRoutingKnowledgeError(result.reason)
+    ) {
+      return result.reason;
+    }
+  }
+  return undefined;
 }

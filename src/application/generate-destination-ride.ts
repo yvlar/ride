@@ -16,6 +16,7 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   allRejectedAreKnowledge,
+  firstKnowledgeError,
   knowledgeUnavailableError,
 } from "./routing-failure";
 
@@ -133,7 +134,10 @@ async function generateValidatedDestination(
 
   if (candidates.length === 0) {
     if (allRejectedAreKnowledge(settled)) {
-      return { ok: false, error: knowledgeUnavailableError() };
+      return {
+        ok: false,
+        error: knowledgeUnavailableError(firstKnowledgeError(settled)),
+      };
     }
     const everyAttemptFailed =
       settled.length > 0 &&

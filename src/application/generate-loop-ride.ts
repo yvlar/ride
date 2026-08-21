@@ -18,6 +18,7 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   allRejectedAreKnowledge,
+  firstKnowledgeError,
   knowledgeUnavailableError,
 } from "./routing-failure";
 
@@ -135,7 +136,10 @@ async function generateValidatedLoop(
   );
 
   if (evaluations.length === 0 && allRejectedAreKnowledge(settled)) {
-    return { ok: false, error: knowledgeUnavailableError() };
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(firstKnowledgeError(settled)),
+    };
   }
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
