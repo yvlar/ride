@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseEnv } from "./env";
 
 describe("parseEnv", () => {
-  it("defaults to the RAG routing provider when env is empty (NFR-005)", () => {
+  it("defaults to the mock routing provider when env is empty", () => {
     const env = parseEnv({});
 
-    expect(env.ROUTING_PROVIDER).toBe("ai-rag");
+    expect(env.ROUTING_PROVIDER).toBe("mock");
     expect(env.ROUTING_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
@@ -24,7 +24,7 @@ describe("parseEnv", () => {
       NEXT_PUBLIC_MAP_STYLE_URL: "",
     });
 
-    expect(env.ROUTING_PROVIDER).toBe("ai-rag");
+    expect(env.ROUTING_PROVIDER).toBe("mock");
     expect(env.ROUTING_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });

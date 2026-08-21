@@ -17,7 +17,7 @@ export const envSchema = z.object({
   ROUTING_PROVIDER: z.preprocess(
     emptyToUndefined,
     z.enum(["mock", "ai-rag", "graphhopper", "valhalla", "osrm"]).default(
-      "ai-rag",
+      "mock",
     ),
   ),
   ROUTING_API_BASE_URL: optionalUrl,

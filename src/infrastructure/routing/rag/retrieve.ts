@@ -1,13 +1,16 @@
 import { haversineKm } from "@/domain/geo/distance";
+import type { Coordinates } from "@/domain/geo/types";
+import type { RideStyle } from "@/domain/ride/types";
 import type { ProviderRouteRequest } from "@/infrastructure/routing/routing-provider";
-import { MOTORCYCLE_CORRIDOR_CORPUS } from "./corpus";
 import type {
   CorridorRetriever,
   RetrievedCorridor,
+  RetrievalInput,
   RouteKnowledgeDocument,
 } from "./types";
 
 const LOOP_SEPARATION_KM = 1;
+const SPATIAL_PAD_DEG = 0.2;
 
 export function tokenize(text: string): string[] {
   return text
@@ -32,32 +35,64 @@ export function lexicalScore(queryTokens: string[], documentText: string): numbe
 export function buildRouteRetrievalQuery(input: ProviderRouteRequest): string {
   const isLoop =
     haversineKm(input.start, input.destination) < LOOP_SEPARATION_KM;
-  const via =
-    (input.waypoints?.length ?? 0) > 0 ? " via waypoints points de passage" : "";
+  const style = input.style ?? "touring";
+  const styleTerms: Record<RideStyle, string> = {
+    curvy: "curvy sinueux ridge secondary",
+    scenic: "scenic panoramique rural valley lac",
+    touring: "touring confort fluide secondary",
+  };
+  const kind = isLoop ? "boucle" : "destination";
+  return `${kind} moto paved ${styleTerms[style]}`;
+}
 
-  if (isLoop) {
-    return `boucle moto scenic curvy touring secondary paved rural ridge${via}`;
+function requestBBox(stops: Coordinates[]): {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+} {
+  const lats = stops.map((stop) => stop.latitude);
+  const lons = stops.map((stop) => stop.longitude);
+  return {
+    minLat: Math.min(...lats) - SPATIAL_PAD_DEG,
+    maxLat: Math.max(...lats) + SPATIAL_PAD_DEG,
+    minLon: Math.min(...lons) - SPATIAL_PAD_DEG,
+    maxLon: Math.max(...lons) + SPATIAL_PAD_DEG,
+  };
+}
+
+export function isSpatiallyRelevant(
+  document: RouteKnowledgeDocument,
+  stops: Coordinates[],
+): boolean {
+  if (stops.length === 0) {
+    return false;
   }
-
-  return `destination moto scenic curvy touring secondary paved valley rural${via}`;
+  const box = requestBBox(stops);
+  const { latitude, longitude } = document.midpoint;
+  return (
+    latitude >= box.minLat &&
+    latitude <= box.maxLat &&
+    longitude >= box.minLon &&
+    longitude <= box.maxLon
+  );
 }
 
 export class LexicalCorridorRetriever implements CorridorRetriever {
-  constructor(
-    private readonly documents: RouteKnowledgeDocument[] = MOTORCYCLE_CORRIDOR_CORPUS,
-  ) {}
-
-  async retrieve(query: string, limit: number): Promise<RetrievedCorridor[]> {
-    const queryTokens = tokenize(query);
-    const ranked = this.documents
+  async retrieve(input: RetrievalInput): Promise<RetrievedCorridor[]> {
+    const queryTokens = tokenize(input.query);
+    const nearby = input.documents.filter((document) =>
+      isSpatiallyRelevant(document, input.stops),
+    );
+    return nearby
       .map((document) => ({
         document,
         score: lexicalScore(queryTokens, document.text),
       }))
-      .sort((left, right) => right.score - left.score || left.document.id.localeCompare(right.document.id));
-
-    const positive = ranked.filter((entry) => entry.score > 0);
-    const pool = positive.length > 0 ? positive : ranked;
-    return pool.slice(0, Math.max(0, limit));
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.document.id.localeCompare(right.document.id),
+      );
   }
 }

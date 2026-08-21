@@ -112,13 +112,9 @@ Créer des adaptateurs interchangeables pour :
 - la recherche de points d’intérêt;
 - les tuiles cartographiques.
 
-Le fournisseur de routage choisi pour le MVP est un adaptateur RAG interne (`ROUTING_PROVIDER=ai-rag`) :
+Le fournisseur de routage par défaut est `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches de la demande, puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’appelle pas de modèle distant.
 
-- un corpus de corridors moto (documents textuels + géométrie relative);
-- une étape de *retrieval* (classement lexical des documents pertinents);
-- une étape de génération qui compose un tracé **uniquement** à partir des documents retrouvés.
-
-`MockRoutingProvider` reste disponible pour les tests de domaine isolés (`ROUTING_PROVIDER=mock`). GraphHopper, Valhalla et OSRM restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de modèle de langage externe : le corpus et le retriever tiennent en mémoire.
+`GraphHopper`, `Valhalla` et `OSRM` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
 
 Ne jamais appeler directement le fournisseur de routage depuis un composant React. Tous les appels passent par le serveur et par l’interface `RoutingProvider`.
 
@@ -892,7 +888,7 @@ Les tests automatisés ne doivent pas dépendre d’un fournisseur externe réel
 Créer `.env.example` sans valeur secrète :
 
 ```dotenv
-ROUTING_PROVIDER=ai-rag
+ROUTING_PROVIDER=mock
 ROUTING_API_BASE_URL=
 ROUTING_API_KEY=
 GEOCODING_API_BASE_URL=
@@ -904,7 +900,7 @@ Valider les variables au démarrage. Les variables préfixées `NEXT_PUBLIC_` so
 
 ## 26. Données simulées
 
-Le développement initial doit fonctionner sans clé externe. `RagRoutingProvider` utilise un corpus en mémoire; `MockRoutingProvider` reste le substitut de graphe pour les tests isolés.
+Le développement initial doit fonctionner sans clé externe grâce à `MockRoutingProvider`. `RagRoutingProvider` (`ai-rag`) est un graphe local indexé, pas un réseau OSM : le mode simulé doit rester explicite.
 
 Prévoir au moins :
 
@@ -955,11 +951,10 @@ Le mode simulé doit être évident dans l’environnement de développement et 
 
 ### Phase 4 — Fournisseur réel
 
-- ~~choisir et documenter le fournisseur;~~ **décidé : adaptateur RAG (`ai-rag`)**;
-- implémenter l’adaptateur RAG (corpus, retrieval, composition extraite);
-- ajouter les tests de contrats;
-- gérer l’absence de documents et les erreurs de composition;
-- un moteur de graphe (GraphHopper, Valhalla, OSRM) ou un LLM distant reste remplaçable plus tard, sans réécrire le domaine.
+- ~~choisir et documenter le fournisseur;~~ **décidé : graphe local `mock` par défaut; RAG optionnel (`ai-rag`) sur le même graphe**;
+- ancrer le RAG sur des arêtes de graphe + retrieval spatial (pas de courbe dilatée);
+- faire remonter l’absence de corridors comme erreur métier (`FR-021`);
+- un moteur OSM/GraphHopper/Valhalla/OSRM ou un LLM distant reste remplaçable plus tard, sans réécrire le domaine.
 
 ### Phase 5 — Sauvegarde et export
 
@@ -1035,7 +1030,7 @@ Une tâche n’est terminée que si :
 
 Cursor ne doit pas choisir silencieusement ces éléments :
 
-- fournisseur de routage alternatif (graphe routier ou LLM distant) et tarification associée — le MVP utilise l’adaptateur RAG interne;
+- fournisseur de routage alternatif (graphe OSM ou LLM distant) et tarification associée — le MVP utilise un graphe local simulé (`mock`, optionnellement indexé en RAG);
 - fournisseur de géocodage;
 - fournisseur et licence des tuiles;
 - zones géographiques officiellement prises en charge;

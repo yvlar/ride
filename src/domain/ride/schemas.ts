@@ -15,6 +15,11 @@ const placeSchema = z.object({
 
 export const rideStyleSchema = z.enum(["curvy", "scenic", "touring"]);
 
+const routePreferencesSchema = z.object({
+  avoidHighways: z.boolean(),
+  avoidUnpaved: z.boolean(),
+});
+
 export const loopRideRequestSchema = z
   .object({
     type: z.literal("loop"),
@@ -22,6 +27,7 @@ export const loopRideRequestSchema = z
     targetDistanceKm: z.number().gt(0).max(2000).optional(),
     availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
     style: rideStyleSchema.optional(),
+    preferences: routePreferencesSchema.optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -35,11 +41,6 @@ export const loopRideRequestSchema = z
   });
 
 export type ParsedLoopRideRequest = z.infer<typeof loopRideRequestSchema>;
-
-const routePreferencesSchema = z.object({
-  avoidHighways: z.boolean(),
-  avoidUnpaved: z.boolean(),
-});
 
 export const destinationRideRequestSchema = z
   .object({

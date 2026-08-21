@@ -1,10 +1,16 @@
 import type { Coordinates, LineString } from "@/domain/geo/types";
-import type { RouteSegment } from "@/domain/ride/types";
+import type {
+  RideStyle,
+  RoutePreferences,
+  RouteSegment,
+} from "@/domain/ride/types";
 
 export type ProviderRouteRequest = {
   start: Coordinates;
   destination: Coordinates;
   waypoints?: Coordinates[];
+  style?: RideStyle;
+  preferences?: RoutePreferences;
 };
 
 export type ProviderRouteResult = {

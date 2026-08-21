@@ -16,6 +16,10 @@ import type {
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
+import {
+  allRejectedAreKnowledge,
+  knowledgeUnavailableError,
+} from "./routing-failure";
 
 export type GenerateLoopRideResult =
   | { ok: true; route: GeneratedLoopRoute }
@@ -109,6 +113,8 @@ async function generateValidatedLoop(
         start: request.start.coordinates,
         destination: request.start.coordinates,
         waypoints: set.waypoints,
+        style: request.style,
+        preferences: request.preferences,
       });
       const candidate: LoopCandidate = {
         geometry: result.geometry,
@@ -127,6 +133,10 @@ async function generateValidatedLoop(
   const evaluations = settled.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
+
+  if (evaluations.length === 0 && allRejectedAreKnowledge(settled)) {
+    return { ok: false, error: knowledgeUnavailableError() };
+  }
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
 

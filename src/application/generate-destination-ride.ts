@@ -14,6 +14,10 @@ import type {
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
+import {
+  allRejectedAreKnowledge,
+  knowledgeUnavailableError,
+} from "./routing-failure";
 
 export type GenerateDestinationRideResult =
   | { ok: true; route: GeneratedDestinationRoute }
@@ -82,8 +86,8 @@ export async function generateDestinationRide(
   return generateValidatedDestination(
     {
       ...parsed.data,
-      // FR-007 / FR-008 are not applied here; preferences are accepted for
-      // type compatibility with the composed request and ignored until those FRs.
+      // Preferences are forwarded to the routing port. FR-007 / FR-008 are
+      // not treated as delivered domain rules here.
       preferences: parsed.data.preferences ?? {
         avoidHighways: false,
         avoidUnpaved: false,
@@ -110,6 +114,8 @@ async function generateValidatedDestination(
         start: request.start.coordinates,
         destination: request.destination.coordinates,
         waypoints: set.waypoints,
+        style: request.style,
+        preferences: request.preferences,
       });
       const candidate: DestinationCandidate = {
         geometry: result.geometry,
@@ -126,6 +132,9 @@ async function generateValidatedDestination(
   );
 
   if (candidates.length === 0) {
+    if (allRejectedAreKnowledge(settled)) {
+      return { ok: false, error: knowledgeUnavailableError() };
+    }
     const everyAttemptFailed =
       settled.length > 0 &&
       settled.every((result) => result.status === "rejected");

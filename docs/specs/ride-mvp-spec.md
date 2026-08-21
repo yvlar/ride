@@ -429,13 +429,16 @@ Le flux principal de configuration d’un trajet est prévu **avant** de rouler.
 
 Les fournisseurs de carte et de routage doivent pouvoir être remplacés sans réécrire les règles métier. Toute intégration passe par une interface interne. Le domaine ne référence pas un fournisseur nommé.
 
-L’adaptateur de routage du MVP est un pipeline RAG :
+L’adaptateur de routage par connaissance est un pipeline RAG optionnel (`ROUTING_PROVIDER=ai-rag`) :
 
-1. récupérer des corridors routiers connus dans une base de connaissances;
-2. générer un chemin **uniquement** à partir des documents récupérés (aucune coordonnée inventée hors corpus);
-3. renvoyer la géométrie, les segments, la distance et la durée.
+1. indexer un graphe routier **local** dont chaque arête est un document (géométrie d’arête, pas une forme géométrique dilatée);
+2. récupérer les arêtes par proximité spatiale et par pertinence (type de trajet, style);
+3. composer un chemin **uniquement** sur les arêtes récupérées;
+4. si aucun corridor connu ne relie la demande, renvoyer une erreur métier explicite (`FR-021`).
 
-Ce pipeline est un détail d’infrastructure. Il ne constitue pas une fonctionnalité de recommandation de sorties. Un remplacement par un moteur de graphe routier reste possible via la même interface interne.
+Tant qu’aucun réseau routier réel n’est branché, `ROUTING_PROVIDER=mock` reste la valeur par défaut afin que le mode simulé soit explicite. `ai-rag` réutilise le même type de graphe local déterministe; il n’invente pas de coordonnées par transformation d’une courbe, et n’appelle pas un modèle distant.
+
+Ce pipeline est un détail d’infrastructure. Il ne constitue pas une fonctionnalité de recommandation de sorties. Un remplacement par un moteur de graphe routier nommé reste possible via la même interface interne.
 
 ---
 
