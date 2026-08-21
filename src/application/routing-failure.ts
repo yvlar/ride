@@ -1,8 +1,16 @@
 import type { RideGenerationError } from "@/domain/ride/types";
 import {
   isRoutingKnowledgeError,
+  type KnowledgeMissReason,
   type RoutingKnowledgeError,
 } from "@/infrastructure/routing/rag/routing-knowledge-error";
+
+const KNOWLEDGE_REASON_PRIORITY: Record<KnowledgeMissReason, number> = {
+  unpaved: 0,
+  too_far: 1,
+  empty: 2,
+  disconnected: 3,
+};
 
 export function knowledgeUnavailableError(
   error?: RoutingKnowledgeError,
@@ -38,16 +46,24 @@ export function allRejectedAreKnowledge(
   );
 }
 
-export function firstKnowledgeError(
+export function primaryKnowledgeError(
   settled: PromiseSettledResult<unknown>[],
 ): RoutingKnowledgeError | undefined {
+  let selected: RoutingKnowledgeError | undefined;
   for (const result of settled) {
     if (
-      result.status === "rejected" &&
-      isRoutingKnowledgeError(result.reason)
+      result.status !== "rejected" ||
+      !isRoutingKnowledgeError(result.reason)
     ) {
-      return result.reason;
+      continue;
+    }
+    if (
+      !selected ||
+      KNOWLEDGE_REASON_PRIORITY[result.reason.reason] <
+        KNOWLEDGE_REASON_PRIORITY[selected.reason]
+    ) {
+      selected = result.reason;
     }
   }
-  return undefined;
+  return selected;
 }

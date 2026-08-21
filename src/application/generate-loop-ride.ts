@@ -18,8 +18,8 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   allRejectedAreKnowledge,
-  firstKnowledgeError,
   knowledgeUnavailableError,
+  primaryKnowledgeError,
 } from "./routing-failure";
 
 export type GenerateLoopRideResult =
@@ -138,7 +138,7 @@ async function generateValidatedLoop(
   if (evaluations.length === 0 && allRejectedAreKnowledge(settled)) {
     return {
       ok: false,
-      error: knowledgeUnavailableError(firstKnowledgeError(settled)),
+      error: knowledgeUnavailableError(primaryKnowledgeError(settled)),
     };
   }
 

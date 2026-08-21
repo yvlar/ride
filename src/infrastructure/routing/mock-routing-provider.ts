@@ -6,6 +6,7 @@ import {
 } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import type { RouteSegment } from "@/domain/ride/types";
+import { RagRoutingProvider } from "./rag/rag-routing-provider";
 import type {
   ProviderRouteRequest,
   ProviderRouteResult,
@@ -25,11 +26,18 @@ const MOCK_SPEED_KMH = 60;
  * The result is a rectilinear path, never a perfect geometric circle.
  */
 export class MockRoutingProvider implements RoutingProvider {
+  private ragProvider?: RagRoutingProvider;
+
   constructor(private readonly cellKm = DEFAULT_CELL_KM) {}
 
   async calculateRoute(
     input: ProviderRouteRequest,
   ): Promise<ProviderRouteResult> {
+    if (input.preferences?.avoidUnpaved || input.preferences?.avoidHighways) {
+      this.ragProvider ??= new RagRoutingProvider(undefined, this.cellKm);
+      return this.ragProvider.calculateRoute(input);
+    }
+
     const origin = input.start;
     const stops = [input.start, ...(input.waypoints ?? []), input.destination];
     const cells = stops.map((stop) => this.toCell(stop, origin));

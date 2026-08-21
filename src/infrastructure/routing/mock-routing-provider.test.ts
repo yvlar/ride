@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { radiusCoefficientOfVariation } from "@/domain/geo/geometry";
-import { haversineKm } from "@/domain/geo/distance";
+import { haversineKm, offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates } from "@/domain/geo/types";
 import { MockRoutingProvider } from "./mock-routing-provider";
+import { RagRoutingProvider } from "./rag/rag-routing-provider";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
 
@@ -63,5 +64,21 @@ describe("MockRoutingProvider", () => {
       }),
     ).toBeLessThan(2.6);
     expect(result.geometry.coordinates.length).toBeGreaterThan(8);
+  });
+
+  it("honors avoidUnpaved by using the same graph as the RAG adapter (NFR-005)", async () => {
+    const destination = offsetCoordinates(GRANBY, 90, 8);
+    const request = {
+      start: GRANBY,
+      destination,
+      preferences: { avoidHighways: false, avoidUnpaved: true },
+    };
+    const mock = await new MockRoutingProvider().calculateRoute(request);
+    const rag = await new RagRoutingProvider().calculateRoute(request);
+
+    expect(mock.segments.every((segment) => segment.surface !== "unpaved")).toBe(
+      true,
+    );
+    expect(mock.geometry.coordinates).toEqual(rag.geometry.coordinates);
   });
 });

@@ -16,8 +16,8 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   allRejectedAreKnowledge,
-  firstKnowledgeError,
   knowledgeUnavailableError,
+  primaryKnowledgeError,
 } from "./routing-failure";
 
 export type GenerateDestinationRideResult =
@@ -136,7 +136,7 @@ async function generateValidatedDestination(
     if (allRejectedAreKnowledge(settled)) {
       return {
         ok: false,
-        error: knowledgeUnavailableError(firstKnowledgeError(settled)),
+        error: knowledgeUnavailableError(primaryKnowledgeError(settled)),
       };
     }
     const everyAttemptFailed =

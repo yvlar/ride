@@ -188,7 +188,7 @@ describe("RagRoutingProvider", () => {
     ).rejects.toMatchObject({ reason: "empty" });
   });
 
-  it("does not place the origin on a motorway junction", () => {
+  it("does not place the origin on a motorway junction or an unpaved edge", () => {
     const nearby = offsetCoordinates(GRANBY, 90, 4);
     const originEdges = buildLocalRoadIndex(GRANBY, [GRANBY, nearby]).filter(
       (document) =>
@@ -200,6 +200,30 @@ describe("RagRoutingProvider", () => {
     expect(
       originEdges.every((document) => document.roadClass !== "motorway"),
     ).toBe(true);
+    expect(
+      originEdges.every((document) => document.surface !== "unpaved"),
+    ).toBe(true);
+  });
+
+  it("fails when retrieved edges do not connect start to destination (FR-021)", async () => {
+    const destination = offsetCoordinates(GRANBY, 90, 4);
+    const allowed = new Set([
+      undirectedEdgeId({ x: 0, y: 0 }, { x: 0, y: 1 }),
+    ]);
+    const retriever: CorridorRetriever = {
+      retrieve: async ({ documents }) =>
+        documents
+          .filter((document) => allowed.has(document.id))
+          .map((document) => ({ document, score: 2 })),
+    };
+    const provider = new RagRoutingProvider(retriever);
+
+    await expect(
+      provider.calculateRoute({
+        start: GRANBY,
+        destination,
+      }),
+    ).rejects.toMatchObject({ reason: "disconnected" });
   });
 
   it("names the unpaved preference when it isolates the start (FR-021)", async () => {

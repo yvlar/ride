@@ -7,6 +7,7 @@ export const DEFAULT_CELL_KM = 2;
 export const MAX_SPAN_CELLS = 250;
 const GRID_PADDING_CELLS = 2;
 const HIGHWAY_PHASE = 4;
+const UNPAVED_PHASE = 2;
 
 function mod(value: number, modulus: number): number {
   return ((value % modulus) + modulus) % modulus;
@@ -52,11 +53,14 @@ function edgeKind(from: GridCell, to: GridCell): EdgeKind {
   const axis = from.x === to.x ? "ns" : "ew";
   const along = axis === "ew" ? Math.min(from.x, to.x) : Math.min(from.y, to.y);
   const across = axis === "ew" ? from.y : from.x;
-  // Offset so the request origin (0,0) is not a motorway junction.
+  // Offset so the request origin (0,0) is not a motorway junction
+  // and is not incident to an unpaved edge. HIGHWAY_PHASE shifts the
+  // motorway lattice; UNPAVED_PHASE shifts gravel so neither the
+  // east/north (sum 0) nor west/south (sum -1) origin edges are unpaved.
   if (mod(across + HIGHWAY_PHASE, 8) === 0) {
     return "highway";
   }
-  if (mod(along + across, 5) === 0) {
+  if (mod(along + across + UNPAVED_PHASE, 5) === 0) {
     return "unpaved";
   }
   if (mod(along + across, 3) === 0) {
