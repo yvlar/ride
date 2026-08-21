@@ -14,11 +14,10 @@ export const CIRCULARITY_CV_THRESHOLD = 0.06;
 export const MIN_ROAD_NETWORK_POINTS = 8;
 
 /**
- * A destination trace follows a network if it has at least one intermediate
- * vertex (start → via → destination). The loop threshold of 8 points is too
- * high for short point-to-point rides (FR-002).
+ * A destination trace follows a network if it has at least the two endpoints
+ * of a road segment. A single segment (start → destination) is valid (FR-002).
  */
-export const MIN_DESTINATION_ROAD_POINTS = 3;
+export const MIN_DESTINATION_ROAD_POINTS = 2;
 
 /**
  * Scenic may prefer a modest extra length over the shortest path, but must
@@ -44,7 +43,9 @@ export const MIN_DESTINATION_SEPARATION_KM = 1;
 
 /**
  * A destination route is anchored if both ends snap within this distance
- * of the requested places (provider network snapping).
+ * of the requested places (provider network snapping). The point must also
+ * be closer to the intended place than to the other endpoint, so a trace
+ * that returns to the start cannot satisfy a nearby destination (FR-002).
  */
 export const DESTINATION_ENDPOINT_TOLERANCE_KM = 2.5;
 

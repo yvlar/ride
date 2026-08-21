@@ -115,6 +115,18 @@ export type EvaluatedDestinationCandidate = {
   warnings: string[];
 };
 
+function isSnappedToIntendedPlace(
+  point: Coordinates,
+  intended: Coordinates,
+  otherEnd: Coordinates,
+): boolean {
+  const toIntendedKm = haversineKm(point, intended);
+  const toOtherKm = haversineKm(point, otherEnd);
+  return (
+    toIntendedKm <= DESTINATION_ENDPOINT_TOLERANCE_KM && toIntendedKm < toOtherKm
+  );
+}
+
 export function evaluateDestinationCandidate(
   start: Coordinates,
   destination: Coordinates,
@@ -127,11 +139,9 @@ export function evaluateDestinationCandidate(
   const first = firstCoordinates(candidate.geometry);
   const last = lastCoordinates(candidate.geometry);
   const startsAtStart =
-    first !== null &&
-    haversineKm(start, first) <= DESTINATION_ENDPOINT_TOLERANCE_KM;
+    first !== null && isSnappedToIntendedPlace(first, start, destination);
   const reachesDestination =
-    last !== null &&
-    haversineKm(destination, last) <= DESTINATION_ENDPOINT_TOLERANCE_KM;
+    last !== null && isSnappedToIntendedPlace(last, destination, start);
   const followsRoadNetwork =
     candidate.geometry.coordinates.length >= MIN_DESTINATION_ROAD_POINTS;
   const withinDistanceTolerance =

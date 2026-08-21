@@ -63,7 +63,7 @@ describe("generateDestinationRide (FR-002)", () => {
   it("generates a short nearby destination without inflating the distance (FR-002)", async () => {
     const mock = new MockRoutingProvider();
 
-    for (const km of [3, 5]) {
+    for (const km of [1.1, 1.5, 2, 2.5, 3, 5]) {
       const nearby = {
         label: "Nearby",
         coordinates: offsetCoordinates(GRANBY.coordinates, 90, km),
@@ -88,7 +88,30 @@ describe("generateDestinationRide (FR-002)", () => {
         throw new Error(result.error.message);
       }
 
-      expect(result.route.geometry.coordinates.length).toBeGreaterThanOrEqual(3);
+      const first = result.route.geometry.coordinates[0];
+      const last =
+        result.route.geometry.coordinates[
+          result.route.geometry.coordinates.length - 1
+        ];
+      expect(first).toBeDefined();
+      expect(last).toBeDefined();
+      if (!first || !last) {
+        return;
+      }
+
+      const firstPoint = positionToCoordinates(first);
+      const lastPoint = positionToCoordinates(last);
+      expect(result.route.geometry.coordinates.length).toBeGreaterThanOrEqual(2);
+      expect(
+        haversineKm(GRANBY.coordinates, firstPoint),
+      ).toBeLessThan(
+        haversineKm(nearby.coordinates, firstPoint),
+      );
+      expect(
+        haversineKm(nearby.coordinates, lastPoint),
+      ).toBeLessThan(
+        haversineKm(GRANBY.coordinates, lastPoint),
+      );
       expect(result.route.distanceKm).toBeLessThanOrEqual(
         direct.distanceKm * 1.75 + 0.1,
       );

@@ -64,6 +64,40 @@ function curvyCandidate(): DestinationCandidate {
   );
 }
 
+function twoVertexPath(destination: Coordinates): DestinationCandidate {
+  return {
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [destination.longitude, destination.latitude],
+      ],
+    },
+    segments: [],
+    distanceKm: haversineKm(GRANBY, destination),
+    durationMinutes: 5,
+    waypoints: [],
+  };
+}
+
+function loopBackToStart(): DestinationCandidate {
+  const east = offsetCoordinates(GRANBY, 90, 0.4);
+  return {
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [east.longitude, east.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    },
+    segments: [],
+    distanceKm: 0.8,
+    durationMinutes: 2,
+    waypoints: [],
+  };
+}
+
 function threeVertexPath(): DestinationCandidate {
   const mid = offsetCoordinates(GRANBY, 90, 2);
   return {
@@ -125,6 +159,33 @@ describe("evaluateDestinationCandidate (FR-002)", () => {
     );
 
     expect(evaluation.disproportionateDetour).toBe(true);
+  });
+
+  it("accepts a single road segment with only two vertices", () => {
+    const nearby = offsetCoordinates(GRANBY, 90, 1.5);
+    const evaluation = evaluateDestinationCandidate(
+      GRANBY,
+      nearby,
+      twoVertexPath(nearby),
+      { shortestDistanceKm: 1.5 },
+    );
+
+    expect(evaluation.followsRoadNetwork).toBe(true);
+    expect(evaluation.startsAtStart).toBe(true);
+    expect(evaluation.reachesDestination).toBe(true);
+  });
+
+  it("does not treat a return to the start as reaching a nearby destination", () => {
+    const nearby = offsetCoordinates(GRANBY, 90, 1.5);
+    const evaluation = evaluateDestinationCandidate(
+      GRANBY,
+      nearby,
+      loopBackToStart(),
+      { shortestDistanceKm: 0.8 },
+    );
+
+    expect(evaluation.startsAtStart).toBe(true);
+    expect(evaluation.reachesDestination).toBe(false);
   });
 
   it("accepts a short road path with only one intermediate vertex", () => {
