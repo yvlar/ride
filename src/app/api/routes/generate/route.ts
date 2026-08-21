@@ -1,4 +1,4 @@
-import { generateLoopRide } from "@/application/generate-loop-ride";
+import { generateRide } from "@/application/generate-ride";
 import type { RideGenerationError } from "@/domain/ride/types";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       {
         code: "VALIDATION_ERROR",
         message: "La requête est trop volumineuse.",
-        suggestions: ["Envoyez uniquement les champs de la demande de boucle."],
+        suggestions: ["Envoyez uniquement les champs de la demande de trajet."],
       },
       400,
     );
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         {
           code: "VALIDATION_ERROR",
           message: "La requête est trop volumineuse.",
-          suggestions: ["Envoyez uniquement les champs de la demande de boucle."],
+          suggestions: ["Envoyez uniquement les champs de la demande de trajet."],
         },
         400,
       );
@@ -44,14 +44,16 @@ export async function POST(request: Request) {
       {
         code: "VALIDATION_ERROR",
         message: "Le corps de la requête doit être un JSON valide.",
-        suggestions: ['Envoyez un objet JSON avec type: "loop".'],
+        suggestions: [
+          'Envoyez un objet JSON avec type: "loop" ou type: "destination".',
+        ],
       },
       400,
     );
   }
 
   try {
-    const result = await generateLoopRide(body);
+    const result = await generateRide(body);
     if (!result.ok) {
       const status =
         result.error.code === "VALIDATION_ERROR" ||

@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { parseLoopRideRequest, unsupportedRideTypeMessage } from "./schemas";
+import {
+  parseDestinationRideRequest,
+  parseLoopRideRequest,
+  unsupportedRideTypeMessage,
+} from "./schemas";
 
 const start = {
   label: "Granby",
   coordinates: { latitude: 45.403, longitude: -72.734 },
+};
+
+const destination = {
+  label: "Mont-Tremblant",
+  coordinates: { latitude: 46.118, longitude: -74.596 },
 };
 
 describe("parseLoopRideRequest (FR-001)", () => {
@@ -38,9 +47,60 @@ describe("parseLoopRideRequest (FR-001)", () => {
       }),
     ).toThrow(/distance cible ou une durée disponible/);
   });
+});
 
-  it("rejects a destination request as an unsupported type", () => {
-    expect(unsupportedRideTypeMessage("destination")).toMatch(/FR-001/);
-    expect(unsupportedRideTypeMessage("round_trip")).toMatch(/FR-001/);
+describe("parseDestinationRideRequest (FR-002)", () => {
+  it("requires a start, a destination, and a driving style", () => {
+    const request = parseDestinationRideRequest({
+      type: "destination",
+      start,
+      destination,
+      style: "curvy",
+    });
+
+    expect(request.type).toBe("destination");
+    expect(request.destination.label).toBe("Mont-Tremblant");
+    expect(request.style).toBe("curvy");
+    expect(request.targetDistanceKm).toBeUndefined();
+  });
+
+  it("accepts an optional target distance (FR-009)", () => {
+    const request = parseDestinationRideRequest({
+      type: "destination",
+      start,
+      destination,
+      style: "scenic",
+      targetDistanceKm: 220,
+    });
+
+    expect(request.targetDistanceKm).toBe(220);
+  });
+
+  it("rejects a destination coinciding with the start", () => {
+    expect(() =>
+      parseDestinationRideRequest({
+        type: "destination",
+        start,
+        destination: start,
+        style: "touring",
+      }),
+    ).toThrow(/trop proches/);
+  });
+
+  it("rejects a destination request without a style", () => {
+    expect(() =>
+      parseDestinationRideRequest({
+        type: "destination",
+        start,
+        destination,
+      }),
+    ).toThrow();
+  });
+});
+
+describe("unsupportedRideTypeMessage", () => {
+  it("still withholds round_trip until FR-003", () => {
+    expect(unsupportedRideTypeMessage("round_trip")).toMatch(/FR-003|round_trip/);
+    expect(unsupportedRideTypeMessage("unknown")).toMatch(/FR-002/);
   });
 });

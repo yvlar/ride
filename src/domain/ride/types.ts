@@ -92,6 +92,22 @@ export type GeneratedLoopRoute = {
   warnings: string[];
 };
 
+export type GeneratedDestinationRoute = {
+  id: string;
+  type: "destination";
+  start: Place;
+  destination: Place;
+  style: RideStyle;
+  targetDistanceKm?: number;
+  geometry: LineString;
+  segments: RouteSegment[];
+  distanceKm: number;
+  durationMinutes: number;
+  warnings: string[];
+};
+
+export type GeneratedRideRoute = GeneratedLoopRoute | GeneratedDestinationRoute;
+
 export type RideGenerationErrorCode =
   | "VALIDATION_ERROR"
   | "UNSUPPORTED_RIDE_TYPE"
@@ -106,11 +122,19 @@ export type RideGenerationError = {
   suggestions: string[];
   bestCandidate?: {
     distanceKm: number;
-    repeatedRoadPercent: number;
+    repeatedRoadPercent?: number;
   };
 };
 
 export type LoopCandidate = {
+  geometry: LineString;
+  segments: RouteSegment[];
+  distanceKm: number;
+  durationMinutes: number;
+  waypoints: Coordinates[];
+};
+
+export type DestinationCandidate = {
   geometry: LineString;
   segments: RouteSegment[];
   distanceKm: number;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { haversineKm, lineStringLengthKm, offsetCoordinates } from "./distance";
+import {
+  haversineKm,
+  initialBearingDeg,
+  lineStringLengthKm,
+  offsetCoordinates,
+} from "./distance";
 import type { Coordinates } from "./types";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
@@ -20,6 +25,13 @@ describe("offsetCoordinates", () => {
     const east = offsetCoordinates(GRANBY, 90, 20);
     expect(east.latitude).toBeCloseTo(GRANBY.latitude, 2);
     expect(east.longitude).toBeGreaterThan(GRANBY.longitude);
+  });
+});
+
+describe("initialBearingDeg", () => {
+  it("points north for a due-north offset", () => {
+    const north = offsetCoordinates(GRANBY, 0, 10);
+    expect(initialBearingDeg(GRANBY, north)).toBeCloseTo(0, 0);
   });
 });
 

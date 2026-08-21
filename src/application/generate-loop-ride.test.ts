@@ -82,7 +82,7 @@ describe("generateLoopRide (FR-001)", () => {
     expect(isWithinDistanceTolerance(result.route.distanceKm, 80)).toBe(true);
   });
 
-  it("rejects destination and round-trip types without implementing later FRs", async () => {
+  it("rejects destination and round-trip types at the loop generator boundary", async () => {
     const destination = await generateLoopRide({
       type: "destination",
       start: GRANBY,

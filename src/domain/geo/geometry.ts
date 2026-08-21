@@ -1,4 +1,10 @@
-import { haversineKm, offsetCoordinates, positionToCoordinates } from "./distance";
+import {
+  haversineKm,
+  initialBearingDeg,
+  lineStringLengthKm,
+  offsetCoordinates,
+  positionToCoordinates,
+} from "./distance";
 import type { Coordinates, LineString } from "./types";
 
 export function firstCoordinates(geometry: LineString): Coordinates | null {
@@ -50,6 +56,34 @@ export function radiusCoefficientOfVariation(geometry: LineString): number {
   const variance =
     radii.reduce((sum, radius) => sum + (radius - mean) ** 2, 0) / radii.length;
   return Math.sqrt(variance) / mean;
+}
+
+function headingDeltaDeg(fromBearing: number, toBearing: number): number {
+  const raw = Math.abs(toBearing - fromBearing) % 360;
+  return raw > 180 ? 360 - raw : raw;
+}
+
+/**
+ * Mean absolute heading change per kilometre.
+ * Used to rank motorcycle corridors without collapsing to the fastest path (BR-003).
+ */
+export function headingChangePerKm(geometry: LineString): number {
+  const lengthKm = lineStringLengthKm(geometry);
+  if (lengthKm === 0 || geometry.coordinates.length < 3) {
+    return 0;
+  }
+
+  let totalChange = 0;
+  for (let index = 1; index < geometry.coordinates.length - 1; index += 1) {
+    const previous = positionToCoordinates(geometry.coordinates[index - 1]);
+    const current = positionToCoordinates(geometry.coordinates[index]);
+    const next = positionToCoordinates(geometry.coordinates[index + 1]);
+    const inbound = initialBearingDeg(previous, current);
+    const outbound = initialBearingDeg(current, next);
+    totalChange += headingDeltaDeg(inbound, outbound);
+  }
+
+  return totalChange / lengthKm;
 }
 
 export function createCircleLineString(

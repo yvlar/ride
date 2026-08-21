@@ -41,4 +41,27 @@ describe("MockRoutingProvider", () => {
     expect(radiusCoefficientOfVariation(result.geometry)).toBeGreaterThan(0.06);
     expect(result.distanceKm).toBeGreaterThan(0);
   });
+
+  it("returns a point-to-point road path for a destination request (FR-002)", async () => {
+    const provider = new MockRoutingProvider();
+    const tremblant: Coordinates = { latitude: 46.118, longitude: -74.596 };
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination: tremblant,
+    });
+
+    const last = result.geometry.coordinates[result.geometry.coordinates.length - 1];
+    expect(last).toBeDefined();
+    if (!last) {
+      return;
+    }
+
+    expect(
+      haversineKm(tremblant, {
+        longitude: last[0],
+        latitude: last[1],
+      }),
+    ).toBeLessThan(2.6);
+    expect(result.geometry.coordinates.length).toBeGreaterThan(8);
+  });
 });
