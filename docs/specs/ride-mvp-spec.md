@@ -27,7 +27,7 @@ Le plaisir de rouler — courbes, paysages, fluidité — prime sur l’optimisa
 
 Le MVP se limite au **flux central de génération de trajet**. Un utilisateur doit pouvoir :
 
-1. indiquer un point de départ;
+1. indiquer un point de départ par recherche de lieu ou par la position actuelle, avec l’adresse affichée;
 2. choisir un type de trajet parmi les trois modes ci-dessous;
 3. indiquer une destination lorsque le type l’exige;
 4. indiquer une distance cible et/ou une durée disponible;
@@ -289,7 +289,7 @@ La modification interactive avancée du tracé (ajout, déplacement ou suppressi
 Le parcours MVP est le suivant :
 
 1. Ouvrir l’écran principal (`FR-014`).
-2. Saisir ou sélectionner le point de départ (`FR-017`).
+2. Saisir ou sélectionner le point de départ (`FR-017`), y compris via la position actuelle dont l’adresse est alors affichée.
 3. Choisir le type de trajet : boucle, départ vers destination, ou aller-retour différent.
 4. Saisir la destination si le type l’exige (`FR-018`).
 5. Indiquer une distance cible (`FR-009`) et/ou une durée disponible (`FR-010`).
@@ -309,6 +309,23 @@ Le flux doit pouvoir être accompli avec un minimum de configuration (`NFR-002`)
 
 L’utilisateur doit pouvoir indiquer un point de départ par recherche de lieu. L’utilisation de la position actuelle est autorisée si l’utilisateur l’accorde explicitement. Le MVP ne demande pas la position en arrière-plan.
 
+Lorsque l’utilisateur choisit sa position actuelle :
+
+1. le système obtient les coordonnées uniquement après cet accord explicite;
+2. il convertit ces coordonnées en une **adresse ou un libellé de lieu lisible** par géocodage inverse;
+3. le champ de départ **affiche cette adresse**, comme s’il s’agissait d’un lieu choisi par recherche;
+4. les coordonnées restent associées au lieu pour la génération (`FR-011`).
+
+Le libellé affiché doit permettre de reconnaître le lieu (rue et localité lorsque le fournisseur les fournit, ou à défaut le nom de lieu le plus précis disponible). Un libellé générique du type « Position actuelle » ne suffit pas lorsqu’une adresse a pu être déterminée.
+
+Si le géocodage inverse échoue ou ne trouve pas d’adresse, le système :
+
+- conserve la position comme point de départ valide;
+- affiche un libellé de repli clair (par exemple « Position actuelle »);
+- indique que l’adresse n’a pas pu être déterminée.
+
+Le géocodage inverse passe uniquement par l’adaptateur de géocodage (`BR-004`, `NFR-005`). Le domaine ne dépend pas d’un fournisseur nommé.
+
 ### FR-018 — Destination
 
 La destination est :
@@ -321,7 +338,7 @@ La destination est :
 
 L’écran principal permet de composer la demande de génération. Il contient au minimum :
 
-- le point de départ;
+- le point de départ, avec l’adresse du lieu sélectionné ou de la position actuelle (`FR-017`);
 - le type de trajet;
 - la destination, uniquement si le type l’exige;
 - la distance cible et/ou la durée disponible;
@@ -485,7 +502,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-014` | Écran principal |
 | `FR-015` | Écran résultat |
 | `FR-016` | Flux utilisateur principal |
-| `FR-017` | Point de départ |
+| `FR-017` | Point de départ (recherche de lieu et adresse de la position actuelle) |
 | `FR-018` | Destination |
 | `FR-019` | Choix du style de trajet |
 | `FR-020` | Statistiques essentielles |
