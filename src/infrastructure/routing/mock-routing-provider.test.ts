@@ -81,4 +81,16 @@ describe("MockRoutingProvider", () => {
     );
     expect(mock.geometry.coordinates).toEqual(rag.geometry.coordinates);
   });
+
+  it("keeps the manhattan grid when only avoidHighways is set", async () => {
+    const destination = offsetCoordinates(GRANBY, 90, 8);
+    const base = { start: GRANBY, destination };
+    const manhattan = await new MockRoutingProvider().calculateRoute(base);
+    const flagged = await new MockRoutingProvider().calculateRoute({
+      ...base,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+
+    expect(flagged.geometry.coordinates).toEqual(manhattan.geometry.coordinates);
+  });
 });

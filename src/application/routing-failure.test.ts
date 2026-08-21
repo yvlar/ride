@@ -4,8 +4,13 @@ import {
   emptyKnowledgeError,
   tooFarKnowledgeError,
   unpavedKnowledgeError,
-} from "@/infrastructure/routing/rag/routing-knowledge-error";
-import { primaryKnowledgeError } from "./routing-failure";
+} from "@/infrastructure/routing/routing-knowledge-error";
+import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
+import {
+  errorFromExhaustedAttempts,
+  primaryKnowledgeError,
+  rejectIfKnownUnpavedAvoided,
+} from "./routing-failure";
 
 function rejected(reason: unknown): PromiseRejectedResult {
   return { status: "rejected", reason };
@@ -48,5 +53,71 @@ describe("primaryKnowledgeError (FR-021)", () => {
       rejected(emptyKnowledgeError()),
     ]);
     expect(selected?.reason).toBe("empty");
+  });
+});
+
+describe("rejectIfKnownUnpavedAvoided (BR-007)", () => {
+  const paved: ProviderRouteResult = {
+    geometry: { type: "LineString", coordinates: [[0, 0], [1, 0]] },
+    segments: [
+      {
+        id: "paved",
+        geometry: { type: "LineString", coordinates: [[0, 0], [1, 0]] },
+        distanceKm: 1,
+        durationMinutes: 1,
+        surface: "paved",
+      },
+    ],
+    distanceKm: 1,
+    durationMinutes: 1,
+  };
+
+  it("rejects a leaked known unpaved segment when avoidance is on", () => {
+    const leaked: ProviderRouteResult = {
+      ...paved,
+      segments: [{ ...paved.segments[0]!, surface: "unpaved" }],
+    };
+    expect(() =>
+      rejectIfKnownUnpavedAvoided(leaked, {
+        avoidHighways: false,
+        avoidUnpaved: true,
+      }),
+    ).toThrow(unpavedKnowledgeError().message);
+  });
+
+  it("allows known unpaved when avoidance is off", () => {
+    const leaked: ProviderRouteResult = {
+      ...paved,
+      segments: [{ ...paved.segments[0]!, surface: "unpaved" }],
+    };
+    expect(
+      rejectIfKnownUnpavedAvoided(leaked, {
+        avoidHighways: false,
+        avoidUnpaved: false,
+      }),
+    ).toBe(leaked);
+  });
+});
+
+describe("errorFromExhaustedAttempts (FR-021)", () => {
+  it("maps mixed knowledge rejections to the unpaved message", () => {
+    const error = errorFromExhaustedAttempts(
+      [
+        rejected(disconnectedKnowledgeError()),
+        rejected(emptyKnowledgeError()),
+        rejected(unpavedKnowledgeError()),
+      ],
+      { message: "fallback", suggestions: [] },
+    );
+    expect(error.code).toBe("NO_ROUTE_FOUND");
+    expect(error.message).toMatch(/non pavées/);
+  });
+
+  it("maps a full provider outage to PROVIDER_ERROR", () => {
+    const error = errorFromExhaustedAttempts(
+      [rejected(new Error("timeout")), rejected(new Error("timeout"))],
+      { message: "fallback", suggestions: [] },
+    );
+    expect(error.code).toBe("PROVIDER_ERROR");
   });
 });

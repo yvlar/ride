@@ -4,6 +4,10 @@ export type KnowledgeMissReason =
   | "unpaved"
   | "too_far";
 
+/**
+ * Port-level failure when retrieved knowledge cannot satisfy a request
+ * (NFR-005). Adapters throw this; application maps it to FR-021.
+ */
 export class RoutingKnowledgeError extends Error {
   readonly code = "NO_ROUTE_FOUND" as const;
 

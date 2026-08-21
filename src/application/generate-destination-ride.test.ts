@@ -3,6 +3,11 @@ import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/
 import { headingChangePerKm } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import {
+  disconnectedKnowledgeError,
+  emptyKnowledgeError,
+  unpavedKnowledgeError,
+} from "@/infrastructure/routing/routing-knowledge-error";
 import type {
   ProviderRouteRequest,
   ProviderRouteResult,
@@ -282,5 +287,75 @@ describe("generateDestinationRide (FR-002)", () => {
       return;
     }
     expect(result.error.code).toBe("UNSUPPORTED_RIDE_TYPE");
+  });
+
+  it("rejects a provider that leaked known unpaved when avoidance is on (BR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const leaky: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        const routed = await mock.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "scenic",
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      leaky,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
+  });
+
+  it("maps mixed knowledge failures to the unpaved FR-021 message", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute() {
+        calls += 1;
+        if (calls % 3 === 1) {
+          throw emptyKnowledgeError();
+        }
+        if (calls % 3 === 2) {
+          throw disconnectedKnowledgeError();
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "scenic",
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
   });
 });

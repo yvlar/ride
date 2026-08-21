@@ -1,9 +1,12 @@
-import type { RideGenerationError } from "@/domain/ride/types";
+import { usesKnownUnpaved } from "@/domain/ride/constraints";
+import type { RideGenerationError, RoutePreferences } from "@/domain/ride/types";
 import {
   isRoutingKnowledgeError,
+  unpavedKnowledgeError,
   type KnowledgeMissReason,
   type RoutingKnowledgeError,
-} from "@/infrastructure/routing/rag/routing-knowledge-error";
+} from "@/infrastructure/routing/routing-knowledge-error";
+import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
 
 const KNOWLEDGE_REASON_PRIORITY: Record<KnowledgeMissReason, number> = {
   unpaved: 0,
@@ -11,6 +14,44 @@ const KNOWLEDGE_REASON_PRIORITY: Record<KnowledgeMissReason, number> = {
   empty: 2,
   disconnected: 3,
 };
+
+/** BR-007 — known unpaved segments are rejected after the provider returns. */
+export function rejectIfKnownUnpavedAvoided(
+  result: ProviderRouteResult,
+  preferences: RoutePreferences | undefined,
+): ProviderRouteResult {
+  if (preferences?.avoidUnpaved && usesKnownUnpaved(result.segments)) {
+    throw unpavedKnowledgeError();
+  }
+  return result;
+}
+
+export function errorFromExhaustedAttempts(
+  settled: PromiseSettledResult<unknown>[],
+  fallback: Pick<RideGenerationError, "message" | "suggestions">,
+): RideGenerationError {
+  if (allRejectedAreKnowledge(settled)) {
+    return knowledgeUnavailableError(primaryKnowledgeError(settled));
+  }
+
+  const everyAttemptFailed =
+    settled.length > 0 &&
+    settled.every((result) => result.status === "rejected");
+  if (everyAttemptFailed) {
+    return {
+      code: "PROVIDER_ERROR",
+      message:
+        "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
+      suggestions: ["Réessayez dans quelques instants."],
+    };
+  }
+
+  return {
+    code: "NO_ROUTE_FOUND",
+    message: fallback.message,
+    suggestions: fallback.suggestions,
+  };
+}
 
 export function knowledgeUnavailableError(
   error?: RoutingKnowledgeError,

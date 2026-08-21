@@ -19,7 +19,7 @@ import {
   emptyKnowledgeError,
   tooFarKnowledgeError,
   unpavedKnowledgeError,
-} from "./routing-knowledge-error";
+} from "../routing-knowledge-error";
 import type {
   CorridorRetriever,
   RetrievedCorridor,

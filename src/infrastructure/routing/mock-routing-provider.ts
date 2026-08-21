@@ -33,7 +33,7 @@ export class MockRoutingProvider implements RoutingProvider {
   async calculateRoute(
     input: ProviderRouteRequest,
   ): Promise<ProviderRouteResult> {
-    if (input.preferences?.avoidUnpaved || input.preferences?.avoidHighways) {
+    if (input.preferences?.avoidUnpaved) {
       this.ragProvider ??= new RagRoutingProvider(undefined, this.cellKm);
       return this.ragProvider.calculateRoute(input);
     }

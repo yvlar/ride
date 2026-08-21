@@ -1,4 +1,5 @@
 import { DISTANCE_TOLERANCE_PERCENT } from "./constants";
+import type { RouteSegment } from "./types";
 
 export type DistanceBoundsKm = {
   minDistanceKm: number;
@@ -35,4 +36,9 @@ export function distanceToleranceGapKm(
     return distanceKm - maxDistanceKm;
   }
   return 0;
+}
+
+/** BR-007 — a known unpaved surface, not an unknown one. */
+export function usesKnownUnpaved(segments: RouteSegment[]): boolean {
+  return segments.some((segment) => segment.surface === "unpaved");
 }

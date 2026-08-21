@@ -15,9 +15,8 @@ import type {
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
-  allRejectedAreKnowledge,
-  knowledgeUnavailableError,
-  primaryKnowledgeError,
+  errorFromExhaustedAttempts,
+  rejectIfKnownUnpavedAvoided,
 } from "./routing-failure";
 
 export type GenerateDestinationRideResult =
@@ -111,13 +110,16 @@ async function generateValidatedDestination(
 
   const settled = await Promise.allSettled(
     waypointSets.map(async (set) => {
-      const result = await routingProvider.calculateRoute({
-        start: request.start.coordinates,
-        destination: request.destination.coordinates,
-        waypoints: set.waypoints,
-        style: request.style,
-        preferences: request.preferences,
-      });
+      const result = rejectIfKnownUnpavedAvoided(
+        await routingProvider.calculateRoute({
+          start: request.start.coordinates,
+          destination: request.destination.coordinates,
+          waypoints: set.waypoints,
+          style: request.style,
+          preferences: request.preferences,
+        }),
+        request.preferences,
+      );
       const candidate: DestinationCandidate = {
         geometry: result.geometry,
         segments: result.segments,
@@ -133,33 +135,16 @@ async function generateValidatedDestination(
   );
 
   if (candidates.length === 0) {
-    if (allRejectedAreKnowledge(settled)) {
-      return {
-        ok: false,
-        error: knowledgeUnavailableError(primaryKnowledgeError(settled)),
-      };
-    }
-    const everyAttemptFailed =
-      settled.length > 0 &&
-      settled.every((result) => result.status === "rejected");
     return {
       ok: false,
-      error: everyAttemptFailed
-        ? {
-            code: "PROVIDER_ERROR",
-            message:
-              "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
-            suggestions: ["Réessayez dans quelques instants."],
-          }
-        : {
-            code: "NO_ROUTE_FOUND",
-            message:
-              "Aucun trajet moto n’a pu relier ce départ à cette destination.",
-            suggestions: [
-              "Vérifiez les coordonnées.",
-              "Essayez un autre couple départ / destination.",
-            ],
-          },
+      error: errorFromExhaustedAttempts(settled, {
+        message:
+          "Aucun trajet moto n’a pu relier ce départ à cette destination.",
+        suggestions: [
+          "Vérifiez les coordonnées.",
+          "Essayez un autre couple départ / destination.",
+        ],
+      }),
     };
   }
 
