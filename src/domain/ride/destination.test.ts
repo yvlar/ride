@@ -9,6 +9,7 @@ import {
   selectBestDestinationCandidate,
   styleRankScore,
 } from "./destination";
+import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
 import type { DestinationCandidate, RouteSegment } from "./types";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
@@ -524,5 +525,124 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
       return;
     }
     expect(selection.evaluation.candidate.distanceKm).toBe(400);
+  });
+});
+
+function pavedHighwayCandidate(): DestinationCandidate {
+  return {
+    ...fastestCandidate(),
+    durationMinutes: 90,
+    segments: [
+      {
+        id: "paved-hwy",
+        geometry: fastestCandidate().geometry,
+        distanceKm: 180,
+        durationMinutes: 90,
+        roadClass: "motorway",
+        surface: "paved",
+      } satisfies RouteSegment,
+    ],
+  };
+}
+
+function primaryAlongHighwayGeometry(distanceKm = 180): DestinationCandidate {
+  return {
+    ...fastestCandidate(),
+    distanceKm,
+    durationMinutes: 95,
+    segments: [
+      {
+        id: "primary",
+        geometry: fastestCandidate().geometry,
+        distanceKm,
+        durationMinutes: 95,
+        roadClass: "primary",
+      } satisfies RouteSegment,
+    ],
+  };
+}
+
+describe("selectBestDestinationCandidate (FR-007)", () => {
+  it("prefers a reasonable non-highway alternative over a Touring-winning highway", () => {
+    const highway = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      pavedHighwayCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+    const primary = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      primaryAlongHighwayGeometry(),
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(styleRankScore("touring", highway)).toBeGreaterThan(
+      styleRankScore("touring", primary),
+    );
+
+    const withoutPreference = selectBestDestinationCandidate(
+      [highway, primary],
+      "touring",
+    );
+    expect(withoutPreference.status).toBe("selected");
+    if (withoutPreference.status === "selected") {
+      expect(withoutPreference.evaluation.candidate.segments[0]?.roadClass).toBe(
+        "motorway",
+      );
+      expect(withoutPreference.evaluation.warnings).not.toContain(
+        HIGHWAY_AVOIDANCE_WARNING,
+      );
+    }
+
+    const withPreference = selectBestDestinationCandidate(
+      [highway, primary],
+      "touring",
+      undefined,
+      true,
+    );
+    expect(withPreference.status).toBe("selected");
+    if (withPreference.status !== "selected") {
+      return;
+    }
+    expect(withPreference.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "primary",
+    );
+    expect(withPreference.evaluation.warnings).not.toContain(
+      HIGHWAY_AVOIDANCE_WARNING,
+    );
+  });
+
+  it("keeps a highway and signals when the alternative is a disproportionate detour", () => {
+    const highway = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      pavedHighwayCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+    const detour = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      primaryAlongHighwayGeometry(540),
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(detour.disproportionateDetour).toBe(true);
+
+    const selection = selectBestDestinationCandidate(
+      [highway, detour],
+      "touring",
+      undefined,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+    expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

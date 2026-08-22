@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/geo/distance";
 import { createCircleLineString, headingChangePerKm } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
+import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
 import {
   disconnectedKnowledgeError,
@@ -695,5 +696,78 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(result.error.code).toBe("NO_ROUTE_FOUND");
     expect(result.error.message).toMatch(/non pavées/);
     expect(result.error.message).toMatch(/FR-021/);
+  });
+
+  it("selects a reasonable non-highway corridor when avoidHighways is on (FR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        const highway = (input.waypoints?.length ?? 0) === 0;
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) =>
+            highway
+              ? { ...segment, roadClass: "motorway", surface: "paved" as const }
+              : { ...segment, roadClass: "primary", surface: undefined },
+          ),
+        };
+      },
+    };
+
+    const avoided = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      },
+      provider,
+    );
+
+    expect(avoided.ok).toBe(true);
+    if (!avoided.ok) {
+      throw new Error(avoided.error.message);
+    }
+    expect(
+      avoided.route.segments.every((segment) => segment.roadClass === "primary"),
+    ).toBe(true);
+    expect(avoided.route.warnings).not.toContain(HIGHWAY_AVOIDANCE_WARNING);
+  });
+
+  it("signals when every reasonable destination uses a highway (FR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            roadClass: "motorway",
+            surface: "paved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.roadClass).toBe("motorway");
+    expect(result.route.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

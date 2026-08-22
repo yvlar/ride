@@ -88,8 +88,7 @@ export async function generateDestinationRide(
   return generateValidatedDestination(
     {
       ...parsed.data,
-      // Preferences are forwarded to the routing port. FR-007 / FR-008 are
-      // not treated as delivered domain rules here.
+      // FR-007 is applied in domain selection. FR-008 is not delivered here.
       preferences: parsed.data.preferences ?? {
         avoidHighways: false,
         avoidUnpaved: false,
@@ -185,6 +184,7 @@ async function generateValidatedDestination(
     evaluations,
     request.style,
     targetDistanceKm,
+    request.preferences.avoidHighways,
   );
   const knowledge = primaryKnowledgeError(settled);
 

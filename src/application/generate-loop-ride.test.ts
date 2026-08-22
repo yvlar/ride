@@ -5,6 +5,7 @@ import {
   radiusCoefficientOfVariation,
 } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
+import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
 import {
   disconnectedKnowledgeError,
@@ -687,5 +688,78 @@ describe("generateLoopRide (FR-001)", () => {
     }
     expect(result.error.code).toBe("NO_ROUTE_FOUND");
     expect(result.error.message).toMatch(/non pavées/);
+  });
+
+  it("selects a reasonable non-highway loop when avoidHighways is on (FR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        const highway = (input.waypoints?.length ?? 0) !== 2;
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) =>
+            highway
+              ? { ...segment, roadClass: "motorway", surface: "paved" as const }
+              : { ...segment, roadClass: "primary", surface: undefined },
+          ),
+        };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "touring",
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.segments.every((segment) => segment.roadClass === "primary"),
+    ).toBe(true);
+    expect(result.route.warnings).not.toContain(HIGHWAY_AVOIDANCE_WARNING);
+  });
+
+  it("signals when every reasonable loop uses a highway (FR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            roadClass: "motorway",
+            surface: "paved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "touring",
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.roadClass).toBe("motorway");
+    expect(result.route.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

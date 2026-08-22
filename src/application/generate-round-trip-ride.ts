@@ -198,7 +198,11 @@ async function generateValidatedRoundTrip(
     ),
   );
 
-  const selection = selectBestRoundTripCandidate(evaluations, targetDistanceKm);
+  const selection = selectBestRoundTripCandidate(
+    evaluations,
+    targetDistanceKm,
+    request.preferences.avoidHighways,
+  );
 
   if (selection.status === "no_route_found") {
     return {

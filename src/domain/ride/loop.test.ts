@@ -3,6 +3,7 @@ import { offsetCoordinates } from "@/domain/geo/distance";
 import { createCircleLineString } from "@/domain/geo/geometry";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import { HIGH_REPEAT_WARNING_PERCENT } from "./constants";
+import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
 import {
   createLoopWaypointSets,
   evaluateLoopCandidate,
@@ -679,5 +680,94 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
       return;
     }
     expect(selection.evaluation.candidate.distanceKm).toBe(120);
+  });
+});
+
+describe("selectBestLoopCandidate (FR-007)", () => {
+  it("prefers a reasonable non-highway loop over a Touring-winning highway", () => {
+    const highway = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "motorway",
+      surface: "paved",
+    });
+    const primary = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 40,
+      roadClass: "primary",
+    });
+
+    const withoutPreference = selectBestLoopCandidate(
+      [highway, primary],
+      80,
+      "touring",
+    );
+    expect(withoutPreference.status).toBe("selected");
+    if (withoutPreference.status === "selected") {
+      expect(withoutPreference.evaluation.candidate.segments[0]?.roadClass).toBe(
+        "motorway",
+      );
+      expect(withoutPreference.evaluation.warnings).not.toContain(
+        HIGHWAY_AVOIDANCE_WARNING,
+      );
+    }
+
+    const withPreference = selectBestLoopCandidate(
+      [highway, primary],
+      80,
+      "touring",
+      true,
+    );
+    expect(withPreference.status).toBe("selected");
+    if (withPreference.status !== "selected") {
+      return;
+    }
+    expect(withPreference.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "primary",
+    );
+    expect(withPreference.evaluation.warnings).not.toContain(
+      HIGHWAY_AVOIDANCE_WARNING,
+    );
+  });
+
+  it("keeps a highway and signals when no in-tolerance alternative exists", () => {
+    const highway = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "motorway",
+      surface: "paved",
+    });
+    const tooLong: EvaluatedLoopCandidate = {
+      ...stubLoopEvaluation({
+        repeatedRoadPercent: 10,
+        touringScore: 40,
+        roadClass: "primary",
+      }),
+      withinDistanceTolerance: false,
+      candidate: {
+        ...stubLoopEvaluation({
+          repeatedRoadPercent: 10,
+          touringScore: 40,
+          roadClass: "primary",
+        }).candidate,
+        distanceKm: 200,
+      },
+    };
+
+    const selection = selectBestLoopCandidate(
+      [highway, tooLong],
+      80,
+      "touring",
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+    expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

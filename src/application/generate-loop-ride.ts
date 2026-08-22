@@ -154,6 +154,7 @@ async function generateValidatedLoop(
     evaluations,
     targetDistanceKm,
     request.style,
+    request.preferences?.avoidHighways === true,
   );
   const knowledge = primaryKnowledgeError(settled);
 
