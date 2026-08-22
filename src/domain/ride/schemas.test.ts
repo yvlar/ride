@@ -40,13 +40,23 @@ describe("parseLoopRideRequest (FR-001)", () => {
     expect(request.style).toBe("scenic");
   });
 
-  it("rejects a loop without distance or duration", () => {
+  it("rejects a loop without distance or duration (FR-009)", () => {
     expect(() =>
       parseLoopRideRequest({
         type: "loop",
         start,
       }),
-    ).toThrow(/distance cible ou une durée disponible/);
+    ).toThrow(/distance cible \(FR-009\) ou une durée disponible/);
+  });
+
+  it("rejects a non-positive target distance (FR-009)", () => {
+    expect(() =>
+      parseLoopRideRequest({
+        type: "loop",
+        start,
+        targetDistanceKm: 0,
+      }),
+    ).toThrow();
   });
 });
 
