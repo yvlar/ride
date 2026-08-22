@@ -15,6 +15,7 @@ import type {
   RideGenerationError,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
+import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
@@ -155,8 +156,16 @@ async function generateValidatedLoop(
     targetDistanceKm,
     request.style,
     request.preferences?.avoidHighways === true,
+    request.preferences?.avoidUnpaved === true,
   );
   const knowledge = primaryKnowledgeError(settled);
+
+  if (selection.status === "known_unpaved_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
 
   if (
     selection.status === "geometric_loop_rejected" ||

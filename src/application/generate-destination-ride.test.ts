@@ -3,6 +3,7 @@ import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/
 import { createCircleLineString, headingChangePerKm } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
+import { UNKNOWN_SURFACE_WARNING } from "@/domain/ride/surfaces";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
 import {
   disconnectedKnowledgeError,
@@ -769,5 +770,77 @@ describe("generateDestinationRide (FR-002)", () => {
     }
     expect(result.route.segments[0]?.roadClass).toBe("motorway");
     expect(result.route.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
+  });
+
+  it("selects a paved corridor when avoidUnpaved is on (FR-008)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        const unpaved = (input.waypoints?.length ?? 0) === 0;
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) =>
+            unpaved
+              ? { ...segment, roadClass: "secondary", surface: "unpaved" as const }
+              : { ...segment, roadClass: "primary", surface: "paved" as const },
+          ),
+        };
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.segments.every((segment) => segment.surface === "paved"),
+    ).toBe(true);
+  });
+
+  it("warns when the selected destination includes an unknown surface (FR-008)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            roadClass: "primary",
+            surface: "unknown" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.surface).toBe("unknown");
+    expect(result.route.warnings).toContain(UNKNOWN_SURFACE_WARNING);
   });
 });

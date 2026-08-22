@@ -10,6 +10,7 @@ import {
   styleRankScore,
 } from "./destination";
 import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
+import { UNKNOWN_SURFACE_WARNING } from "./surfaces";
 import type { DestinationCandidate, RouteSegment } from "./types";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
@@ -644,5 +645,196 @@ describe("selectBestDestinationCandidate (FR-007)", () => {
       "motorway",
     );
     expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
+  });
+});
+
+describe("selectBestDestinationCandidate (FR-008)", () => {
+  it("excludes a known unpaved corridor when avoidance is on (BR-007)", () => {
+    const unpaved = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...fastestCandidate(),
+        durationMinutes: 90,
+        segments: [
+          {
+            id: "unpaved",
+            geometry: fastestCandidate().geometry,
+            distanceKm: 180,
+            durationMinutes: 90,
+            roadClass: "secondary",
+            surface: "unpaved",
+          } satisfies RouteSegment,
+        ],
+      },
+      { shortestDistanceKm: 180 },
+    );
+    const paved = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...primaryAlongHighwayGeometry(),
+        segments: [
+          {
+            id: "paved",
+            geometry: fastestCandidate().geometry,
+            distanceKm: 180,
+            durationMinutes: 95,
+            roadClass: "primary",
+            surface: "paved",
+          } satisfies RouteSegment,
+        ],
+      },
+      { shortestDistanceKm: 180 },
+    );
+
+    const withoutPreference = selectBestDestinationCandidate(
+      [unpaved, paved],
+      "touring",
+    );
+    expect(withoutPreference.status).toBe("selected");
+    if (withoutPreference.status === "selected") {
+      expect(withoutPreference.evaluation.candidate.segments[0]?.surface).toBe(
+        "unpaved",
+      );
+    }
+
+    const withPreference = selectBestDestinationCandidate(
+      [unpaved, paved],
+      "touring",
+      undefined,
+      false,
+      true,
+    );
+    expect(withPreference.status).toBe("selected");
+    if (withPreference.status !== "selected") {
+      return;
+    }
+    expect(withPreference.evaluation.candidate.segments[0]?.surface).toBe(
+      "paved",
+    );
+  });
+
+  it("rejects rather than silently keeping known unpaved (BR-007)", () => {
+    const unpaved = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...fastestCandidate(),
+        segments: [
+          {
+            id: "unpaved",
+            geometry: fastestCandidate().geometry,
+            distanceKm: 180,
+            durationMinutes: 90,
+            roadClass: "secondary",
+            surface: "unpaved",
+          } satisfies RouteSegment,
+        ],
+      },
+      { shortestDistanceKm: 180 },
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [unpaved],
+      "touring",
+      undefined,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("known_unpaved_rejected");
+  });
+
+  it("keeps a paved detour rather than silently proposing known unpaved", () => {
+    const unpaved = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...fastestCandidate(),
+        segments: [
+          {
+            id: "unpaved",
+            geometry: fastestCandidate().geometry,
+            distanceKm: 180,
+            durationMinutes: 90,
+            roadClass: "secondary",
+            surface: "unpaved",
+          } satisfies RouteSegment,
+        ],
+      },
+      { shortestDistanceKm: 180 },
+    );
+    const pavedDetour = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...primaryAlongHighwayGeometry(540),
+        segments: [
+          {
+            id: "paved-detour",
+            geometry: fastestCandidate().geometry,
+            distanceKm: 540,
+            durationMinutes: 240,
+            roadClass: "primary",
+            surface: "paved",
+          } satisfies RouteSegment,
+        ],
+      },
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(unpaved.disproportionateDetour).toBe(false);
+    expect(pavedDetour.disproportionateDetour).toBe(true);
+
+    const selection = selectBestDestinationCandidate(
+      [unpaved, pavedDetour],
+      "touring",
+      undefined,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.surface).toBe("paved");
+  });
+
+  it("keeps an unknown surface, does not call it paved, and signals it", () => {
+    const unknown = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...fastestCandidate(),
+        segments: [
+          {
+            id: "unknown",
+            geometry: fastestCandidate().geometry,
+            distanceKm: 180,
+            durationMinutes: 120,
+            roadClass: "primary",
+            surface: "unknown",
+          } satisfies RouteSegment,
+        ],
+      },
+      { shortestDistanceKm: 180 },
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [unknown],
+      "touring",
+      undefined,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.surface).toBe("unknown");
+    expect(selection.evaluation.warnings).toContain(UNKNOWN_SURFACE_WARNING);
   });
 });

@@ -14,7 +14,12 @@ import {
   MAX_DESTINATION_DETOUR_RATIO,
   MIN_DESTINATION_ROAD_POINTS,
 } from "./constants";
-import { distanceBoundsKm, distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
+import {
+  distanceBoundsKm,
+  distanceToleranceGapKm,
+  isWithinDistanceTolerance,
+  usesKnownUnpaved,
+} from "./constraints";
 import { curvyRankScore } from "./curvy";
 import {
   preferAvoidingHighways,
@@ -22,6 +27,10 @@ import {
   withHighwayAvoidanceSignal,
 } from "./highways";
 import { scenicRankScore } from "./scenic";
+import {
+  excludeKnownUnpaved,
+  withUnknownSurfaceSignal,
+} from "./surfaces";
 import { touringRankScore } from "./touring";
 import type { DestinationCandidate, RideStyle } from "./types";
 
@@ -239,6 +248,9 @@ export type DestinationSelection =
     }
   | {
       status: "no_route_found";
+    }
+  | {
+      status: "known_unpaved_rejected";
     };
 
 export function selectBestDestinationCandidate(
@@ -246,16 +258,26 @@ export function selectBestDestinationCandidate(
   style: RideStyle,
   targetDistanceKm?: number,
   avoidHighways = false,
+  avoidUnpaved = false,
 ): DestinationSelection {
   const anchored = evaluations.filter(isAnchoredDestination);
   if (anchored.length === 0) {
     return { status: "no_route_found" };
   }
 
-  const reasonable = anchored.filter(
+  const withoutUnpaved = excludeKnownUnpaved(
+    anchored,
+    (evaluation) => usesKnownUnpaved(evaluation.candidate.segments),
+    avoidUnpaved,
+  );
+  if (avoidUnpaved && anchored.length > 0 && withoutUnpaved.length === 0) {
+    return { status: "known_unpaved_rejected" };
+  }
+
+  const reasonable = withoutUnpaved.filter(
     (evaluation) => !evaluation.disproportionateDetour,
   );
-  const pool = reasonable.length > 0 ? reasonable : anchored;
+  const pool = reasonable.length > 0 ? reasonable : withoutUnpaved;
 
   const inTolerance =
     targetDistanceKm === undefined
@@ -296,6 +318,8 @@ export function selectBestDestinationCandidate(
 
   return {
     status: "selected",
-    evaluation: withHighwayAvoidanceSignal(best, avoidHighways),
+    evaluation: withUnknownSurfaceSignal(
+      withHighwayAvoidanceSignal(best, avoidHighways),
+    ),
   };
 }

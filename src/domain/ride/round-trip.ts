@@ -4,6 +4,7 @@ import { HIGH_REPEAT_WARNING_PERCENT } from "./constants";
 import {
   distanceToleranceGapKm,
   isWithinDistanceTolerance,
+  usesKnownUnpaved,
 } from "./constraints";
 import {
   createDestinationWaypointSets,
@@ -18,6 +19,10 @@ import {
   withHighwayAvoidanceSignal,
 } from "./highways";
 import { measureOverlapPercent, measureRepeatedRoadPercent } from "./overlap";
+import {
+  excludeKnownUnpaved,
+  withUnknownSurfaceSignal,
+} from "./surfaces";
 import type {
   DestinationCandidate,
   RideStyle,
@@ -164,6 +169,9 @@ export type RoundTripSelection =
     }
   | {
       status: "no_route_found";
+    }
+  | {
+      status: "known_unpaved_rejected";
     };
 
 /**
@@ -174,16 +182,26 @@ export function selectBestRoundTripCandidate(
   evaluations: EvaluatedRoundTripCandidate[],
   targetDistanceKm?: number,
   avoidHighways = false,
+  avoidUnpaved = false,
 ): RoundTripSelection {
   const viable = evaluations.filter(isViableRoundTrip);
   if (viable.length === 0) {
     return { status: "no_route_found" };
   }
 
-  const reasonable = viable.filter(
+  const withoutUnpaved = excludeKnownUnpaved(
+    viable,
+    (evaluation) => usesKnownUnpaved(evaluation.candidate.segments),
+    avoidUnpaved,
+  );
+  if (avoidUnpaved && viable.length > 0 && withoutUnpaved.length === 0) {
+    return { status: "known_unpaved_rejected" };
+  }
+
+  const reasonable = withoutUnpaved.filter(
     (evaluation) => !evaluation.disproportionateDetour,
   );
-  const pool = reasonable.length > 0 ? reasonable : viable;
+  const pool = reasonable.length > 0 ? reasonable : withoutUnpaved;
   const inTolerance =
     targetDistanceKm === undefined
       ? pool
@@ -229,6 +247,8 @@ export function selectBestRoundTripCandidate(
 
   return {
     status: "selected",
-    evaluation: withHighwayAvoidanceSignal(best, avoidHighways),
+    evaluation: withUnknownSurfaceSignal(
+      withHighwayAvoidanceSignal(best, avoidHighways),
+    ),
   };
 }

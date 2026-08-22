@@ -4,6 +4,7 @@ import { createCircleLineString } from "@/domain/geo/geometry";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import { HIGH_REPEAT_WARNING_PERCENT } from "./constants";
 import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
+import { UNKNOWN_SURFACE_WARNING } from "./surfaces";
 import {
   createLoopWaypointSets,
   evaluateLoopCandidate,
@@ -768,6 +769,171 @@ describe("selectBestLoopCandidate (FR-007)", () => {
     expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
       "motorway",
     );
+    expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
+  });
+});
+
+describe("selectBestLoopCandidate (FR-008)", () => {
+  it("excludes a known unpaved loop when avoidance is on (BR-007)", () => {
+    const unpaved = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "secondary",
+      surface: "unpaved",
+    });
+    const paved = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 40,
+      roadClass: "secondary",
+      surface: "paved",
+    });
+
+    const withoutPreference = selectBestLoopCandidate(
+      [unpaved, paved],
+      80,
+      "touring",
+    );
+    expect(withoutPreference.status).toBe("selected");
+    if (withoutPreference.status === "selected") {
+      expect(withoutPreference.evaluation.candidate.segments[0]?.surface).toBe(
+        "unpaved",
+      );
+    }
+
+    const withPreference = selectBestLoopCandidate(
+      [unpaved, paved],
+      80,
+      "touring",
+      false,
+      true,
+    );
+    expect(withPreference.status).toBe("selected");
+    if (withPreference.status !== "selected") {
+      return;
+    }
+    expect(withPreference.evaluation.candidate.segments[0]?.surface).toBe(
+      "paved",
+    );
+  });
+
+  it("rejects rather than silently keeping known unpaved (BR-007)", () => {
+    const unpaved = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "secondary",
+      surface: "unpaved",
+    });
+
+    const selection = selectBestLoopCandidate(
+      [unpaved],
+      80,
+      "touring",
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("known_unpaved_rejected");
+  });
+
+  it("keeps an unknown surface, does not call it paved, and signals it", () => {
+    const unknown = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 40,
+      roadClass: "secondary",
+      surface: "unknown",
+    });
+
+    const selection = selectBestLoopCandidate(
+      [unknown],
+      80,
+      "touring",
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.surface).toBe("unknown");
+    expect(selection.evaluation.candidate.segments[0]?.surface).not.toBe(
+      "paved",
+    );
+    expect(selection.evaluation.warnings).toContain(UNKNOWN_SURFACE_WARNING);
+  });
+
+  it("reports a paved out-of-tolerance candidate instead of a silent unpaved keep", () => {
+    const unpavedInTolerance = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "secondary",
+      surface: "unpaved",
+    });
+    const pavedTooLong: EvaluatedLoopCandidate = {
+      ...stubLoopEvaluation({
+        repeatedRoadPercent: 10,
+        touringScore: 40,
+        roadClass: "secondary",
+        surface: "paved",
+      }),
+      withinDistanceTolerance: false,
+      candidate: {
+        ...stubLoopEvaluation({
+          repeatedRoadPercent: 10,
+          touringScore: 40,
+          roadClass: "secondary",
+          surface: "paved",
+        }).candidate,
+        distanceKm: 200,
+      },
+    };
+
+    const selection = selectBestLoopCandidate(
+      [unpavedInTolerance, pavedTooLong],
+      80,
+      "touring",
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("distance_out_of_tolerance");
+    if (selection.status !== "distance_out_of_tolerance") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.surface).toBe("paved");
+    expect(selection.evaluation.candidate.distanceKm).toBe(200);
+  });
+
+  it("keeps a paved highway rather than a known unpaved alternative", () => {
+    const highwayPaved = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "motorway",
+      surface: "paved",
+    });
+    const unpavedPrimary = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 40,
+      roadClass: "primary",
+      surface: "unpaved",
+    });
+
+    const selection = selectBestLoopCandidate(
+      [highwayPaved, unpavedPrimary],
+      80,
+      "touring",
+      true,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+    expect(selection.evaluation.candidate.segments[0]?.surface).toBe("paved");
     expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

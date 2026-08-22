@@ -19,9 +19,11 @@ import type {
   RoundTripRideRequest,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
+import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
+  knowledgeUnavailableError,
   rejectIfKnownUnpavedAvoided,
 } from "./routing-failure";
 
@@ -202,7 +204,15 @@ async function generateValidatedRoundTrip(
     evaluations,
     targetDistanceKm,
     request.preferences.avoidHighways,
+    request.preferences.avoidUnpaved,
   );
+
+  if (selection.status === "known_unpaved_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
 
   if (selection.status === "no_route_found") {
     return {
