@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
   AVAILABLE_DURATION_HINT,
@@ -83,6 +83,13 @@ function formatGeneratedDuration(durationMinutes: number): string {
   return `${Math.round(durationMinutes)} min`;
 }
 
+const GENERATION_UNAVAILABLE: RideGenerationError = {
+  code: "PROVIDER_ERROR",
+  message:
+    "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
+  suggestions: ["Réessayez dans quelques instants."],
+};
+
 export type RideRequestFormProps = {
   searchPlaces?: (query: string) => Promise<Place[]>;
   debounceMs?: number;
@@ -115,6 +122,7 @@ export function RideRequestForm({
     useState<GeneratedRideRoute | null>(null);
   const [generationError, setGenerationError] =
     useState<RideGenerationError | null>(null);
+  const generationId = useRef(0);
 
   const needsDestination = type !== "loop";
   const durationHoursValue = parseOptionalNumber(availableDurationHours);
@@ -157,17 +165,29 @@ export function RideRequestForm({
     setErrors({});
     setStatus(summarizeRideRequest(result.request));
     onRequestComposed?.(result.request);
+    const requestId = generationId.current + 1;
+    generationId.current = requestId;
     setGenerating(true);
 
     try {
       const generated = await generateRide(result.request);
+      if (generationId.current !== requestId) {
+        return;
+      }
       if (generated.ok) {
         setGeneratedRoute(generated.route);
         return;
       }
       setGenerationError(generated.error);
+    } catch {
+      if (generationId.current !== requestId) {
+        return;
+      }
+      setGenerationError(GENERATION_UNAVAILABLE);
     } finally {
-      setGenerating(false);
+      if (generationId.current === requestId) {
+        setGenerating(false);
+      }
     }
   }
 
@@ -242,6 +262,8 @@ export function RideRequestForm({
                       targetDistanceKm: undefined,
                     }));
                     setStatus(null);
+                    generationId.current += 1;
+                    setGenerating(false);
                     setGeneratedRoute(null);
                     setGenerationError(null);
                   }}

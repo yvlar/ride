@@ -69,7 +69,10 @@ const generatedLoop: GeneratedLoopRoute = {
 function okGenerateRide(): (
   request: GenerateRideRequest,
 ) => Promise<GenerateRideResult> {
-  return vi.fn(async () => ({ ok: true, route: generatedLoop }));
+  return vi.fn(async (): Promise<GenerateRideResult> => ({
+    ok: true,
+    route: generatedLoop,
+  }));
 }
 
 function renderForm(props: Partial<RideRequestFormProps> = {}) {
@@ -150,6 +153,59 @@ describe("RideRequestForm (FR-014)", () => {
     expect(generated).toHaveTextContent(
       "Certains segments ont une surface inconnue.",
     );
+  });
+
+  it("ignores a stale generation after the ride type changes (FR-011)", async () => {
+    let resolveGeneration: (value: GenerateRideResult) => void = () => {};
+    const generateRide = vi.fn(
+      () =>
+        new Promise<GenerateRideResult>((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Génération…" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
+    resolveGeneration({ ok: true, route: generatedLoop });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Générer ma ride" }),
+      ).toBeEnabled();
+    });
+    expect(
+      screen.queryByRole("region", { name: "Trajet généré" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a provider error when generation throws (FR-011)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => {
+      throw new Error("network down");
+    });
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Le service de cartographie ne répond pas/,
+    );
+    expect(
+      screen.getByRole("button", { name: "Générer ma ride" }),
+    ).toBeEnabled();
   });
 
   it("shows an explicit business error when generation fails (FR-011)", async () => {
