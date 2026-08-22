@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import { resolveTargetDistanceKm } from "@/domain/ride/duration";
 import {
   createLoopWaypointSets,
@@ -153,17 +152,11 @@ async function generateValidatedLoop(
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
   const knowledge = primaryKnowledgeError(settled);
-  // #region agent log
-  appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"A",location:"generate-loop-ride.ts:select",message:"loop selection vs knowledge",data:{selectionStatus:selection.status,evaluationCount:evaluations.length,fulfilledCount:settled.filter((r)=>r.status==="fulfilled").length,rejectedCount:settled.filter((r)=>r.status==="rejected").length,knowledgeReason:knowledge?.reason??null,knowledgeChecked:selection.status==="geometric_loop_rejected"||selection.status==="no_route_found",willOmitKnowledge:selection.status==="distance_out_of_tolerance"&&Boolean(knowledge)},timestamp:Date.now()})+"\n");
-  // #endregion
 
   if (
     selection.status === "geometric_loop_rejected" ||
     selection.status === "no_route_found"
   ) {
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"B",location:"generate-loop-ride.ts:knowledge-gate",message:"loop knowledge gate",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,willReturnKnowledge:Boolean(knowledge)},timestamp:Date.now()})+"\n");
-    // #endregion
     if (knowledge) {
       return { ok: false, error: knowledgeUnavailableError(knowledge) };
     }
@@ -210,9 +203,6 @@ async function generateValidatedLoop(
       },
       knowledge,
     );
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"D",location:"generate-loop-ride.ts:distance_out_of_tolerance",message:"distance path after combine",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,knowledgeMessage:knowledge?.message??null,willOmitKnowledge:Boolean(knowledge)&&!error.message.includes("FR-021"),returnedCode:error.code,returnedMessageHasFr021:error.message.includes("FR-021"),returnedMessageHasUnpaved:error.message.includes("non pavées"),returnedMessageHasBr001:error.message.includes("BR-001"),bestDistanceKm:best.candidate.distanceKm,targetDistanceKm},timestamp:Date.now()})+"\n");
-    // #endregion
     return { ok: false, error };
   }
 
