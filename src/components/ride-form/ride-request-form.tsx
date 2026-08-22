@@ -2,7 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { composeRideRequest } from "@/domain/ride/compose-request";
-import { hoursToMinutes } from "@/domain/ride/duration";
+import {
+  AVAILABLE_DURATION_HINT,
+  hoursToMinutes,
+} from "@/domain/ride/duration";
 import { summarizeRideRequest } from "@/domain/ride/summarize-request";
 import {
   isTargetDistanceRequired,
@@ -303,6 +306,11 @@ export function RideRequestForm({
                 aria-invalid={
                   errors.availableDurationMinutes ? true : undefined
                 }
+                aria-describedby={
+                  errors.availableDurationMinutes
+                    ? "available-duration-hint available-duration-error"
+                    : "available-duration-hint"
+                }
                 onChange={(event) => {
                   setAvailableDurationHours(event.target.value);
                   setErrors((current) => ({
@@ -312,8 +320,17 @@ export function RideRequestForm({
                 }}
                 className="h-12 text-base"
               />
+              <p
+                id="available-duration-hint"
+                className="text-sm text-muted-foreground"
+              >
+                {AVAILABLE_DURATION_HINT}
+              </p>
               {errors.availableDurationMinutes ? (
-                <p className="text-sm text-destructive">
+                <p
+                  id="available-duration-error"
+                  className="text-sm text-destructive"
+                >
                   {errors.availableDurationMinutes}
                 </p>
               ) : null}

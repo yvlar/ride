@@ -1,5 +1,8 @@
 import type { Coordinates } from "@/domain/geo/types";
-import { resolveTargetDistanceKm } from "@/domain/ride/duration";
+import {
+  resolveTargetDistanceKm,
+  withAvailableDurationCeiling,
+} from "@/domain/ride/duration";
 import {
   createDestinationWaypointSets,
   evaluateDestinationCandidate,
@@ -248,7 +251,10 @@ async function generateValidatedRoundTrip(
     };
   }
 
-  const { evaluation } = selection;
+  const evaluation = withAvailableDurationCeiling(
+    selection.evaluation,
+    request.availableDurationMinutes,
+  );
   const route: GeneratedRoundTripRoute = {
     id: crypto.randomUUID(),
     type: "round_trip",

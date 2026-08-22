@@ -5,6 +5,7 @@ import {
   radiusCoefficientOfVariation,
 } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
+import { availableDurationCeilingWarning } from "@/domain/ride/duration";
 import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { UNKNOWN_SURFACE_WARNING } from "@/domain/ride/surfaces";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
@@ -317,7 +318,7 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.route.segments[0]?.surface).toBe("paved");
   });
 
-  it("converts an available duration via BR-005 before generating the loop", async () => {
+  it("converts an available duration via BR-005 before generating the loop (FR-010)", async () => {
     const result = await generateLoopRide(
       {
         type: "loop",
@@ -335,6 +336,68 @@ describe("generateLoopRide (FR-001)", () => {
 
     expect(result.route.targetDistanceKm).toBe(80);
     expect(isWithinDistanceTolerance(result.route.distanceKm, 80)).toBe(true);
+  });
+
+  it("keeps explicit distance as the length constraint and flags a duration ceiling miss (FR-010)", async () => {
+    const slowProvider: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        const routed = await new MockRoutingProvider().calculateRoute(input);
+        return { ...routed, durationMinutes: 400 };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        availableDurationMinutes: 60,
+        style: "touring",
+      },
+      slowProvider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    expect(result.route.targetDistanceKm).toBe(80);
+    expect(isWithinDistanceTolerance(result.route.distanceKm, 80)).toBe(true);
+    expect(result.route.warnings).toContain(
+      availableDurationCeilingWarning(400, 60),
+    );
+  });
+
+  it("does not flag a duration that stays within the available time (FR-010)", async () => {
+    const timelyProvider: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        const routed = await new MockRoutingProvider().calculateRoute(input);
+        return { ...routed, durationMinutes: 55 };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        availableDurationMinutes: 60,
+        style: "touring",
+      },
+      timelyProvider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    expect(result.route.warnings.join(" ")).not.toMatch(/durée disponible/);
   });
 
   it("rejects destination and round-trip types at the loop generator boundary", async () => {

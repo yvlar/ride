@@ -1,4 +1,7 @@
-import { resolveTargetDistanceKm } from "@/domain/ride/duration";
+import {
+  resolveTargetDistanceKm,
+  withAvailableDurationCeiling,
+} from "@/domain/ride/duration";
 import {
   createLoopWaypointSets,
   evaluateLoopCandidate,
@@ -220,7 +223,10 @@ async function generateValidatedLoop(
     return { ok: false, error };
   }
 
-  const { evaluation } = selection;
+  const evaluation = withAvailableDurationCeiling(
+    selection.evaluation,
+    request.availableDurationMinutes,
+  );
   const route: GeneratedLoopRoute = {
     id: crypto.randomUUID(),
     type: "loop",

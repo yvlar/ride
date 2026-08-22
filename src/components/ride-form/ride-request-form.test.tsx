@@ -2,6 +2,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Place } from "@/domain/geo/types";
 import {
+  AVAILABLE_DURATION_HINT,
+  AVAILABLE_DURATION_POSITIVE_MESSAGE,
+  AVERAGE_SPEED_KMH,
+} from "@/domain/ride/duration";
+import {
   TARGET_DISTANCE_HINT_OPTIONAL,
   TARGET_DISTANCE_HINT_OPTIONAL_WITH_DURATION,
   TARGET_DISTANCE_HINT_REQUIRED,
@@ -245,6 +250,83 @@ describe("RideRequestForm (FR-014)", () => {
 
     expect(
       screen.getByText(TARGET_DISTANCE_POSITIVE_KM_MESSAGE),
+    ).toBeInTheDocument();
+  });
+
+  it("lets the user compose a loop from an available duration (FR-010)", async () => {
+    const onRequestComposed = vi.fn();
+    render(
+      <RideRequestForm
+        searchPlaces={searchPlaces}
+        debounceMs={0}
+        onRequestComposed={onRequestComposed}
+      />,
+    );
+
+    expect(screen.getByText(AVAILABLE_DURATION_HINT)).toBeInTheDocument();
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(screen.getByLabelText("Durée disponible (h)"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Courbes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(onRequestComposed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "loop",
+          availableDurationMinutes: 120,
+          targetDistanceKm: 2 * AVERAGE_SPEED_KMH.curvy,
+        }),
+      );
+    });
+  });
+
+  it("keeps an explicit distance when a duration is also provided (FR-010)", async () => {
+    const onRequestComposed = vi.fn();
+    render(
+      <RideRequestForm
+        searchPlaces={searchPlaces}
+        debounceMs={0}
+        onRequestComposed={onRequestComposed}
+      />,
+    );
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "250" },
+    });
+    fireEvent.change(screen.getByLabelText("Durée disponible (h)"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(onRequestComposed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "loop",
+          targetDistanceKm: 250,
+          availableDurationMinutes: 240,
+        }),
+      );
+    });
+  });
+
+  it("rejects a non-positive available duration (FR-010)", async () => {
+    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "80" },
+    });
+    fireEvent.change(screen.getByLabelText("Durée disponible (h)"), {
+      target: { value: "0" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      screen.getByText(AVAILABLE_DURATION_POSITIVE_MESSAGE),
     ).toBeInTheDocument();
   });
 

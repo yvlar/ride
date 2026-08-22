@@ -102,7 +102,7 @@ describe("composeRideRequest (FR-014)", () => {
     });
   });
 
-  it("estimates loop distance from duration according to style (BR-005)", () => {
+  it("estimates loop distance from duration according to style (FR-010, BR-005)", () => {
     const result = composeRideRequest(
       baseInput({
         targetDistanceKm: null,
@@ -223,6 +223,39 @@ describe("composeRideRequest (FR-014)", () => {
     expect(result.errors).toContainEqual({
       field: "targetDistanceKm",
       message: "La distance cible doit être supérieure à 0 km.",
+    });
+  });
+
+  it("rejects a non-positive available duration (FR-010)", () => {
+    const result = composeRideRequest(
+      baseInput({ availableDurationMinutes: 0 }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors).toContainEqual({
+      field: "availableDurationMinutes",
+      message: "La durée disponible doit être supérieure à 0.",
+    });
+  });
+
+  it("accepts an optional duration for a destination ride (FR-010)", () => {
+    const result = composeRideRequest(
+      baseInput({
+        type: "destination",
+        destination: tremblant,
+        targetDistanceKm: null,
+        availableDurationMinutes: 90,
+        style: "touring",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request).toMatchObject({
+      type: "destination",
+      availableDurationMinutes: 90,
+      targetDistanceKm: 1.5 * AVERAGE_SPEED_KMH.touring,
     });
   });
 });

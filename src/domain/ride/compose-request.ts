@@ -1,4 +1,7 @@
-import { durationToEstimatedDistanceKm } from "@/domain/ride/duration";
+import {
+  durationToEstimatedDistanceKm,
+  parseAvailableDurationMinutes,
+} from "@/domain/ride/duration";
 import {
   TARGET_DISTANCE_REQUIRED_MESSAGE,
   isTargetDistanceRequired,
@@ -13,10 +16,6 @@ import type {
 export type ComposeRideRequestResult =
   | { ok: true; request: GenerateRideRequest }
   | { ok: false; errors: RideFormError[] };
-
-function isPositiveNumber(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
 
 export function composeRideRequest(
   input: RideFormInput,
@@ -40,8 +39,11 @@ export function composeRideRequest(
   }
 
   const distanceInput = input.targetDistanceKm;
-  const durationInput = input.availableDurationMinutes;
-  const hasDuration = isPositiveNumber(durationInput);
+  const parsedDuration = parseAvailableDurationMinutes(
+    input.availableDurationMinutes,
+  );
+  const hasDuration =
+    parsedDuration.ok && parsedDuration.availableDurationMinutes !== undefined;
   const parsedDistance = parseTargetDistanceKm(distanceInput, {
     required: isTargetDistanceRequired(input.type, hasDuration),
   });
@@ -53,10 +55,10 @@ export function composeRideRequest(
     });
   }
 
-  if (durationInput != null && !hasDuration) {
+  if (!parsedDuration.ok) {
     errors.push({
       field: "availableDurationMinutes",
-      message: "La durée disponible doit être supérieure à 0.",
+      message: parsedDuration.message,
     });
   }
 
@@ -67,14 +69,15 @@ export function composeRideRequest(
   const explicitTargetDistanceKm = parsedDistance.ok
     ? parsedDistance.targetDistanceKm
     : undefined;
+  const availableDurationMinutes = parsedDuration.ok
+    ? parsedDuration.availableDurationMinutes
+    : undefined;
   const targetDistanceKm =
     explicitTargetDistanceKm !== undefined
       ? explicitTargetDistanceKm
-      : hasDuration
-        ? durationToEstimatedDistanceKm(durationInput, input.style)
+      : availableDurationMinutes !== undefined
+        ? durationToEstimatedDistanceKm(availableDurationMinutes, input.style)
         : undefined;
-
-  const availableDurationMinutes = hasDuration ? durationInput : undefined;
 
   if (input.type === "loop") {
     if (targetDistanceKm === undefined) {

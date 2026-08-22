@@ -28,7 +28,7 @@ describe("parseLoopRideRequest (FR-001)", () => {
     expect(request.targetDistanceKm).toBe(80);
   });
 
-  it("accepts a loop with only an available duration", () => {
+  it("accepts a loop with only an available duration (FR-010)", () => {
     const request = parseLoopRideRequest({
       type: "loop",
       start,
@@ -87,6 +87,18 @@ describe("parseDestinationRideRequest (FR-002)", () => {
     expect(request.targetDistanceKm).toBe(220);
   });
 
+  it("accepts an optional available duration (FR-010)", () => {
+    const request = parseDestinationRideRequest({
+      type: "destination",
+      start,
+      destination,
+      style: "curvy",
+      availableDurationMinutes: 150,
+    });
+
+    expect(request.availableDurationMinutes).toBe(150);
+  });
+
   it("rejects a destination coinciding with the start", () => {
     expect(() =>
       parseDestinationRideRequest({
@@ -134,6 +146,20 @@ describe("parseRoundTripRideRequest (FR-003)", () => {
     });
 
     expect(request.targetDistanceKm).toBe(400);
+  });
+
+  it("accepts distance and duration together (FR-010)", () => {
+    const request = parseRoundTripRideRequest({
+      type: "round_trip",
+      start,
+      destination,
+      style: "touring",
+      targetDistanceKm: 300,
+      availableDurationMinutes: 240,
+    });
+
+    expect(request.targetDistanceKm).toBe(300);
+    expect(request.availableDurationMinutes).toBe(240);
   });
 
   it("rejects a destination coinciding with the start", () => {
