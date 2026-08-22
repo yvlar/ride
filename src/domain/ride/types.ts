@@ -106,7 +106,30 @@ export type GeneratedDestinationRoute = {
   warnings: string[];
 };
 
-export type GeneratedRideRoute = GeneratedLoopRoute | GeneratedDestinationRoute;
+export type RoundTripRouteStatistics = {
+  repeatedRoadPercent: number;
+  outboundReturnOverlapPercent: number;
+};
+
+export type GeneratedRoundTripRoute = {
+  id: string;
+  type: "round_trip";
+  start: Place;
+  destination: Place;
+  style: RideStyle;
+  targetDistanceKm?: number;
+  geometry: LineString;
+  segments: RouteSegment[];
+  distanceKm: number;
+  durationMinutes: number;
+  statistics: RoundTripRouteStatistics;
+  warnings: string[];
+};
+
+export type GeneratedRideRoute =
+  | GeneratedLoopRoute
+  | GeneratedDestinationRoute
+  | GeneratedRoundTripRoute;
 
 export type RideGenerationErrorCode =
   | "VALIDATION_ERROR"
@@ -140,4 +163,13 @@ export type DestinationCandidate = {
   distanceKm: number;
   durationMinutes: number;
   waypoints: Coordinates[];
+};
+
+export type RoundTripCandidate = {
+  outbound: DestinationCandidate;
+  inbound: DestinationCandidate;
+  geometry: LineString;
+  segments: RouteSegment[];
+  distanceKm: number;
+  durationMinutes: number;
 };

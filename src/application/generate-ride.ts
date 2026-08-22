@@ -1,5 +1,6 @@
 import { generateDestinationRide } from "@/application/generate-destination-ride";
 import { generateLoopRide } from "@/application/generate-loop-ride";
+import { generateRoundTripRide } from "@/application/generate-round-trip-ride";
 import { unsupportedRideTypeMessage } from "@/domain/ride/schemas";
 import type { GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
@@ -45,13 +46,17 @@ export async function generateRide(
     return generateDestinationRide(input, provider);
   }
 
+  if (type === "round_trip") {
+    return generateRoundTripRide(input, provider);
+  }
+
   return {
     ok: false,
     error: {
       code: "UNSUPPORTED_RIDE_TYPE",
       message: unsupportedRideTypeMessage(type),
       suggestions: [
-        'Utilisez type: "loop" ou type: "destination".',
+        'Utilisez type: "loop", type: "destination" ou type: "round_trip".',
       ],
     },
   };

@@ -97,7 +97,7 @@ describe("POST /api/routes/generate", () => {
     expect(payload.error.code).toBe("VALIDATION_ERROR");
   });
 
-  it("still rejects round_trip instead of implementing FR-003", async () => {
+  it("returns a round-trip route for a valid FR-003 request", async () => {
     const response = await POST(
       new Request("http://localhost/api/routes/generate", {
         method: "POST",
@@ -111,11 +111,21 @@ describe("POST /api/routes/generate", () => {
       }),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
     const payload = (await response.json()) as {
-      error: { code: string };
+      data: {
+        route: {
+          type: string;
+          destination: { label: string };
+          statistics: { outboundReturnOverlapPercent: number };
+        };
+      };
     };
-    expect(payload.error.code).toBe("UNSUPPORTED_RIDE_TYPE");
+    expect(payload.data.route.type).toBe("round_trip");
+    expect(payload.data.route.destination.label).toBe("Mont-Tremblant");
+    expect(
+      payload.data.route.statistics.outboundReturnOverlapPercent,
+    ).toBeGreaterThanOrEqual(0);
   });
 
   it("rejects an oversized body without invoking generation", async () => {

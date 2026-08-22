@@ -86,6 +86,35 @@ export function headingChangePerKm(geometry: LineString): number {
   return totalChange / lengthKm;
 }
 
+/** Join two traces without duplicating the shared endpoint (FR-003). */
+export function joinLineStrings(
+  first: LineString,
+  second: LineString,
+): LineString {
+  if (first.coordinates.length === 0) {
+    return { type: "LineString", coordinates: [...second.coordinates] };
+  }
+  if (second.coordinates.length === 0) {
+    return { type: "LineString", coordinates: [...first.coordinates] };
+  }
+
+  const last = first.coordinates[first.coordinates.length - 1];
+  const head = second.coordinates[0];
+  const skipHead =
+    last !== undefined &&
+    head !== undefined &&
+    last[0] === head[0] &&
+    last[1] === head[1];
+
+  return {
+    type: "LineString",
+    coordinates: [
+      ...first.coordinates,
+      ...second.coordinates.slice(skipHead ? 1 : 0),
+    ],
+  };
+}
+
 export function createCircleLineString(
   center: Coordinates,
   radiusKm: number,

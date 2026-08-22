@@ -85,6 +85,37 @@ describe("RideRequestForm (FR-014)", () => {
     ).toHaveTextContent(/boucle d’environ 200 km au départ de Granby, QC/i);
   });
 
+  it("lets the user compose a round trip with a destination (FR-003, FR-018)", async () => {
+    const onRequestComposed = vi.fn();
+    render(
+      <RideRequestForm
+        searchPlaces={searchPlaces}
+        debounceMs={0}
+        onRequestComposed={onRequestComposed}
+      />,
+    );
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.click(screen.getByRole("radio", { name: /Aller-retour/ }));
+    await selectPlace("Destination", "Mont-Tremblant, QC");
+    fireEvent.click(screen.getByRole("radio", { name: "Touring" }));
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(onRequestComposed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "round_trip",
+          start: granby,
+          destination: tremblant,
+          style: "touring",
+        }),
+      );
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /aller-retour au départ de Granby, QC vers Mont-Tremblant, QC/i,
+    );
+  });
+
   it("requires a destination for a point-to-point ride (FR-002, FR-018)", async () => {
     render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
 

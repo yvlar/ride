@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         code: "VALIDATION_ERROR",
         message: "Le corps de la requête doit être un JSON valide.",
         suggestions: [
-          'Envoyez un objet JSON avec type: "loop" ou type: "destination".',
+          'Envoyez un objet JSON avec type: "loop", "destination" ou "round_trip".',
         ],
       },
       400,

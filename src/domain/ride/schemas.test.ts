@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseDestinationRideRequest,
   parseLoopRideRequest,
+  parseRoundTripRideRequest,
   unsupportedRideTypeMessage,
 } from "./schemas";
 
@@ -98,9 +99,48 @@ describe("parseDestinationRideRequest (FR-002)", () => {
   });
 });
 
+describe("parseRoundTripRideRequest (FR-003)", () => {
+  it("requires a start, a destination, and a driving style", () => {
+    const request = parseRoundTripRideRequest({
+      type: "round_trip",
+      start,
+      destination,
+      style: "touring",
+    });
+
+    expect(request.type).toBe("round_trip");
+    expect(request.destination.label).toBe("Mont-Tremblant");
+    expect(request.style).toBe("touring");
+    expect(request.targetDistanceKm).toBeUndefined();
+  });
+
+  it("accepts an optional target distance (FR-009)", () => {
+    const request = parseRoundTripRideRequest({
+      type: "round_trip",
+      start,
+      destination,
+      style: "scenic",
+      targetDistanceKm: 400,
+    });
+
+    expect(request.targetDistanceKm).toBe(400);
+  });
+
+  it("rejects a destination coinciding with the start", () => {
+    expect(() =>
+      parseRoundTripRideRequest({
+        type: "round_trip",
+        start,
+        destination: start,
+        style: "touring",
+      }),
+    ).toThrow(/trop proches/);
+  });
+});
+
 describe("unsupportedRideTypeMessage", () => {
-  it("still withholds round_trip until FR-003", () => {
-    expect(unsupportedRideTypeMessage("round_trip")).toMatch(/FR-003|round_trip/);
-    expect(unsupportedRideTypeMessage("unknown")).toMatch(/FR-002/);
+  it("points a misplaced round_trip at the FR-003 generator", () => {
+    expect(unsupportedRideTypeMessage("round_trip")).toMatch(/FR-003/);
+    expect(unsupportedRideTypeMessage("unknown")).toMatch(/FR-003/);
   });
 });
