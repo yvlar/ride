@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import { usesKnownUnpaved } from "@/domain/ride/constraints";
 import type { RideGenerationError, RoutePreferences } from "@/domain/ride/types";
 import {
@@ -35,29 +34,6 @@ export function errorFromExhaustedAttempts(
     settled.length > 0 &&
     settled.every((result) => result.status === "rejected");
   const knowledge = primaryKnowledgeError(settled);
-
-  // #region agent log
-  appendFileSync(
-    "/opt/cursor/logs/debug.log",
-    `${JSON.stringify({
-      hypothesisId: "D",
-      location: "routing-failure.ts:errorFromExhaustedAttempts",
-      message: "exhausted-attempts invoked",
-      data: {
-        settledCount: settled.length,
-        everyAttemptFailed,
-        hasKnowledge: Boolean(knowledge),
-        knowledgeReason: knowledge?.reason ?? null,
-        path: knowledge
-          ? "knowledge"
-          : everyAttemptFailed
-            ? "provider"
-            : "fallback",
-      },
-      timestamp: Date.now(),
-    })}\n`,
-  );
-  // #endregion
 
   if (knowledge) {
     return knowledgeUnavailableError(knowledge);
@@ -120,23 +96,5 @@ export function primaryKnowledgeError(
       selected = result.reason;
     }
   }
-  // #region agent log
-  appendFileSync(
-    "/opt/cursor/logs/debug.log",
-    `${JSON.stringify({
-      hypothesisId: "C",
-      location: "routing-failure.ts:primaryKnowledgeError",
-      message: "primary knowledge error scan",
-      data: {
-        settledCount: settled.length,
-        rejectedCount: settled.filter((result) => result.status === "rejected")
-          .length,
-        selectedReason: selected?.reason ?? null,
-        exists: Boolean(selected),
-      },
-      timestamp: Date.now(),
-    })}\n`,
-  );
-  // #endregion
   return selected;
 }
