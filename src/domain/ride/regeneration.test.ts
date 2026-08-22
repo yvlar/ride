@@ -5,6 +5,7 @@ import { REGENERATION_MAX_OVERLAP_PERCENT } from "./constants";
 import {
   excludeSimilarToPrevious,
   isVisiblyDifferentCorridor,
+  lostOnlyToPreviousCorridor,
 } from "./regeneration";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
@@ -61,5 +62,35 @@ describe("excludeSimilarToPrevious (FR-012, BR-006)", () => {
 
   it("uses the 30 % implementation threshold from CURSOR.md", () => {
     expect(REGENERATION_MAX_OVERLAP_PERCENT).toBe(30);
+  });
+
+  it("does not treat a zero-length previous corridor as distinct (BR-006)", () => {
+    const empty = line([GRANBY, GRANBY]);
+    const east = line([GRANBY, offsetCoordinates(GRANBY, 90, 8)]);
+
+    expect(isVisiblyDifferentCorridor(empty, east)).toBe(false);
+    expect(isVisiblyDifferentCorridor(east, empty)).toBe(false);
+  });
+});
+
+describe("lostOnlyToPreviousCorridor (FR-012, BR-006)", () => {
+  it("is true when a valid route existed but only similar corridors remained", () => {
+    const previous = line([GRANBY, offsetCoordinates(GRANBY, 90, 8)]);
+    expect(
+      lostOnlyToPreviousCorridor(previous, "no_route_found", "selected"),
+    ).toBe(true);
+    expect(
+      lostOnlyToPreviousCorridor(previous, "distance_out_of_tolerance", "selected"),
+    ).toBe(true);
+  });
+
+  it("is false when generation would fail even without the previous corridor", () => {
+    const previous = line([GRANBY, offsetCoordinates(GRANBY, 90, 8)]);
+    expect(
+      lostOnlyToPreviousCorridor(previous, "no_route_found", "no_route_found"),
+    ).toBe(false);
+    expect(lostOnlyToPreviousCorridor(undefined, "no_route_found", "selected")).toBe(
+      false,
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { lineStringLengthKm } from "@/domain/geo/distance";
 import type { LineString } from "@/domain/geo/types";
 import { REGENERATION_MAX_OVERLAP_PERCENT } from "./constants";
 import { measureOverlapPercent } from "./overlap";
@@ -12,7 +13,26 @@ export function isVisiblyDifferentCorridor(
   candidate: LineString,
   maxOverlapPercent = REGENERATION_MAX_OVERLAP_PERCENT,
 ): boolean {
+  if (lineStringLengthKm(previous) === 0 || lineStringLengthKm(candidate) === 0) {
+    return false;
+  }
   return measureOverlapPercent(previous, candidate) <= maxOverlapPercent;
+}
+
+/**
+ * FR-012 — the unconstrained generator found a valid route, but every
+ * business-viable corridor reused the previous one.
+ */
+export function lostOnlyToPreviousCorridor(
+  previousGeometry: LineString | undefined,
+  filteredStatus: string,
+  unconstrainedStatus: string,
+): boolean {
+  return (
+    previousGeometry !== undefined &&
+    filteredStatus !== "selected" &&
+    unconstrainedStatus === "selected"
+  );
 }
 
 /** FR-012 / BR-006 — drop candidates that reuse the previous corridor. */

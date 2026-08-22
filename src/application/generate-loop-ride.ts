@@ -13,6 +13,7 @@ import {
 } from "@/domain/ride/schemas";
 import {
   excludeSimilarToPrevious,
+  lostOnlyToPreviousCorridor,
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
 import type {
@@ -169,14 +170,6 @@ async function generateValidatedLoop(
       )
     : evaluations;
 
-  if (
-    options?.previousGeometry &&
-    evaluations.length > 0 &&
-    selectable.length === 0
-  ) {
-    return { ok: false, error: regenerationOverlapError() };
-  }
-
   const selection = selectBestLoopCandidate(
     selectable,
     targetDistanceKm,
@@ -184,6 +177,21 @@ async function generateValidatedLoop(
     request.preferences?.avoidHighways === true,
     request.preferences?.avoidUnpaved === true,
   );
+  if (
+    lostOnlyToPreviousCorridor(
+      options?.previousGeometry,
+      selection.status,
+      selectBestLoopCandidate(
+        evaluations,
+        targetDistanceKm,
+        request.style,
+        request.preferences?.avoidHighways === true,
+        request.preferences?.avoidUnpaved === true,
+      ).status,
+    )
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
   const knowledge = primaryKnowledgeError(settled);
 
   if (selection.status === "known_unpaved_rejected") {

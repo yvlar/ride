@@ -10,6 +10,7 @@ import {
 } from "@/domain/ride/destination";
 import {
   excludeSimilarToPrevious,
+  lostOnlyToPreviousCorridor,
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
 import { destinationRideRequestSchema } from "@/domain/ride/schemas";
@@ -201,14 +202,6 @@ async function generateValidatedDestination(
       )
     : evaluations;
 
-  if (
-    options?.previousGeometry &&
-    evaluations.length > 0 &&
-    selectable.length === 0
-  ) {
-    return { ok: false, error: regenerationOverlapError() };
-  }
-
   const selection = selectBestDestinationCandidate(
     selectable,
     request.style,
@@ -216,6 +209,21 @@ async function generateValidatedDestination(
     request.preferences.avoidHighways,
     request.preferences.avoidUnpaved,
   );
+  if (
+    lostOnlyToPreviousCorridor(
+      options?.previousGeometry,
+      selection.status,
+      selectBestDestinationCandidate(
+        evaluations,
+        request.style,
+        targetDistanceKm,
+        request.preferences.avoidHighways,
+        request.preferences.avoidUnpaved,
+      ).status,
+    )
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
   const knowledge = primaryKnowledgeError(settled);
 
   if (selection.status === "known_unpaved_rejected") {

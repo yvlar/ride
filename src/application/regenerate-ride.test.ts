@@ -198,6 +198,146 @@ describe("regenerateRide (FR-012, BR-006)", () => {
     expect(regenerated.error.suggestions.length).toBeGreaterThan(0);
   });
 
+  it("explains BR-006 when only leftover non-viable candidates are distinct", async () => {
+    const request = {
+      type: "loop" as const,
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "curvy" as const,
+    };
+    const mock = new MockRoutingProvider();
+    const frozenLoop = async (input: ProviderRouteRequest) => {
+      const start = input.start;
+      return mock.calculateRoute({
+        ...input,
+        destination: start,
+        waypoints: [
+          offsetCoordinates(start, 0, 20),
+          offsetCoordinates(start, 90, 20),
+        ],
+      });
+    };
+    const first = await generateRide(request, { calculateRoute: frozenLoop });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error(first.error.message);
+    }
+
+    let calls = 0;
+    const leftoverJunk: RoutingProvider = {
+      async calculateRoute(input) {
+        calls += 1;
+        if (calls === 1) {
+          return mock.calculateRoute({
+            start: input.start,
+            destination: offsetCoordinates(input.start, 90, 2),
+          });
+        }
+        return frozenLoop(input);
+      },
+    };
+
+    const regenerated = await regenerateRide(
+      {
+        request,
+        previousRoute: {
+          type: first.route.type,
+          geometry: first.route.geometry,
+        },
+      },
+      leftoverJunk,
+    );
+
+    expect(regenerated.ok).toBe(false);
+    if (regenerated.ok) {
+      return;
+    }
+    expect(regenerated.error.code).toBe("NO_ROUTE_FOUND");
+    expect(regenerated.error.message).toMatch(/FR-012|BR-006/);
+  });
+
+  it("keeps a BR-001 miss instead of labeling it BR-006", async () => {
+    const request = {
+      type: "loop" as const,
+      start: GRANBY,
+      targetDistanceKm: 50,
+    };
+    const first = await generateRide(
+      { ...request, targetDistanceKm: 80 },
+      new MockRoutingProvider(),
+    );
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error(first.error.message);
+    }
+
+    const farProvider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await new MockRoutingProvider(8).calculateRoute({
+          ...input,
+          waypoints: input.waypoints?.map((waypoint) => ({
+            latitude: waypoint.latitude + 1,
+            longitude: waypoint.longitude + 1,
+          })),
+        });
+        return { ...routed, distanceKm: 400 };
+      },
+    };
+
+    const regenerated = await regenerateRide(
+      {
+        request,
+        previousRoute: {
+          type: first.route.type,
+          geometry: first.route.geometry,
+        },
+      },
+      farProvider,
+    );
+
+    expect(regenerated.ok).toBe(false);
+    if (regenerated.ok) {
+      return;
+    }
+    expect(["DISTANCE_OUT_OF_TOLERANCE", "NO_ROUTE_FOUND", "GEOMETRIC_LOOP_REJECTED"]).toContain(
+      regenerated.error.code,
+    );
+    expect(regenerated.error.message).not.toMatch(/BR-006/);
+    expect(regenerated.error.message).not.toMatch(
+      /variante suffisamment différente/,
+    );
+  });
+
+  it("rejects a zero-length previous corridor (FR-012)", async () => {
+    const result = await regenerateRide(
+      {
+        request: {
+          type: "loop",
+          start: GRANBY,
+          targetDistanceKm: 80,
+        },
+        previousRoute: {
+          type: "loop",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [-72.734, 45.403],
+              [-72.734, 45.403],
+            ],
+          },
+        },
+      },
+      new MockRoutingProvider(),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("VALIDATION_ERROR");
+    expect(result.error.message).toMatch(/FR-012/);
+  });
+
   it("forwards the same avoidance preferences to the provider (BR-007)", async () => {
     const seen: ProviderRouteRequest[] = [];
     const provider: RoutingProvider = {

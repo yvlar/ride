@@ -16,6 +16,7 @@ import {
 } from "@/domain/ride/round-trip";
 import {
   excludeSimilarToPrevious,
+  lostOnlyToPreviousCorridor,
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
 import { roundTripRideRequestSchema } from "@/domain/ride/schemas";
@@ -219,20 +220,26 @@ async function generateValidatedRoundTrip(
       )
     : evaluations;
 
-  if (
-    options?.previousGeometry &&
-    evaluations.length > 0 &&
-    selectable.length === 0
-  ) {
-    return { ok: false, error: regenerationOverlapError() };
-  }
-
   const selection = selectBestRoundTripCandidate(
     selectable,
     targetDistanceKm,
     request.preferences.avoidHighways,
     request.preferences.avoidUnpaved,
   );
+  if (
+    lostOnlyToPreviousCorridor(
+      options?.previousGeometry,
+      selection.status,
+      selectBestRoundTripCandidate(
+        evaluations,
+        targetDistanceKm,
+        request.preferences.avoidHighways,
+        request.preferences.avoidUnpaved,
+      ).status,
+    )
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
 
   if (selection.status === "known_unpaved_rejected") {
     return {
