@@ -21,9 +21,25 @@ import {
   CURVY_WEIGHT_HIGHWAY_AVOIDANCE,
   CURVY_WEIGHT_SECONDARY,
 } from "./constants";
+import { appendFileSync } from "node:fs";
 import type { RouteSegment } from "./types";
 
 const HIGHWAY_CLASS_SET = new Set<string>(CURVY_HIGHWAY_ROAD_CLASSES);
+
+// #region agent log
+function agentLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+): void {
+  appendFileSync(
+    "/opt/cursor/logs/debug.log",
+    `${JSON.stringify({ hypothesisId, location, message, data, timestamp: Date.now() })}\n`,
+  );
+}
+// #endregion
+
 const SECONDARY_CLASS_SET = new Set<string>(CURVY_SECONDARY_ROAD_CLASSES);
 
 export type CurvySignals = {
@@ -160,10 +176,27 @@ function measureElevationGainMPerKm(
   segments: RouteSegment[],
   distanceKm: number,
 ): number | null {
-  const hasElevation = segments.some(
+  const annotatedCount = segments.filter(
     (segment) => segment.elevationGainM !== undefined,
-  );
+  ).length;
+  const hasElevation = annotatedCount > 0;
+  // #region agent log
+  agentLog("A", "curvy.ts:measureElevationGainMPerKm:entry", "elevation measure inputs", {
+    segmentCount: segments.length,
+    annotatedCount,
+    missingCount: segments.length - annotatedCount,
+    distanceKm,
+    hasElevation,
+    gains: segments.map((segment) => segment.elevationGainM ?? null),
+  });
+  // #endregion
   if (!hasElevation || distanceKm <= 0) {
+    // #region agent log
+    agentLog("A", "curvy.ts:measureElevationGainMPerKm:exit", "elevation treated as unknown", {
+      reason: !hasElevation ? "no-annotated-segments" : "non-positive-distance",
+      mPerKm: null,
+    });
+    // #endregion
     return null;
   }
 
@@ -171,7 +204,17 @@ function measureElevationGainMPerKm(
     (sum, segment) => sum + (segment.elevationGainM ?? 0),
     0,
   );
-  return gainM / distanceKm;
+  const mPerKm = gainM / distanceKm;
+  // #region agent log
+  agentLog("E", "curvy.ts:measureElevationGainMPerKm:exit", "elevation treated as known; missing filled as 0", {
+    gainM,
+    distanceKm,
+    mPerKm,
+    annotatedCount,
+    missingFilledAsZero: segments.length - annotatedCount,
+  });
+  // #endregion
+  return mPerKm;
 }
 
 /** FR-004 — measurable Curvy signals from geometry and provider-agnostic segments. */
@@ -215,12 +258,30 @@ export function secondaryRoadsScore(signals: CurvySignals): number {
 
 export function elevationScore(signals: CurvySignals): number {
   if (signals.elevationGainMPerKm === null) {
+    // #region agent log
+    agentLog("B", "curvy.ts:elevationScore", "unknown branch", {
+      elevationGainMPerKm: null,
+      branch: "unknown",
+      score: CURVY_UNKNOWN_ELEVATION_SCORE,
+      equivalentMPerKm:
+        (CURVY_UNKNOWN_ELEVATION_SCORE / 100) * CURVY_ELEVATION_M_PER_KM_FOR_MAX,
+    });
+    // #endregion
     return CURVY_UNKNOWN_ELEVATION_SCORE;
   }
 
-  return clampScore(
+  const score = clampScore(
     (signals.elevationGainMPerKm / CURVY_ELEVATION_M_PER_KM_FOR_MAX) * 100,
   );
+  // #region agent log
+  agentLog("B", "curvy.ts:elevationScore", "known branch", {
+    elevationGainMPerKm: signals.elevationGainMPerKm,
+    branch: "known",
+    score,
+    maxMPerKm: CURVY_ELEVATION_M_PER_KM_FOR_MAX,
+  });
+  // #endregion
+  return score;
 }
 
 export function highwayAvoidanceScore(signals: CurvySignals): number {
@@ -233,11 +294,25 @@ export function scoreCurvyBreakdown(signals: CurvySignals): CurvyScoreBreakdown 
   const secondaryRoads = secondaryRoadsScore(signals);
   const elevation = elevationScore(signals);
   const highwayAvoidance = highwayAvoidanceScore(signals);
+  const elevationWeighted = CURVY_WEIGHT_ELEVATION * elevation;
   const total =
     CURVY_WEIGHT_CURVES * curves +
     CURVY_WEIGHT_SECONDARY * secondaryRoads +
-    CURVY_WEIGHT_ELEVATION * elevation +
+    elevationWeighted +
     CURVY_WEIGHT_HIGHWAY_AVOIDANCE * highwayAvoidance;
+
+  // #region agent log
+  agentLog("D", "curvy.ts:scoreCurvyBreakdown", "weighted breakdown", {
+    elevationGainMPerKm: signals.elevationGainMPerKm,
+    curves,
+    secondaryRoads,
+    elevation,
+    highwayAvoidance,
+    elevationWeight: CURVY_WEIGHT_ELEVATION,
+    elevationWeighted,
+    total,
+  });
+  // #endregion
 
   return {
     curves,
@@ -252,5 +327,16 @@ export function curvyRankScore(
   geometry: LineString,
   segments: RouteSegment[] = [],
 ): number {
-  return scoreCurvyBreakdown(measureCurvySignals(geometry, segments)).total;
+  const signals = measureCurvySignals(geometry, segments);
+  const breakdown = scoreCurvyBreakdown(signals);
+  // #region agent log
+  agentLog("D", "curvy.ts:curvyRankScore", "rank total", {
+    segmentCount: segments.length,
+    annotatedElevationCount: segments.filter((segment) => segment.elevationGainM !== undefined).length,
+    elevationGainMPerKm: signals.elevationGainMPerKm,
+    elevation: breakdown.elevation,
+    total: breakdown.total,
+  });
+  // #endregion
+  return breakdown.total;
 }
