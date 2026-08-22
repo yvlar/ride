@@ -14,11 +14,17 @@ import {
   evaluateRoundTripCandidate,
   selectBestRoundTripCandidate,
 } from "@/domain/ride/round-trip";
+import {
+  excludeSimilarToPrevious,
+  lostOnlyToPreviousCorridor,
+  regenerationOverlapError,
+} from "@/domain/ride/regeneration";
 import { roundTripRideRequestSchema } from "@/domain/ride/schemas";
 import type {
   DestinationCandidate,
   GeneratedRoundTripRoute,
   RideGenerationError,
+  RideGenerationOptions,
   RoundTripRideRequest,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
@@ -37,6 +43,7 @@ export type GenerateRoundTripRideResult =
 export async function generateRoundTripRide(
   input: unknown,
   routingProvider?: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateRoundTripRideResult> {
   let provider = routingProvider;
   if (!provider) {
@@ -103,12 +110,14 @@ export async function generateRoundTripRide(
       },
     },
     provider,
+    options,
   );
 }
 
 async function generateValidatedRoundTrip(
   request: RoundTripRideRequest,
   routingProvider: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateRoundTripRideResult> {
   const targetDistanceKm = resolveTargetDistanceKm(request);
   const perLegTargetKm =
@@ -203,12 +212,34 @@ async function generateValidatedRoundTrip(
     ),
   );
 
+  const selectable = options?.previousGeometry
+    ? excludeSimilarToPrevious(
+        evaluations,
+        options.previousGeometry,
+        (evaluation) => evaluation.candidate.geometry,
+      )
+    : evaluations;
+
   const selection = selectBestRoundTripCandidate(
-    evaluations,
+    selectable,
     targetDistanceKm,
     request.preferences.avoidHighways,
     request.preferences.avoidUnpaved,
   );
+  if (
+    lostOnlyToPreviousCorridor(
+      options?.previousGeometry,
+      selection.status,
+      selectBestRoundTripCandidate(
+        evaluations,
+        targetDistanceKm,
+        request.preferences.avoidHighways,
+        request.preferences.avoidUnpaved,
+      ).status,
+    )
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
 
   if (selection.status === "known_unpaved_rejected") {
     return {

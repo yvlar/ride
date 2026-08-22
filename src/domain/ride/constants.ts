@@ -7,6 +7,12 @@ export const LOOP_CLOSURE_TOLERANCE_KM = 0.15;
 /** BR-002 — warn when a substantial share of the loop reuses the same roadway. */
 export const HIGH_REPEAT_WARNING_PERCENT = 25;
 
+/**
+ * BR-006 — implementation heuristic for a visibly different corridor (CURSOR.md).
+ * The MVP spec does not freeze a contractual overlap percentage.
+ */
+export const REGENERATION_MAX_OVERLAP_PERCENT = 30;
+
 /** Radius CV below this threshold means the trace is too close to a geometric circle. */
 export const CIRCULARITY_CV_THRESHOLD = 0.06;
 

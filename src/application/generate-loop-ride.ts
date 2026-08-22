@@ -11,11 +11,17 @@ import {
   loopRideRequestSchema,
   unsupportedRideTypeMessage,
 } from "@/domain/ride/schemas";
+import {
+  excludeSimilarToPrevious,
+  lostOnlyToPreviousCorridor,
+  regenerationOverlapError,
+} from "@/domain/ride/regeneration";
 import type {
   GeneratedLoopRoute,
   LoopCandidate,
   LoopRideRequest,
   RideGenerationError,
+  RideGenerationOptions,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
@@ -35,6 +41,7 @@ export type GenerateLoopRideResult =
 export async function generateLoopRide(
   input: unknown,
   routingProvider?: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateLoopRideResult> {
   let provider = routingProvider;
   if (!provider) {
@@ -87,12 +94,13 @@ export async function generateLoopRide(
     };
   }
 
-  return generateValidatedLoop(parsed.data, provider);
+  return generateValidatedLoop(parsed.data, provider, options);
 }
 
 async function generateValidatedLoop(
   request: LoopRideRequest,
   routingProvider: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateLoopRideResult> {
   const targetDistanceKm = resolveTargetDistanceKm(request);
   if (targetDistanceKm === undefined) {
@@ -154,13 +162,36 @@ async function generateValidatedLoop(
     };
   }
 
+  const selectable = options?.previousGeometry
+    ? excludeSimilarToPrevious(
+        evaluations,
+        options.previousGeometry,
+        (evaluation) => evaluation.candidate.geometry,
+      )
+    : evaluations;
+
   const selection = selectBestLoopCandidate(
-    evaluations,
+    selectable,
     targetDistanceKm,
     request.style,
     request.preferences?.avoidHighways === true,
     request.preferences?.avoidUnpaved === true,
   );
+  if (
+    lostOnlyToPreviousCorridor(
+      options?.previousGeometry,
+      selection.status,
+      selectBestLoopCandidate(
+        evaluations,
+        targetDistanceKm,
+        request.style,
+        request.preferences?.avoidHighways === true,
+        request.preferences?.avoidUnpaved === true,
+      ).status,
+    )
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
   const knowledge = primaryKnowledgeError(settled);
 
   if (selection.status === "known_unpaved_rejected") {

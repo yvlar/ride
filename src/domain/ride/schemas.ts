@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { haversineKm } from "@/domain/geo/distance";
+import { haversineKm, lineStringLengthKm } from "@/domain/geo/distance";
 import { MIN_DESTINATION_SEPARATION_KM } from "./constants";
 import {
   isTargetDistanceRequired,
@@ -140,6 +140,39 @@ export function parseRoundTripRideRequest(
     },
   };
 }
+
+const lineStringSchema = z.object({
+  type: z.literal("LineString"),
+  coordinates: z.array(z.tuple([z.number(), z.number()])).min(2),
+});
+
+const previousRouteSchema = z.object({
+  type: z.enum(["loop", "destination", "round_trip"]),
+  geometry: lineStringSchema,
+});
+
+/** FR-012 — same request plus the previous corridor geometry. */
+export const regenerateRideEnvelopeSchema = z
+  .object({
+    request: z.object({ type: z.unknown() }).passthrough(),
+    previousRoute: previousRouteSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.request.type !== data.previousRoute.type) {
+      ctx.addIssue(
+        "Le trajet précédent doit être du même type que la demande (FR-012).",
+      );
+    }
+    if (lineStringLengthKm(data.previousRoute.geometry) <= 0) {
+      ctx.addIssue(
+        "Le trajet précédent doit avoir une géométrie de longueur non nulle (FR-012).",
+      );
+    }
+  });
+
+export type ParsedRegenerateRideEnvelope = z.infer<
+  typeof regenerateRideEnvelopeSchema
+>;
 
 export function unsupportedRideTypeMessage(type: unknown): string {
   if (type === "round_trip") {

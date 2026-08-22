@@ -2,7 +2,10 @@ import { generateDestinationRide } from "@/application/generate-destination-ride
 import { generateLoopRide } from "@/application/generate-loop-ride";
 import { generateRoundTripRide } from "@/application/generate-round-trip-ride";
 import { unsupportedRideTypeMessage } from "@/domain/ride/schemas";
-import type { GenerateRideResult } from "@/domain/ride/types";
+import type {
+  GenerateRideResult,
+  RideGenerationOptions,
+} from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 
@@ -11,6 +14,7 @@ export type { GenerateRideResult };
 export async function generateRide(
   input: unknown,
   routingProvider?: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateRideResult> {
   let provider = routingProvider;
   if (!provider) {
@@ -37,15 +41,15 @@ export async function generateRide(
       : undefined;
 
   if (type === "loop") {
-    return generateLoopRide(input, provider);
+    return generateLoopRide(input, provider, options);
   }
 
   if (type === "destination") {
-    return generateDestinationRide(input, provider);
+    return generateDestinationRide(input, provider, options);
   }
 
   if (type === "round_trip") {
-    return generateRoundTripRide(input, provider);
+    return generateRoundTripRide(input, provider, options);
   }
 
   return {

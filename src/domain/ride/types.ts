@@ -172,6 +172,11 @@ export type GenerateRideResult =
   | { ok: true; route: GeneratedRideRoute }
   | { ok: false; error: RideGenerationError };
 
+/** FR-012 — optional previous corridor used only during regeneration. */
+export type RideGenerationOptions = {
+  previousGeometry?: LineString;
+};
+
 export type LoopCandidate = {
   geometry: LineString;
   segments: RouteSegment[];
