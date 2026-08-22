@@ -19,6 +19,7 @@ import {
   errorFromExhaustedAttempts,
   primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
+  withKnowledgeConstraint,
 } from "./routing-failure";
 
 export type GenerateDestinationRideResult =
@@ -207,15 +208,10 @@ async function generateValidatedDestination(
 
   if (selection.status === "distance_out_of_tolerance") {
     const best = selection.evaluation;
-    const message = `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm ?? 0)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`;
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"D",location:"generate-destination-ride.ts:distance_out_of_tolerance",message:"distance path omits knowledge",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,knowledgeMessage:knowledge?.message??null,willOmitKnowledge:Boolean(knowledge),returnedCode:"DISTANCE_OUT_OF_TOLERANCE",returnedMessageHasFr021:message.includes("FR-021"),returnedMessageHasUnpaved:message.includes("non pavées"),bestDistanceKm:best.candidate.distanceKm,targetDistanceKm:targetDistanceKm??null},timestamp:Date.now()})+"\n");
-    // #endregion
-    return {
-      ok: false,
-      error: {
+    const error = withKnowledgeConstraint(
+      {
         code: "DISTANCE_OUT_OF_TOLERANCE",
-        message,
+        message: `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm ?? 0)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`,
         suggestions: [
           "Ajustez la distance cible ou la durée disponible.",
           "Générez sans contrainte de longueur pour relier simplement la destination.",
@@ -224,7 +220,12 @@ async function generateValidatedDestination(
           distanceKm: best.candidate.distanceKm,
         },
       },
-    };
+      knowledge,
+    );
+    // #region agent log
+    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"D",location:"generate-destination-ride.ts:distance_out_of_tolerance",message:"distance path after combine",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,knowledgeMessage:knowledge?.message??null,willOmitKnowledge:Boolean(knowledge)&&!error.message.includes("FR-021"),returnedCode:error.code,returnedMessageHasFr021:error.message.includes("FR-021"),returnedMessageHasUnpaved:error.message.includes("non pavées"),returnedMessageHasBr001:error.message.includes("BR-001"),bestDistanceKm:best.candidate.distanceKm,targetDistanceKm:targetDistanceKm??null},timestamp:Date.now()})+"\n");
+    // #endregion
+    return { ok: false, error };
   }
 
   const { evaluation } = selection;

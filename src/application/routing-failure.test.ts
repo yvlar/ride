@@ -10,6 +10,7 @@ import {
   errorFromExhaustedAttempts,
   primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
+  withKnowledgeConstraint,
 } from "./routing-failure";
 
 function rejected(reason: unknown): PromiseRejectedResult {
@@ -161,5 +162,30 @@ describe("errorFromExhaustedAttempts (FR-021)", () => {
     );
     expect(error.code).toBe("NO_ROUTE_FOUND");
     expect(error.message).toMatch(/non pavées/);
+  });
+});
+
+describe("withKnowledgeConstraint (FR-021 + BR-001)", () => {
+  const distanceError = {
+    code: "DISTANCE_OUT_OF_TOLERANCE" as const,
+    message:
+      "Aucun trajet ne respecte ±10 % de 50.0 km (BR-001). Le meilleur candidat fait 400.0 km.",
+    suggestions: ["Ajustez la distance cible."],
+    bestCandidate: { distanceKm: 400 },
+  };
+
+  it("leaves a distance-only error unchanged", () => {
+    expect(withKnowledgeConstraint(distanceError)).toEqual(distanceError);
+  });
+
+  it("appends the knowledge constraint without changing the distance code", () => {
+    const knowledge = unpavedKnowledgeError();
+    const combined = withKnowledgeConstraint(distanceError, knowledge);
+    expect(combined.code).toBe("DISTANCE_OUT_OF_TOLERANCE");
+    expect(combined.bestCandidate).toEqual({ distanceKm: 400 });
+    expect(combined.message).toMatch(/BR-001/);
+    expect(combined.message).toMatch(/FR-021/);
+    expect(combined.message).toMatch(/non pavées/);
+    expect(combined.suggestions).toContain(knowledge.suggestions[0]);
   });
 });

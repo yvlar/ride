@@ -22,6 +22,7 @@ import {
   knowledgeUnavailableError,
   primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
+  withKnowledgeConstraint,
 } from "./routing-failure";
 
 export type GenerateLoopRideResult =
@@ -194,15 +195,10 @@ async function generateValidatedLoop(
 
   if (selection.status === "distance_out_of_tolerance") {
     const best = selection.evaluation;
-    const message = `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`;
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"D",location:"generate-loop-ride.ts:distance_out_of_tolerance",message:"distance path omits knowledge",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,knowledgeMessage:knowledge?.message??null,willOmitKnowledge:Boolean(knowledge),returnedCode:"DISTANCE_OUT_OF_TOLERANCE",returnedMessageHasFr021:message.includes("FR-021"),returnedMessageHasUnpaved:message.includes("non pavées"),bestDistanceKm:best.candidate.distanceKm,targetDistanceKm},timestamp:Date.now()})+"\n");
-    // #endregion
-    return {
-      ok: false,
-      error: {
+    const error = withKnowledgeConstraint(
+      {
         code: "DISTANCE_OUT_OF_TOLERANCE",
-        message,
+        message: `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`,
         suggestions: [
           "Ajustez la distance cible.",
           "Essayez un autre point de départ.",
@@ -212,7 +208,12 @@ async function generateValidatedLoop(
           repeatedRoadPercent: best.repeatedRoadPercent,
         },
       },
-    };
+      knowledge,
+    );
+    // #region agent log
+    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"D",location:"generate-loop-ride.ts:distance_out_of_tolerance",message:"distance path after combine",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,knowledgeMessage:knowledge?.message??null,willOmitKnowledge:Boolean(knowledge)&&!error.message.includes("FR-021"),returnedCode:error.code,returnedMessageHasFr021:error.message.includes("FR-021"),returnedMessageHasUnpaved:error.message.includes("non pavées"),returnedMessageHasBr001:error.message.includes("BR-001"),bestDistanceKm:best.candidate.distanceKm,targetDistanceKm},timestamp:Date.now()})+"\n");
+    // #endregion
+    return { ok: false, error };
   }
 
   const { evaluation } = selection;

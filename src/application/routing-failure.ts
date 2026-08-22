@@ -77,6 +77,29 @@ export function knowledgeUnavailableError(
   };
 }
 
+/** BR-001 + FR-021 — keep the distance code and append the knowledge constraint. */
+export function withKnowledgeConstraint(
+  error: RideGenerationError,
+  knowledge?: RoutingKnowledgeError,
+): RideGenerationError {
+  if (!knowledge) {
+    return error;
+  }
+
+  const suggestions = [...error.suggestions];
+  for (const suggestion of knowledge.suggestions) {
+    if (!suggestions.includes(suggestion)) {
+      suggestions.push(suggestion);
+    }
+  }
+
+  return {
+    ...error,
+    message: `${error.message} ${knowledge.message}`,
+    suggestions,
+  };
+}
+
 export function primaryKnowledgeError(
   settled: PromiseSettledResult<unknown>[],
 ): RoutingKnowledgeError | undefined {

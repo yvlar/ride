@@ -227,6 +227,47 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(result.error.code).toBe("DISTANCE_OUT_OF_TOLERANCE");
     expect(result.error.bestCandidate?.distanceKm).toBe(900);
     expect(result.error.message).toMatch(/BR-001/);
+    expect(result.error.message).not.toMatch(/FR-021/);
+    expect(result.error.message).not.toMatch(/non pavées/);
+  });
+
+  it("combines BR-001 with the FR-021 unpaved constraint on a mixed distance miss", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        calls += 1;
+        if (calls === 1) {
+          const mock = new MockRoutingProvider();
+          const routed = await mock.calculateRoute(input);
+          return { ...routed, distanceKm: 900 };
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        targetDistanceKm: 200,
+        style: "scenic",
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("DISTANCE_OUT_OF_TOLERANCE");
+    expect(result.error.bestCandidate?.distanceKm).toBe(900);
+    expect(result.error.message).toMatch(/BR-001/);
+    expect(result.error.message).toMatch(/FR-021/);
+    expect(result.error.message).toMatch(/non pavées/);
   });
 
   it("ignores a failing candidate instead of aborting generation", async () => {
