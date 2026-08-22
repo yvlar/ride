@@ -137,6 +137,44 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.error.code).toBe("GEOMETRIC_LOOP_REJECTED");
   });
 
+  it("maps unpaved knowledge mixed with a geometric circle to the FR-021 message", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            geometry: createCircleLineString(input.start, 12, 36),
+            segments: [],
+            distanceKm: 75,
+            durationMinutes: 80,
+          };
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
+    expect(result.error.message).toMatch(/FR-021/);
+  });
+
   it("explains a BR-001 miss instead of silently widening the tolerance", async () => {
     const farProvider: RoutingProvider = {
       async calculateRoute(

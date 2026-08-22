@@ -134,6 +134,20 @@ describe("errorFromExhaustedAttempts (FR-021)", () => {
     expect(error.message).toMatch(/non pavées/);
   });
 
+  it("maps a fulfilled invalid candidate plus unpaved knowledge to the FR-021 message", () => {
+    const error = errorFromExhaustedAttempts(
+      [
+        { status: "fulfilled", value: { isGeometricCircle: true } },
+        rejected(emptyKnowledgeError()),
+        rejected(unpavedKnowledgeError()),
+      ],
+      { message: "fallback", suggestions: [] },
+    );
+    expect(error.code).toBe("NO_ROUTE_FOUND");
+    expect(error.message).toMatch(/non pavées/);
+    expect(error.message).toMatch(/FR-021/);
+  });
+
   it("recognizes a duck-typed knowledge error (NFR-005)", () => {
     const detached = {
       name: "RoutingKnowledgeError",

@@ -14,10 +14,14 @@ import type {
   LoopRideRequest,
   RideGenerationError,
 } from "@/domain/ride/types";
+import { appendFileSync } from "node:fs";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
+import { isRoutingKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
+  knowledgeUnavailableError,
+  primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
 } from "./routing-failure";
 
@@ -137,6 +141,52 @@ async function generateValidatedLoop(
     result.status === "fulfilled" ? [result.value] : [],
   );
 
+  // #region agent log
+  {
+    const knowledge = primaryKnowledgeError(settled);
+    const settledMeta = settled.map((result) => ({
+      status: result.status,
+      isKnowledge:
+        result.status === "rejected" && isRoutingKnowledgeError(result.reason),
+      knowledgeReason:
+        result.status === "rejected" && isRoutingKnowledgeError(result.reason)
+          ? result.reason.reason
+          : null,
+      isGeometricCircle:
+        result.status === "fulfilled" ? result.value.isGeometricCircle : null,
+      isClosed: result.status === "fulfilled" ? result.value.isClosed : null,
+      followsRoadNetwork:
+        result.status === "fulfilled" ? result.value.followsRoadNetwork : null,
+    }));
+    appendFileSync(
+      "/opt/cursor/logs/debug.log",
+      `${JSON.stringify({
+        hypothesisId: "A",
+        location: "generate-loop-ride.ts:afterSettled",
+        message: "loop settled statuses vs evaluations",
+        data: {
+          settledCount: settled.length,
+          fulfilled: settled.filter((result) => result.status === "fulfilled")
+            .length,
+          rejected: settled.filter((result) => result.status === "rejected")
+            .length,
+          knowledgeRejections: settledMeta.filter((item) => item.isKnowledge)
+            .length,
+          evaluationsLength: evaluations.length,
+          skippedExhaustedPath: evaluations.length > 0,
+          everyAttemptFailed: settled.every(
+            (result) => result.status === "rejected",
+          ),
+          primaryKnowledgeExists: Boolean(knowledge),
+          primaryKnowledgeReason: knowledge?.reason ?? null,
+          settledMeta,
+        },
+        timestamp: Date.now(),
+      })}\n`,
+    );
+  }
+  // #endregion
+
   if (evaluations.length === 0) {
     return {
       ok: false,
@@ -148,6 +198,60 @@ async function generateValidatedLoop(
   }
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
+
+  // #region agent log
+  {
+    const knowledge = primaryKnowledgeError(settled);
+    appendFileSync(
+      "/opt/cursor/logs/debug.log",
+      `${JSON.stringify({
+        hypothesisId: "B",
+        location: "generate-loop-ride.ts:afterSelection",
+        message: "loop selection ignores rejected knowledge errors",
+        data: {
+          selectionStatus: selection.status,
+          evaluationsLength: evaluations.length,
+          primaryKnowledgeExists: Boolean(knowledge),
+          primaryKnowledgeReason: knowledge?.reason ?? null,
+          returnedGeometric: selection.status === "geometric_loop_rejected",
+          returnedGenericNoRoute: selection.status === "no_route_found",
+        },
+        timestamp: Date.now(),
+      })}\n`,
+    );
+  }
+  // #endregion
+
+  if (
+    selection.status === "geometric_loop_rejected" ||
+    selection.status === "no_route_found"
+  ) {
+    const knowledge = primaryKnowledgeError(settled);
+    // #region agent log
+    appendFileSync(
+      "/opt/cursor/logs/debug.log",
+      `${JSON.stringify({
+        hypothesisId: "A",
+        location: "generate-loop-ride.ts:unselectable",
+        message: "loop unselectable path",
+        data: {
+          selectionStatus: selection.status,
+          primaryKnowledgeExists: Boolean(knowledge),
+          primaryKnowledgeReason: knowledge?.reason ?? null,
+          chosen: knowledge
+            ? "knowledge"
+            : selection.status === "geometric_loop_rejected"
+              ? "geometric"
+              : "generic",
+        },
+        timestamp: Date.now(),
+      })}\n`,
+    );
+    // #endregion
+    if (knowledge) {
+      return { ok: false, error: knowledgeUnavailableError(knowledge) };
+    }
+  }
 
   if (selection.status === "geometric_loop_rejected") {
     return {
@@ -166,11 +270,10 @@ async function generateValidatedLoop(
   if (selection.status === "no_route_found") {
     return {
       ok: false,
-      error: {
-        code: "NO_ROUTE_FOUND",
+      error: errorFromExhaustedAttempts(settled, {
         message: "Aucun trajet en boucle n’a pu être construit depuis ce départ.",
         suggestions: ["Essayez un autre point de départ."],
-      },
+      }),
     };
   }
 
