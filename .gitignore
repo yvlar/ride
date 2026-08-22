@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# Copied from node_modules/maplibre-gl/dist by scripts/copy-maplibre-worker.mjs
+/public/maplibre-gl-worker.mjs
+/public/maplibre-gl-shared.mjs
+
 # production
 /build
 

@@ -1,6 +1,7 @@
 import { Map as MapLibreMap, Marker, getWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { coordinatesToPosition } from "@/domain/geo/distance";
+import { ensureMapLibreWorkerUrl } from "./maplibre-worker-url";
 import { FALLBACK_MAP_STYLE } from "./fallback-style";
 import {
   MAP_UNAVAILABLE_MESSAGE,
@@ -113,8 +114,10 @@ export function createMapLibreEngine(): MapEngine {
       let map: MapLibreMap | undefined;
       let disposed = false;
       // #region agent log
+      const configuredWorkerUrl = ensureMapLibreWorkerUrl();
       const restoreWorker = installWorkerProbe();
       debugLog("B", "maplibre-map-engine.ts:mount", "Engine mount entry", {
+        configuredWorkerUrl,
         ...inspectDefaultWorkerUrl(),
         containerWidth: container.clientWidth,
         containerHeight: container.clientHeight,
