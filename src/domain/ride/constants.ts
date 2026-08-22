@@ -72,7 +72,11 @@ export const CURVY_HEADING_CHANGE_PER_KM_FOR_MAX = 6;
 export const CURVY_TURNS_PER_KM_FOR_MAX = 0.25;
 export const CURVY_STRAIGHT_SCORE_WEIGHT = 0.55;
 export const CURVY_ELEVATION_M_PER_KM_FOR_MAX = 30;
-export const CURVY_UNKNOWN_ELEVATION_SCORE = 50;
+/**
+ * FR-004 — unknown elevation is neutral. A mid-scale default (e.g. 50 ≈ 15 m/km)
+ * invents relief and lets unlabeled routes outrank a known modest climb.
+ */
+export const CURVY_UNKNOWN_ELEVATION_SCORE = 0;
 export const CURVY_WEIGHT_CURVES = 0.45;
 export const CURVY_WEIGHT_SECONDARY = 0.25;
 export const CURVY_WEIGHT_ELEVATION = 0.15;
