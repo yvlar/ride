@@ -48,18 +48,21 @@ describe("generateRide", () => {
     expect(result.route.type).toBe("destination");
   });
 
-  it("still rejects round_trip (FR-003)", async () => {
-    const result = await generateRide({
-      type: "round_trip",
-      start: GRANBY,
-      destination: TREMBLANT,
-      style: "touring",
-    });
+  it("dispatches a round-trip request to FR-003", async () => {
+    const result = await generateRide(
+      {
+        type: "round_trip",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+      },
+      new MockRoutingProvider(),
+    );
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
-    expect(result.error.code).toBe("UNSUPPORTED_RIDE_TYPE");
+    expect(result.route.type).toBe("round_trip");
   });
 });

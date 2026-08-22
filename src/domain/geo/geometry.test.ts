@@ -3,6 +3,7 @@ import { offsetCoordinates } from "./distance";
 import {
   createCircleLineString,
   headingChangePerKm,
+  joinLineStrings,
   radiusCoefficientOfVariation,
 } from "./geometry";
 import type { Coordinates, LineString } from "./types";
@@ -28,6 +29,32 @@ describe("radiusCoefficientOfVariation", () => {
     };
 
     expect(radiusCoefficientOfVariation(rectangle)).toBeGreaterThan(0.06);
+  });
+});
+
+describe("joinLineStrings (FR-003)", () => {
+  it("does not duplicate the shared destination vertex", () => {
+    const east = offsetCoordinates(GRANBY, 90, 10);
+    const north = offsetCoordinates(east, 0, 10);
+    const outbound: LineString = {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [east.longitude, east.latitude],
+      ],
+    };
+    const inbound: LineString = {
+      type: "LineString",
+      coordinates: [
+        [east.longitude, east.latitude],
+        [north.longitude, north.latitude],
+      ],
+    };
+
+    const joined = joinLineStrings(outbound, inbound);
+
+    expect(joined.coordinates).toHaveLength(3);
+    expect(joined.coordinates[1]).toEqual([east.longitude, east.latitude]);
   });
 });
 

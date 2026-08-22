@@ -62,8 +62,8 @@ export async function generateDestinationRide(
           type === "loop"
             ? "Le type de trajet « loop » n’est pas pris en charge par le générateur de destination. Utilisez le générateur FR-001."
             : type === "round_trip"
-              ? "Le type de trajet « round_trip » n’est pas encore pris en charge. Les types loop (FR-001) et destination (FR-002) le sont."
-              : "Seuls les types « loop » (FR-001) et « destination » (FR-002) sont pris en charge.",
+              ? "Le type de trajet « round_trip » n’est pas pris en charge par le générateur de destination. Utilisez le générateur FR-003."
+              : "Seuls les types « loop » (FR-001), « destination » (FR-002) et « round_trip » (FR-003) sont pris en charge.",
         suggestions: [
           'Utilisez type: "destination" avec un départ, une destination et un style.',
         ],
