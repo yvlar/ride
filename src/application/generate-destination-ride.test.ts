@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/geo/distance";
 import { createCircleLineString, headingChangePerKm } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
+import { availableDurationCeilingWarning } from "@/domain/ride/duration";
 import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { UNKNOWN_SURFACE_WARNING } from "@/domain/ride/surfaces";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
@@ -437,7 +438,7 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(result.route.durationMinutes).toBeGreaterThan(direct.durationMinutes);
   });
 
-  it("converts an available duration via BR-005 then applies BR-001", async () => {
+  it("converts an available duration via BR-005 then applies BR-001 (FR-010)", async () => {
     const result = await generateDestinationRide(
       {
         type: "destination",
@@ -458,6 +459,41 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(
       isWithinDistanceTolerance(result.route.distanceKm, 240),
     ).toBe(true);
+    expect(result.route.warnings.join(" ")).not.toMatch(/durée disponible/);
+  });
+
+  it("keeps explicit distance as the length constraint and flags a duration ceiling miss (FR-010)", async () => {
+    const slowProvider: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        const routed = await new MockRoutingProvider().calculateRoute(input);
+        return { ...routed, durationMinutes: 300 };
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        targetDistanceKm: 240,
+        availableDurationMinutes: 90,
+        style: "touring",
+      },
+      slowProvider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    expect(result.route.targetDistanceKm).toBe(240);
+    expect(isWithinDistanceTolerance(result.route.distanceKm, 240)).toBe(true);
+    expect(result.route.warnings).toContain(
+      availableDurationCeilingWarning(300, 90),
+    );
   });
 
   it("explains a BR-001 miss instead of silently widening the tolerance", async () => {

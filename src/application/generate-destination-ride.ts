@@ -1,4 +1,7 @@
-import { resolveTargetDistanceKm } from "@/domain/ride/duration";
+import {
+  resolveTargetDistanceKm,
+  withAvailableDurationCeiling,
+} from "@/domain/ride/duration";
 import {
   createDestinationWaypointSets,
   evaluateDestinationCandidate,
@@ -231,7 +234,10 @@ async function generateValidatedDestination(
     return { ok: false, error };
   }
 
-  const { evaluation } = selection;
+  const evaluation = withAvailableDurationCeiling(selection.evaluation, {
+    availableDurationMinutes: request.availableDurationMinutes,
+    explicitTargetDistanceKm: request.targetDistanceKm,
+  });
   const route: GeneratedDestinationRoute = {
     id: crypto.randomUUID(),
     type: "destination",

@@ -14,6 +14,9 @@ import type {
 /** FR-009 — business distance is always a positive length in kilometres. */
 const targetDistanceKmSchema = z.number().gt(0).max(2000);
 
+/** FR-010 — available duration is an optional positive length in minutes. */
+const availableDurationMinutesSchema = z.number().gt(0).max(24 * 60);
+
 const coordinatesSchema = z.object({
   latitude: z.number().gte(-90).lte(90),
   longitude: z.number().gte(-180).lte(180),
@@ -36,7 +39,7 @@ export const loopRideRequestSchema = z
     type: z.literal("loop"),
     start: placeSchema,
     targetDistanceKm: targetDistanceKmSchema.optional(),
-    availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
+    availableDurationMinutes: availableDurationMinutesSchema.optional(),
     style: rideStyleSchema.optional(),
     preferences: routePreferencesSchema.optional(),
   })
@@ -62,7 +65,7 @@ export const destinationRideRequestSchema = z
     start: placeSchema,
     destination: placeSchema,
     targetDistanceKm: targetDistanceKmSchema.optional(),
-    availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
+    availableDurationMinutes: availableDurationMinutesSchema.optional(),
     style: rideStyleSchema,
     preferences: routePreferencesSchema.optional(),
   })
@@ -105,7 +108,7 @@ export const roundTripRideRequestSchema = z
     start: placeSchema,
     destination: placeSchema,
     targetDistanceKm: targetDistanceKmSchema.optional(),
-    availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
+    availableDurationMinutes: availableDurationMinutesSchema.optional(),
     style: rideStyleSchema,
     preferences: routePreferencesSchema.optional(),
   })
