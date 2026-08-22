@@ -102,6 +102,7 @@ export type GeneratedLoopRoute = {
   type: "loop";
   start: Place;
   targetDistanceKm: number;
+  style?: RideStyle;
   geometry: LineString;
   segments: RouteSegment[];
   distanceKm: number;
@@ -166,6 +167,10 @@ export type RideGenerationError = {
     repeatedRoadPercent?: number;
   };
 };
+
+export type GenerateRideResult =
+  | { ok: true; route: GeneratedRideRoute }
+  | { ok: false; error: RideGenerationError };
 
 export type LoopCandidate = {
   geometry: LineString;

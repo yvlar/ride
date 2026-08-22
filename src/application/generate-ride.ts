@@ -2,13 +2,11 @@ import { generateDestinationRide } from "@/application/generate-destination-ride
 import { generateLoopRide } from "@/application/generate-loop-ride";
 import { generateRoundTripRide } from "@/application/generate-round-trip-ride";
 import { unsupportedRideTypeMessage } from "@/domain/ride/schemas";
-import type { GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
+import type { GenerateRideResult } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 
-export type GenerateRideResult =
-  | { ok: true; route: GeneratedRideRoute }
-  | { ok: false; error: RideGenerationError };
+export type { GenerateRideResult };
 
 export async function generateRide(
   input: unknown,

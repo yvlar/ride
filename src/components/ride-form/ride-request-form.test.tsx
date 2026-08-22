@@ -12,7 +12,12 @@ import {
   TARGET_DISTANCE_POSITIVE_KM_MESSAGE,
   TARGET_DISTANCE_REQUIRED_MESSAGE,
 } from "@/domain/ride/target-distance";
-import { RideRequestForm } from "./ride-request-form";
+import type {
+  GenerateRideRequest,
+  GenerateRideResult,
+  GeneratedLoopRoute,
+} from "@/domain/ride/types";
+import { RideRequestForm, type RideRequestFormProps } from "./ride-request-form";
 
 const targetDistanceField = () =>
   screen.getByLabelText(/Distance cible \(km\)/);
@@ -41,9 +46,49 @@ async function selectPlace(label: string, query: string) {
   fireEvent.click(await screen.findByRole("option", { name: query }));
 }
 
+const generatedLoop: GeneratedLoopRoute = {
+  id: "route-1",
+  type: "loop",
+  start: granby,
+  targetDistanceKm: 200,
+  style: "curvy",
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.7342, 45.4001],
+      [-72.7, 45.45],
+    ],
+  },
+  segments: [],
+  distanceKm: 198.4,
+  durationMinutes: 150,
+  statistics: { repeatedRoadPercent: 4 },
+  warnings: ["Certains segments ont une surface inconnue."],
+};
+
+function okGenerateRide(): (
+  request: GenerateRideRequest,
+) => Promise<GenerateRideResult> {
+  return vi.fn(async (): Promise<GenerateRideResult> => ({
+    ok: true,
+    route: generatedLoop,
+  }));
+}
+
+function renderForm(props: Partial<RideRequestFormProps> = {}) {
+  return render(
+    <RideRequestForm
+      searchPlaces={searchPlaces}
+      debounceMs={0}
+      generateRide={okGenerateRide()}
+      {...props}
+    />,
+  );
+}
+
 describe("RideRequestForm (FR-014)", () => {
   it("hides destination for a loop and shows it for a destination ride (FR-018)", () => {
-    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+    renderForm();
 
     expect(
       screen.queryByRole("combobox", { name: "Destination" }),
@@ -57,7 +102,8 @@ describe("RideRequestForm (FR-014)", () => {
   });
 
   it("validates a missing start before generating (FR-017)", () => {
-    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+    const generateRide = okGenerateRide();
+    renderForm({ generateRide });
 
     fireEvent.change(targetDistanceField(), {
       target: { value: "200" },
@@ -65,17 +111,13 @@ describe("RideRequestForm (FR-014)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
     expect(screen.getByText("Indiquez un point de départ.")).toBeInTheDocument();
+    expect(generateRide).not.toHaveBeenCalled();
   });
 
-  it("lets the user compose a loop and submit the request (FR-001, FR-011, FR-019)", async () => {
+  it("lets the user compose a loop and generate one primary ride (FR-001, FR-011, FR-019)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    const generateRide = okGenerateRide();
+    renderForm({ onRequestComposed, generateRide });
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.change(targetDistanceField(), {
@@ -94,20 +136,145 @@ describe("RideRequestForm (FR-014)", () => {
         }),
       );
     });
+    expect(generateRide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "loop",
+        start: granby,
+        targetDistanceKm: 200,
+        style: "curvy",
+      }),
+    );
     expect(
       screen.getByRole("status"),
     ).toHaveTextContent(/boucle d’environ 200 km au départ de Granby, QC/i);
+    const generated = screen.getByRole("region", { name: "Trajet généré" });
+    expect(generated).toHaveTextContent("198.4 km");
+    expect(generated).toHaveTextContent("150 min");
+    expect(generated).toHaveTextContent(
+      "Certains segments ont une surface inconnue.",
+    );
+  });
+
+  it("ignores a stale generation after the ride type changes (FR-011)", async () => {
+    let resolveGeneration: (value: GenerateRideResult) => void = () => {};
+    const generateRide = vi.fn(
+      () =>
+        new Promise<GenerateRideResult>((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Génération…" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
+    resolveGeneration({ ok: true, route: generatedLoop });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Générer ma ride" }),
+      ).toBeEnabled();
+    });
+    expect(
+      screen.queryByRole("region", { name: "Trajet généré" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale generation after the target distance changes while pending (FR-011)", async () => {
+    let resolveGeneration: (value: GenerateRideResult) => void = () => {};
+    const generateRide = vi.fn(
+      () =>
+        new Promise<GenerateRideResult>((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Génération…" }),
+    ).toBeDisabled();
+
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "80" },
+    });
+    resolveGeneration({ ok: true, route: generatedLoop });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Générer ma ride" }),
+      ).toBeEnabled();
+    });
+    expect(
+      screen.queryByRole("region", { name: "Trajet généré" }),
+    ).not.toBeInTheDocument();
+    expect(targetDistanceField()).toHaveValue("80");
+  });
+
+  it("shows a provider error when generation throws (FR-011)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => {
+      throw new Error("network down");
+    });
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Le service de cartographie ne répond pas/,
+    );
+    expect(
+      screen.getByRole("button", { name: "Générer ma ride" }),
+    ).toBeEnabled();
+  });
+
+  it("shows an explicit business error when generation fails (FR-011)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: false,
+      error: {
+        code: "DISTANCE_OUT_OF_TOLERANCE",
+        message:
+          "Aucun trajet ne respecte ±10 % de 200.0 km (BR-001). Le meilleur candidat fait 400.0 km.",
+        suggestions: ["Ajustez la distance cible."],
+        bestCandidate: { distanceKm: 400 },
+      },
+    }));
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      await screen.findByRole("alert"),
+    ).toHaveTextContent(/Aucun trajet ne respecte ±10 %/);
+    expect(screen.getByText("Ajustez la distance cible.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Trajet généré" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets the user compose a round trip with a destination (FR-003, FR-018)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.click(screen.getByRole("radio", { name: /Aller-retour/ }));
@@ -131,7 +298,7 @@ describe("RideRequestForm (FR-014)", () => {
   });
 
   it("requires a destination for a point-to-point ride (FR-002, FR-018)", async () => {
-    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+    renderForm();
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
@@ -141,7 +308,7 @@ describe("RideRequestForm (FR-014)", () => {
   });
 
   it("requires a loop target distance in kilometres when no duration is set (FR-009)", async () => {
-    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+    renderForm();
 
     expect(screen.getByText(TARGET_DISTANCE_HINT_REQUIRED)).toBeInTheDocument();
     expect(targetDistanceField()).toHaveAttribute("aria-required", "true");
@@ -154,13 +321,7 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("makes the loop target distance optional once a duration is provided (FR-009)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.change(screen.getByLabelText("Durée disponible (h)"), {
@@ -187,13 +348,7 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("keeps the target distance optional for a destination ride (FR-009)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
     expect(screen.getByText(TARGET_DISTANCE_HINT_OPTIONAL)).toBeInTheDocument();
@@ -215,13 +370,7 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("accepts an optional destination target distance in kilometres (FR-009)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
@@ -242,7 +391,7 @@ describe("RideRequestForm (FR-014)", () => {
   });
 
   it("rejects a non-positive target distance and keeps the unit explicit (FR-009)", async () => {
-    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+    renderForm();
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.change(targetDistanceField(), {
@@ -257,13 +406,7 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("lets the user compose a loop from an available duration (FR-010)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     expect(screen.getByText(AVAILABLE_DURATION_HINT)).toBeInTheDocument();
 
@@ -287,13 +430,7 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("keeps an explicit distance when a duration is also provided (FR-010)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.change(targetDistanceField(), {
@@ -316,7 +453,7 @@ describe("RideRequestForm (FR-014)", () => {
   });
 
   it("rejects a non-positive available duration (FR-010)", async () => {
-    render(<RideRequestForm searchPlaces={searchPlaces} debounceMs={0} />);
+    renderForm();
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.change(targetDistanceField(), {
@@ -334,13 +471,7 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("toggles route preferences (FR-007, FR-008)", async () => {
     const onRequestComposed = vi.fn();
-    render(
-      <RideRequestForm
-        searchPlaces={searchPlaces}
-        debounceMs={0}
-        onRequestComposed={onRequestComposed}
-      />,
-    );
+    renderForm({ onRequestComposed });
 
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.change(targetDistanceField(), {

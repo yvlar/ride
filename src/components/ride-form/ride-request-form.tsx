@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
   AVAILABLE_DURATION_HINT,
@@ -14,8 +14,11 @@ import {
 import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
+  GenerateRideResult,
+  GeneratedRideRoute,
   RideFormError,
   RideFormField,
+  RideGenerationError,
   RideStyle,
   RideType,
 } from "@/domain/ride/types";
@@ -28,6 +31,7 @@ import {
   LocateButton,
   PlaceSearchField,
 } from "@/components/ride-form/place-search-field";
+import { requestGeneratedRide } from "@/components/ride-form/request-generated-ride";
 import { cn } from "@/lib/utils";
 
 const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
@@ -71,16 +75,33 @@ function errorMap(errors: RideFormError[]): Partial<Record<RideFormField, string
   return mapped;
 }
 
+function formatGeneratedDistanceKm(distanceKm: number): string {
+  return `${distanceKm.toFixed(1)} km`;
+}
+
+function formatGeneratedDuration(durationMinutes: number): string {
+  return `${Math.round(durationMinutes)} min`;
+}
+
+const GENERATION_UNAVAILABLE: RideGenerationError = {
+  code: "PROVIDER_ERROR",
+  message:
+    "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
+  suggestions: ["Réessayez dans quelques instants."],
+};
+
 export type RideRequestFormProps = {
   searchPlaces?: (query: string) => Promise<Place[]>;
   debounceMs?: number;
   onRequestComposed?: (request: GenerateRideRequest) => void;
+  generateRide?: (request: GenerateRideRequest) => Promise<GenerateRideResult>;
 };
 
 export function RideRequestForm({
   searchPlaces,
   debounceMs = 250,
   onRequestComposed,
+  generateRide = requestGeneratedRide,
 }: RideRequestFormProps) {
   const [startQuery, setStartQuery] = useState("");
   const [start, setStart] = useState<Place | null>(null);
@@ -96,6 +117,19 @@ export function RideRequestForm({
     {},
   );
   const [status, setStatus] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generatedRoute, setGeneratedRoute] =
+    useState<GeneratedRideRoute | null>(null);
+  const [generationError, setGenerationError] =
+    useState<RideGenerationError | null>(null);
+  const generationId = useRef(0);
+
+  function invalidateInFlightGeneration() {
+    generationId.current += 1;
+    setGenerating(false);
+    setGeneratedRoute(null);
+    setGenerationError(null);
+  }
 
   const needsDestination = type !== "loop";
   const durationHoursValue = parseOptionalNumber(availableDurationHours);
@@ -106,9 +140,14 @@ export function RideRequestForm({
   const distanceRequired = isTargetDistanceRequired(type, hasAvailableDuration);
   const distanceHint = targetDistanceHint(type, hasAvailableDuration);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (generating) {
+      return;
+    }
     setStatus(null);
+    setGeneratedRoute(null);
+    setGenerationError(null);
 
     const durationHours = parseOptionalNumber(availableDurationHours);
     const result = composeRideRequest({
@@ -133,6 +172,30 @@ export function RideRequestForm({
     setErrors({});
     setStatus(summarizeRideRequest(result.request));
     onRequestComposed?.(result.request);
+    const requestId = generationId.current + 1;
+    generationId.current = requestId;
+    setGenerating(true);
+
+    try {
+      const generated = await generateRide(result.request);
+      if (generationId.current !== requestId) {
+        return;
+      }
+      if (generated.ok) {
+        setGeneratedRoute(generated.route);
+        return;
+      }
+      setGenerationError(generated.error);
+    } catch {
+      if (generationId.current !== requestId) {
+        return;
+      }
+      setGenerationError(GENERATION_UNAVAILABLE);
+    } finally {
+      if (generationId.current === requestId) {
+        setGenerating(false);
+      }
+    }
   }
 
   return (
@@ -157,11 +220,13 @@ export function RideRequestForm({
                 current && current.label === query ? current : null,
               );
               setErrors((current) => ({ ...current, start: undefined }));
+              invalidateInFlightGeneration();
             }}
             onPlaceSelected={(place) => {
               setStart(place);
               setStartQuery(place.label);
               setErrors((current) => ({ ...current, start: undefined }));
+              invalidateInFlightGeneration();
             }}
             action={
               <LocateButton
@@ -169,10 +234,12 @@ export function RideRequestForm({
                   setStart(place);
                   setStartQuery(place.label);
                   setErrors((current) => ({ ...current, start: undefined }));
+                  invalidateInFlightGeneration();
                 }}
                 onError={(message) => {
                   setStart(null);
                   setErrors((current) => ({ ...current, start: message }));
+                  invalidateInFlightGeneration();
                 }}
               />
             }
@@ -206,6 +273,7 @@ export function RideRequestForm({
                       targetDistanceKm: undefined,
                     }));
                     setStatus(null);
+                    invalidateInFlightGeneration();
                   }}
                 >
                   <span className="text-base font-medium">{option.label}</span>
@@ -243,6 +311,7 @@ export function RideRequestForm({
                   ...current,
                   destination: undefined,
                 }));
+                invalidateInFlightGeneration();
               }}
               onPlaceSelected={(place) => {
                 setDestination(place);
@@ -251,6 +320,7 @@ export function RideRequestForm({
                   ...current,
                   destination: undefined,
                 }));
+                invalidateInFlightGeneration();
               }}
             />
           ) : null}
@@ -281,6 +351,7 @@ export function RideRequestForm({
                     ...current,
                     targetDistanceKm: undefined,
                   }));
+                  invalidateInFlightGeneration();
                 }}
                 className="h-12 text-base"
               />
@@ -317,6 +388,7 @@ export function RideRequestForm({
                     ...current,
                     availableDurationMinutes: undefined,
                   }));
+                  invalidateInFlightGeneration();
                 }}
                 className="h-12 text-base"
               />
@@ -356,7 +428,10 @@ export function RideRequestForm({
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-background hover:bg-muted",
                   )}
-                  onClick={() => setStyle(option.value)}
+                  onClick={() => {
+                    setStyle(option.value);
+                    invalidateInFlightGeneration();
+                  }}
                 >
                   {option.label}
                 </button>
@@ -372,7 +447,10 @@ export function RideRequestForm({
               <Switch
                 id="avoid-highways"
                 checked={avoidHighways}
-                onCheckedChange={setAvoidHighways}
+                onCheckedChange={(checked) => {
+                  setAvoidHighways(checked);
+                  invalidateInFlightGeneration();
+                }}
               />
             </div>
             <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
@@ -382,19 +460,61 @@ export function RideRequestForm({
               <Switch
                 id="avoid-unpaved"
                 checked={avoidUnpaved}
-                onCheckedChange={setAvoidUnpaved}
+                onCheckedChange={(checked) => {
+                  setAvoidUnpaved(checked);
+                  invalidateInFlightGeneration();
+                }}
               />
             </div>
           </div>
 
-          <Button type="submit" size="lg" className="min-h-12 w-full text-base">
-            Générer ma ride
+          <Button
+            type="submit"
+            size="lg"
+            className="min-h-12 w-full text-base"
+            disabled={generating}
+            aria-busy={generating}
+          >
+            {generating ? "Génération…" : "Générer ma ride"}
           </Button>
 
           {status ? (
             <p role="status" className="text-sm leading-6 text-muted-foreground">
               {status}
             </p>
+          ) : null}
+
+          {generatedRoute ? (
+            <section
+              aria-label="Trajet généré"
+              className="space-y-2 rounded-lg border border-border px-3 py-3"
+            >
+              <h2 className="text-base font-medium">Trajet généré</h2>
+              <p className="text-sm leading-6">
+                {formatGeneratedDistanceKm(generatedRoute.distanceKm)} ·{" "}
+                {formatGeneratedDuration(generatedRoute.durationMinutes)}
+              </p>
+              {generatedRoute.warnings.length > 0 ? (
+                <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-muted-foreground">
+                  {generatedRoute.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
+
+          {generationError ? (
+            <div role="alert" className="space-y-2 text-sm leading-6">
+              <p className="text-destructive">{generationError.message}</p>
+              {generationError.suggestions.length > 0 ? (
+                <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                  {generationError.suggestions.map((suggestion) => (
+                    <li key={suggestion}>{suggestion}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </form>
       </CardContent>

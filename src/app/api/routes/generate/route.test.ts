@@ -128,6 +128,55 @@ describe("POST /api/routes/generate", () => {
     ).toBeGreaterThanOrEqual(0);
   });
 
+  it("returns a single primary route rather than variants (FR-011)", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/routes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "loop",
+          start: GRANBY,
+          targetDistanceKm: 80,
+          style: "scenic",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      data: {
+        route: { type: string; distanceKm: number; durationMinutes: number };
+        variants?: unknown;
+      };
+    };
+    expect(payload.data.route.type).toBe("loop");
+    expect(payload.data.route.distanceKm).toBeGreaterThan(0);
+    expect(payload.data.route.durationMinutes).toBeGreaterThan(0);
+    expect(payload.data.variants).toBeUndefined();
+    expect(Array.isArray(payload.data.route)).toBe(false);
+  });
+
+  it("returns an explicit business error when the request is invalid (FR-011)", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/routes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "loop",
+          start: GRANBY,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as {
+      error: { code: string; message: string; suggestions: string[] };
+    };
+    expect(payload.error.code).toBe("VALIDATION_ERROR");
+    expect(payload.error.message.length).toBeGreaterThan(0);
+    expect(payload.error.suggestions.length).toBeGreaterThan(0);
+  });
+
   it("rejects an oversized body without invoking generation", async () => {
     const response = await POST(
       new Request("http://localhost/api/routes/generate", {
