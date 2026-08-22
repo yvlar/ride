@@ -218,6 +218,28 @@ export function createMapLibreEngine(): MapEngine {
           hasRouteLayer: Boolean(map.getLayer("ride-route-line")),
           markerCount: markers.length,
         });
+        window.setTimeout(() => {
+          if (disposed || !map) {
+            return;
+          }
+          const source = map.getSource("ride-route") as
+            | { loaded?: () => boolean }
+            | undefined;
+          let rendered = -1;
+          try {
+            rendered = map.queryRenderedFeatures(undefined, {
+              layers: ["ride-route-line"],
+            }).length;
+          } catch {
+            rendered = -2;
+          }
+          debugLog("E", "maplibre-map-engine.ts:route-check", "Post-load route/tile check", {
+            styleLoaded: map.isStyleLoaded(),
+            tilesLoaded: map.areTilesLoaded(),
+            sourceLoaded: source && typeof source.loaded === "function" ? source.loaded() : null,
+            renderedRouteFeatures: rendered,
+          });
+        }, 1500);
         // #endregion
       });
 
