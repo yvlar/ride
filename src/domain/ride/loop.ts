@@ -11,7 +11,11 @@ import {
   LOOP_CLOSURE_TOLERANCE_KM,
   MIN_ROAD_NETWORK_POINTS,
 } from "./constants";
-import { distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
+import {
+  distanceToleranceGapKm,
+  isWithinDistanceTolerance,
+  usesKnownUnpaved,
+} from "./constraints";
 import { curvyRankScore } from "./curvy";
 import {
   preferAvoidingHighways,
@@ -20,6 +24,10 @@ import {
 } from "./highways";
 import { measureRepeatedRoadPercent } from "./overlap";
 import { scenicRankScore } from "./scenic";
+import {
+  excludeKnownUnpaved,
+  withUnknownSurfaceSignal,
+} from "./surfaces";
 import { touringRankScore } from "./touring";
 import type { LoopCandidate, RideStyle } from "./types";
 
@@ -179,6 +187,9 @@ export type LoopSelection =
     }
   | {
       status: "no_route_found";
+    }
+  | {
+      status: "known_unpaved_rejected";
     };
 
 export function selectBestLoopCandidate(
@@ -186,6 +197,7 @@ export function selectBestLoopCandidate(
   targetDistanceKm: number,
   style?: RideStyle,
   avoidHighways = false,
+  avoidUnpaved = false,
 ): LoopSelection {
   const viable = evaluations.filter(isViableLoop);
   if (viable.length === 0) {
@@ -198,11 +210,19 @@ export function selectBestLoopCandidate(
     return { status: "no_route_found" };
   }
 
-  const inTolerance = viable.filter(
+  const withoutUnpaved = excludeKnownUnpaved(
+    viable,
+    (evaluation) => usesKnownUnpaved(evaluation.candidate.segments),
+    avoidUnpaved,
+  );
+  if (avoidUnpaved && viable.length > 0 && withoutUnpaved.length === 0) {
+    return { status: "known_unpaved_rejected" };
+  }
+  const inTolerance = withoutUnpaved.filter(
     (evaluation) => evaluation.withinDistanceTolerance,
   );
   const pool = preferAvoidingHighways(
-    inTolerance.length > 0 ? inTolerance : viable,
+    inTolerance.length > 0 ? inTolerance : withoutUnpaved,
     (evaluation) => usesHighway(evaluation.candidate.segments),
     avoidHighways,
   );
@@ -245,7 +265,9 @@ export function selectBestLoopCandidate(
 
   return {
     status: "selected",
-    evaluation: withHighwayAvoidanceSignal(best, avoidHighways),
+    evaluation: withUnknownSurfaceSignal(
+      withHighwayAvoidanceSignal(best, avoidHighways),
+    ),
   };
 }
 
