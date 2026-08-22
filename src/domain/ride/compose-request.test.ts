@@ -135,6 +135,41 @@ describe("composeRideRequest (FR-014)", () => {
     expect(result.request.availableDurationMinutes).toBe(240);
   });
 
+  it("accepts an optional target distance for a destination ride (FR-009)", () => {
+    const result = composeRideRequest(
+      baseInput({
+        type: "destination",
+        destination: tremblant,
+        targetDistanceKm: 220,
+        availableDurationMinutes: null,
+        style: "scenic",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request).toMatchObject({
+      type: "destination",
+      targetDistanceKm: 220,
+    });
+  });
+
+  it("composes a round trip without requiring distance (FR-003, FR-009)", () => {
+    const result = composeRideRequest(
+      baseInput({
+        type: "round_trip",
+        destination: tremblant,
+        targetDistanceKm: null,
+        availableDurationMinutes: null,
+        style: "touring",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.targetDistanceKm).toBeUndefined();
+  });
+
   it("composes a destination ride without requiring distance (FR-002, FR-009)", () => {
     const result = composeRideRequest(
       baseInput({

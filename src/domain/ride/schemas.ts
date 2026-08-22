@@ -1,11 +1,18 @@
 import { z } from "zod";
 import { haversineKm } from "@/domain/geo/distance";
 import { MIN_DESTINATION_SEPARATION_KM } from "./constants";
+import {
+  isTargetDistanceRequired,
+  parseTargetDistanceKm,
+} from "./target-distance";
 import type {
   DestinationRideRequest,
   LoopRideRequest,
   RoundTripRideRequest,
 } from "./types";
+
+/** FR-009 — business distance is always a positive length in kilometres. */
+const targetDistanceKmSchema = z.number().gt(0).max(2000);
 
 const coordinatesSchema = z.object({
   latitude: z.number().gte(-90).lte(90),
@@ -28,18 +35,21 @@ export const loopRideRequestSchema = z
   .object({
     type: z.literal("loop"),
     start: placeSchema,
-    targetDistanceKm: z.number().gt(0).max(2000).optional(),
+    targetDistanceKm: targetDistanceKmSchema.optional(),
     availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
     style: rideStyleSchema.optional(),
     preferences: routePreferencesSchema.optional(),
   })
   .superRefine((data, ctx) => {
-    if (
-      data.targetDistanceKm === undefined &&
-      data.availableDurationMinutes === undefined
-    ) {
+    const parsedDistance = parseTargetDistanceKm(data.targetDistanceKm, {
+      required: isTargetDistanceRequired(
+        "loop",
+        data.availableDurationMinutes !== undefined,
+      ),
+    });
+    if (!parsedDistance.ok) {
       ctx.addIssue(
-        "Une boucle exige une distance cible ou une durée disponible (FR-001).",
+        "Une boucle exige une distance cible (FR-009) ou une durée disponible (FR-001).",
       );
     }
   });
@@ -51,7 +61,7 @@ export const destinationRideRequestSchema = z
     type: z.literal("destination"),
     start: placeSchema,
     destination: placeSchema,
-    targetDistanceKm: z.number().gt(0).max(2000).optional(),
+    targetDistanceKm: targetDistanceKmSchema.optional(),
     availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
     style: rideStyleSchema,
     preferences: routePreferencesSchema.optional(),
@@ -94,7 +104,7 @@ export const roundTripRideRequestSchema = z
     type: z.literal("round_trip"),
     start: placeSchema,
     destination: placeSchema,
-    targetDistanceKm: z.number().gt(0).max(2000).optional(),
+    targetDistanceKm: targetDistanceKmSchema.optional(),
     availableDurationMinutes: z.number().gt(0).max(24 * 60).optional(),
     style: rideStyleSchema,
     preferences: routePreferencesSchema.optional(),

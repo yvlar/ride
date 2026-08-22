@@ -4,6 +4,10 @@ import { useState, type FormEvent } from "react";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import { hoursToMinutes } from "@/domain/ride/duration";
 import { summarizeRideRequest } from "@/domain/ride/summarize-request";
+import {
+  isTargetDistanceRequired,
+  targetDistanceHint,
+} from "@/domain/ride/target-distance";
 import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
@@ -91,6 +95,13 @@ export function RideRequestForm({
   const [status, setStatus] = useState<string | null>(null);
 
   const needsDestination = type !== "loop";
+  const durationHoursValue = parseOptionalNumber(availableDurationHours);
+  const hasAvailableDuration =
+    typeof durationHoursValue === "number" &&
+    Number.isFinite(durationHoursValue) &&
+    durationHoursValue > 0;
+  const distanceRequired = isTargetDistanceRequired(type, hasAvailableDuration);
+  const distanceHint = targetDistanceHint(type, hasAvailableDuration);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -243,17 +254,23 @@ export function RideRequestForm({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="target-distance">Distance cible (km)</Label>
+              <Label htmlFor="target-distance">
+                Distance cible (km)
+                {distanceRequired ? (
+                  <span aria-hidden="true"> *</span>
+                ) : null}
+              </Label>
               <Input
                 id="target-distance"
                 inputMode="decimal"
                 placeholder="ex. 200"
                 value={targetDistanceKm}
+                aria-required={distanceRequired}
                 aria-invalid={errors.targetDistanceKm ? true : undefined}
                 aria-describedby={
                   errors.targetDistanceKm
-                    ? "target-distance-error"
-                    : undefined
+                    ? "target-distance-hint target-distance-error"
+                    : "target-distance-hint"
                 }
                 onChange={(event) => {
                   setTargetDistanceKm(event.target.value);
@@ -264,6 +281,9 @@ export function RideRequestForm({
                 }}
                 className="h-12 text-base"
               />
+              <p id="target-distance-hint" className="text-sm text-muted-foreground">
+                {distanceHint}
+              </p>
               {errors.targetDistanceKm ? (
                 <p
                   id="target-distance-error"

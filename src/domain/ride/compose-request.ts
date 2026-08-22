@@ -1,4 +1,9 @@
 import { durationToEstimatedDistanceKm } from "@/domain/ride/duration";
+import {
+  TARGET_DISTANCE_REQUIRED_MESSAGE,
+  isTargetDistanceRequired,
+  parseTargetDistanceKm,
+} from "@/domain/ride/target-distance";
 import type {
   GenerateRideRequest,
   RideFormError,
@@ -36,13 +41,15 @@ export function composeRideRequest(
 
   const distanceInput = input.targetDistanceKm;
   const durationInput = input.availableDurationMinutes;
-  const hasDistance = isPositiveNumber(distanceInput);
   const hasDuration = isPositiveNumber(durationInput);
+  const parsedDistance = parseTargetDistanceKm(distanceInput, {
+    required: isTargetDistanceRequired(input.type, hasDuration),
+  });
 
-  if (distanceInput != null && !hasDistance) {
+  if (!parsedDistance.ok) {
     errors.push({
       field: "targetDistanceKm",
-      message: "La distance cible doit être supérieure à 0 km.",
+      message: parsedDistance.message,
     });
   }
 
@@ -53,23 +60,19 @@ export function composeRideRequest(
     });
   }
 
-  if (input.type === "loop" && !hasDistance && !hasDuration) {
-    errors.push({
-      field: "targetDistanceKm",
-      message:
-        "Indiquez une distance cible ou une durée disponible pour une boucle.",
-    });
-  }
-
   if (errors.length > 0 || !input.start) {
     return { ok: false, errors };
   }
 
-  const targetDistanceKm = hasDistance
-    ? distanceInput
-    : hasDuration
-      ? durationToEstimatedDistanceKm(durationInput, input.style)
-      : undefined;
+  const explicitTargetDistanceKm = parsedDistance.ok
+    ? parsedDistance.targetDistanceKm
+    : undefined;
+  const targetDistanceKm =
+    explicitTargetDistanceKm !== undefined
+      ? explicitTargetDistanceKm
+      : hasDuration
+        ? durationToEstimatedDistanceKm(durationInput, input.style)
+        : undefined;
 
   const availableDurationMinutes = hasDuration ? durationInput : undefined;
 
@@ -80,8 +83,7 @@ export function composeRideRequest(
         errors: [
           {
             field: "targetDistanceKm",
-            message:
-              "Indiquez une distance cible ou une durée disponible pour une boucle.",
+            message: TARGET_DISTANCE_REQUIRED_MESSAGE,
           },
         ],
       };
