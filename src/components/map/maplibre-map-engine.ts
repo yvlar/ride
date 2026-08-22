@@ -7,6 +7,10 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
+import {
+  createDirectionArrowElement,
+  createPlaceMarkerElement,
+} from "./ride-map-markers";
 import "./ride-map-markers.css";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
@@ -15,6 +19,7 @@ export function createMapLibreEngine(): MapEngine {
     mount(container, viewModel, { onError }): MapEngineHandle {
       const markers: Marker[] = [];
       let map: MapLibreMap | undefined;
+      let disposed = false;
 
       try {
         map = new MapLibreMap({
@@ -28,13 +33,14 @@ export function createMapLibreEngine(): MapEngine {
       }
 
       map.on("error", () => {
-        if (map && !map.isStyleLoaded()) {
-          onError(MAP_UNAVAILABLE_MESSAGE);
+        if (disposed || !map || map.isStyleLoaded()) {
+          return;
         }
+        onError(MAP_UNAVAILABLE_MESSAGE);
       });
 
       map.on("load", () => {
-        if (!map) {
+        if (disposed || !map) {
           return;
         }
 
@@ -85,6 +91,7 @@ export function createMapLibreEngine(): MapEngine {
 
       return {
         destroy() {
+          disposed = true;
           for (const marker of markers) {
             marker.remove();
           }
@@ -102,13 +109,10 @@ function placeMarker(
   label: string,
   coordinates: RideMapViewModel["start"]["coordinates"],
 ): Marker {
-  const element = document.createElement("div");
-  element.className = "ride-map-marker";
-  element.textContent = label;
-  element.setAttribute("role", "img");
-  element.setAttribute("aria-label", label);
-
-  return new Marker({ element, anchor: "bottom" })
+  return new Marker({
+    element: createPlaceMarkerElement(label),
+    anchor: "bottom",
+  })
     .setLngLat(coordinatesToPosition(coordinates))
     .addTo(map);
 }
@@ -117,12 +121,10 @@ function placeArrow(
   map: MapLibreMap,
   arrow: RideMapViewModel["directionArrows"][number],
 ): Marker {
-  const element = document.createElement("div");
-  element.className = "ride-map-arrow";
-  element.setAttribute("aria-hidden", "true");
-  element.style.transform = `rotate(${arrow.bearingDeg}deg)`;
-
-  return new Marker({ element, anchor: "center" })
+  return new Marker({
+    element: createDirectionArrowElement(arrow.bearingDeg),
+    anchor: "center",
+  })
     .setLngLat(coordinatesToPosition(arrow.coordinates))
     .addTo(map);
 }
