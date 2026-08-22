@@ -12,6 +12,11 @@ import {
   styleRankScore,
   type DestinationWaypointSet,
 } from "./destination";
+import {
+  preferAvoidingHighways,
+  usesHighway,
+  withHighwayAvoidanceSignal,
+} from "./highways";
 import { measureOverlapPercent, measureRepeatedRoadPercent } from "./overlap";
 import type {
   DestinationCandidate,
@@ -168,6 +173,7 @@ export type RoundTripSelection =
 export function selectBestRoundTripCandidate(
   evaluations: EvaluatedRoundTripCandidate[],
   targetDistanceKm?: number,
+  avoidHighways = false,
 ): RoundTripSelection {
   const viable = evaluations.filter(isViableRoundTrip);
   if (viable.length === 0) {
@@ -182,7 +188,11 @@ export function selectBestRoundTripCandidate(
     targetDistanceKm === undefined
       ? pool
       : pool.filter((evaluation) => evaluation.withinDistanceTolerance === true);
-  const rankedPool = inTolerance.length > 0 ? inTolerance : pool;
+  const rankedPool = preferAvoidingHighways(
+    inTolerance.length > 0 ? inTolerance : pool,
+    (evaluation) => usesHighway(evaluation.candidate.segments),
+    avoidHighways,
+  );
 
   const ranked = [...rankedPool].sort((left, right) => {
     if (left.outboundReturnOverlapPercent !== right.outboundReturnOverlapPercent) {
@@ -217,5 +227,8 @@ export function selectBestRoundTripCandidate(
     return { status: "distance_out_of_tolerance", evaluation: best };
   }
 
-  return { status: "selected", evaluation: best };
+  return {
+    status: "selected",
+    evaluation: withHighwayAvoidanceSignal(best, avoidHighways),
+  };
 }

@@ -5,6 +5,7 @@ import {
   positionToCoordinates,
 } from "@/domain/geo/distance";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
+import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { measureOverlapPercent } from "@/domain/ride/overlap";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
 import type {
@@ -296,5 +297,40 @@ describe("generateRoundTripRide (FR-003)", () => {
     }
     expect(loop.error.code).toBe("UNSUPPORTED_RIDE_TYPE");
     expect(destination.error.code).toBe("UNSUPPORTED_RIDE_TYPE");
+  });
+
+  it("signals when every reasonable round trip uses a highway (FR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        const routed = await mock.calculateRoute(input);
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            roadClass: "motorway",
+            surface: "paved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateRoundTripRide(
+      {
+        type: "round_trip",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.roadClass).toBe("motorway");
+    expect(result.route.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

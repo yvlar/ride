@@ -16,6 +16,11 @@ import {
 } from "./constants";
 import { distanceBoundsKm, distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
 import { curvyRankScore } from "./curvy";
+import {
+  preferAvoidingHighways,
+  usesHighway,
+  withHighwayAvoidanceSignal,
+} from "./highways";
 import { scenicRankScore } from "./scenic";
 import { touringRankScore } from "./touring";
 import type { DestinationCandidate, RideStyle } from "./types";
@@ -240,6 +245,7 @@ export function selectBestDestinationCandidate(
   evaluations: EvaluatedDestinationCandidate[],
   style: RideStyle,
   targetDistanceKm?: number,
+  avoidHighways = false,
 ): DestinationSelection {
   const anchored = evaluations.filter(isAnchoredDestination);
   if (anchored.length === 0) {
@@ -255,7 +261,11 @@ export function selectBestDestinationCandidate(
     targetDistanceKm === undefined
       ? pool
       : pool.filter((evaluation) => evaluation.withinDistanceTolerance === true);
-  const rankedPool = inTolerance.length > 0 ? inTolerance : pool;
+  const rankedPool = preferAvoidingHighways(
+    inTolerance.length > 0 ? inTolerance : pool,
+    (evaluation) => usesHighway(evaluation.candidate.segments),
+    avoidHighways,
+  );
 
   const ranked = [...rankedPool].sort((left, right) => {
     const scoreDelta =
@@ -284,5 +294,8 @@ export function selectBestDestinationCandidate(
     return { status: "distance_out_of_tolerance", evaluation: best };
   }
 
-  return { status: "selected", evaluation: best };
+  return {
+    status: "selected",
+    evaluation: withHighwayAvoidanceSignal(best, avoidHighways),
+  };
 }

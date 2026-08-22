@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { haversineKm, offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
 import {
   composeRoundTripCandidate,
   createReturnWaypointSets,
@@ -291,5 +292,101 @@ describe("selectBestRoundTripCandidate (FR-003, BR-002)", () => {
       return;
     }
     expect(selection.evaluation.candidate.distanceKm).toBe(390);
+  });
+});
+
+describe("selectBestRoundTripCandidate (FR-007)", () => {
+  it("prefers a reasonable non-highway pair over a Touring-winning highway", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const highway = evaluatePair(
+      withSegments(outbound, "motorway", undefined, undefined, "paved"),
+      withSegments(inbound, "motorway", undefined, undefined, "paved"),
+      undefined,
+      "touring",
+    );
+    const primary = evaluatePair(
+      withSegments(outbound, "primary"),
+      withSegments(inbound, "primary"),
+      undefined,
+      "touring",
+    );
+
+    expect(highway.outboundReturnOverlapPercent).toBe(
+      primary.outboundReturnOverlapPercent,
+    );
+    expect(
+      highway.outboundStyleScore + highway.inboundStyleScore,
+    ).toBeGreaterThan(primary.outboundStyleScore + primary.inboundStyleScore);
+
+    const withoutPreference = selectBestRoundTripCandidate([highway, primary]);
+    expect(withoutPreference.status).toBe("selected");
+    if (withoutPreference.status === "selected") {
+      expect(withoutPreference.evaluation.candidate.outbound.segments[0]?.roadClass).toBe(
+        "motorway",
+      );
+    }
+
+    const withPreference = selectBestRoundTripCandidate(
+      [highway, primary],
+      undefined,
+      true,
+    );
+    expect(withPreference.status).toBe("selected");
+    if (withPreference.status !== "selected") {
+      return;
+    }
+    expect(withPreference.evaluation.candidate.outbound.segments[0]?.roadClass).toBe(
+      "primary",
+    );
+    expect(withPreference.evaluation.warnings).not.toContain(
+      HIGHWAY_AVOIDANCE_WARNING,
+    );
+  });
+
+  it("keeps a highway pair and signals when the alternative is a disproportionate detour", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const highway = evaluatePair(
+      withSegments(outbound, "motorway", undefined, undefined, "paved"),
+      withSegments(inbound, "motorway", undefined, undefined, "paved"),
+      undefined,
+      "touring",
+    );
+    const detour = evaluatePair(
+      {
+        ...withSegments(outbound, "primary"),
+        distanceKm: outbound.distanceKm * 3,
+      },
+      {
+        ...withSegments(inbound, "primary"),
+        distanceKm: inbound.distanceKm * 3,
+      },
+      undefined,
+      "touring",
+    );
+    const detourWithLength = {
+      ...detour,
+      candidate: {
+        ...detour.candidate,
+        distanceKm: highway.candidate.distanceKm * 3,
+      },
+      disproportionateDetour: true,
+    };
+
+    const selection = selectBestRoundTripCandidate(
+      [highway, detourWithLength],
+      undefined,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.outbound.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+    expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
   });
 });

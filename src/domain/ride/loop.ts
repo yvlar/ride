@@ -13,6 +13,11 @@ import {
 } from "./constants";
 import { distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
 import { curvyRankScore } from "./curvy";
+import {
+  preferAvoidingHighways,
+  usesHighway,
+  withHighwayAvoidanceSignal,
+} from "./highways";
 import { measureRepeatedRoadPercent } from "./overlap";
 import { scenicRankScore } from "./scenic";
 import { touringRankScore } from "./touring";
@@ -180,6 +185,7 @@ export function selectBestLoopCandidate(
   evaluations: EvaluatedLoopCandidate[],
   targetDistanceKm: number,
   style?: RideStyle,
+  avoidHighways = false,
 ): LoopSelection {
   const viable = evaluations.filter(isViableLoop);
   if (viable.length === 0) {
@@ -195,7 +201,11 @@ export function selectBestLoopCandidate(
   const inTolerance = viable.filter(
     (evaluation) => evaluation.withinDistanceTolerance,
   );
-  const pool = inTolerance.length > 0 ? inTolerance : viable;
+  const pool = preferAvoidingHighways(
+    inTolerance.length > 0 ? inTolerance : viable,
+    (evaluation) => usesHighway(evaluation.candidate.segments),
+    avoidHighways,
+  );
 
   const ranked = [...pool].sort((left, right) => {
     const repeatDelta = left.repeatedRoadPercent - right.repeatedRoadPercent;
@@ -233,7 +243,10 @@ export function selectBestLoopCandidate(
     return { status: "distance_out_of_tolerance", evaluation: best };
   }
 
-  return { status: "selected", evaluation: best };
+  return {
+    status: "selected",
+    evaluation: withHighwayAvoidanceSignal(best, avoidHighways),
+  };
 }
 
 function loopStyleScore(

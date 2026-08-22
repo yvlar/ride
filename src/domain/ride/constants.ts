@@ -132,6 +132,17 @@ export const CURVY_WEIGHT_SECONDARY = 0.25;
 export const CURVY_WEIGHT_ELEVATION = 0.15;
 export const CURVY_WEIGHT_HIGHWAY_AVOIDANCE = 0.15;
 
+/**
+ * FR-007 — provider-agnostic highway classes. Adapters map their own
+ * labels onto these tokens; the domain never names a map vendor.
+ */
+export const HIGHWAY_ROAD_CLASSES = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+] as const;
+
 export const CURVY_HIGHWAY_ROAD_CLASSES = [
   "motorway",
   "motorway_link",
