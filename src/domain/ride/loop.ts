@@ -193,13 +193,15 @@ export function selectBestLoopCandidate(
 
   const ranked = [...pool].sort((left, right) => {
     const repeatDelta = left.repeatedRoadPercent - right.repeatedRoadPercent;
-    if (
-      style === "curvy" &&
-      Math.abs(repeatDelta) >= HIGH_REPEAT_WARNING_PERCENT
-    ) {
-      return repeatDelta;
-    }
     if (style === "curvy") {
+      const leftWarned =
+        left.repeatedRoadPercent >= HIGH_REPEAT_WARNING_PERCENT;
+      const rightWarned =
+        right.repeatedRoadPercent >= HIGH_REPEAT_WARNING_PERCENT;
+      // BR-002 — a warned loop must not beat a cleaner alternative (FR-004).
+      if (leftWarned !== rightWarned) {
+        return repeatDelta;
+      }
       const curvyDelta = right.curvyScore - left.curvyScore;
       if (curvyDelta !== 0) {
         return curvyDelta;

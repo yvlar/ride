@@ -3,10 +3,13 @@ import { offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import { CURVY_UNKNOWN_ELEVATION_SCORE } from "./constants";
 import {
+  curvesScore,
   curvyRankScore,
   elevationScore,
+  highwayAvoidanceScore,
   measureCurvySignals,
   scoreCurvyBreakdown,
+  secondaryRoadsScore,
 } from "./curvy";
 import type { RouteSegment } from "./types";
 
@@ -45,6 +48,18 @@ function windingGeometry(): LineString {
   const south = offsetCoordinates(west, 180, 8);
   const finish = offsetCoordinates(south, 90, 8);
   return densify([GRANBY, east, north, west, south, finish], 3);
+}
+
+function hairpinGeometry(): LineString {
+  const points: Coordinates[] = [GRANBY];
+  let cursor = GRANBY;
+  let bearing = 90;
+  for (let index = 0; index < 5; index += 1) {
+    cursor = offsetCoordinates(cursor, bearing, 8);
+    points.push(cursor);
+    bearing = (bearing + 160) % 360;
+  }
+  return densify(points, 3);
 }
 
 function segment(partial: Partial<RouteSegment> & { distanceKm: number }): RouteSegment {
@@ -188,6 +203,31 @@ describe("curvyRankScore (FR-004, BR-003)", () => {
     expect(curvyRankScore(geometry, partial)).toBeGreaterThanOrEqual(
       curvyRankScore(geometry, unlabeled),
     );
+  });
+
+  it("counts 160° hairpins as turns, not reversals (FR-004)", () => {
+    const hairpins = measureCurvySignals(hairpinGeometry());
+    const corners = measureCurvySignals(windingGeometry());
+
+    expect(hairpins.significantTurnsPerKm).toBeGreaterThan(0);
+    expect(hairpins.reversalCountPerKm).toBe(0);
+    expect(curvesScore(hairpins)).toBeGreaterThanOrEqual(curvesScore(corners) * 0.9);
+  });
+
+  it("scores curve, secondary, and highway components independently (FR-004)", () => {
+    const winding = measureCurvySignals(windingGeometry(), [
+      segment({ distanceKm: 30, roadClass: "secondary" }),
+      segment({ distanceKm: 10, roadClass: "motorway" }),
+    ]);
+    const straightHighway = measureCurvySignals(straightGeometry(), [
+      segment({ distanceKm: 40, roadClass: "motorway" }),
+    ]);
+
+    expect(curvesScore(winding)).toBeGreaterThan(curvesScore(straightHighway));
+    expect(secondaryRoadsScore(winding)).toBe(75);
+    expect(highwayAvoidanceScore(winding)).toBe(50);
+    expect(secondaryRoadsScore(straightHighway)).toBe(0);
+    expect(highwayAvoidanceScore(straightHighway)).toBe(0);
   });
 
   it("does not use duration or fastest-path time as an input (BR-003)", () => {

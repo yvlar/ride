@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
 import { createCircleLineString } from "@/domain/geo/geometry";
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import { HIGH_REPEAT_WARNING_PERCENT } from "./constants";
 import {
   createLoopWaypointSets,
   evaluateLoopCandidate,
   selectBestLoopCandidate,
+  type EvaluatedLoopCandidate,
 } from "./loop";
 import type { LoopCandidate, RouteSegment } from "./types";
 
@@ -39,6 +41,48 @@ function densify(geometry: LineString, pointsPerSegment = 3): LineString {
   }
   coordinates.push(geometry.coordinates[geometry.coordinates.length - 1]);
   return { type: "LineString", coordinates };
+}
+
+function stubLoopEvaluation(input: {
+  repeatedRoadPercent: number;
+  curvyScore: number;
+  roadClass: string;
+}): EvaluatedLoopCandidate {
+  const east = offsetCoordinates(GRANBY, 90, 20);
+  const northEast = offsetCoordinates(east, 0, 20);
+  const north = offsetCoordinates(GRANBY, 0, 20);
+  const geometry = densify({
+    type: "LineString",
+    coordinates: [
+      [GRANBY.longitude, GRANBY.latitude],
+      [east.longitude, east.latitude],
+      [northEast.longitude, northEast.latitude],
+      [north.longitude, north.latitude],
+      [GRANBY.longitude, GRANBY.latitude],
+    ],
+  });
+
+  return {
+    candidate: {
+      ...candidateFromGeometry(geometry, 80),
+      segments: [
+        {
+          id: `stub-${input.roadClass}`,
+          geometry,
+          distanceKm: 80,
+          durationMinutes: 80,
+          roadClass: input.roadClass,
+        } satisfies RouteSegment,
+      ],
+    },
+    isClosed: true,
+    followsRoadNetwork: true,
+    isGeometricCircle: false,
+    withinDistanceTolerance: true,
+    repeatedRoadPercent: input.repeatedRoadPercent,
+    curvyScore: input.curvyScore,
+    warnings: [],
+  };
 }
 
 describe("createLoopWaypointSets (FR-001)", () => {
@@ -296,6 +340,62 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
     );
     expect(selection.evaluation.repeatedRoadPercent).toBeLessThan(
       evaluateLoopCandidate(GRANBY, 80, repeatedCurvy).repeatedRoadPercent,
+    );
+  });
+
+  it("does not pick a warned Curvy loop over a cleaner alternative (FR-004, BR-002)", () => {
+    const warned = stubLoopEvaluation({
+      repeatedRoadPercent: 40,
+      curvyScore: 90,
+      roadClass: "secondary",
+    });
+    const cleaner = stubLoopEvaluation({
+      repeatedRoadPercent: 16,
+      curvyScore: 70,
+      roadClass: "motorway",
+    });
+
+    expect(warned.repeatedRoadPercent).toBeGreaterThan(
+      HIGH_REPEAT_WARNING_PERCENT,
+    );
+    expect(cleaner.repeatedRoadPercent).toBeLessThan(HIGH_REPEAT_WARNING_PERCENT);
+    expect(
+      warned.repeatedRoadPercent - cleaner.repeatedRoadPercent,
+    ).toBeLessThan(HIGH_REPEAT_WARNING_PERCENT);
+
+    const selection = selectBestLoopCandidate([warned, cleaner], 80, "curvy");
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.repeatedRoadPercent).toBe(16);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+  });
+
+  it("ranks by Curvy score when both loops stay under the BR-002 warning (FR-004)", () => {
+    const highway = stubLoopEvaluation({
+      repeatedRoadPercent: 8,
+      curvyScore: 40,
+      roadClass: "motorway",
+    });
+    const winding = stubLoopEvaluation({
+      repeatedRoadPercent: 14,
+      curvyScore: 80,
+      roadClass: "secondary",
+    });
+
+    const selection = selectBestLoopCandidate([highway, winding], 80, "curvy");
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.curvyScore).toBe(80);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "secondary",
     );
   });
 

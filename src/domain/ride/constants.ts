@@ -67,7 +67,8 @@ export const TOURING_TARGET_HEADING_CHANGE_PER_KM = 0.8;
  */
 export const CURVY_STRAIGHT_HEADING_DEG = 8;
 export const CURVY_SIGNIFICANT_TURN_DEG = 25;
-export const CURVY_REVERSAL_DEG = 150;
+/** Near-180° out-and-back. Hairpins (~160°) stay significant turns (FR-004). */
+export const CURVY_REVERSAL_DEG = 170;
 export const CURVY_HEADING_CHANGE_PER_KM_FOR_MAX = 6;
 export const CURVY_TURNS_PER_KM_FOR_MAX = 0.25;
 export const CURVY_STRAIGHT_SCORE_WEIGHT = 0.55;
