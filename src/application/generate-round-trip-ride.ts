@@ -251,10 +251,10 @@ async function generateValidatedRoundTrip(
     };
   }
 
-  const evaluation = withAvailableDurationCeiling(
-    selection.evaluation,
-    request.availableDurationMinutes,
-  );
+  const evaluation = withAvailableDurationCeiling(selection.evaluation, {
+    availableDurationMinutes: request.availableDurationMinutes,
+    explicitTargetDistanceKm: request.targetDistanceKm,
+  });
   const route: GeneratedRoundTripRoute = {
     id: crypto.randomUUID(),
     type: "round_trip",

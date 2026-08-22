@@ -121,26 +121,35 @@ describe("available duration ceiling (FR-010)", () => {
     expect(clearlyExceedsAvailableDuration(180.4, 180)).toBe(false);
   });
 
-  it("appends a ceiling warning once when duration is provided", () => {
+  it("appends a ceiling warning once when duration and distance are both set", () => {
     const evaluation = {
       warnings: ["autre"],
       candidate: { durationMinutes: 240 },
     };
+    const both = {
+      availableDurationMinutes: 120,
+      explicitTargetDistanceKm: 80,
+    };
 
-    expect(
-      withAvailableDurationCeiling(evaluation, 120).warnings,
-    ).toEqual([
+    expect(withAvailableDurationCeiling(evaluation, both).warnings).toEqual([
       "autre",
       availableDurationCeilingWarning(240, 120),
     ]);
-    expect(withAvailableDurationCeiling(evaluation).warnings).toEqual(["autre"]);
+    expect(withAvailableDurationCeiling(evaluation, {}).warnings).toEqual([
+      "autre",
+    ]);
+    expect(
+      withAvailableDurationCeiling(evaluation, {
+        availableDurationMinutes: 120,
+      }).warnings,
+    ).toEqual(["autre"]);
     expect(
       withAvailableDurationCeiling(
         {
           ...evaluation,
           warnings: [availableDurationCeilingWarning(240, 120)],
         },
-        120,
+        both,
       ).warnings,
     ).toHaveLength(1);
   });

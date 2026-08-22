@@ -54,17 +54,31 @@ export function parseAvailableDurationMinutes(
   return { ok: true, availableDurationMinutes: value };
 }
 
+/**
+ * FR-010 — the duration ceiling applies only when the user supplied both
+ * an explicit target distance and an available duration. Duration-only
+ * requests convert via BR-005 and must not inherit this warning.
+ */
 export function withAvailableDurationCeiling<
   T extends { warnings: string[]; candidate: { durationMinutes: number } },
->(evaluation: T, availableDurationMinutes?: number): T {
-  if (availableDurationMinutes === undefined) {
+>(
+  evaluation: T,
+  input: {
+    availableDurationMinutes?: number;
+    explicitTargetDistanceKm?: number;
+  },
+): T {
+  if (
+    input.availableDurationMinutes === undefined ||
+    input.explicitTargetDistanceKm === undefined
+  ) {
     return evaluation;
   }
 
   if (
     !clearlyExceedsAvailableDuration(
       evaluation.candidate.durationMinutes,
-      availableDurationMinutes,
+      input.availableDurationMinutes,
     )
   ) {
     return evaluation;
@@ -72,7 +86,7 @@ export function withAvailableDurationCeiling<
 
   const warning = availableDurationCeilingWarning(
     evaluation.candidate.durationMinutes,
-    availableDurationMinutes,
+    input.availableDurationMinutes,
   );
   if (evaluation.warnings.includes(warning)) {
     return evaluation;

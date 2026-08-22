@@ -201,6 +201,7 @@ describe("generateRoundTripRide (FR-003)", () => {
 
     expect(result.route.targetDistanceKm).toBe(32.5);
     expect(isWithinDistanceTolerance(result.route.distanceKm, 32.5)).toBe(true);
+    expect(result.route.warnings.join(" ")).not.toMatch(/durée disponible/);
   });
 
   it("keeps explicit distance as the length constraint and flags a duration ceiling miss (FR-010)", async () => {

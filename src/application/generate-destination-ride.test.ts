@@ -459,6 +459,7 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(
       isWithinDistanceTolerance(result.route.distanceKm, 240),
     ).toBe(true);
+    expect(result.route.warnings.join(" ")).not.toMatch(/durée disponible/);
   });
 
   it("keeps explicit distance as the length constraint and flags a duration ceiling miss (FR-010)", async () => {

@@ -336,6 +336,7 @@ describe("generateLoopRide (FR-001)", () => {
 
     expect(result.route.targetDistanceKm).toBe(80);
     expect(isWithinDistanceTolerance(result.route.distanceKm, 80)).toBe(true);
+    expect(result.route.warnings.join(" ")).not.toMatch(/durée disponible/);
   });
 
   it("keeps explicit distance as the length constraint and flags a duration ceiling miss (FR-010)", async () => {

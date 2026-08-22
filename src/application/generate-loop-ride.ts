@@ -223,10 +223,10 @@ async function generateValidatedLoop(
     return { ok: false, error };
   }
 
-  const evaluation = withAvailableDurationCeiling(
-    selection.evaluation,
-    request.availableDurationMinutes,
-  );
+  const evaluation = withAvailableDurationCeiling(selection.evaluation, {
+    availableDurationMinutes: request.availableDurationMinutes,
+    explicitTargetDistanceKm: request.targetDistanceKm,
+  });
   const route: GeneratedLoopRoute = {
     id: crypto.randomUUID(),
     type: "loop",

@@ -234,10 +234,10 @@ async function generateValidatedDestination(
     return { ok: false, error };
   }
 
-  const evaluation = withAvailableDurationCeiling(
-    selection.evaluation,
-    request.availableDurationMinutes,
-  );
+  const evaluation = withAvailableDurationCeiling(selection.evaluation, {
+    availableDurationMinutes: request.availableDurationMinutes,
+    explicitTargetDistanceKm: request.targetDistanceKm,
+  });
   const route: GeneratedDestinationRoute = {
     id: crypto.randomUUID(),
     type: "destination",
