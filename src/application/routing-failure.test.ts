@@ -120,4 +120,32 @@ describe("errorFromExhaustedAttempts (FR-021)", () => {
     );
     expect(error.code).toBe("PROVIDER_ERROR");
   });
+
+  it("keeps the unpaved FR-021 message when one attempt is a generic Error", () => {
+    const error = errorFromExhaustedAttempts(
+      [
+        rejected(new Error("timeout")),
+        rejected(emptyKnowledgeError()),
+        rejected(unpavedKnowledgeError()),
+      ],
+      { message: "fallback", suggestions: [] },
+    );
+    expect(error.code).toBe("NO_ROUTE_FOUND");
+    expect(error.message).toMatch(/non pavées/);
+  });
+
+  it("recognizes a duck-typed knowledge error (NFR-005)", () => {
+    const detached = {
+      name: "RoutingKnowledgeError",
+      reason: "unpaved",
+      message: unpavedKnowledgeError().message,
+      suggestions: ["Désactivez « éviter les routes non pavées »."],
+    };
+    const error = errorFromExhaustedAttempts(
+      [rejected(detached), rejected(new Error("timeout"))],
+      { message: "fallback", suggestions: [] },
+    );
+    expect(error.code).toBe("NO_ROUTE_FOUND");
+    expect(error.message).toMatch(/non pavées/);
+  });
 });

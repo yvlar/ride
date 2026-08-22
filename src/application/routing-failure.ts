@@ -30,13 +30,15 @@ export function errorFromExhaustedAttempts(
   settled: PromiseSettledResult<unknown>[],
   fallback: Pick<RideGenerationError, "message" | "suggestions">,
 ): RideGenerationError {
-  if (allRejectedAreKnowledge(settled)) {
-    return knowledgeUnavailableError(primaryKnowledgeError(settled));
-  }
-
   const everyAttemptFailed =
     settled.length > 0 &&
     settled.every((result) => result.status === "rejected");
+  const knowledge = primaryKnowledgeError(settled);
+
+  if (everyAttemptFailed && knowledge) {
+    return knowledgeUnavailableError(knowledge);
+  }
+
   if (everyAttemptFailed) {
     return {
       code: "PROVIDER_ERROR",

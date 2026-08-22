@@ -4,6 +4,19 @@ export type KnowledgeMissReason =
   | "unpaved"
   | "too_far";
 
+const KNOWLEDGE_MISS_REASONS = new Set<string>([
+  "empty",
+  "disconnected",
+  "unpaved",
+  "too_far",
+]);
+
+export function isKnowledgeMissReason(
+  value: unknown,
+): value is KnowledgeMissReason {
+  return typeof value === "string" && KNOWLEDGE_MISS_REASONS.has(value);
+}
+
 /**
  * Port-level failure when retrieved knowledge cannot satisfy a request
  * (NFR-005). Adapters throw this; application maps it to FR-021.
@@ -24,7 +37,25 @@ export class RoutingKnowledgeError extends Error {
 export function isRoutingKnowledgeError(
   error: unknown,
 ): error is RoutingKnowledgeError {
-  return error instanceof RoutingKnowledgeError;
+  if (error instanceof RoutingKnowledgeError) {
+    return true;
+  }
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const candidate = error as {
+    name?: unknown;
+    reason?: unknown;
+    message?: unknown;
+    suggestions?: unknown;
+  };
+  return (
+    candidate.name === "RoutingKnowledgeError" &&
+    isKnowledgeMissReason(candidate.reason) &&
+    typeof candidate.message === "string" &&
+    Array.isArray(candidate.suggestions) &&
+    candidate.suggestions.every((item) => typeof item === "string")
+  );
 }
 
 export function emptyKnowledgeError(): RoutingKnowledgeError {
