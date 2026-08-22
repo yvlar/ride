@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { resolveTargetDistanceKm } from "@/domain/ride/duration";
 import {
   createDestinationWaypointSets,
@@ -16,6 +17,7 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
+  primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
 } from "./routing-failure";
 
@@ -184,6 +186,10 @@ async function generateValidatedDestination(
     request.style,
     targetDistanceKm,
   );
+  const knowledge = primaryKnowledgeError(settled);
+  // #region agent log
+  appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"C",location:"generate-destination-ride.ts:select",message:"destination selection vs knowledge",data:{selectionStatus:selection.status,candidateCount:candidates.length,evaluationCount:evaluations.length,fulfilledCount:settled.filter((r)=>r.status==="fulfilled").length,rejectedCount:settled.filter((r)=>r.status==="rejected").length,knowledgeReason:knowledge?.reason??null,knowledgeChecked:selection.status==="no_route_found",willOmitKnowledge:selection.status==="distance_out_of_tolerance"&&Boolean(knowledge)},timestamp:Date.now()})+"\n");
+  // #endregion
 
   if (selection.status === "no_route_found") {
     return {
@@ -201,11 +207,15 @@ async function generateValidatedDestination(
 
   if (selection.status === "distance_out_of_tolerance") {
     const best = selection.evaluation;
+    const message = `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm ?? 0)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`;
+    // #region agent log
+    appendFileSync("/opt/cursor/logs/debug.log",JSON.stringify({hypothesisId:"D",location:"generate-destination-ride.ts:distance_out_of_tolerance",message:"distance path omits knowledge",data:{selectionStatus:selection.status,knowledgeReason:knowledge?.reason??null,knowledgeMessage:knowledge?.message??null,willOmitKnowledge:Boolean(knowledge),returnedCode:"DISTANCE_OUT_OF_TOLERANCE",returnedMessageHasFr021:message.includes("FR-021"),returnedMessageHasUnpaved:message.includes("non pavées"),bestDistanceKm:best.candidate.distanceKm,targetDistanceKm:targetDistanceKm??null},timestamp:Date.now()})+"\n");
+    // #endregion
     return {
       ok: false,
       error: {
         code: "DISTANCE_OUT_OF_TOLERANCE",
-        message: `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm ?? 0)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`,
+        message,
         suggestions: [
           "Ajustez la distance cible ou la durée disponible.",
           "Générez sans contrainte de longueur pour relier simplement la destination.",
