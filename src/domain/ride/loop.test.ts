@@ -45,8 +45,10 @@ function densify(geometry: LineString, pointsPerSegment = 3): LineString {
 
 function stubLoopEvaluation(input: {
   repeatedRoadPercent: number;
-  curvyScore: number;
+  curvyScore?: number;
+  scenicScore?: number;
   roadClass: string;
+  landscapeFeatures?: RouteSegment["landscapeFeatures"];
 }): EvaluatedLoopCandidate {
   const east = offsetCoordinates(GRANBY, 90, 20);
   const northEast = offsetCoordinates(east, 0, 20);
@@ -72,6 +74,7 @@ function stubLoopEvaluation(input: {
           distanceKm: 80,
           durationMinutes: 80,
           roadClass: input.roadClass,
+          landscapeFeatures: input.landscapeFeatures,
         } satisfies RouteSegment,
       ],
     },
@@ -80,7 +83,8 @@ function stubLoopEvaluation(input: {
     isGeometricCircle: false,
     withinDistanceTolerance: true,
     repeatedRoadPercent: input.repeatedRoadPercent,
-    curvyScore: input.curvyScore,
+    curvyScore: input.curvyScore ?? 0,
+    scenicScore: input.scenicScore ?? 0,
     warnings: [],
   };
 }
@@ -372,6 +376,125 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
     expect(selection.evaluation.repeatedRoadPercent).toBe(16);
     expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
       "motorway",
+    );
+  });
+
+  it("prefers a rural panoramic loop over a highway rectangle when style is scenic (FR-005)", () => {
+    const east = offsetCoordinates(GRANBY, 90, 20);
+    const northEast = offsetCoordinates(east, 0, 20);
+    const north = offsetCoordinates(GRANBY, 0, 20);
+    const rectangle = densify({
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [east.longitude, east.latitude],
+        [northEast.longitude, northEast.latitude],
+        [north.longitude, north.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    });
+
+    const highwayLoop: LoopCandidate = {
+      ...candidateFromGeometry(rectangle, 80),
+      durationMinutes: 50,
+      segments: [
+        {
+          id: "loop-hwy",
+          geometry: rectangle,
+          distanceKm: 80,
+          durationMinutes: 50,
+          roadClass: "motorway",
+        } satisfies RouteSegment,
+      ],
+    };
+    const scenicLoop: LoopCandidate = {
+      ...candidateFromGeometry(rectangle, 80),
+      durationMinutes: 95,
+      segments: [
+        {
+          id: "loop-lac",
+          geometry: rectangle,
+          distanceKm: 80,
+          durationMinutes: 95,
+          roadClass: "unclassified",
+          landscapeFeatures: ["rural", "lake", "village", "panoramic"],
+        } satisfies RouteSegment,
+      ],
+    };
+
+    const selection = selectBestLoopCandidate(
+      [
+        evaluateLoopCandidate(GRANBY, 80, highwayLoop),
+        evaluateLoopCandidate(GRANBY, 80, scenicLoop),
+      ],
+      80,
+      "scenic",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "unclassified",
+    );
+    expect(selection.evaluation.scenicScore).toBeGreaterThan(
+      evaluateLoopCandidate(GRANBY, 80, highwayLoop).scenicScore,
+    );
+  });
+
+  it("does not let Scenic outrank a large BR-002 repeat gap (FR-005)", () => {
+    const warned = stubLoopEvaluation({
+      repeatedRoadPercent: 40,
+      scenicScore: 90,
+      roadClass: "unclassified",
+      landscapeFeatures: ["rural", "lake", "village", "panoramic"],
+    });
+    const cleaner = stubLoopEvaluation({
+      repeatedRoadPercent: 16,
+      scenicScore: 40,
+      roadClass: "motorway",
+    });
+
+    expect(warned.repeatedRoadPercent).toBeGreaterThan(
+      HIGH_REPEAT_WARNING_PERCENT,
+    );
+    expect(cleaner.repeatedRoadPercent).toBeLessThan(HIGH_REPEAT_WARNING_PERCENT);
+
+    const selection = selectBestLoopCandidate([warned, cleaner], 80, "scenic");
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.repeatedRoadPercent).toBe(16);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+  });
+
+  it("ranks by Scenic score when both loops stay under the BR-002 warning (FR-005)", () => {
+    const highway = stubLoopEvaluation({
+      repeatedRoadPercent: 8,
+      scenicScore: 40,
+      roadClass: "motorway",
+    });
+    const panoramic = stubLoopEvaluation({
+      repeatedRoadPercent: 14,
+      scenicScore: 80,
+      roadClass: "unclassified",
+      landscapeFeatures: ["rural", "lake", "village", "panoramic"],
+    });
+
+    const selection = selectBestLoopCandidate([highway, panoramic], 80, "scenic");
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.scenicScore).toBe(80);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "unclassified",
     );
   });
 

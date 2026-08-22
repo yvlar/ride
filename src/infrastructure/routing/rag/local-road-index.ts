@@ -1,5 +1,6 @@
 import { offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates } from "@/domain/geo/types";
+import type { ScenicLandscapeFeature } from "@/domain/ride/types";
 import type { GridCell, RouteKnowledgeDocument } from "./types";
 import { undirectedEdgeId } from "./types";
 
@@ -87,6 +88,7 @@ function documentForEdge(
     roadName: meta.roadName,
     roadClass: meta.roadClass,
     surface: meta.surface,
+    landscapeFeatures: meta.landscapeFeatures,
     fromCell,
     toCell,
     from,
@@ -105,6 +107,7 @@ const EDGE_META: Record<
     roadName: string;
     roadClass: string;
     surface: RouteKnowledgeDocument["surface"];
+    landscapeFeatures?: ScenicLandscapeFeature[];
   }
 > = {
   highway: {
@@ -124,6 +127,7 @@ const EDGE_META: Record<
     roadName: "Rang panoramique",
     roadClass: "secondary",
     surface: "paved",
+    landscapeFeatures: ["rural", "lake", "village", "panoramic"],
   },
   curvy: {
     text: "boucle destination curvy sinueux ridge cretes secondary paved elevation",

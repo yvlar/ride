@@ -13,11 +13,11 @@ import {
   DESTINATION_ENDPOINT_TOLERANCE_KM,
   MAX_DESTINATION_DETOUR_RATIO,
   MIN_DESTINATION_ROAD_POINTS,
-  SCENIC_PREFERRED_MAX_RATIO,
   TOURING_TARGET_HEADING_CHANGE_PER_KM,
 } from "./constants";
 import { distanceBoundsKm, distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
 import { curvyRankScore } from "./curvy";
+import { scenicRankScore } from "./scenic";
 import type { DestinationCandidate, RideStyle } from "./types";
 
 export type DestinationWaypointSet = {
@@ -198,8 +198,8 @@ export function isAnchoredDestination(
 
 /**
  * BR-003 — rank by requested style, never by duration / fastest path.
- * Curvy uses the FR-004 domain score. Scenic and touring remain the
- * FR-002 placeholders until FR-005 / FR-006.
+ * Curvy uses FR-004. Scenic uses FR-005. Touring remains the FR-002
+ * placeholder until FR-006.
  */
 export function styleRankScore(
   style: RideStyle,
@@ -218,13 +218,11 @@ export function styleRankScore(
         evaluation.candidate.geometry,
         evaluation.candidate.segments,
       );
-    case "scenic": {
-      const extraBeyondPreferred = Math.max(
-        0,
-        relativeLength - SCENIC_PREFERRED_MAX_RATIO,
+    case "scenic":
+      return scenicRankScore(
+        evaluation.candidate.geometry,
+        evaluation.candidate.segments,
       );
-      return twist - extraBeyondPreferred * 4;
-    }
     case "touring":
       return (
         -Math.abs(twist - TOURING_TARGET_HEADING_CHANGE_PER_KM) -

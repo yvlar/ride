@@ -157,6 +157,90 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.route.durationMinutes).toBe(95);
   });
 
+  it("prefers a rural panoramic loop over a highway when style is scenic (FR-005)", async () => {
+    const start = GRANBY.coordinates;
+    const rectanglePoints = [
+      start,
+      offsetCoordinates(start, 90, 20),
+      offsetCoordinates(offsetCoordinates(start, 90, 20), 0, 20),
+      offsetCoordinates(start, 0, 20),
+      start,
+    ];
+
+    const toResult = (
+      roadClass: string,
+      durationMinutes: number,
+      landscapeFeatures?: ProviderRouteResult["segments"][number]["landscapeFeatures"],
+    ): ProviderRouteResult => {
+      const coordinates: [number, number][] = [];
+      for (let index = 0; index < rectanglePoints.length - 1; index += 1) {
+        const from = rectanglePoints[index];
+        const to = rectanglePoints[index + 1];
+        for (let step = 0; step < 3; step += 1) {
+          const t = step / 3;
+          coordinates.push([
+            from.longitude + (to.longitude - from.longitude) * t,
+            from.latitude + (to.latitude - from.latitude) * t,
+          ]);
+        }
+      }
+      const last = rectanglePoints[rectanglePoints.length - 1];
+      coordinates.push([last.longitude, last.latitude]);
+      const geometry = { type: "LineString" as const, coordinates };
+      return {
+        geometry,
+        segments: [
+          {
+            id: roadClass,
+            geometry,
+            distanceKm: 80,
+            durationMinutes,
+            roadClass,
+            landscapeFeatures,
+          },
+        ],
+        distanceKm: 80,
+        durationMinutes,
+      };
+    };
+
+    const highway = toResult("motorway", 50);
+    const panoramic = toResult("unclassified", 95, [
+      "rural",
+      "lake",
+      "village",
+      "panoramic",
+    ]);
+    const provider: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        return (input.waypoints?.length ?? 0) === 2 ? panoramic : highway;
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "scenic",
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.roadClass).toBe("unclassified");
+    expect(result.route.durationMinutes).toBe(95);
+    expect(result.route.segments[0]?.landscapeFeatures).toEqual([
+      "rural",
+      "lake",
+      "village",
+      "panoramic",
+    ]);
+  });
+
   it("converts an available duration via BR-005 before generating the loop", async () => {
     const result = await generateLoopRide(
       {

@@ -1,5 +1,5 @@
 import type { Coordinates } from "@/domain/geo/types";
-import type { RouteSegment } from "@/domain/ride/types";
+import type { RouteSegment, ScenicLandscapeFeature } from "@/domain/ride/types";
 
 export type GridCell = {
   x: number;
@@ -12,6 +12,7 @@ export type RouteKnowledgeDocument = {
   roadName: string;
   roadClass: string;
   surface: NonNullable<RouteSegment["surface"]>;
+  landscapeFeatures?: ScenicLandscapeFeature[];
   fromCell: GridCell;
   toCell: GridCell;
   from: Coordinates;

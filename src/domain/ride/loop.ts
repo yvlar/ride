@@ -14,6 +14,7 @@ import {
 import { distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
 import { curvyRankScore } from "./curvy";
 import { measureRepeatedRoadPercent } from "./overlap";
+import { scenicRankScore } from "./scenic";
 import type { LoopCandidate, RideStyle } from "./types";
 
 export type LoopWaypointSet = {
@@ -84,6 +85,7 @@ export type EvaluatedLoopCandidate = {
   withinDistanceTolerance: boolean;
   repeatedRoadPercent: number;
   curvyScore: number;
+  scenicScore: number;
   warnings: string[];
 };
 
@@ -142,6 +144,7 @@ export function evaluateLoopCandidate(
     withinDistanceTolerance: withinTolerance,
     repeatedRoadPercent,
     curvyScore: curvyRankScore(candidate.geometry, candidate.segments),
+    scenicScore: scenicRankScore(candidate.geometry, candidate.segments),
     warnings,
   };
 }
@@ -193,18 +196,20 @@ export function selectBestLoopCandidate(
 
   const ranked = [...pool].sort((left, right) => {
     const repeatDelta = left.repeatedRoadPercent - right.repeatedRoadPercent;
-    if (style === "curvy") {
+    const leftStyle = loopStyleScore(left, style);
+    const rightStyle = loopStyleScore(right, style);
+    if (leftStyle !== null && rightStyle !== null) {
       const leftWarned =
         left.repeatedRoadPercent >= HIGH_REPEAT_WARNING_PERCENT;
       const rightWarned =
         right.repeatedRoadPercent >= HIGH_REPEAT_WARNING_PERCENT;
-      // BR-002 — a warned loop must not beat a cleaner alternative (FR-004).
+      // BR-002 — a warned loop must not beat a cleaner alternative.
       if (leftWarned !== rightWarned) {
         return repeatDelta;
       }
-      const curvyDelta = right.curvyScore - left.curvyScore;
-      if (curvyDelta !== 0) {
-        return curvyDelta;
+      const styleDelta = rightStyle - leftStyle;
+      if (styleDelta !== 0) {
+        return styleDelta;
       }
     }
     if (repeatDelta !== 0) {
@@ -226,4 +231,17 @@ export function selectBestLoopCandidate(
   }
 
   return { status: "selected", evaluation: best };
+}
+
+function loopStyleScore(
+  evaluation: EvaluatedLoopCandidate,
+  style?: RideStyle,
+): number | null {
+  if (style === "curvy") {
+    return evaluation.curvyScore;
+  }
+  if (style === "scenic") {
+    return evaluation.scenicScore;
+  }
+  return null;
 }

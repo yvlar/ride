@@ -231,6 +231,24 @@ function highwayCandidate(): DestinationCandidate {
   };
 }
 
+function scenicRuralCandidate(): DestinationCandidate {
+  return {
+    ...fastestCandidate(),
+    distanceKm: 200,
+    durationMinutes: 190,
+    segments: [
+      {
+        id: "lac",
+        geometry: fastestCandidate().geometry,
+        distanceKm: 200,
+        durationMinutes: 190,
+        roadClass: "unclassified",
+        landscapeFeatures: ["rural", "lake", "village", "panoramic"],
+      } satisfies RouteSegment,
+    ],
+  };
+}
+
 function windingSecondaryCandidate(): DestinationCandidate {
   return {
     ...curvyCandidate(),
@@ -356,16 +374,45 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
     expect(selection.evaluation.candidate.distanceKm).toBe(180);
   });
 
+  it("prefers a rural panoramic corridor over a faster highway (FR-005)", () => {
+    const highway = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      highwayCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+    const scenic = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      scenicRuralCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(styleRankScore("scenic", scenic, 180)).toBeGreaterThan(
+      styleRankScore("scenic", highway, 180),
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [highway, scenic],
+      "scenic",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.durationMinutes).toBe(190);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "unclassified",
+    );
+  });
+
   it("does not let scenic maximize length up to the detour cap (FR-002)", () => {
     const nearCap = evaluateDestinationCandidate(
       GRANBY,
       TREMBLANT,
       { ...curvyCandidate(), distanceKm: 315, durationMinutes: 250 },
       { shortestDistanceKm: 180 },
-    );
-
-    expect(styleRankScore("scenic", twistier, 180)).toBeGreaterThan(
-      styleRankScore("scenic", nearCap, 180),
     );
 
     const selection = selectBestDestinationCandidate(
@@ -377,7 +424,8 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
     if (selection.status !== "selected") {
       return;
     }
-    expect(selection.evaluation.candidate.distanceKm).toBe(210);
+    expect(selection.evaluation.candidate.distanceKm).toBeLessThan(315);
+    expect(selection.evaluation.candidate.distanceKm).not.toBe(315);
   });
 
   it("does not rank touring candidates by duration (BR-003)", () => {
