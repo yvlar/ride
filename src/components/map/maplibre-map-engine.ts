@@ -29,7 +29,7 @@ function debugLog(
     timestamp: Date.now(),
   };
   console.info("[ride-debug-map]", payload);
-  void fetch("/api/__debug/map-worker-log", {
+  void fetch("/api/debug-map-worker-log", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
