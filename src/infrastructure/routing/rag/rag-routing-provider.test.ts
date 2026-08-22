@@ -317,6 +317,27 @@ describe("composeRetrievedRoute", () => {
     expect(result.segments).toHaveLength(2);
     expect(result.geometry.coordinates.length).toBe(3);
   });
+
+  it("copies known landscape tags onto segments without inventing extras (FR-005)", () => {
+    const documents = buildLocalRoadIndex(GRANBY, [
+      GRANBY,
+      offsetCoordinates(GRANBY, 90, 2),
+    ]).filter((document) => document.roadName === "Rang panoramique");
+    expect(documents.length).toBeGreaterThan(0);
+    const scenic = documents[0];
+    if (!scenic) {
+      throw new Error("expected a scenic grid edge");
+    }
+
+    const result = composeRetrievedRoute(scenic.from, scenic.to, [scenic]);
+
+    expect(result.segments[0]?.landscapeFeatures).toEqual([
+      "rural",
+      "lake",
+      "village",
+      "panoramic",
+    ]);
+  });
 });
 
 describe("createRoutingProvider", () => {

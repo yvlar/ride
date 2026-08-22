@@ -20,10 +20,37 @@ export const MIN_ROAD_NETWORK_POINTS = 8;
 export const MIN_DESTINATION_ROAD_POINTS = 2;
 
 /**
- * Scenic may prefer a modest extra length over the shortest path, but must
- * not maximize detour up to MAX_DESTINATION_DETOUR_RATIO (FR-002).
+ * FR-005 — Scenic ranking. Preference-toggle weights from CURSOR.md belong
+ * to FR-007 / FR-008, not this FR. The remaining slice is highway /
+ * industrial avoidance, which is part of scenic character.
+ *
+ * Landscape scores are a heuristic rank, never a precise measurement.
  */
-export const SCENIC_PREFERRED_MAX_RATIO = 1.2;
+export const SCENIC_WEIGHT_LANDSCAPE = 0.45;
+export const SCENIC_WEIGHT_RURAL = 0.2;
+export const SCENIC_WEIGHT_CURVES = 0.2;
+export const SCENIC_WEIGHT_AVOIDANCE = 0.15;
+export const SCENIC_MOUNTAIN_M_PER_KM_FOR_MAX = 30;
+
+export const SCENIC_HIGHWAY_ROAD_CLASSES = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+] as const;
+
+export const SCENIC_RURAL_ROAD_CLASSES = [
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+  "unclassified",
+] as const;
+
+export const SCENIC_INDUSTRIAL_ROAD_CLASSES = [
+  "industrial",
+  "service",
+] as const;
 
 /**
  * BR-005 — average speeds used to convert an available duration into a distance.

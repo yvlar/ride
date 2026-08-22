@@ -3,6 +3,20 @@ import type { Coordinates, LineString, Place } from "@/domain/geo/types";
 export type RideType = "loop" | "destination" | "round_trip";
 export type RideStyle = "curvy" | "scenic" | "touring";
 
+/**
+ * Provider-agnostic landscape hints. Adapters copy known tags; the domain
+ * never infers a named map source (FR-005, BR-004).
+ */
+export type ScenicLandscapeFeature =
+  | "rural"
+  | "mountain"
+  | "lake"
+  | "river"
+  | "viewpoint"
+  | "village"
+  | "panoramic"
+  | "industrial";
+
 export type RoutePreferences = {
   avoidHighways: boolean;
   avoidUnpaved: boolean;
@@ -75,6 +89,8 @@ export type RouteSegment = {
   roadClass?: string;
   /** Cumulative climb on this segment, when the provider exposes it (FR-004). */
   elevationGainM?: number;
+  /** Known landscape tags when the provider exposes them (FR-005). */
+  landscapeFeatures?: ScenicLandscapeFeature[];
 };
 
 export type LoopRouteStatistics = {

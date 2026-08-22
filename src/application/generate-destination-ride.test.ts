@@ -239,6 +239,84 @@ describe("generateDestinationRide (FR-002)", () => {
     expect(result.route.segments[0]?.elevationGainM).toBe(850);
   });
 
+  it("selects a slower rural panoramic corridor over a highway (FR-005, BR-003)", async () => {
+    const highway: ProviderRouteResult = {
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+          [
+            (GRANBY.coordinates.longitude + TREMBLANT.coordinates.longitude) / 2,
+            (GRANBY.coordinates.latitude + TREMBLANT.coordinates.latitude) / 2,
+          ],
+          [TREMBLANT.coordinates.longitude, TREMBLANT.coordinates.latitude],
+        ],
+      },
+      segments: [
+        {
+          id: "autoroutes",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+              [TREMBLANT.coordinates.longitude, TREMBLANT.coordinates.latitude],
+            ],
+          },
+          distanceKm: 180,
+          durationMinutes: 90,
+          roadClass: "motorway",
+        },
+      ],
+      distanceKm: 180,
+      durationMinutes: 90,
+    };
+
+    const scenic: ProviderRouteResult = {
+      geometry: highway.geometry,
+      segments: [
+        {
+          id: "rangs",
+          geometry: highway.segments[0]!.geometry,
+          distanceKm: 200,
+          durationMinutes: 190,
+          roadClass: "unclassified",
+          landscapeFeatures: ["rural", "lake", "village", "panoramic"],
+        },
+      ],
+      distanceKm: 200,
+      durationMinutes: 190,
+    };
+
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        return (input.waypoints?.length ?? 0) === 0 ? highway : scenic;
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "scenic",
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.durationMinutes).toBe(190);
+    expect(result.route.segments[0]?.roadClass).toBe("unclassified");
+    expect(result.route.segments[0]?.landscapeFeatures).toEqual([
+      "rural",
+      "lake",
+      "village",
+      "panoramic",
+    ]);
+  });
+
   it("prefers a curvier corridor over the fastest mock path (BR-003)", async () => {
     const mock = new MockRoutingProvider();
     const direct = await mock.calculateRoute({

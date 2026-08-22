@@ -45,6 +45,7 @@ export function composeRetrievedRoute(
       roadName: document.roadName,
       surface: document.surface,
       roadClass: document.roadClass,
+      landscapeFeatures: document.landscapeFeatures,
     });
     points.push(next);
     current = next;
