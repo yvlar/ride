@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateRide } from "@/application/generate-ride";
+import type { LineString } from "@/domain/geo/types";
 import { REGENERATION_MAX_OVERLAP_PERCENT } from "@/domain/ride/constants";
 import { measureOverlapPercent } from "@/domain/ride/overlap";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
@@ -44,7 +45,7 @@ describe("POST /api/routes/regenerate", () => {
       data: {
         route: {
           type: string;
-          geometry: { type: string; coordinates: [number, number][] };
+          geometry: LineString;
         };
       };
       meta: { requestId: string };
