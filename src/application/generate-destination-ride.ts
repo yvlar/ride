@@ -16,7 +16,9 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
+  primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
+  withKnowledgeConstraint,
 } from "./routing-failure";
 
 export type GenerateDestinationRideResult =
@@ -184,27 +186,26 @@ async function generateValidatedDestination(
     request.style,
     targetDistanceKm,
   );
+  const knowledge = primaryKnowledgeError(settled);
 
   if (selection.status === "no_route_found") {
     return {
       ok: false,
-      error: {
-        code: "NO_ROUTE_FOUND",
+      error: errorFromExhaustedAttempts(settled, {
         message:
           "Aucun trajet moto n’a pu relier ce départ à cette destination.",
         suggestions: [
           "Vérifiez les coordonnées.",
           "Essayez un autre couple départ / destination.",
         ],
-      },
+      }),
     };
   }
 
   if (selection.status === "distance_out_of_tolerance") {
     const best = selection.evaluation;
-    return {
-      ok: false,
-      error: {
+    const error = withKnowledgeConstraint(
+      {
         code: "DISTANCE_OUT_OF_TOLERANCE",
         message: `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm ?? 0)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`,
         suggestions: [
@@ -215,7 +216,9 @@ async function generateValidatedDestination(
           distanceKm: best.candidate.distanceKm,
         },
       },
-    };
+      knowledge,
+    );
+    return { ok: false, error };
   }
 
   const { evaluation } = selection;

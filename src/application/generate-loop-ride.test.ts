@@ -137,6 +137,44 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.error.code).toBe("GEOMETRIC_LOOP_REJECTED");
   });
 
+  it("maps unpaved knowledge mixed with a geometric circle to the FR-021 message", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            geometry: createCircleLineString(input.start, 12, 36),
+            segments: [],
+            distanceKm: 75,
+            durationMinutes: 80,
+          };
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
+    expect(result.error.message).toMatch(/FR-021/);
+  });
+
   it("explains a BR-001 miss instead of silently widening the tolerance", async () => {
     const farProvider: RoutingProvider = {
       async calculateRoute(
@@ -170,6 +208,51 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.error.code).toBe("DISTANCE_OUT_OF_TOLERANCE");
     expect(result.error.bestCandidate?.distanceKm).toBe(400);
     expect(result.error.message).toMatch(/BR-001/);
+    expect(result.error.message).not.toMatch(/FR-021/);
+    expect(result.error.message).not.toMatch(/non pavées/);
+  });
+
+  it("combines BR-001 with the FR-021 unpaved constraint on a mixed distance miss", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute(
+        input: ProviderRouteRequest,
+      ): Promise<ProviderRouteResult> {
+        calls += 1;
+        if (calls === 1) {
+          const mock = new MockRoutingProvider(8);
+          const routed = await mock.calculateRoute({
+            ...input,
+            waypoints: input.waypoints?.map((waypoint) => ({
+              latitude: waypoint.latitude + 1,
+              longitude: waypoint.longitude + 1,
+            })),
+          });
+          return { ...routed, distanceKm: 400 };
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 50,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("DISTANCE_OUT_OF_TOLERANCE");
+    expect(result.error.bestCandidate?.distanceKm).toBe(400);
+    expect(result.error.message).toMatch(/BR-001/);
+    expect(result.error.message).toMatch(/FR-021/);
+    expect(result.error.message).toMatch(/non pavées/);
   });
 
   it("ignores a failing candidate instead of crashing the Vercel function", async () => {

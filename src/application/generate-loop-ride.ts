@@ -18,7 +18,10 @@ import { createRoutingProvider } from "@/infrastructure/routing/create-routing-p
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
+  knowledgeUnavailableError,
+  primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
+  withKnowledgeConstraint,
 } from "./routing-failure";
 
 export type GenerateLoopRideResult =
@@ -148,6 +151,16 @@ async function generateValidatedLoop(
   }
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
+  const knowledge = primaryKnowledgeError(settled);
+
+  if (
+    selection.status === "geometric_loop_rejected" ||
+    selection.status === "no_route_found"
+  ) {
+    if (knowledge) {
+      return { ok: false, error: knowledgeUnavailableError(knowledge) };
+    }
+  }
 
   if (selection.status === "geometric_loop_rejected") {
     return {
@@ -166,19 +179,17 @@ async function generateValidatedLoop(
   if (selection.status === "no_route_found") {
     return {
       ok: false,
-      error: {
-        code: "NO_ROUTE_FOUND",
+      error: errorFromExhaustedAttempts(settled, {
         message: "Aucun trajet en boucle n’a pu être construit depuis ce départ.",
         suggestions: ["Essayez un autre point de départ."],
-      },
+      }),
     };
   }
 
   if (selection.status === "distance_out_of_tolerance") {
     const best = selection.evaluation;
-    return {
-      ok: false,
-      error: {
+    const error = withKnowledgeConstraint(
+      {
         code: "DISTANCE_OUT_OF_TOLERANCE",
         message: `Aucun trajet ne respecte ±10 % de ${formatKm(targetDistanceKm)} (BR-001). Le meilleur candidat fait ${formatKm(best.candidate.distanceKm)}.`,
         suggestions: [
@@ -190,7 +201,9 @@ async function generateValidatedLoop(
           repeatedRoadPercent: best.repeatedRoadPercent,
         },
       },
-    };
+      knowledge,
+    );
+    return { ok: false, error };
   }
 
   const { evaluation } = selection;
