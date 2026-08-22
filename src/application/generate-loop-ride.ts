@@ -150,7 +150,11 @@ async function generateValidatedLoop(
     };
   }
 
-  const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
+  const selection = selectBestLoopCandidate(
+    evaluations,
+    targetDistanceKm,
+    request.style,
+  );
   const knowledge = primaryKnowledgeError(settled);
 
   if (

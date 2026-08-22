@@ -17,6 +17,7 @@ import {
   TOURING_TARGET_HEADING_CHANGE_PER_KM,
 } from "./constants";
 import { distanceBoundsKm, distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
+import { curvyRankScore } from "./curvy";
 import type { DestinationCandidate, RideStyle } from "./types";
 
 export type DestinationWaypointSet = {
@@ -197,8 +198,8 @@ export function isAnchoredDestination(
 
 /**
  * BR-003 — rank by requested style, never by duration / fastest path.
- * This is only enough ranking for FR-002; it is not the full FR-004/005/006
- * corridor generators.
+ * Curvy uses the FR-004 domain score. Scenic and touring remain the
+ * FR-002 placeholders until FR-005 / FR-006.
  */
 export function styleRankScore(
   style: RideStyle,
@@ -213,7 +214,10 @@ export function styleRankScore(
 
   switch (style) {
     case "curvy":
-      return twist;
+      return curvyRankScore(
+        evaluation.candidate.geometry,
+        evaluation.candidate.segments,
+      );
     case "scenic": {
       const extraBeyondPreferred = Math.max(
         0,

@@ -7,7 +7,7 @@ import {
   evaluateLoopCandidate,
   selectBestLoopCandidate,
 } from "./loop";
-import type { LoopCandidate } from "./types";
+import type { LoopCandidate, RouteSegment } from "./types";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
 
@@ -140,6 +140,163 @@ describe("selectBestLoopCandidate (BR-001, BR-002)", () => {
       return;
     }
     expect(selection.evaluation.repeatedRoadPercent).toBeLessThan(40);
+  });
+
+  it("prefers a winding secondary loop over a highway rectangle when style is curvy (FR-004)", () => {
+    const east = offsetCoordinates(GRANBY, 90, 20);
+    const northEast = offsetCoordinates(east, 0, 20);
+    const north = offsetCoordinates(GRANBY, 0, 20);
+    const rectangle = densify({
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [east.longitude, east.latitude],
+        [northEast.longitude, northEast.latitude],
+        [north.longitude, north.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    });
+
+    const jogEast = offsetCoordinates(GRANBY, 90, 10);
+    const jogNorth = offsetCoordinates(jogEast, 0, 10);
+    const jogWest = offsetCoordinates(jogNorth, 270, 10);
+    const jogSouth = offsetCoordinates(jogWest, 180, 8);
+    const farEast = offsetCoordinates(jogSouth, 90, 18);
+    const farNorth = offsetCoordinates(farEast, 0, 12);
+    const homeNorth = offsetCoordinates(GRANBY, 0, 12);
+    const winding = densify({
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [jogEast.longitude, jogEast.latitude],
+        [jogNorth.longitude, jogNorth.latitude],
+        [jogWest.longitude, jogWest.latitude],
+        [jogSouth.longitude, jogSouth.latitude],
+        [farEast.longitude, farEast.latitude],
+        [farNorth.longitude, farNorth.latitude],
+        [homeNorth.longitude, homeNorth.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    });
+
+    const highwayLoop: LoopCandidate = {
+      ...candidateFromGeometry(rectangle, 80),
+      durationMinutes: 50,
+      segments: [
+        {
+          id: "loop-hwy",
+          geometry: rectangle,
+          distanceKm: 80,
+          durationMinutes: 50,
+          roadClass: "motorway",
+          elevationGainM: 0,
+        } satisfies RouteSegment,
+      ],
+    };
+    const curvyLoop: LoopCandidate = {
+      ...candidateFromGeometry(winding, 80),
+      durationMinutes: 95,
+      segments: [
+        {
+          id: "loop-ridge",
+          geometry: winding,
+          distanceKm: 80,
+          durationMinutes: 95,
+          roadClass: "secondary",
+          elevationGainM: 700,
+        } satisfies RouteSegment,
+      ],
+    };
+
+    const selection = selectBestLoopCandidate(
+      [
+        evaluateLoopCandidate(GRANBY, 80, highwayLoop),
+        evaluateLoopCandidate(GRANBY, 80, curvyLoop),
+      ],
+      80,
+      "curvy",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "secondary",
+    );
+    expect(selection.evaluation.curvyScore).toBeGreaterThan(
+      evaluateLoopCandidate(GRANBY, 80, highwayLoop).curvyScore,
+    );
+  });
+
+  it("does not let Curvy outrank a large BR-002 repeat gap (FR-004)", () => {
+    const east = offsetCoordinates(GRANBY, 90, 20);
+    const northEast = offsetCoordinates(east, 0, 20);
+    const north = offsetCoordinates(GRANBY, 0, 20);
+    const rectangle = densify({
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [east.longitude, east.latitude],
+        [northEast.longitude, northEast.latitude],
+        [north.longitude, north.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    });
+    const outAndBack = densify({
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [east.longitude, east.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    });
+
+    const cleanHighway: LoopCandidate = {
+      ...candidateFromGeometry(rectangle, 80),
+      segments: [
+        {
+          id: "clean-hwy",
+          geometry: rectangle,
+          distanceKm: 80,
+          durationMinutes: 50,
+          roadClass: "motorway",
+        } satisfies RouteSegment,
+      ],
+    };
+    const repeatedCurvy: LoopCandidate = {
+      ...candidateFromGeometry(outAndBack, 80),
+      segments: [
+        {
+          id: "repeat-ridge",
+          geometry: outAndBack,
+          distanceKm: 80,
+          durationMinutes: 95,
+          roadClass: "secondary",
+          elevationGainM: 800,
+        } satisfies RouteSegment,
+      ],
+    };
+
+    const selection = selectBestLoopCandidate(
+      [
+        evaluateLoopCandidate(GRANBY, 80, cleanHighway),
+        evaluateLoopCandidate(GRANBY, 80, repeatedCurvy),
+      ],
+      80,
+      "curvy",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "motorway",
+    );
+    expect(selection.evaluation.repeatedRoadPercent).toBeLessThan(
+      evaluateLoopCandidate(GRANBY, 80, repeatedCurvy).repeatedRoadPercent,
+    );
   });
 
   it("does not silently widen BR-001 when every viable loop is outside ±10 %", () => {

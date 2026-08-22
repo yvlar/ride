@@ -73,6 +73,8 @@ export type RouteSegment = {
   roadName?: string;
   surface?: "paved" | "unpaved" | "unknown";
   roadClass?: string;
+  /** Cumulative climb on this segment, when the provider exposes it (FR-004). */
+  elevationGainM?: number;
 };
 
 export type LoopRouteStatistics = {
