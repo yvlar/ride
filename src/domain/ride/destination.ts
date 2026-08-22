@@ -13,11 +13,11 @@ import {
   DESTINATION_ENDPOINT_TOLERANCE_KM,
   MAX_DESTINATION_DETOUR_RATIO,
   MIN_DESTINATION_ROAD_POINTS,
-  TOURING_TARGET_HEADING_CHANGE_PER_KM,
 } from "./constants";
 import { distanceBoundsKm, distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
 import { curvyRankScore } from "./curvy";
 import { scenicRankScore } from "./scenic";
+import { touringRankScore } from "./touring";
 import type { DestinationCandidate, RideStyle } from "./types";
 
 export type DestinationWaypointSet = {
@@ -198,20 +198,12 @@ export function isAnchoredDestination(
 
 /**
  * BR-003 — rank by requested style, never by duration / fastest path.
- * Curvy uses FR-004. Scenic uses FR-005. Touring remains the FR-002
- * placeholder until FR-006.
+ * Curvy uses FR-004. Scenic uses FR-005. Touring uses FR-006.
  */
 export function styleRankScore(
   style: RideStyle,
   evaluation: EvaluatedDestinationCandidate,
-  shortestDistanceKm: number,
 ): number {
-  const twist = evaluation.headingChangePerKm;
-  const relativeLength =
-    shortestDistanceKm === 0
-      ? 1
-      : evaluation.candidate.distanceKm / shortestDistanceKm;
-
   switch (style) {
     case "curvy":
       return curvyRankScore(
@@ -224,9 +216,9 @@ export function styleRankScore(
         evaluation.candidate.segments,
       );
     case "touring":
-      return (
-        -Math.abs(twist - TOURING_TARGET_HEADING_CHANGE_PER_KM) -
-        relativeLength * 0.15
+      return touringRankScore(
+        evaluation.candidate.geometry,
+        evaluation.candidate.segments,
       );
   }
 }
@@ -254,9 +246,6 @@ export function selectBestDestinationCandidate(
     return { status: "no_route_found" };
   }
 
-  const shortestDistanceKm = Math.min(
-    ...anchored.map((evaluation) => evaluation.candidate.distanceKm),
-  );
   const reasonable = anchored.filter(
     (evaluation) => !evaluation.disproportionateDetour,
   );
@@ -270,8 +259,7 @@ export function selectBestDestinationCandidate(
 
   const ranked = [...rankedPool].sort((left, right) => {
     const scoreDelta =
-      styleRankScore(style, right, shortestDistanceKm) -
-      styleRankScore(style, left, shortestDistanceKm);
+      styleRankScore(style, right) - styleRankScore(style, left);
     if (scoreDelta !== 0) {
       return scoreDelta;
     }

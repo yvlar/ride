@@ -15,6 +15,7 @@ import { distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints
 import { curvyRankScore } from "./curvy";
 import { measureRepeatedRoadPercent } from "./overlap";
 import { scenicRankScore } from "./scenic";
+import { touringRankScore } from "./touring";
 import type { LoopCandidate, RideStyle } from "./types";
 
 export type LoopWaypointSet = {
@@ -86,6 +87,7 @@ export type EvaluatedLoopCandidate = {
   repeatedRoadPercent: number;
   curvyScore: number;
   scenicScore: number;
+  touringScore: number;
   warnings: string[];
 };
 
@@ -145,6 +147,7 @@ export function evaluateLoopCandidate(
     repeatedRoadPercent,
     curvyScore: curvyRankScore(candidate.geometry, candidate.segments),
     scenicScore: scenicRankScore(candidate.geometry, candidate.segments),
+    touringScore: touringRankScore(candidate.geometry, candidate.segments),
     warnings,
   };
 }
@@ -242,6 +245,9 @@ function loopStyleScore(
   }
   if (style === "scenic") {
     return evaluation.scenicScore;
+  }
+  if (style === "touring") {
+    return evaluation.touringScore;
   }
   return null;
 }

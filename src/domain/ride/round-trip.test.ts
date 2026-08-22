@@ -83,6 +83,7 @@ function withSegments(
   roadClass: string,
   elevationGainM?: number,
   landscapeFeatures?: DestinationCandidate["segments"][number]["landscapeFeatures"],
+  surface?: DestinationCandidate["segments"][number]["surface"],
 ): DestinationCandidate {
   return {
     ...candidate,
@@ -95,6 +96,7 @@ function withSegments(
         roadClass,
         elevationGainM,
         landscapeFeatures,
+        surface,
       },
     ],
   };
@@ -242,6 +244,40 @@ describe("selectBestRoundTripCandidate (FR-003, BR-002)", () => {
     }
     expect(selection.evaluation.candidate.outbound.segments[0]?.roadClass).toBe(
       "unclassified",
+    );
+  });
+
+  it("prefers a Touring-scoring leg when outbound/return overlap is equal (FR-006)", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const highway = evaluatePair(
+      withSegments(outbound, "motorway", undefined, undefined, "paved"),
+      withSegments(inbound, "motorway", undefined, undefined, "paved"),
+      undefined,
+      "touring",
+    );
+    const traverse = evaluatePair(
+      withSegments(outbound, "secondary", undefined, undefined, "paved"),
+      withSegments(inbound, "tertiary", undefined, undefined, "paved"),
+      undefined,
+      "touring",
+    );
+
+    expect(highway.outboundReturnOverlapPercent).toBe(
+      traverse.outboundReturnOverlapPercent,
+    );
+    expect(
+      traverse.outboundStyleScore + traverse.inboundStyleScore,
+    ).toBeGreaterThan(highway.outboundStyleScore + highway.inboundStyleScore);
+
+    const selection = selectBestRoundTripCandidate([highway, traverse]);
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.outbound.segments[0]?.roadClass).toBe(
+      "secondary",
     );
   });
 

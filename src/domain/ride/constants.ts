@@ -83,10 +83,32 @@ export const DESTINATION_ENDPOINT_TOLERANCE_KM = 2.5;
 export const MAX_DESTINATION_DETOUR_RATIO = 1.75;
 
 /**
- * Touring prefers a moderate heading change rather than the twistiest
- * corridor or the purely fastest trace (FR-002 / BR-003).
+ * FR-006 — Touring ranking. Scenic / preference-toggle weights from
+ * CURSOR.md belong to FR-005 / FR-007 / FR-008, not this FR.
+ *
+ * Fluidity peaks at a moderate heading change: more stable than Curvy,
+ * not a shortest-time / motorway commute (BR-003).
  */
-export const TOURING_TARGET_HEADING_CHANGE_PER_KM = 0.8;
+export const TOURING_TARGET_HEADING_CHANGE_PER_KM = 2.5;
+export const TOURING_FLUIDITY_SPREAD_PER_KM = 10;
+export const TOURING_WEIGHT_FLUIDITY = 0.25;
+export const TOURING_WEIGHT_SECONDARY = 0.3;
+export const TOURING_WEIGHT_COMFORT = 0.25;
+export const TOURING_WEIGHT_HIGHWAY_AVOIDANCE = 0.2;
+
+export const TOURING_HIGHWAY_ROAD_CLASSES = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+] as const;
+
+export const TOURING_SECONDARY_ROAD_CLASSES = [
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+] as const;
 
 /**
  * FR-004 — Curvy ranking. Scenic / preference weights from CURSOR.md are

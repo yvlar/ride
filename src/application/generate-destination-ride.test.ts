@@ -317,6 +317,96 @@ describe("generateDestinationRide (FR-002)", () => {
     ]);
   });
 
+  it("selects a slower paved secondary corridor over a highway (FR-006, BR-003)", async () => {
+    const highway: ProviderRouteResult = {
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+          [
+            (GRANBY.coordinates.longitude + TREMBLANT.coordinates.longitude) / 2,
+            (GRANBY.coordinates.latitude + TREMBLANT.coordinates.latitude) / 2,
+          ],
+          [TREMBLANT.coordinates.longitude, TREMBLANT.coordinates.latitude],
+        ],
+      },
+      segments: [
+        {
+          id: "autoroutes",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+              [TREMBLANT.coordinates.longitude, TREMBLANT.coordinates.latitude],
+            ],
+          },
+          distanceKm: 180,
+          durationMinutes: 90,
+          roadClass: "motorway",
+          surface: "paved",
+        },
+      ],
+      distanceKm: 180,
+      durationMinutes: 90,
+    };
+
+    const east = offsetCoordinates(GRANBY.coordinates, 90, 20);
+    const north = offsetCoordinates(east, 0, 25);
+    const touring: ProviderRouteResult = {
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+          [east.longitude, east.latitude],
+          [north.longitude, north.latitude],
+          [TREMBLANT.coordinates.longitude, TREMBLANT.coordinates.latitude],
+        ],
+      },
+      segments: [
+        {
+          id: "traverse",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+              [TREMBLANT.coordinates.longitude, TREMBLANT.coordinates.latitude],
+            ],
+          },
+          distanceKm: 200,
+          durationMinutes: 160,
+          roadClass: "secondary",
+          surface: "paved",
+        },
+      ],
+      distanceKm: 200,
+      durationMinutes: 160,
+    };
+
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        return (input.waypoints?.length ?? 0) === 0 ? highway : touring;
+      },
+    };
+
+    const result = await generateDestinationRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.durationMinutes).toBe(160);
+    expect(result.route.segments[0]?.roadClass).toBe("secondary");
+    expect(result.route.segments[0]?.surface).toBe("paved");
+  });
+
   it("prefers a curvier corridor over the fastest mock path (BR-003)", async () => {
     const mock = new MockRoutingProvider();
     const direct = await mock.calculateRoute({
