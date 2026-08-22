@@ -13,9 +13,11 @@ import type {
   RideGenerationError,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
+import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   errorFromExhaustedAttempts,
+  knowledgeUnavailableError,
   primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
   withKnowledgeConstraint,
@@ -88,7 +90,7 @@ export async function generateDestinationRide(
   return generateValidatedDestination(
     {
       ...parsed.data,
-      // FR-007 is applied in domain selection. FR-008 is not delivered here.
+      // FR-007 and FR-008 are applied in domain selection.
       preferences: parsed.data.preferences ?? {
         avoidHighways: false,
         avoidUnpaved: false,
@@ -185,8 +187,16 @@ async function generateValidatedDestination(
     request.style,
     targetDistanceKm,
     request.preferences.avoidHighways,
+    request.preferences.avoidUnpaved,
   );
   const knowledge = primaryKnowledgeError(settled);
+
+  if (selection.status === "known_unpaved_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
 
   if (selection.status === "no_route_found") {
     return {

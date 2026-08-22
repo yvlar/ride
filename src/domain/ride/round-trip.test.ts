@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { haversineKm, offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
+import { UNKNOWN_SURFACE_WARNING } from "./surfaces";
 import {
   composeRoundTripCandidate,
   createReturnWaypointSets,
@@ -388,5 +389,93 @@ describe("selectBestRoundTripCandidate (FR-007)", () => {
       "motorway",
     );
     expect(selection.evaluation.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
+  });
+});
+
+describe("selectBestRoundTripCandidate (FR-008)", () => {
+  it("excludes a known unpaved pair when avoidance is on (BR-007)", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const unpaved = evaluatePair(
+      withSegments(outbound, "secondary", undefined, undefined, "unpaved"),
+      withSegments(inbound, "secondary", undefined, undefined, "unpaved"),
+      undefined,
+      "touring",
+    );
+    const paved = evaluatePair(
+      withSegments(outbound, "primary", undefined, undefined, "paved"),
+      withSegments(inbound, "primary", undefined, undefined, "paved"),
+      undefined,
+      "touring",
+    );
+
+    const withoutPreference = selectBestRoundTripCandidate([unpaved, paved]);
+    expect(withoutPreference.status).toBe("selected");
+    if (withoutPreference.status === "selected") {
+      expect(
+        withoutPreference.evaluation.candidate.outbound.segments[0]?.surface,
+      ).toBe("unpaved");
+    }
+
+    const withPreference = selectBestRoundTripCandidate(
+      [unpaved, paved],
+      undefined,
+      false,
+      true,
+    );
+    expect(withPreference.status).toBe("selected");
+    if (withPreference.status !== "selected") {
+      return;
+    }
+    expect(withPreference.evaluation.candidate.outbound.segments[0]?.surface).toBe(
+      "paved",
+    );
+  });
+
+  it("rejects rather than silently keeping known unpaved (BR-007)", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const unpaved = evaluatePair(
+      withSegments(outbound, "secondary", undefined, undefined, "unpaved"),
+      withSegments(inbound, "secondary", undefined, undefined, "unpaved"),
+      undefined,
+      "touring",
+    );
+
+    const selection = selectBestRoundTripCandidate(
+      [unpaved],
+      undefined,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("known_unpaved_rejected");
+  });
+
+  it("keeps an unknown surface, does not call it paved, and signals it", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const unknown = evaluatePair(
+      withSegments(outbound, "primary", undefined, undefined, "unknown"),
+      withSegments(inbound, "primary", undefined, undefined, "unknown"),
+      undefined,
+      "touring",
+    );
+
+    const selection = selectBestRoundTripCandidate(
+      [unknown],
+      undefined,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.outbound.segments[0]?.surface).toBe(
+      "unknown",
+    );
+    expect(selection.evaluation.warnings).toContain(UNKNOWN_SURFACE_WARNING);
   });
 });
