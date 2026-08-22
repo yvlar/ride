@@ -14,11 +14,16 @@ import {
   evaluateRoundTripCandidate,
   selectBestRoundTripCandidate,
 } from "@/domain/ride/round-trip";
+import {
+  excludeSimilarToPrevious,
+  regenerationOverlapError,
+} from "@/domain/ride/regeneration";
 import { roundTripRideRequestSchema } from "@/domain/ride/schemas";
 import type {
   DestinationCandidate,
   GeneratedRoundTripRoute,
   RideGenerationError,
+  RideGenerationOptions,
   RoundTripRideRequest,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
@@ -37,6 +42,7 @@ export type GenerateRoundTripRideResult =
 export async function generateRoundTripRide(
   input: unknown,
   routingProvider?: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateRoundTripRideResult> {
   let provider = routingProvider;
   if (!provider) {
@@ -103,12 +109,14 @@ export async function generateRoundTripRide(
       },
     },
     provider,
+    options,
   );
 }
 
 async function generateValidatedRoundTrip(
   request: RoundTripRideRequest,
   routingProvider: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateRoundTripRideResult> {
   const targetDistanceKm = resolveTargetDistanceKm(request);
   const perLegTargetKm =
@@ -203,8 +211,24 @@ async function generateValidatedRoundTrip(
     ),
   );
 
+  const selectable = options?.previousGeometry
+    ? excludeSimilarToPrevious(
+        evaluations,
+        options.previousGeometry,
+        (evaluation) => evaluation.candidate.geometry,
+      )
+    : evaluations;
+
+  if (
+    options?.previousGeometry &&
+    evaluations.length > 0 &&
+    selectable.length === 0
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
+
   const selection = selectBestRoundTripCandidate(
-    evaluations,
+    selectable,
     targetDistanceKm,
     request.preferences.avoidHighways,
     request.preferences.avoidUnpaved,

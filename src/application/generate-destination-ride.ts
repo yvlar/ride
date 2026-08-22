@@ -8,12 +8,17 @@ import {
   isAnchoredDestination,
   selectBestDestinationCandidate,
 } from "@/domain/ride/destination";
+import {
+  excludeSimilarToPrevious,
+  regenerationOverlapError,
+} from "@/domain/ride/regeneration";
 import { destinationRideRequestSchema } from "@/domain/ride/schemas";
 import type {
   DestinationCandidate,
   DestinationRideRequest,
   GeneratedDestinationRoute,
   RideGenerationError,
+  RideGenerationOptions,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
@@ -33,6 +38,7 @@ export type GenerateDestinationRideResult =
 export async function generateDestinationRide(
   input: unknown,
   routingProvider?: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateDestinationRideResult> {
   let provider = routingProvider;
   if (!provider) {
@@ -100,12 +106,14 @@ export async function generateDestinationRide(
       },
     },
     provider,
+    options,
   );
 }
 
 async function generateValidatedDestination(
   request: DestinationRideRequest,
   routingProvider: RoutingProvider,
+  options?: RideGenerationOptions,
 ): Promise<GenerateDestinationRideResult> {
   const targetDistanceKm = resolveTargetDistanceKm(request);
   const waypointSets = createDestinationWaypointSets(
@@ -185,8 +193,24 @@ async function generateValidatedDestination(
     ),
   );
 
+  const selectable = options?.previousGeometry
+    ? excludeSimilarToPrevious(
+        evaluations,
+        options.previousGeometry,
+        (evaluation) => evaluation.candidate.geometry,
+      )
+    : evaluations;
+
+  if (
+    options?.previousGeometry &&
+    evaluations.length > 0 &&
+    selectable.length === 0
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
+
   const selection = selectBestDestinationCandidate(
-    evaluations,
+    selectable,
     request.style,
     targetDistanceKm,
     request.preferences.avoidHighways,
