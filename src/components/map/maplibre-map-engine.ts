@@ -12,7 +12,7 @@ import {
   createPlaceMarkerElement,
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
-import type { RideMapViewModel } from "./ride-map-view-model";
+import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
 
 export function createMapLibreEngine(): MapEngine {
   return {
@@ -21,11 +21,15 @@ export function createMapLibreEngine(): MapEngine {
       let map: MapLibreMap | undefined;
       let disposed = false;
 
+      const camera = mapCameraFrame(viewModel.bounds);
+
       try {
         map = new MapLibreMap({
           container,
           style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE,
           attributionControl: { compact: true },
+          bounds: camera.bounds,
+          fitBoundsOptions: camera.fitBoundsOptions,
         });
       } catch {
         onError(MAP_UNAVAILABLE_MESSAGE);
@@ -80,13 +84,7 @@ export function createMapLibreEngine(): MapEngine {
           markers.push(placeArrow(map, arrow));
         }
 
-        map.fitBounds(
-          [
-            [viewModel.bounds.west, viewModel.bounds.south],
-            [viewModel.bounds.east, viewModel.bounds.north],
-          ],
-          { padding: 48, duration: 0 },
-        );
+        map.fitBounds(camera.bounds, camera.fitBoundsOptions);
       });
 
       return {

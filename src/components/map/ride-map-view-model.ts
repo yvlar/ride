@@ -28,6 +28,22 @@ export type RideMapViewModel = {
   directionArrows: RideMapArrow[];
 };
 
+export type MapCameraFrame = {
+  bounds: [[number, number], [number, number]];
+  fitBoundsOptions: { padding: number; duration: number };
+};
+
+/** Initial camera so the map never opens on the default world view (FR-013). */
+export function mapCameraFrame(bounds: BoundingBox): MapCameraFrame {
+  return {
+    bounds: [
+      [bounds.west, bounds.south],
+      [bounds.east, bounds.north],
+    ],
+    fitBoundsOptions: { padding: 48, duration: 0 },
+  };
+}
+
 export function toRideMapViewModel(
   route: GeneratedRideRoute,
 ): RideMapViewModel | null {

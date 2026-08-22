@@ -5,7 +5,7 @@ import type {
   GeneratedLoopRoute,
   GeneratedRoundTripRoute,
 } from "@/domain/ride/types";
-import { toRideMapViewModel } from "./ride-map-view-model";
+import { mapCameraFrame, toRideMapViewModel } from "./ride-map-view-model";
 
 const granby: Place = {
   label: "Granby, QC",
@@ -120,6 +120,17 @@ describe("toRideMapViewModel (FR-013)", () => {
     expect(model!.bounds.east).toBeGreaterThanOrEqual(-72.7342);
     expect(model!.bounds.south).toBeLessThanOrEqual(45.4001);
     expect(model!.bounds.north).toBeGreaterThanOrEqual(46.1185);
+  });
+
+  it("builds an initial camera from the framed bounds", () => {
+    const model = toRideMapViewModel(destination);
+    const camera = mapCameraFrame(model!.bounds);
+
+    expect(camera.bounds).toEqual([
+      [model!.bounds.west, model!.bounds.south],
+      [model!.bounds.east, model!.bounds.north],
+    ]);
+    expect(camera.fitBoundsOptions.duration).toBe(0);
   });
 
   it("returns null when the route has no drawable geometry", () => {
