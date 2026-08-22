@@ -58,6 +58,15 @@ describe("generateRoundTripRide (FR-003)", () => {
     expect(
       haversineKm(GRANBY.coordinates, positionToCoordinates(last)),
     ).toBeLessThan(2.6);
+    expect(
+      result.route.geometry.coordinates.some(
+        (position) =>
+          haversineKm(
+            TREMBLANT.coordinates,
+            positionToCoordinates(position),
+          ) < 2.6,
+      ),
+    ).toBe(true);
     expect(result.route.type).toBe("round_trip");
     expect(result.route.style).toBe("curvy");
     expect(result.route.destination.label).toBe("Mont-Tremblant");
