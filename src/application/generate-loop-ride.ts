@@ -16,6 +16,10 @@ import type {
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
+import {
+  errorFromExhaustedAttempts,
+  rejectIfKnownUnpavedAvoided,
+} from "./routing-failure";
 
 export type GenerateLoopRideResult =
   | { ok: true; route: GeneratedLoopRoute }
@@ -37,7 +41,7 @@ export async function generateLoopRide(
           message:
             "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
           suggestions: [
-            "Vérifiez ROUTING_PROVIDER=mock tant qu’aucun fournisseur réel n’est branché.",
+            "Vérifiez ROUTING_PROVIDER=ai-rag ou ROUTING_PROVIDER=mock.",
           ],
         },
       };
@@ -105,11 +109,16 @@ async function generateValidatedLoop(
 
   const settled = await Promise.allSettled(
     waypointSets.map(async (set) => {
-      const result = await routingProvider.calculateRoute({
-        start: request.start.coordinates,
-        destination: request.start.coordinates,
-        waypoints: set.waypoints,
-      });
+      const result = rejectIfKnownUnpavedAvoided(
+        await routingProvider.calculateRoute({
+          start: request.start.coordinates,
+          destination: request.start.coordinates,
+          waypoints: set.waypoints,
+          style: request.style,
+          preferences: request.preferences,
+        }),
+        request.preferences,
+      );
       const candidate: LoopCandidate = {
         geometry: result.geometry,
         segments: result.segments,
@@ -127,6 +136,16 @@ async function generateValidatedLoop(
   const evaluations = settled.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
+
+  if (evaluations.length === 0) {
+    return {
+      ok: false,
+      error: errorFromExhaustedAttempts(settled, {
+        message: "Aucun trajet en boucle n’a pu être construit depuis ce départ.",
+        suggestions: ["Essayez un autre point de départ."],
+      }),
+    };
+  }
 
   const selection = selectBestLoopCandidate(evaluations, targetDistanceKm);
 

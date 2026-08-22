@@ -10,6 +10,13 @@ describe("parseEnv", () => {
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
 
+  it("accepts mock and ai-rag routing providers (NFR-005)", () => {
+    expect(parseEnv({ ROUTING_PROVIDER: "mock" }).ROUTING_PROVIDER).toBe("mock");
+    expect(parseEnv({ ROUTING_PROVIDER: "ai-rag" }).ROUTING_PROVIDER).toBe(
+      "ai-rag",
+    );
+  });
+
   it("treats blank strings as unset values", () => {
     const env = parseEnv({
       ROUTING_PROVIDER: "",

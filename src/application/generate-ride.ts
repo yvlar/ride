@@ -25,7 +25,7 @@ export async function generateRide(
           message:
             "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
           suggestions: [
-            "Vérifiez ROUTING_PROVIDER=mock tant qu’aucun fournisseur réel n’est branché.",
+            "Vérifiez ROUTING_PROVIDER=ai-rag ou ROUTING_PROVIDER=mock.",
           ],
         },
       };

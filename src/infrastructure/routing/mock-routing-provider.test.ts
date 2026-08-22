@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { radiusCoefficientOfVariation } from "@/domain/geo/geometry";
-import { haversineKm } from "@/domain/geo/distance";
+import { haversineKm, offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates } from "@/domain/geo/types";
 import { MockRoutingProvider } from "./mock-routing-provider";
 
@@ -63,5 +63,39 @@ describe("MockRoutingProvider", () => {
       }),
     ).toBeLessThan(2.6);
     expect(result.geometry.coordinates.length).toBeGreaterThan(8);
+  });
+
+  it("keeps the manhattan grid when avoidance preferences are set (BR-007)", async () => {
+    const destination = offsetCoordinates(GRANBY, 90, 8);
+    const base = { start: GRANBY, destination };
+    const manhattan = await new MockRoutingProvider().calculateRoute(base);
+    const unpaved = await new MockRoutingProvider().calculateRoute({
+      ...base,
+      preferences: { avoidHighways: false, avoidUnpaved: true },
+    });
+    const highways = await new MockRoutingProvider().calculateRoute({
+      ...base,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+
+    expect(unpaved.segments.every((segment) => segment.surface !== "unpaved")).toBe(
+      true,
+    );
+    expect(unpaved.geometry.coordinates).toEqual(manhattan.geometry.coordinates);
+    expect(highways.geometry.coordinates).toEqual(manhattan.geometry.coordinates);
+  });
+
+  it("does not fail a long mock request as RAG too_far when avoidUnpaved is set", async () => {
+    const destination = offsetCoordinates(GRANBY, 90, 600);
+    const result = await new MockRoutingProvider().calculateRoute({
+      start: GRANBY,
+      destination,
+      preferences: { avoidHighways: false, avoidUnpaved: true },
+    });
+
+    expect(result.distanceKm).toBeGreaterThan(500);
+    expect(result.segments.every((segment) => segment.surface !== "unpaved")).toBe(
+      true,
+    );
   });
 });

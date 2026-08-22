@@ -6,6 +6,11 @@ import {
 } from "@/domain/geo/geometry";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import {
+  disconnectedKnowledgeError,
+  emptyKnowledgeError,
+  unpavedKnowledgeError,
+} from "@/infrastructure/routing/routing-knowledge-error";
 import type {
   ProviderRouteRequest,
   ProviderRouteResult,
@@ -194,5 +199,162 @@ describe("generateLoopRide (FR-001)", () => {
       throw new Error(result.error.message);
     }
     expect(isWithinDistanceTolerance(result.route.distanceKm, 80)).toBe(true);
+  });
+
+  it("rejects a provider that leaked known unpaved when avoidance is on (BR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const leaky: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        const routed = await mock.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      leaky,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
+  });
+
+  it("keeps a leaked unpaved route when avoidance is off (BR-007)", async () => {
+    const mock = new MockRoutingProvider();
+    const leaky: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        const routed = await mock.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        preferences: { avoidHighways: false, avoidUnpaved: false },
+      },
+      leaky,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments.some((segment) => segment.surface === "unpaved")).toBe(
+      true,
+    );
+  });
+
+  it("maps mixed knowledge failures to the unpaved FR-021 message", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute() {
+        calls += 1;
+        if (calls % 3 === 1) {
+          throw emptyKnowledgeError();
+        }
+        if (calls % 3 === 2) {
+          throw disconnectedKnowledgeError();
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
+  });
+
+  it("maps a full provider outage to PROVIDER_ERROR", async () => {
+    const down: RoutingProvider = {
+      async calculateRoute() {
+        throw new Error("upstream timeout");
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+      },
+      down,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("PROVIDER_ERROR");
+  });
+
+  it("maps a mix of knowledge and provider errors to the unpaved FR-021 message", async () => {
+    let calls = 0;
+    const mixed: RoutingProvider = {
+      async calculateRoute() {
+        calls += 1;
+        if (calls === 1) {
+          throw new Error("upstream timeout");
+        }
+        throw unpavedKnowledgeError();
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+      },
+      mixed,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
   });
 });
