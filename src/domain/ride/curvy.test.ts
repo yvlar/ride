@@ -158,7 +158,37 @@ describe("curvyRankScore (FR-004, BR-003)", () => {
     );
 
     expect(unknown.elevation).toBe(CURVY_UNKNOWN_ELEVATION_SCORE);
-    expect(unknown.elevation).toBeGreaterThan(knownFlat.elevation);
+    expect(unknown.elevation).toBe(knownFlat.elevation);
+    expect(unknown.total).toBe(knownFlat.total);
+  });
+
+  it("prefers a known modest climb over unknown elevation", () => {
+    const geometry = windingGeometry();
+    const unknown = curvyRankScore(geometry, [
+      segment({ distanceKm: 40, roadClass: "secondary" }),
+    ]);
+    const knownModestClimb = curvyRankScore(geometry, [
+      segment({ distanceKm: 40, roadClass: "secondary", elevationGainM: 400 }),
+    ]);
+
+    expect(knownModestClimb).toBeGreaterThan(unknown);
+  });
+
+  it("does not rank a partially annotated climb below unknown elevation", () => {
+    const geometry = windingGeometry();
+    const unlabeled = Array.from({ length: 10 }, (_, index) =>
+      segment({ id: `u${index}`, distanceKm: 10, roadClass: "secondary" }),
+    );
+    const partial = [
+      segment({ id: "p0", distanceKm: 10, roadClass: "secondary", elevationGainM: 100 }),
+      ...Array.from({ length: 9 }, (_, index) =>
+        segment({ id: `p${index + 1}`, distanceKm: 10, roadClass: "secondary" }),
+      ),
+    ];
+
+    expect(curvyRankScore(geometry, partial)).toBeGreaterThanOrEqual(
+      curvyRankScore(geometry, unlabeled),
+    );
   });
 
   it("debug A/B/C: log unknown vs known / partial / flat elevation (FR-004)", () => {
@@ -268,6 +298,9 @@ describe("curvyRankScore (FR-004, BR-003)", () => {
     expect(unknownA.elevation).toBe(CURVY_UNKNOWN_ELEVATION_SCORE);
     expect(unknownB.elevation).toBe(CURVY_UNKNOWN_ELEVATION_SCORE);
     expect(unknownC.elevation).toBe(CURVY_UNKNOWN_ELEVATION_SCORE);
+    expect(known10mPerKm.total).toBeGreaterThan(unknownA.total);
+    expect(partialOneOfTen.total).toBeGreaterThanOrEqual(unknownB.total);
+    expect(unknownC.total).toBe(knownFlat.total);
     expect(known10mPerKm.total).toBe(rankKnown10);
     expect(partialOneOfTen.total).toBe(rankPartial);
     expect(knownFlat.total).toBe(rankKnownFlat);
