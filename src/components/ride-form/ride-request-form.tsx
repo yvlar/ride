@@ -14,8 +14,11 @@ import {
 import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
+  GenerateRideResult,
+  GeneratedRideRoute,
   RideFormError,
   RideFormField,
+  RideGenerationError,
   RideStyle,
   RideType,
 } from "@/domain/ride/types";
@@ -28,6 +31,7 @@ import {
   LocateButton,
   PlaceSearchField,
 } from "@/components/ride-form/place-search-field";
+import { requestGeneratedRide } from "@/components/ride-form/request-generated-ride";
 import { cn } from "@/lib/utils";
 
 const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
@@ -71,16 +75,26 @@ function errorMap(errors: RideFormError[]): Partial<Record<RideFormField, string
   return mapped;
 }
 
+function formatGeneratedDistanceKm(distanceKm: number): string {
+  return `${distanceKm.toFixed(1)} km`;
+}
+
+function formatGeneratedDuration(durationMinutes: number): string {
+  return `${Math.round(durationMinutes)} min`;
+}
+
 export type RideRequestFormProps = {
   searchPlaces?: (query: string) => Promise<Place[]>;
   debounceMs?: number;
   onRequestComposed?: (request: GenerateRideRequest) => void;
+  generateRide?: (request: GenerateRideRequest) => Promise<GenerateRideResult>;
 };
 
 export function RideRequestForm({
   searchPlaces,
   debounceMs = 250,
   onRequestComposed,
+  generateRide = requestGeneratedRide,
 }: RideRequestFormProps) {
   const [startQuery, setStartQuery] = useState("");
   const [start, setStart] = useState<Place | null>(null);
@@ -96,6 +110,11 @@ export function RideRequestForm({
     {},
   );
   const [status, setStatus] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generatedRoute, setGeneratedRoute] =
+    useState<GeneratedRideRoute | null>(null);
+  const [generationError, setGenerationError] =
+    useState<RideGenerationError | null>(null);
 
   const needsDestination = type !== "loop";
   const durationHoursValue = parseOptionalNumber(availableDurationHours);
@@ -106,9 +125,14 @@ export function RideRequestForm({
   const distanceRequired = isTargetDistanceRequired(type, hasAvailableDuration);
   const distanceHint = targetDistanceHint(type, hasAvailableDuration);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (generating) {
+      return;
+    }
     setStatus(null);
+    setGeneratedRoute(null);
+    setGenerationError(null);
 
     const durationHours = parseOptionalNumber(availableDurationHours);
     const result = composeRideRequest({
@@ -133,6 +157,18 @@ export function RideRequestForm({
     setErrors({});
     setStatus(summarizeRideRequest(result.request));
     onRequestComposed?.(result.request);
+    setGenerating(true);
+
+    try {
+      const generated = await generateRide(result.request);
+      if (generated.ok) {
+        setGeneratedRoute(generated.route);
+        return;
+      }
+      setGenerationError(generated.error);
+    } finally {
+      setGenerating(false);
+    }
   }
 
   return (
@@ -206,6 +242,8 @@ export function RideRequestForm({
                       targetDistanceKm: undefined,
                     }));
                     setStatus(null);
+                    setGeneratedRoute(null);
+                    setGenerationError(null);
                   }}
                 >
                   <span className="text-base font-medium">{option.label}</span>
@@ -387,14 +425,53 @@ export function RideRequestForm({
             </div>
           </div>
 
-          <Button type="submit" size="lg" className="min-h-12 w-full text-base">
-            Générer ma ride
+          <Button
+            type="submit"
+            size="lg"
+            className="min-h-12 w-full text-base"
+            disabled={generating}
+            aria-busy={generating}
+          >
+            {generating ? "Génération…" : "Générer ma ride"}
           </Button>
 
           {status ? (
             <p role="status" className="text-sm leading-6 text-muted-foreground">
               {status}
             </p>
+          ) : null}
+
+          {generatedRoute ? (
+            <section
+              aria-label="Trajet généré"
+              className="space-y-2 rounded-lg border border-border px-3 py-3"
+            >
+              <h2 className="text-base font-medium">Trajet généré</h2>
+              <p className="text-sm leading-6">
+                {formatGeneratedDistanceKm(generatedRoute.distanceKm)} ·{" "}
+                {formatGeneratedDuration(generatedRoute.durationMinutes)}
+              </p>
+              {generatedRoute.warnings.length > 0 ? (
+                <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-muted-foreground">
+                  {generatedRoute.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
+
+          {generationError ? (
+            <div role="alert" className="space-y-2 text-sm leading-6">
+              <p className="text-destructive">{generationError.message}</p>
+              {generationError.suggestions.length > 0 ? (
+                <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                  {generationError.suggestions.map((suggestion) => (
+                    <li key={suggestion}>{suggestion}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </form>
       </CardContent>

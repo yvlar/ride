@@ -232,6 +232,7 @@ async function generateValidatedLoop(
     type: "loop",
     start: request.start,
     targetDistanceKm,
+    style: request.style,
     geometry: evaluation.candidate.geometry,
     segments: evaluation.candidate.segments,
     distanceKm: evaluation.candidate.distanceKm,

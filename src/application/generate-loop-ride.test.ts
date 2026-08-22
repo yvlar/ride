@@ -158,6 +158,7 @@ describe("generateLoopRide (FR-001)", () => {
     }
     expect(result.route.segments[0]?.roadClass).toBe("secondary");
     expect(result.route.durationMinutes).toBe(95);
+    expect(result.route.style).toBe("curvy");
   });
 
   it("prefers a rural panoramic loop over a highway when style is scenic (FR-005)", async () => {
