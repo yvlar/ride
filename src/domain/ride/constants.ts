@@ -60,3 +60,40 @@ export const MAX_DESTINATION_DETOUR_RATIO = 1.75;
  * corridor or the purely fastest trace (FR-002 / BR-003).
  */
 export const TOURING_TARGET_HEADING_CHANGE_PER_KM = 0.8;
+
+/**
+ * FR-004 — Curvy ranking. Scenic / preference weights from CURSOR.md are
+ * omitted here: they belong to FR-005 / FR-007 / FR-008, not this FR.
+ */
+export const CURVY_STRAIGHT_HEADING_DEG = 8;
+export const CURVY_SIGNIFICANT_TURN_DEG = 25;
+/** Near-180° out-and-back. Hairpins (~160°) stay significant turns (FR-004). */
+export const CURVY_REVERSAL_DEG = 170;
+export const CURVY_HEADING_CHANGE_PER_KM_FOR_MAX = 6;
+export const CURVY_TURNS_PER_KM_FOR_MAX = 0.25;
+export const CURVY_STRAIGHT_SCORE_WEIGHT = 0.55;
+export const CURVY_ELEVATION_M_PER_KM_FOR_MAX = 30;
+/**
+ * FR-004 — unknown elevation is neutral. A mid-scale default (e.g. 50 ≈ 15 m/km)
+ * invents relief and lets unlabeled routes outrank a known modest climb.
+ */
+export const CURVY_UNKNOWN_ELEVATION_SCORE = 0;
+export const CURVY_WEIGHT_CURVES = 0.45;
+export const CURVY_WEIGHT_SECONDARY = 0.25;
+export const CURVY_WEIGHT_ELEVATION = 0.15;
+export const CURVY_WEIGHT_HIGHWAY_AVOIDANCE = 0.15;
+
+export const CURVY_HIGHWAY_ROAD_CLASSES = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+] as const;
+
+export const CURVY_SECONDARY_ROAD_CLASSES = [
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+  "unclassified",
+] as const;

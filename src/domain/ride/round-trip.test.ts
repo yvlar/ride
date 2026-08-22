@@ -67,14 +67,35 @@ function evaluatePair(
   outbound: DestinationCandidate,
   inbound: DestinationCandidate,
   targetDistanceKm?: number,
+  style: "curvy" | "scenic" | "touring" = "scenic",
 ) {
   const candidate = composeRoundTripCandidate(outbound, inbound);
-  return evaluateRoundTripCandidate(GRANBY, TREMBLANT, candidate, "scenic", {
+  return evaluateRoundTripCandidate(GRANBY, TREMBLANT, candidate, style, {
     targetDistanceKm,
     shortestDistanceKm: candidate.distanceKm,
     shortestOutboundKm: outbound.distanceKm,
     shortestInboundKm: inbound.distanceKm,
   });
+}
+
+function withSegments(
+  candidate: DestinationCandidate,
+  roadClass: string,
+  elevationGainM?: number,
+): DestinationCandidate {
+  return {
+    ...candidate,
+    segments: [
+      {
+        id: roadClass,
+        geometry: candidate.geometry,
+        distanceKm: candidate.distanceKm,
+        durationMinutes: candidate.durationMinutes,
+        roadClass,
+        elevationGainM,
+      },
+    ],
+  };
 }
 
 describe("createReturnWaypointSets (FR-003)", () => {
@@ -142,6 +163,40 @@ describe("selectBestRoundTripCandidate (FR-003, BR-002)", () => {
     );
     expect(selection.evaluation.outboundReturnOverlapPercent).toBeLessThan(
       sameRoad.outboundReturnOverlapPercent,
+    );
+  });
+
+  it("prefers a Curvy-scoring leg when outbound/return overlap is equal (FR-004)", () => {
+    const outbound = sameRoadOutbound();
+    const inbound = differentReturn();
+    const highway = evaluatePair(
+      withSegments(outbound, "motorway", 0),
+      withSegments(inbound, "motorway", 0),
+      undefined,
+      "curvy",
+    );
+    const winding = evaluatePair(
+      withSegments(outbound, "secondary", 800),
+      withSegments(inbound, "secondary", 700),
+      undefined,
+      "curvy",
+    );
+
+    expect(highway.outboundReturnOverlapPercent).toBe(
+      winding.outboundReturnOverlapPercent,
+    );
+    expect(winding.outboundStyleScore + winding.inboundStyleScore).toBeGreaterThan(
+      highway.outboundStyleScore + highway.inboundStyleScore,
+    );
+
+    const selection = selectBestRoundTripCandidate([highway, winding]);
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.outbound.segments[0]?.roadClass).toBe(
+      "secondary",
     );
   });
 

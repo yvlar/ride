@@ -12,8 +12,9 @@ import {
   MIN_ROAD_NETWORK_POINTS,
 } from "./constants";
 import { distanceToleranceGapKm, isWithinDistanceTolerance } from "./constraints";
+import { curvyRankScore } from "./curvy";
 import { measureRepeatedRoadPercent } from "./overlap";
-import type { LoopCandidate } from "./types";
+import type { LoopCandidate, RideStyle } from "./types";
 
 export type LoopWaypointSet = {
   bearingDeg: number;
@@ -82,6 +83,7 @@ export type EvaluatedLoopCandidate = {
   isGeometricCircle: boolean;
   withinDistanceTolerance: boolean;
   repeatedRoadPercent: number;
+  curvyScore: number;
   warnings: string[];
 };
 
@@ -139,6 +141,7 @@ export function evaluateLoopCandidate(
     isGeometricCircle: circular,
     withinDistanceTolerance: withinTolerance,
     repeatedRoadPercent,
+    curvyScore: curvyRankScore(candidate.geometry, candidate.segments),
     warnings,
   };
 }
@@ -170,6 +173,7 @@ export type LoopSelection =
 export function selectBestLoopCandidate(
   evaluations: EvaluatedLoopCandidate[],
   targetDistanceKm: number,
+  style?: RideStyle,
 ): LoopSelection {
   const viable = evaluations.filter(isViableLoop);
   if (viable.length === 0) {
@@ -188,8 +192,23 @@ export function selectBestLoopCandidate(
   const pool = inTolerance.length > 0 ? inTolerance : viable;
 
   const ranked = [...pool].sort((left, right) => {
-    if (left.repeatedRoadPercent !== right.repeatedRoadPercent) {
-      return left.repeatedRoadPercent - right.repeatedRoadPercent;
+    const repeatDelta = left.repeatedRoadPercent - right.repeatedRoadPercent;
+    if (style === "curvy") {
+      const leftWarned =
+        left.repeatedRoadPercent >= HIGH_REPEAT_WARNING_PERCENT;
+      const rightWarned =
+        right.repeatedRoadPercent >= HIGH_REPEAT_WARNING_PERCENT;
+      // BR-002 — a warned loop must not beat a cleaner alternative (FR-004).
+      if (leftWarned !== rightWarned) {
+        return repeatDelta;
+      }
+      const curvyDelta = right.curvyScore - left.curvyScore;
+      if (curvyDelta !== 0) {
+        return curvyDelta;
+      }
+    }
+    if (repeatDelta !== 0) {
+      return repeatDelta;
     }
     return (
       distanceToleranceGapKm(left.candidate.distanceKm, targetDistanceKm) -

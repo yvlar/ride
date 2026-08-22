@@ -9,7 +9,7 @@ import {
   selectBestDestinationCandidate,
   styleRankScore,
 } from "./destination";
-import type { DestinationCandidate } from "./types";
+import type { DestinationCandidate, RouteSegment } from "./types";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
 const TREMBLANT: Coordinates = { latitude: 46.118, longitude: -74.596 };
@@ -214,6 +214,40 @@ describe("maxAllowedDestinationDistanceKm (FR-002)", () => {
   });
 });
 
+function highwayCandidate(): DestinationCandidate {
+  return {
+    ...fastestCandidate(),
+    durationMinutes: 90,
+    segments: [
+      {
+        id: "hwy",
+        geometry: fastestCandidate().geometry,
+        distanceKm: 180,
+        durationMinutes: 90,
+        roadClass: "motorway",
+        elevationGainM: 0,
+      } satisfies RouteSegment,
+    ],
+  };
+}
+
+function windingSecondaryCandidate(): DestinationCandidate {
+  return {
+    ...curvyCandidate(),
+    durationMinutes: 200,
+    segments: [
+      {
+        id: "ridge",
+        geometry: curvyCandidate().geometry,
+        distanceKm: 210,
+        durationMinutes: 200,
+        roadClass: "secondary",
+        elevationGainM: 900,
+      } satisfies RouteSegment,
+    ],
+  };
+}
+
 describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
   const shortest = evaluateDestinationCandidate(
     GRANBY,
@@ -247,6 +281,39 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
     }
     expect(selection.evaluation.candidate.durationMinutes).toBe(180);
     expect(selection.evaluation.candidate.distanceKm).toBe(210);
+  });
+
+  it("prefers a winding secondary climb over a faster highway (FR-004)", () => {
+    const highway = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      highwayCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+    const winding = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      windingSecondaryCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(styleRankScore("curvy", winding, 180)).toBeGreaterThan(
+      styleRankScore("curvy", highway, 180),
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [highway, winding],
+      "curvy",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.durationMinutes).toBe(200);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "secondary",
+    );
   });
 
   it("does not rank by duration even when the twistier route is slower", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { haversineKm, positionToCoordinates } from "@/domain/geo/distance";
+import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/geo/distance";
 import {
   createCircleLineString,
   radiusCoefficientOfVariation,
@@ -65,6 +65,96 @@ describe("generateLoopRide (FR-001)", () => {
     );
     expect(result.route.statistics.repeatedRoadPercent).toBeGreaterThanOrEqual(0);
     expect(result.route.type).toBe("loop");
+  });
+
+  it("prefers a winding secondary loop over a highway when style is curvy (FR-004)", async () => {
+    const start = GRANBY.coordinates;
+    const rectanglePoints = [
+      start,
+      offsetCoordinates(start, 90, 20),
+      offsetCoordinates(offsetCoordinates(start, 90, 20), 0, 20),
+      offsetCoordinates(start, 0, 20),
+      start,
+    ];
+    const windingPoints = [
+      start,
+      offsetCoordinates(start, 90, 10),
+      offsetCoordinates(offsetCoordinates(start, 90, 10), 0, 10),
+      offsetCoordinates(offsetCoordinates(offsetCoordinates(start, 90, 10), 0, 10), 270, 10),
+      offsetCoordinates(start, 180, 8),
+      offsetCoordinates(offsetCoordinates(start, 180, 8), 90, 18),
+      offsetCoordinates(
+        offsetCoordinates(offsetCoordinates(start, 180, 8), 90, 18),
+        0,
+        28,
+      ),
+      offsetCoordinates(start, 0, 12),
+      start,
+    ];
+
+    const toResult = (
+      points: typeof rectanglePoints,
+      roadClass: string,
+      elevationGainM: number,
+      durationMinutes: number,
+    ): ProviderRouteResult => {
+      const coordinates: [number, number][] = [];
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const from = points[index];
+        const to = points[index + 1];
+        for (let step = 0; step < 3; step += 1) {
+          const t = step / 3;
+          coordinates.push([
+            from.longitude + (to.longitude - from.longitude) * t,
+            from.latitude + (to.latitude - from.latitude) * t,
+          ]);
+        }
+      }
+      const last = points[points.length - 1];
+      coordinates.push([last.longitude, last.latitude]);
+      const geometry = { type: "LineString" as const, coordinates };
+      const distanceKm = 80;
+      return {
+        geometry,
+        segments: [
+          {
+            id: roadClass,
+            geometry,
+            distanceKm,
+            durationMinutes,
+            roadClass,
+            elevationGainM,
+          },
+        ],
+        distanceKm,
+        durationMinutes,
+      };
+    };
+
+    const highway = toResult(rectanglePoints, "motorway", 0, 50);
+    const winding = toResult(windingPoints, "secondary", 700, 95);
+    const provider: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        return (input.waypoints?.length ?? 0) === 2 ? winding : highway;
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "curvy",
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.roadClass).toBe("secondary");
+    expect(result.route.durationMinutes).toBe(95);
   });
 
   it("converts an available duration via BR-005 before generating the loop", async () => {
