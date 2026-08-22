@@ -4,7 +4,6 @@ import type { Place } from "@/domain/geo/types";
 import {
   AVAILABLE_DURATION_HINT,
   AVAILABLE_DURATION_POSITIVE_MESSAGE,
-  AVERAGE_SPEED_KMH,
 } from "@/domain/ride/duration";
 import {
   TARGET_DISTANCE_HINT_OPTIONAL,
@@ -178,9 +177,12 @@ describe("RideRequestForm (FR-014)", () => {
     await waitFor(() => {
       expect(onRequestComposed).toHaveBeenCalled();
     });
-    expect(onRequestComposed.mock.calls[0][0].targetDistanceKm).toBeGreaterThan(
-      0,
-    );
+    expect(
+      onRequestComposed.mock.calls[0][0].targetDistanceKm,
+    ).toBeUndefined();
+    expect(
+      onRequestComposed.mock.calls[0][0].availableDurationMinutes,
+    ).toBe(180);
   });
 
   it("keeps the target distance optional for a destination ride (FR-009)", async () => {
@@ -277,7 +279,7 @@ describe("RideRequestForm (FR-014)", () => {
         expect.objectContaining({
           type: "loop",
           availableDurationMinutes: 120,
-          targetDistanceKm: 2 * AVERAGE_SPEED_KMH.curvy,
+          targetDistanceKm: undefined,
         }),
       );
     });

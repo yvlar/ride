@@ -1,7 +1,4 @@
-import {
-  durationToEstimatedDistanceKm,
-  parseAvailableDurationMinutes,
-} from "@/domain/ride/duration";
+import { parseAvailableDurationMinutes } from "@/domain/ride/duration";
 import {
   TARGET_DISTANCE_REQUIRED_MESSAGE,
   isTargetDistanceRequired,
@@ -66,21 +63,18 @@ export function composeRideRequest(
     return { ok: false, errors };
   }
 
-  const explicitTargetDistanceKm = parsedDistance.ok
+  const targetDistanceKm = parsedDistance.ok
     ? parsedDistance.targetDistanceKm
     : undefined;
   const availableDurationMinutes = parsedDuration.ok
     ? parsedDuration.availableDurationMinutes
     : undefined;
-  const targetDistanceKm =
-    explicitTargetDistanceKm !== undefined
-      ? explicitTargetDistanceKm
-      : availableDurationMinutes !== undefined
-        ? durationToEstimatedDistanceKm(availableDurationMinutes, input.style)
-        : undefined;
 
   if (input.type === "loop") {
-    if (targetDistanceKm === undefined) {
+    if (
+      targetDistanceKm === undefined &&
+      availableDurationMinutes === undefined
+    ) {
       return {
         ok: false,
         errors: [

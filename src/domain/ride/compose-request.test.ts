@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { composeRideRequest } from "./compose-request";
-import { AVERAGE_SPEED_KMH } from "./duration";
 import type { RideFormInput } from "./types";
 
 const granby = {
@@ -102,7 +101,7 @@ describe("composeRideRequest (FR-014)", () => {
     });
   });
 
-  it("estimates loop distance from duration according to style (FR-010, BR-005)", () => {
+  it("keeps a duration-only loop without inventing an explicit distance (FR-010)", () => {
     const result = composeRideRequest(
       baseInput({
         targetDistanceKm: null,
@@ -115,9 +114,7 @@ describe("composeRideRequest (FR-014)", () => {
     if (!result.ok) return;
     expect(result.request.type).toBe("loop");
     if (result.request.type !== "loop") return;
-    expect(result.request.targetDistanceKm).toBe(
-      3 * AVERAGE_SPEED_KMH.curvy,
-    );
+    expect(result.request.targetDistanceKm).toBeUndefined();
     expect(result.request.availableDurationMinutes).toBe(180);
   });
 
@@ -255,7 +252,7 @@ describe("composeRideRequest (FR-014)", () => {
     expect(result.request).toMatchObject({
       type: "destination",
       availableDurationMinutes: 90,
-      targetDistanceKm: 1.5 * AVERAGE_SPEED_KMH.touring,
+      targetDistanceKm: undefined,
     });
   });
 });
