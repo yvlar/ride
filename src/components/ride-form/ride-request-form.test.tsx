@@ -188,6 +188,42 @@ describe("RideRequestForm (FR-014)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("ignores a stale generation after the target distance changes while pending (FR-011)", async () => {
+    let resolveGeneration: (value: GenerateRideResult) => void = () => {};
+    const generateRide = vi.fn(
+      () =>
+        new Promise<GenerateRideResult>((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Génération…" }),
+    ).toBeDisabled();
+
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "80" },
+    });
+    resolveGeneration({ ok: true, route: generatedLoop });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Générer ma ride" }),
+      ).toBeEnabled();
+    });
+    expect(
+      screen.queryByRole("region", { name: "Trajet généré" }),
+    ).not.toBeInTheDocument();
+    expect(targetDistanceField()).toHaveValue("80");
+  });
+
   it("shows a provider error when generation throws (FR-011)", async () => {
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => {
       throw new Error("network down");

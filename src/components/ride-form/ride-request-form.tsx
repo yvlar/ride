@@ -124,6 +124,13 @@ export function RideRequestForm({
     useState<RideGenerationError | null>(null);
   const generationId = useRef(0);
 
+  function invalidateInFlightGeneration() {
+    generationId.current += 1;
+    setGenerating(false);
+    setGeneratedRoute(null);
+    setGenerationError(null);
+  }
+
   const needsDestination = type !== "loop";
   const durationHoursValue = parseOptionalNumber(availableDurationHours);
   const hasAvailableDuration =
@@ -213,11 +220,13 @@ export function RideRequestForm({
                 current && current.label === query ? current : null,
               );
               setErrors((current) => ({ ...current, start: undefined }));
+              invalidateInFlightGeneration();
             }}
             onPlaceSelected={(place) => {
               setStart(place);
               setStartQuery(place.label);
               setErrors((current) => ({ ...current, start: undefined }));
+              invalidateInFlightGeneration();
             }}
             action={
               <LocateButton
@@ -225,10 +234,12 @@ export function RideRequestForm({
                   setStart(place);
                   setStartQuery(place.label);
                   setErrors((current) => ({ ...current, start: undefined }));
+                  invalidateInFlightGeneration();
                 }}
                 onError={(message) => {
                   setStart(null);
                   setErrors((current) => ({ ...current, start: message }));
+                  invalidateInFlightGeneration();
                 }}
               />
             }
@@ -262,10 +273,7 @@ export function RideRequestForm({
                       targetDistanceKm: undefined,
                     }));
                     setStatus(null);
-                    generationId.current += 1;
-                    setGenerating(false);
-                    setGeneratedRoute(null);
-                    setGenerationError(null);
+                    invalidateInFlightGeneration();
                   }}
                 >
                   <span className="text-base font-medium">{option.label}</span>
@@ -303,6 +311,7 @@ export function RideRequestForm({
                   ...current,
                   destination: undefined,
                 }));
+                invalidateInFlightGeneration();
               }}
               onPlaceSelected={(place) => {
                 setDestination(place);
@@ -311,6 +320,7 @@ export function RideRequestForm({
                   ...current,
                   destination: undefined,
                 }));
+                invalidateInFlightGeneration();
               }}
             />
           ) : null}
@@ -341,6 +351,7 @@ export function RideRequestForm({
                     ...current,
                     targetDistanceKm: undefined,
                   }));
+                  invalidateInFlightGeneration();
                 }}
                 className="h-12 text-base"
               />
@@ -377,6 +388,7 @@ export function RideRequestForm({
                     ...current,
                     availableDurationMinutes: undefined,
                   }));
+                  invalidateInFlightGeneration();
                 }}
                 className="h-12 text-base"
               />
@@ -416,7 +428,10 @@ export function RideRequestForm({
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-background hover:bg-muted",
                   )}
-                  onClick={() => setStyle(option.value)}
+                  onClick={() => {
+                    setStyle(option.value);
+                    invalidateInFlightGeneration();
+                  }}
                 >
                   {option.label}
                 </button>
@@ -432,7 +447,10 @@ export function RideRequestForm({
               <Switch
                 id="avoid-highways"
                 checked={avoidHighways}
-                onCheckedChange={setAvoidHighways}
+                onCheckedChange={(checked) => {
+                  setAvoidHighways(checked);
+                  invalidateInFlightGeneration();
+                }}
               />
             </div>
             <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
@@ -442,7 +460,10 @@ export function RideRequestForm({
               <Switch
                 id="avoid-unpaved"
                 checked={avoidUnpaved}
-                onCheckedChange={setAvoidUnpaved}
+                onCheckedChange={(checked) => {
+                  setAvoidUnpaved(checked);
+                  invalidateInFlightGeneration();
+                }}
               />
             </div>
           </div>
