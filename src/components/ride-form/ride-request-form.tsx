@@ -31,6 +31,8 @@ import {
   LocateButton,
   PlaceSearchField,
 } from "@/components/ride-form/place-search-field";
+import type { MapEngine } from "@/components/map/map-engine";
+import { RideMap } from "@/components/map/ride-map";
 import { requestGeneratedRide } from "@/components/ride-form/request-generated-ride";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +97,7 @@ export type RideRequestFormProps = {
   debounceMs?: number;
   onRequestComposed?: (request: GenerateRideRequest) => void;
   generateRide?: (request: GenerateRideRequest) => Promise<GenerateRideResult>;
+  mapEngine?: MapEngine;
 };
 
 export function RideRequestForm({
@@ -102,6 +105,7 @@ export function RideRequestForm({
   debounceMs = 250,
   onRequestComposed,
   generateRide = requestGeneratedRide,
+  mapEngine,
 }: RideRequestFormProps) {
   const [startQuery, setStartQuery] = useState("");
   const [start, setStart] = useState<Place | null>(null);
@@ -490,6 +494,7 @@ export function RideRequestForm({
               className="space-y-2 rounded-lg border border-border px-3 py-3"
             >
               <h2 className="text-base font-medium">Trajet généré</h2>
+              <RideMap route={generatedRoute} engine={mapEngine} />
               <p className="text-sm leading-6">
                 {formatGeneratedDistanceKm(generatedRoute.distanceKm)} ·{" "}
                 {formatGeneratedDuration(generatedRoute.durationMinutes)}

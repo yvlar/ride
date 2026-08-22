@@ -15,3 +15,11 @@ export type LineString = {
   type: "LineString";
   coordinates: Position[];
 };
+
+/** Axis-aligned geographic box. Independent of any map SDK (FR-013, BR-004). */
+export type BoundingBox = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
