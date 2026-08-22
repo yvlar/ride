@@ -249,6 +249,31 @@ function scenicRuralCandidate(): DestinationCandidate {
   };
 }
 
+function touringSecondaryCandidate(): DestinationCandidate {
+  const points: Coordinates[] = [GRANBY];
+  let cursor = GRANBY;
+  let bearing = 315;
+  for (let index = 0; index < 4; index += 1) {
+    cursor = offsetCoordinates(cursor, bearing, 30);
+    points.push(cursor);
+    bearing = (bearing + 25) % 360;
+  }
+  points.push(TREMBLANT);
+  return {
+    ...candidateFromPoints(points, 205, 175),
+    segments: [
+      {
+        id: "traverse",
+        geometry: candidateFromPoints(points, 205, 175).geometry,
+        distanceKm: 205,
+        durationMinutes: 175,
+        roadClass: "secondary",
+        surface: "paved",
+      } satisfies RouteSegment,
+    ],
+  };
+}
+
 function windingSecondaryCandidate(): DestinationCandidate {
   return {
     ...curvyCandidate(),
@@ -284,8 +309,8 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
     expect(twistier.headingChangePerKm).toBeGreaterThan(
       shortest.headingChangePerKm,
     );
-    expect(styleRankScore("curvy", twistier, 180)).toBeGreaterThan(
-      styleRankScore("curvy", shortest, 180),
+    expect(styleRankScore("curvy", twistier)).toBeGreaterThan(
+      styleRankScore("curvy", shortest),
     );
 
     const selection = selectBestDestinationCandidate(
@@ -315,8 +340,8 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
       { shortestDistanceKm: 180 },
     );
 
-    expect(styleRankScore("curvy", winding, 180)).toBeGreaterThan(
-      styleRankScore("curvy", highway, 180),
+    expect(styleRankScore("curvy", winding)).toBeGreaterThan(
+      styleRankScore("curvy", highway),
     );
 
     const selection = selectBestDestinationCandidate(
@@ -388,8 +413,8 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
       { shortestDistanceKm: 180 },
     );
 
-    expect(styleRankScore("scenic", scenic, 180)).toBeGreaterThan(
-      styleRankScore("scenic", highway, 180),
+    expect(styleRankScore("scenic", scenic)).toBeGreaterThan(
+      styleRankScore("scenic", highway),
     );
 
     const selection = selectBestDestinationCandidate(
@@ -428,6 +453,40 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
     expect(selection.evaluation.candidate.distanceKm).not.toBe(315);
   });
 
+  it("prefers a paved secondary touring corridor over a faster highway (FR-006)", () => {
+    const highway = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      highwayCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+    const touring = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      touringSecondaryCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+
+    expect(styleRankScore("touring", touring)).toBeGreaterThan(
+      styleRankScore("touring", highway),
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [highway, touring],
+      "touring",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.durationMinutes).toBe(175);
+    expect(selection.evaluation.candidate.segments[0]?.roadClass).toBe(
+      "secondary",
+    );
+    expect(selection.evaluation.candidate.segments[0]?.surface).toBe("paved");
+  });
+
   it("does not rank touring candidates by duration (BR-003)", () => {
     const slower = evaluateDestinationCandidate(
       GRANBY,
@@ -442,11 +501,11 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
       { shortestDistanceKm: 180 },
     );
 
-    expect(styleRankScore("touring", slower, 180)).toBe(
-      styleRankScore("touring", faster, 180),
+    expect(styleRankScore("touring", slower)).toBe(
+      styleRankScore("touring", faster),
     );
-    expect(styleRankScore("scenic", slower, 180)).toBe(
-      styleRankScore("scenic", faster, 180),
+    expect(styleRankScore("scenic", slower)).toBe(
+      styleRankScore("scenic", faster),
     );
   });
 

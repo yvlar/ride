@@ -131,16 +131,8 @@ export function evaluateRoundTripCandidate(
     disproportionateDetour,
     outboundReturnOverlapPercent,
     repeatedRoadPercent,
-    outboundStyleScore: styleRankScore(
-      style,
-      outbound,
-      options.shortestOutboundKm,
-    ),
-    inboundStyleScore: styleRankScore(
-      style,
-      inbound,
-      options.shortestInboundKm,
-    ),
+    outboundStyleScore: styleRankScore(style, outbound),
+    inboundStyleScore: styleRankScore(style, inbound),
     warnings,
   };
 }

@@ -241,6 +241,80 @@ describe("generateLoopRide (FR-001)", () => {
     ]);
   });
 
+  it("prefers a paved secondary loop over a highway when style is touring (FR-006)", async () => {
+    const start = GRANBY.coordinates;
+    const rectanglePoints = [
+      start,
+      offsetCoordinates(start, 90, 20),
+      offsetCoordinates(offsetCoordinates(start, 90, 20), 0, 20),
+      offsetCoordinates(start, 0, 20),
+      start,
+    ];
+
+    const toResult = (
+      roadClass: string,
+      durationMinutes: number,
+      surface: "paved" | "unpaved",
+    ): ProviderRouteResult => {
+      const coordinates: [number, number][] = [];
+      for (let index = 0; index < rectanglePoints.length - 1; index += 1) {
+        const from = rectanglePoints[index];
+        const to = rectanglePoints[index + 1];
+        for (let step = 0; step < 3; step += 1) {
+          const t = step / 3;
+          coordinates.push([
+            from.longitude + (to.longitude - from.longitude) * t,
+            from.latitude + (to.latitude - from.latitude) * t,
+          ]);
+        }
+      }
+      const last = rectanglePoints[rectanglePoints.length - 1];
+      coordinates.push([last.longitude, last.latitude]);
+      const geometry = { type: "LineString" as const, coordinates };
+      return {
+        geometry,
+        segments: [
+          {
+            id: roadClass,
+            geometry,
+            distanceKm: 80,
+            durationMinutes,
+            roadClass,
+            surface,
+          },
+        ],
+        distanceKm: 80,
+        durationMinutes,
+      };
+    };
+
+    const highway = toResult("motorway", 50, "paved");
+    const traverse = toResult("secondary", 70, "paved");
+    const provider: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        return (input.waypoints?.length ?? 0) === 2 ? traverse : highway;
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "touring",
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments[0]?.roadClass).toBe("secondary");
+    expect(result.route.durationMinutes).toBe(70);
+    expect(result.route.segments[0]?.surface).toBe("paved");
+  });
+
   it("converts an available duration via BR-005 before generating the loop", async () => {
     const result = await generateLoopRide(
       {
