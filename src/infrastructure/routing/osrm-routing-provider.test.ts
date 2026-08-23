@@ -140,7 +140,7 @@ describe("OsrmRoutingProvider", () => {
     expect(url.searchParams.has("exclude")).toBe(false);
   });
 
-  it("shares one exclusion probe and remembers unsupported profiles", async () => {
+  it("remembers profiles that do not support motorway exclusions", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -158,7 +158,38 @@ describe("OsrmRoutingProvider", () => {
       fetcher,
     );
 
-    await Promise.all([
+    await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+    await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(
+      fetcher.mock.calls.map(([url]) =>
+        new URL(String(url)).searchParams.get("exclude"),
+      ),
+    ).toEqual(["motorway", null, null]);
+  });
+
+  it("keeps concurrent candidates independent when one request fails", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (request) => {
+      const url = new URL(String(request));
+      return url.pathname.includes("/driving/-72.734000,45.403000;")
+        ? jsonResponse({ code: "Error" }, 503)
+        : jsonResponse(SUCCESS_RESPONSE);
+    });
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    const results = await Promise.allSettled([
       provider.calculateRoute({
         start: GRANBY,
         destination: WATERLOO,
@@ -170,18 +201,48 @@ describe("OsrmRoutingProvider", () => {
         preferences: { avoidHighways: true, avoidUnpaved: false },
       }),
     ]);
-    await provider.calculateRoute({
+
+    expect(results.map((result) => result.status)).toEqual([
+      "rejected",
+      "fulfilled",
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(
+      fetcher.mock.calls.map(([url]) =>
+        new URL(String(url)).searchParams.get("exclude"),
+      ),
+    ).toEqual(["motorway", "motorway"]);
+  });
+
+  it("retries without exclusion when a supported profile finds no route", async () => {
+    const motorwayResponse = responseWithRoadNames([
+      "Highway 401",
+      "Highway 401 Express",
+    ]);
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ code: "NoRoute", message: "No route found" }, 400),
+      )
+      .mockImplementation(async () => jsonResponse(motorwayResponse));
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    const result = await provider.calculateRoute({
       start: GRANBY,
       destination: WATERLOO,
       preferences: { avoidHighways: true, avoidUnpaved: false },
     });
 
-    expect(fetcher).toHaveBeenCalledTimes(4);
     expect(
       fetcher.mock.calls.map(([url]) =>
         new URL(String(url)).searchParams.get("exclude"),
       ),
-    ).toEqual(["motorway", null, null, null]);
+    ).toEqual(["motorway", null]);
+    expect(result.segments.every((segment) => segment.roadClass === "motorway"))
+      .toBe(true);
   });
 
   it("maps OSRM motorway classes and public-demo road names (FR-007)", async () => {
@@ -229,6 +290,50 @@ describe("OsrmRoutingProvider", () => {
     expect(result.segments.map((segment) => segment.roadClass)).toEqual([
       "motorway",
       "motorway_link",
+    ]);
+  });
+
+  it("recognizes explicit Canadian and US controlled-access road names", async () => {
+    const fetcher = mockFetch(
+      responseWithRoadNames(
+        [
+          "Highway 401",
+          "Highway 401 Express",
+          "Queen Elizabeth Way",
+          "Interstate 90",
+          "Highway 7",
+          "",
+          "",
+        ],
+        [
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          "ON 401",
+          "I-90",
+        ],
+      ),
+    );
+    const provider = new OsrmRoutingProvider(
+      "https://router.project-osrm.org",
+      fetcher,
+    );
+
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+    });
+
+    expect(result.segments.map((segment) => segment.roadClass)).toEqual([
+      "motorway",
+      "motorway",
+      "motorway",
+      "motorway",
+      undefined,
+      "motorway",
+      "motorway",
     ]);
   });
 
@@ -382,6 +487,31 @@ describe("createRoutingProvider with OSRM", () => {
 
 function mockFetch(payload: unknown, status = 200) {
   return vi.fn<typeof fetch>(async () => jsonResponse(payload, status));
+}
+
+function responseWithRoadNames(
+  names: string[],
+  references: (string | undefined)[] = [],
+) {
+  const route = SUCCESS_RESPONSE.routes[0];
+  const step = route.legs[0].steps[0];
+  return {
+    ...SUCCESS_RESPONSE,
+    routes: [
+      {
+        ...route,
+        legs: [
+          {
+            steps: names.map((name, index) => ({
+              ...step,
+              name,
+              ref: references[index],
+            })),
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function jsonResponse(payload: unknown, status = 200): Response {
