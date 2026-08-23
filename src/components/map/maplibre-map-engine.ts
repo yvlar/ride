@@ -1,7 +1,13 @@
-import { Map as MapLibreMap, Marker } from "maplibre-gl";
+import { GeolocateControl, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { coordinatesToPosition } from "@/domain/geo/distance";
 import { FALLBACK_MAP_STYLE } from "./fallback-style";
+import {
+  GPS_TRACKING_UNAVAILABLE_MESSAGE,
+  MAP_GEOLOCATE_LABEL,
+  MAP_GEOLOCATE_UNAVAILABLE_LABEL,
+  RIDE_GEOLOCATE_CONTROL_OPTIONS,
+} from "./geolocate-control-options";
 import {
   MAP_UNAVAILABLE_MESSAGE,
   type MapEngine,
@@ -17,9 +23,10 @@ import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
 
 export function createMapLibreEngine(): MapEngine {
   return {
-    mount(container, viewModel, { onError }): MapEngineHandle {
+    mount(container, viewModel, { onError, onWarning }): MapEngineHandle {
       const markers: Marker[] = [];
       let map: MapLibreMap | undefined;
+      let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
 
       ensureMapLibreWorkerUrl();
@@ -32,11 +39,25 @@ export function createMapLibreEngine(): MapEngine {
           attributionControl: { compact: true },
           bounds: camera.bounds,
           fitBoundsOptions: camera.fitBoundsOptions,
+          locale: {
+            "GeolocateControl.FindMyLocation": MAP_GEOLOCATE_LABEL,
+            "GeolocateControl.LocationNotAvailable":
+              MAP_GEOLOCATE_UNAVAILABLE_LABEL,
+          },
         });
       } catch {
         onError(MAP_UNAVAILABLE_MESSAGE);
         return { destroy() {} };
       }
+
+      geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
+      map.addControl(geolocateControl, "top-right");
+      labelGeolocateControl(container);
+      geolocateControl.on("error", () => {
+        if (!disposed) {
+          onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);
+        }
+      });
 
       map.on("error", () => {
         if (disposed || !map || map.isStyleLoaded()) {
@@ -92,6 +113,14 @@ export function createMapLibreEngine(): MapEngine {
       return {
         destroy() {
           disposed = true;
+          if (map && geolocateControl) {
+            try {
+              map.removeControl(geolocateControl);
+            } catch {
+              geolocateControl.onRemove();
+            }
+          }
+          geolocateControl = undefined;
           for (const marker of markers) {
             marker.remove();
           }
@@ -102,6 +131,14 @@ export function createMapLibreEngine(): MapEngine {
       };
     },
   };
+}
+
+function labelGeolocateControl(container: HTMLElement): void {
+  const button = container.querySelector<HTMLButtonElement>(
+    ".maplibregl-ctrl-geolocate",
+  );
+  button?.setAttribute("aria-label", MAP_GEOLOCATE_LABEL);
+  button?.setAttribute("title", MAP_GEOLOCATE_LABEL);
 }
 
 function placeMarker(
