@@ -22,14 +22,14 @@ describe("ensureMapLibreWorkerUrl (FR-013)", () => {
 
     const url = ensureMapLibreWorkerUrl();
 
-    expect(MAPLIBRE_WORKER_PATH).toBe("/maplibre-gl-worker.mjs");
-    expect(url).toMatch(/^https?:\/\/.+\/maplibre-gl-worker\.mjs$/);
+    expect(MAPLIBRE_WORKER_PATH).toBe("/maplibre-gl-worker.js");
+    expect(url).toMatch(/^https?:\/\/.+\/maplibre-gl-worker\.js$/);
     expect(url.startsWith(window.location.origin)).toBe(true);
     expect(setWorkerUrl).toHaveBeenCalledWith(url);
   });
 
   it("does not reset a worker URL that is already configured", async () => {
-    const already = `${window.location.origin}/maplibre-gl-worker.mjs`;
+    const already = `${window.location.origin}/maplibre-gl-worker.js`;
     getWorkerUrl.mockReturnValue(already);
 
     const { ensureMapLibreWorkerUrl } = await import("./maplibre-worker-url");

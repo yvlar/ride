@@ -2,10 +2,11 @@ import { getWorkerUrl, setWorkerUrl } from "maplibre-gl";
 
 /**
  * Same-origin worker served from `public/` (FR-013).
- * MapLibre 6's defaultWorkerUrl() is empty in the Next.js/Turbopack
- * client bundle because import.meta.url is not http(s).
+ * MapLibre 5 keeps a WebGL1 fallback for browsers and embedded webviews that
+ * cannot create a WebGL2 context. Its CSP worker is copied at build time so
+ * the client never depends on a blob worker or a third-party origin.
  */
-export const MAPLIBRE_WORKER_PATH = "/maplibre-gl-worker.mjs";
+export const MAPLIBRE_WORKER_PATH = "/maplibre-gl-worker.js";
 
 export function ensureMapLibreWorkerUrl(): string {
   const url =
