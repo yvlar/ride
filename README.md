@@ -242,7 +242,9 @@ Pour suivre les routes OpenStreetMap réelles, définir `ROUTING_PROVIDER=osrm` 
 
 Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste la valeur locale et de test. Un adaptateur Nominatim compatible (`GEOCODING_PROVIDER=nominatim`) peut être activé en définissant `GEOCODING_API_BASE_URL` vers un service dédié ou géré. `GEOCODING_API_KEY` est facultative. Aucun serveur public de démonstration n’est configuré par défaut. Les appels passent uniquement par le serveur, via `GeocodingProvider.reverse()`.
 
-Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
+Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
+
+La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal `speechSynthesis` et recalcul hors trajet. Elle exige que l’application reste ouverte au premier plan. La localisation en arrière-plan, l’écran verrouillé, la navigation hors ligne, Android Auto, Apple CarPlay et l’export GPX restent hors périmètre.
 
 Commandes utiles :
 

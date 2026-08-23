@@ -5,6 +5,7 @@ import {
   offsetCoordinates,
 } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import { stepsFromPath } from "@/domain/navigation/steps-from-path";
 import type { RouteSegment } from "@/domain/ride/types";
 import type {
   ProviderRouteRequest,
@@ -60,6 +61,7 @@ export class MockRoutingProvider implements RoutingProvider {
     return {
       geometry,
       segments,
+      steps: stepsFromPath(geometry, segments),
       distanceKm,
       durationMinutes: (distanceKm / MOCK_SPEED_KMH) * 60,
     };

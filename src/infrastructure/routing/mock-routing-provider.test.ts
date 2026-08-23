@@ -40,6 +40,12 @@ describe("MockRoutingProvider", () => {
     expect(result.geometry.coordinates.length).toBeGreaterThan(8);
     expect(radiusCoefficientOfVariation(result.geometry)).toBeGreaterThan(0.06);
     expect(result.distanceKm).toBeGreaterThan(0);
+    expect(result.steps?.some((step) => step.maneuverType === "depart")).toBe(
+      true,
+    );
+    expect(result.steps?.some((step) => step.maneuverType === "arrive")).toBe(
+      true,
+    );
   });
 
   it("returns a point-to-point road path for a destination request (FR-002)", async () => {

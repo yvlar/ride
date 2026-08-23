@@ -21,7 +21,16 @@ import {
 import "./ride-map-markers.css";
 import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
 
-export function createMapLibreEngine(): MapEngine {
+export type MapLibreEngineOptions = {
+  /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
+  geolocate?: boolean;
+};
+
+export function createMapLibreEngine(
+  options: MapLibreEngineOptions = {},
+): MapEngine {
+  const geolocateEnabled = options.geolocate !== false;
+
   return {
     mount(container, viewModel, { onError, onWarning }): MapEngineHandle {
       const markers: Marker[] = [];
@@ -50,14 +59,16 @@ export function createMapLibreEngine(): MapEngine {
         return { destroy() {} };
       }
 
-      geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
-      map.addControl(geolocateControl, "top-right");
-      labelGeolocateControl(container);
-      geolocateControl.on("error", () => {
-        if (!disposed) {
-          onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);
-        }
-      });
+      if (geolocateEnabled) {
+        geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
+        map.addControl(geolocateControl, "top-right");
+        labelGeolocateControl(container);
+        geolocateControl.on("error", () => {
+          if (!disposed) {
+            onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);
+          }
+        });
+      }
 
       map.on("error", () => {
         if (disposed || !map || map.isStyleLoaded()) {
@@ -110,6 +121,8 @@ export function createMapLibreEngine(): MapEngine {
         map.fitBounds(camera.bounds, camera.fitBoundsOptions);
       });
 
+      let userMarker: Marker | undefined;
+
       return {
         destroy() {
           disposed = true;
@@ -121,12 +134,48 @@ export function createMapLibreEngine(): MapEngine {
             }
           }
           geolocateControl = undefined;
+          userMarker?.remove();
+          userMarker = undefined;
           for (const marker of markers) {
             marker.remove();
           }
           markers.length = 0;
           map?.remove();
           map = undefined;
+        },
+        setUserLocation(coordinates) {
+          if (!map || disposed) {
+            return;
+          }
+          if (!coordinates) {
+            userMarker?.remove();
+            userMarker = undefined;
+            return;
+          }
+          if (!userMarker) {
+            const element = document.createElement("div");
+            element.setAttribute("aria-label", "Position actuelle");
+            element.style.width = "16px";
+            element.style.height = "16px";
+            element.style.borderRadius = "999px";
+            element.style.background = "#38bdf8";
+            element.style.border = "2px solid white";
+            userMarker = new Marker({ element, anchor: "center" }).addTo(map);
+          }
+          userMarker.setLngLat(coordinatesToPosition(coordinates));
+        },
+        recenter() {
+          if (!map || disposed) {
+            return;
+          }
+          if (userMarker) {
+            map.easeTo({
+              center: userMarker.getLngLat(),
+              duration: 400,
+            });
+            return;
+          }
+          map.fitBounds(camera.bounds, camera.fitBoundsOptions);
         },
       };
     },

@@ -4,6 +4,7 @@ import {
   lineStringLengthKm,
 } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import { stepsFromPath } from "@/domain/navigation/steps-from-path";
 import type { RouteSegment } from "@/domain/ride/types";
 import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
 import type { RouteKnowledgeDocument } from "./types";
@@ -64,6 +65,7 @@ export function composeRetrievedRoute(
   return {
     geometry,
     segments,
+    steps: stepsFromPath(geometry, segments),
     distanceKm,
     durationMinutes: (distanceKm / RAG_SPEED_KMH) * 60,
   };

@@ -23,6 +23,7 @@ import {
   excludeKnownUnpaved,
   withUnknownSurfaceSignal,
 } from "./surfaces";
+import { concatNavigationSteps } from "@/domain/navigation/merge";
 import type {
   DestinationCandidate,
   RideStyle,
@@ -52,6 +53,7 @@ export function composeRoundTripCandidate(
     inbound,
     geometry: joinLineStrings(outbound.geometry, inbound.geometry),
     segments: joinRoundTripSegments(outbound.segments, inbound.segments),
+    steps: concatNavigationSteps(outbound.steps ?? [], inbound.steps ?? []),
     distanceKm: outbound.distanceKm + inbound.distanceKm,
     durationMinutes: outbound.durationMinutes + inbound.durationMinutes,
   };

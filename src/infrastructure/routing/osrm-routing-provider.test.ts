@@ -105,6 +105,67 @@ describe("OsrmRoutingProvider", () => {
     });
   });
 
+  it("keeps OSRM maneuvers as provider-agnostic navigation steps (FR-024)", async () => {
+    const fetcher = mockFetch({
+      ...SUCCESS_RESPONSE,
+      routes: [
+        {
+          ...SUCCESS_RESPONSE.routes[0],
+          legs: [
+            {
+              steps: [
+                {
+                  ...SUCCESS_RESPONSE.routes[0].legs[0]!.steps[0],
+                  destinations: "Waterloo",
+                  rotary_name: "Giratoire Nord",
+                  driving_side: "right",
+                  maneuver: {
+                    type: "roundabout",
+                    modifier: "right",
+                    location: [-72.734, 45.403],
+                    bearing_before: 12,
+                    bearing_after: 98,
+                    exit: 2,
+                  },
+                },
+              ],
+            },
+            {
+              steps: [
+                {
+                  ...SUCCESS_RESPONSE.routes[0].legs[1]!.steps[0],
+                  maneuver: {
+                    type: "quantum-leap",
+                    modifier: "sideways",
+                    location: [-72.516, 45.35],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+    });
+
+    expect(result.steps?.[0]).toMatchObject({
+      maneuverType: "roundabout",
+      modifier: "right",
+      exit: 2,
+      destinations: "Waterloo",
+      rotaryName: "Giratoire Nord",
+    });
+    expect(result.steps?.[1]?.maneuverType).toBe("unknown");
+  });
+
   it("asks OSRM to exclude motorways when requested (FR-007)", async () => {
     const fetcher = mockFetch(SUCCESS_RESPONSE);
     const provider = new OsrmRoutingProvider(

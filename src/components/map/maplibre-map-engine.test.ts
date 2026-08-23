@@ -13,6 +13,7 @@ const {
   geolocateOn,
   geolocateOnRemove,
   markerRemove,
+  easeTo,
   FakeGeolocateControl,
   FakeMap,
   FakeMarker,
@@ -24,6 +25,7 @@ const {
   const geolocateOn = vi.fn();
   const geolocateOnRemove = vi.fn();
   const markerRemove = vi.fn();
+  const easeTo = vi.fn();
 
   class FakeGeolocateControl {
     options: unknown;
@@ -45,12 +47,22 @@ const {
     addSource = vi.fn();
     addLayer = vi.fn();
     fitBounds = vi.fn();
+    easeTo = easeTo;
     isStyleLoaded = () => true;
   }
 
   class FakeMarker {
-    setLngLat() {
+    lngLat = { lng: 0, lat: 0 };
+    setLngLat(value: { lng?: number; lat?: number } | [number, number]) {
+      if (Array.isArray(value)) {
+        this.lngLat = { lng: value[0], lat: value[1] };
+      } else {
+        this.lngLat = { lng: value.lng ?? 0, lat: value.lat ?? 0 };
+      }
       return this;
+    }
+    getLngLat() {
+      return this.lngLat;
     }
     addTo() {
       return this;
@@ -66,6 +78,7 @@ const {
     geolocateOn,
     geolocateOnRemove,
     markerRemove,
+    easeTo,
     FakeGeolocateControl,
     FakeMap,
     FakeMarker,
@@ -111,6 +124,7 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     geolocateOn.mockReset();
     geolocateOnRemove.mockReset();
     markerRemove.mockReset();
+    easeTo.mockReset();
   });
 
   it("adds a voluntary high-accuracy GeolocateControl after mount", async () => {
@@ -156,6 +170,35 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
       FakeGeolocateControl,
     );
     expect(mapRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it("recenters on the rider when a GPS marker exists (NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 });
+    handle.recenter?.();
+
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: { lng: -72.72, lat: 45.41 },
+      }),
+    );
+  });
+
+  it("omits GeolocateControl when navigation disables it (FR-023, NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    expect(addControl).not.toHaveBeenCalled();
   });
 
   it("reports a GPS error as a warning without treating the map as unavailable", async () => {

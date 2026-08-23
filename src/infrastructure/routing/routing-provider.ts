@@ -1,4 +1,5 @@
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import type { NavigationStep } from "@/domain/navigation/types";
 import type {
   RideStyle,
   RoutePreferences,
@@ -16,8 +17,13 @@ export type ProviderRouteRequest = {
 export type ProviderRouteResult = {
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
+};
+
+export type RoutingProviderOptions = {
+  signal?: AbortSignal;
 };
 
 /**
@@ -25,5 +31,8 @@ export type ProviderRouteResult = {
  * Domain code must not import a named map or routing vendor.
  */
 export interface RoutingProvider {
-  calculateRoute(input: ProviderRouteRequest): Promise<ProviderRouteResult>;
+  calculateRoute(
+    input: ProviderRouteRequest,
+    options?: RoutingProviderOptions,
+  ): Promise<ProviderRouteResult>;
 }

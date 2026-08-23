@@ -1,5 +1,8 @@
 import { z } from "zod";
+import { positionToCoordinates } from "@/domain/geo/distance";
 import type { LineString, Position } from "@/domain/geo/types";
+import { normalizeNavigationStep } from "@/domain/navigation/normalize";
+import type { NavigationStep } from "@/domain/navigation/types";
 import type { RouteSegment } from "@/domain/ride/types";
 import {
   isRoutingKnowledgeError,
@@ -9,6 +12,7 @@ import type {
   ProviderRouteRequest,
   ProviderRouteResult,
   RoutingProvider,
+  RoutingProviderOptions,
 } from "./routing-provider";
 
 const DEFAULT_PROFILE = "driving";
@@ -39,12 +43,24 @@ const lineStringSchema = z.object({
   type: z.literal("LineString"),
   coordinates: z.array(positionSchema).min(2),
 });
+const osrmManeuverSchema = z.object({
+  type: z.string().optional(),
+  modifier: z.string().optional(),
+  location: positionSchema.optional(),
+  bearing_before: z.number().optional(),
+  bearing_after: z.number().optional(),
+  exit: z.number().optional(),
+});
 const osrmStepSchema = z.object({
   distance: z.number().nonnegative(),
   duration: z.number().nonnegative(),
   geometry: lineStringSchema,
   name: z.string().optional(),
   ref: z.string().optional(),
+  destinations: z.string().optional(),
+  rotary_name: z.string().optional(),
+  driving_side: z.string().optional(),
+  maneuver: osrmManeuverSchema.optional(),
   intersections: z
     .array(
       z.object({
@@ -104,20 +120,22 @@ export class OsrmRoutingProvider implements RoutingProvider {
 
   async calculateRoute(
     input: ProviderRouteRequest,
+    options?: RoutingProviderOptions,
   ): Promise<ProviderRouteResult> {
     if (!input.preferences?.avoidHighways) {
-      return this.requestRoute(input, false);
+      return this.requestRoute(input, false, options);
     }
 
     if (this.motorwayExclusionSupport === "unsupported") {
-      return this.requestRoute(input, false);
+      return this.requestRoute(input, false, options);
     }
-    return this.requestRouteAvoidingMotorways(input);
+    return this.requestRouteAvoidingMotorways(input, options);
   }
 
   private async requestRoute(
     input: ProviderRouteRequest,
     excludeMotorways: boolean,
+    options?: RoutingProviderOptions,
   ): Promise<ProviderRouteResult> {
     const url = this.buildRouteUrl(input, excludeMotorways);
     const response = await this.fetcher(url, {
@@ -127,7 +145,7 @@ export class OsrmRoutingProvider implements RoutingProvider {
         "User-Agent": OSRM_USER_AGENT,
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: combineSignals(this.timeoutMs, options?.signal),
     });
 
     const payload = await readPayload(response);
@@ -165,15 +183,16 @@ export class OsrmRoutingProvider implements RoutingProvider {
 
   private async requestRouteAvoidingMotorways(
     input: ProviderRouteRequest,
+    options?: RoutingProviderOptions,
   ): Promise<ProviderRouteResult> {
     try {
-      const route = await this.requestRoute(input, true);
+      const route = await this.requestRoute(input, true, options);
       this.motorwayExclusionSupport = "supported";
       return route;
     } catch (error) {
       if (error instanceof UnsupportedMotorwayExclusionError) {
         this.motorwayExclusionSupport = "unsupported";
-        return this.requestRoute(input, false);
+        return this.requestRoute(input, false, options);
       }
       if (isRoutingKnowledgeError(error)) {
         // The profile accepted the exclude flag but it disconnected this
@@ -181,7 +200,7 @@ export class OsrmRoutingProvider implements RoutingProvider {
         // reasonable highway-free alternative exists, so let the domain
         // evaluate the unrestricted result.
         this.motorwayExclusionSupport = "supported";
-        return this.requestRoute(input, false);
+        return this.requestRoute(input, false, options);
       }
       throw error;
     }
@@ -251,15 +270,49 @@ function toProviderResult(route: OsrmRoute): ProviderRouteResult {
     ),
   );
 
+  const steps = route.legs.flatMap((leg, legIndex) =>
+    leg.steps.map((step, stepIndex) => toNavigationStep(step, legIndex, stepIndex)),
+  );
+
   return {
     geometry,
     segments:
       segments.length > 0
         ? segments
         : [fallbackRouteSegment(geometry, route.distance, route.duration)],
+    steps,
     distanceKm: route.distance / 1_000,
     durationMinutes: route.duration / 60,
   };
+}
+
+function toNavigationStep(
+  step: OsrmStep,
+  legIndex: number,
+  stepIndex: number,
+): NavigationStep {
+  const location = step.maneuver?.location
+    ? positionToCoordinates(step.maneuver.location)
+    : undefined;
+  return normalizeNavigationStep(
+    {
+      type: step.maneuver?.type,
+      modifier: step.maneuver?.modifier,
+      location,
+      bearingBeforeDeg: step.maneuver?.bearing_before,
+      bearingAfterDeg: step.maneuver?.bearing_after,
+      exit: step.maneuver?.exit,
+      name: step.name,
+      ref: step.ref,
+      destinations: step.destinations,
+      rotaryName: step.rotary_name,
+      drivingSide: step.driving_side,
+      distanceKm: step.distance / 1_000,
+      durationMinutes: step.duration / 60,
+      geometry: step.geometry,
+    },
+    legIndex * 1_000 + stepIndex,
+  );
 }
 
 function toRouteSegment(
@@ -339,6 +392,14 @@ function inferRoadClass(step: OsrmStep): string | undefined {
     MOTORWAY_REF_PATTERNS.some((pattern) => pattern.test(reference))
     ? "motorway"
     : undefined;
+}
+
+function combineSignals(
+  timeoutMs: number,
+  external?: AbortSignal,
+): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return external ? AbortSignal.any([timeout, external]) : timeout;
 }
 
 function noRouteFoundError(): RoutingKnowledgeError {
