@@ -22,6 +22,10 @@ export const envSchema = z.object({
   ),
   ROUTING_API_BASE_URL: optionalUrl,
   ROUTING_API_KEY: optionalSecret,
+  GEOCODING_PROVIDER: z.preprocess(
+    emptyToUndefined,
+    z.enum(["mock", "nominatim"]).default("mock"),
+  ),
   GEOCODING_API_BASE_URL: optionalUrl,
   GEOCODING_API_KEY: optionalSecret,
   NEXT_PUBLIC_MAP_STYLE_URL: optionalUrl,
@@ -36,6 +40,7 @@ export function parseEnv(
     ROUTING_PROVIDER: source.ROUTING_PROVIDER,
     ROUTING_API_BASE_URL: source.ROUTING_API_BASE_URL,
     ROUTING_API_KEY: source.ROUTING_API_KEY,
+    GEOCODING_PROVIDER: source.GEOCODING_PROVIDER,
     GEOCODING_API_BASE_URL: source.GEOCODING_API_BASE_URL,
     GEOCODING_API_KEY: source.GEOCODING_API_KEY,
     NEXT_PUBLIC_MAP_STYLE_URL: source.NEXT_PUBLIC_MAP_STYLE_URL,

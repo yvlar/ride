@@ -18,6 +18,7 @@ export type RideMapProps = {
 export function RideMap({ route, engine }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function RideMap({ route, engine }: RideMapProps) {
     }
 
     setError(null);
+    setWarning(null);
     let cancelled = false;
     let handle: MapEngineHandle | undefined;
 
@@ -43,6 +45,11 @@ export function RideMap({ route, engine }: RideMapProps) {
           onError: (message) => {
             if (!cancelled) {
               setError(message);
+            }
+          },
+          onWarning: (message) => {
+            if (!cancelled) {
+              setWarning(message);
             }
           },
         });
@@ -83,6 +90,11 @@ export function RideMap({ route, engine }: RideMapProps) {
       {error ? (
         <p role="status" className="text-sm leading-6 text-muted-foreground">
           {error}
+        </p>
+      ) : null}
+      {warning && !error ? (
+        <p role="status" className="text-sm leading-6 text-muted-foreground">
+          {warning}
         </p>
       ) : null}
       <div

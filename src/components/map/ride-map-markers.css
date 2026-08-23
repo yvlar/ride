@@ -19,3 +19,8 @@
   border-bottom: 12px solid #f8fafc;
   filter: drop-shadow(0 0 2px #0f172a);
 }
+
+.maplibregl-ctrl-geolocate {
+  min-width: 44px;
+  min-height: 44px;
+}

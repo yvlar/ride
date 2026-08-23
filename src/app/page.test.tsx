@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Home from "./page";
 
 describe("Home (FR-014)", () => {
@@ -53,5 +53,28 @@ describe("Home (FR-014)", () => {
     expect(generate[0]).toBeEnabled();
     expect(generate[0]).toHaveAttribute("type", "submit");
     expect(document.querySelector("select")).toBeNull();
+  });
+
+  it("does not request GPS automatically on load (FR-017, FR-022)", () => {
+    const getCurrentPosition = vi.fn();
+    const geolocation = {
+      getCurrentPosition,
+      watchPosition: vi.fn(),
+      clearWatch: vi.fn(),
+    };
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      geolocation,
+    });
+
+    try {
+      render(<Home />);
+
+      expect(screen.getByRole("button", { name: "Ma position" })).toBeEnabled();
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+      expect(geolocation.watchPosition).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

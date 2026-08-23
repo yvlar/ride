@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import type { Place } from "@/domain/geo/types";
+import { useRef, useEffect, useState, type ReactNode } from "react";
+import type { Coordinates, Place } from "@/domain/geo/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  CurrentPositionError,
+  requestCurrentCoordinates,
+} from "@/components/ride-form/browser-geolocation";
+import {
+  CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE,
+  currentPositionFallback,
+  reverseGeocodePlace,
+} from "@/components/ride-form/reverse-geocode-place";
 import { searchPlacesFromApi } from "@/components/ride-form/search-places";
 
 export type PlaceSearchFieldProps = {
@@ -151,54 +160,67 @@ export function PlaceSearchField({
   );
 }
 
+export type LocateButtonProps = {
+  onLocated: (place: Place, warning?: string) => void;
+  onError: (message: string) => void;
+  requestCoordinates?: () => Promise<Coordinates>;
+  reversePlace?: (coordinates: Coordinates) => Promise<Place>;
+};
+
 export function LocateButton({
   onLocated,
   onError,
-}: {
-  onLocated: (place: Place) => void;
-  onError: (message: string) => void;
-}) {
+  requestCoordinates = requestCurrentCoordinates,
+  reversePlace = reverseGeocodePlace,
+}: LocateButtonProps) {
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
 
   return (
     <Button
       type="button"
       variant="outline"
-      className="h-12 shrink-0 px-3"
+      className="h-12 min-w-[7.5rem] shrink-0 px-3"
       disabled={pending}
+      aria-busy={pending}
+      aria-live="polite"
       onClick={() => {
-        if (!navigator.geolocation) {
-          onError("La géolocalisation n’est pas disponible sur cet appareil.");
+        if (pendingRef.current) {
           return;
         }
 
+        pendingRef.current = true;
         setPending(true);
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            setPending(false);
-            onLocated({
-              label: "Position actuelle",
-              coordinates: {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-              },
-            });
-          },
-          (error) => {
-            setPending(false);
-            if (error.code === error.PERMISSION_DENIED) {
-              onError(
-                "Autorisez la position actuelle pour l’utiliser comme départ.",
+
+        void requestCoordinates()
+          .then(async (coordinates) => {
+            try {
+              const place = await reversePlace(coordinates);
+              onLocated({
+                label: place.label,
+                coordinates,
+              });
+            } catch {
+              onLocated(
+                currentPositionFallback(coordinates),
+                CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE,
               );
-              return;
             }
-            onError("Impossible d’obtenir la position actuelle.");
-          },
-          { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
-        );
+          })
+          .catch((error: unknown) => {
+            const message =
+              error instanceof CurrentPositionError
+                ? error.message
+                : new CurrentPositionError("unknown").message;
+            onError(message);
+          })
+          .finally(() => {
+            pendingRef.current = false;
+            setPending(false);
+          });
       }}
     >
-      Ma position
+      {pending ? "Localisation…" : "Ma position"}
     </Button>
   );
 }

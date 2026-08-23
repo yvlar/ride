@@ -236,9 +236,13 @@ npm ci
 npm run dev
 ```
 
-L’application démarre sur [http://localhost:3000](http://localhost:3000). Le fichier `.env.example` conserve `ROUTING_PROVIDER=mock` afin que le démarrage local et les tests ne sollicitent aucun service partagé.
+L’application démarre sur [http://localhost:3000](http://localhost:3000). Le fichier `.env.example` conserve `ROUTING_PROVIDER=mock` et `GEOCODING_PROVIDER=mock` afin que le démarrage local et les tests ne sollicitent aucun service partagé.
 
 Pour suivre les routes OpenStreetMap réelles, définir `ROUTING_PROVIDER=osrm` et `ROUTING_API_BASE_URL` vers une instance OSRM dédiée ou gérée dans chaque environnement Vercel visé. Le serveur public de démonstration n’est jamais configuré par défaut. `ROUTING_PROVIDER=ai-rag` reste disponible pour le graphe local indexé; ce n’est pas un réseau OSM.
+
+Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste la valeur locale et de test. Un adaptateur Nominatim compatible (`GEOCODING_PROVIDER=nominatim`) peut être activé en définissant `GEOCODING_API_BASE_URL` vers un service dédié ou géré. `GEOCODING_API_KEY` est facultative. Aucun serveur public de démonstration n’est configuré par défaut. Les appels passent uniquement par le serveur, via `GeocodingProvider.reverse()`.
+
+Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
 Commandes utiles :
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
   AVAILABLE_DURATION_HINT,
@@ -11,7 +11,7 @@ import {
   isTargetDistanceRequired,
   targetDistanceHint,
 } from "@/domain/ride/target-distance";
-import type { Place } from "@/domain/geo/types";
+import type { Coordinates, Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
@@ -98,6 +98,8 @@ export type RideRequestFormProps = {
   onRequestComposed?: (request: GenerateRideRequest) => void;
   generateRide?: (request: GenerateRideRequest) => Promise<GenerateRideResult>;
   mapEngine?: MapEngine;
+  requestCoordinates?: () => Promise<Coordinates>;
+  reversePlace?: (coordinates: Coordinates) => Promise<Place>;
 };
 
 export function RideRequestForm({
@@ -106,6 +108,8 @@ export function RideRequestForm({
   onRequestComposed,
   generateRide = requestGeneratedRide,
   mapEngine,
+  requestCoordinates,
+  reversePlace,
 }: RideRequestFormProps) {
   const [startQuery, setStartQuery] = useState("");
   const [start, setStart] = useState<Place | null>(null);
@@ -126,7 +130,13 @@ export function RideRequestForm({
     useState<GeneratedRideRoute | null>(null);
   const [generationError, setGenerationError] =
     useState<RideGenerationError | null>(null);
+  const [startWarning, setStartWarning] = useState<string | null>(null);
   const generationId = useRef(0);
+  const startRef = useRef(start);
+
+  useEffect(() => {
+    startRef.current = start;
+  }, [start]);
 
   function invalidateInFlightGeneration() {
     generationId.current += 1;
@@ -224,30 +234,47 @@ export function RideRequestForm({
                 current && current.label === query ? current : null,
               );
               setErrors((current) => ({ ...current, start: undefined }));
+              setStartWarning(null);
               invalidateInFlightGeneration();
             }}
             onPlaceSelected={(place) => {
               setStart(place);
               setStartQuery(place.label);
               setErrors((current) => ({ ...current, start: undefined }));
+              setStartWarning(null);
               invalidateInFlightGeneration();
             }}
             action={
               <LocateButton
-                onLocated={(place) => {
+                requestCoordinates={requestCoordinates}
+                reversePlace={reversePlace}
+                onLocated={(place, warning) => {
                   setStart(place);
                   setStartQuery(place.label);
                   setErrors((current) => ({ ...current, start: undefined }));
+                  setStartWarning(warning ?? null);
                   invalidateInFlightGeneration();
                 }}
                 onError={(message) => {
-                  setStart(null);
+                  if (startRef.current) {
+                    setStartWarning(message);
+                    setErrors((current) => ({
+                      ...current,
+                      start: undefined,
+                    }));
+                    return;
+                  }
                   setErrors((current) => ({ ...current, start: message }));
-                  invalidateInFlightGeneration();
+                  setStartWarning(null);
                 }}
               />
             }
           />
+          {startWarning ? (
+            <p role="status" className="text-sm leading-6 text-muted-foreground">
+              {startWarning}
+            </p>
+          ) : null}
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Type de trajet</legend>

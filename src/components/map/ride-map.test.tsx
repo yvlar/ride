@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Place } from "@/domain/geo/types";
 import type { GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
+import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "./geolocate-control-options";
 import { MAP_UNAVAILABLE_MESSAGE, type MapEngine } from "./map-engine";
 import { RideMap } from "./ride-map";
 
@@ -102,5 +103,30 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(
       screen.getByRole("region", { name: "Carte du trajet" }),
     ).toHaveTextContent("Sens : boucle depuis Granby, QC");
+  });
+
+  it("keeps textual route facts when GPS tracking fails (FR-022)", async () => {
+    const engine: MapEngine = {
+      mount: (_container, _viewModel, { onWarning }) => {
+        onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);
+        return { destroy() {} };
+      },
+    };
+
+    render(
+      <div>
+        <p>198.4 km · 150 min</p>
+        <RideMap route={loop} engine={engine} />
+      </div>,
+    );
+
+    expect(
+      await screen.findByText(GPS_TRACKING_UNAVAILABLE_MESSAGE),
+    ).toBeInTheDocument();
+    expect(screen.getByText("198.4 km · 150 min")).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Carte du trajet" }),
+    ).toHaveTextContent("Sens : boucle depuis Granby, QC");
+    expect(screen.queryByText(MAP_UNAVAILABLE_MESSAGE)).not.toBeInTheDocument();
   });
 });

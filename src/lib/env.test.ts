@@ -6,8 +6,15 @@ describe("parseEnv", () => {
     const env = parseEnv({});
 
     expect(env.ROUTING_PROVIDER).toBe("mock");
+    expect(env.GEOCODING_PROVIDER).toBe("mock");
     expect(env.ROUTING_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
+  });
+
+  it("accepts a Nominatim geocoding provider (NFR-005)", () => {
+    expect(
+      parseEnv({ GEOCODING_PROVIDER: "nominatim" }).GEOCODING_PROVIDER,
+    ).toBe("nominatim");
   });
 
   it("accepts mock, ai-rag and OSRM routing providers (NFR-005)", () => {

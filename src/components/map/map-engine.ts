@@ -9,6 +9,7 @@ export type MapEngineHandle = {
 
 export type MapEngineHandlers = {
   onError: (message: string) => void;
+  onWarning?: (message: string) => void;
 };
 
 export type MapEngine = {
