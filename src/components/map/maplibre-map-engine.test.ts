@@ -4,6 +4,7 @@ import {
   GPS_TRACKING_UNAVAILABLE_MESSAGE,
   RIDE_GEOLOCATE_CONTROL_OPTIONS,
 } from "./geolocate-control-options";
+import { MAP_UNAVAILABLE_MESSAGE } from "./map-engine";
 
 const {
   addControl,
@@ -14,6 +15,7 @@ const {
   geolocateOnRemove,
   markerRemove,
   easeTo,
+  mapState,
   FakeGeolocateControl,
   FakeMap,
   FakeMarker,
@@ -26,6 +28,7 @@ const {
   const geolocateOnRemove = vi.fn();
   const markerRemove = vi.fn();
   const easeTo = vi.fn();
+  const mapState = { painterAvailable: true };
 
   class FakeGeolocateControl {
     options: unknown;
@@ -40,6 +43,7 @@ const {
   }
 
   class FakeMap {
+    painter = mapState.painterAvailable ? {} : undefined;
     addControl = addControl;
     removeControl = removeControl;
     remove = mapRemove;
@@ -79,6 +83,7 @@ const {
     geolocateOnRemove,
     markerRemove,
     easeTo,
+    mapState,
     FakeGeolocateControl,
     FakeMap,
     FakeMarker,
@@ -125,6 +130,7 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     geolocateOnRemove.mockReset();
     markerRemove.mockReset();
     easeTo.mockReset();
+    mapState.painterAvailable = true;
   });
 
   it("adds a voluntary high-accuracy GeolocateControl after mount", async () => {
@@ -217,5 +223,25 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
 
     expect(onWarning).toHaveBeenCalledWith(GPS_TRACKING_UNAVAILABLE_MESSAGE);
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("does not crash when WebGL2 leaves MapLibre partially initialized", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const onError = vi.fn();
+    mapState.painterAvailable = false;
+    mapRemove.mockImplementationOnce(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'destroy')");
+    });
+
+    const handle = createMapLibreEngine().mount(
+      document.createElement("div"),
+      viewModel,
+      { onError },
+    );
+
+    expect(onError).toHaveBeenCalledWith(MAP_UNAVAILABLE_MESSAGE);
+    expect(addControl).not.toHaveBeenCalled();
+    expect(() => handle.destroy()).not.toThrow();
+    expect(mapRemove).toHaveBeenCalledTimes(1);
   });
 });

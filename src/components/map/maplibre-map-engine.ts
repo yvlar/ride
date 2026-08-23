@@ -59,6 +59,21 @@ export function createMapLibreEngine(
         return { destroy() {} };
       }
 
+      // MapLibre reports a missing WebGL2 context through an error event during
+      // construction, but still returns a partially initialized Map instance.
+      // That instance has no painter and Map#remove() throws when React later
+      // unmounts it. Treat it as unavailable before adding controls or handlers.
+      if (!map.painter) {
+        onError(MAP_UNAVAILABLE_MESSAGE);
+        return {
+          destroy() {
+            const mapToRemove = map;
+            map = undefined;
+            removeMapSafely(mapToRemove);
+          },
+        };
+      }
+
       if (geolocateEnabled) {
         geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
         map.addControl(geolocateControl, "top-right");
@@ -140,8 +155,9 @@ export function createMapLibreEngine(
             marker.remove();
           }
           markers.length = 0;
-          map?.remove();
+          const mapToRemove = map;
           map = undefined;
+          removeMapSafely(mapToRemove);
         },
         setUserLocation(coordinates) {
           if (!map || disposed) {
@@ -180,6 +196,19 @@ export function createMapLibreEngine(
       };
     },
   };
+}
+
+function removeMapSafely(map: MapLibreMap | undefined): void {
+  if (!map) {
+    return;
+  }
+  try {
+    map.remove();
+  } catch {
+    // A failed WebGL2 initialization leaves MapLibre without a painter. Its
+    // remove() method currently throws in that state; cleanup must never crash
+    // the surrounding React tree.
+  }
 }
 
 function labelGeolocateControl(container: HTMLElement): void {
