@@ -118,6 +118,42 @@ function renderForm(props: Partial<RideRequestFormProps> = {}) {
 }
 
 describe("RideRequestForm (FR-014)", () => {
+  it("shows the selected start address on the composition screen (FR-017)", async () => {
+    renderForm();
+
+    await selectPlace("Point de départ", "Granby, QC");
+
+    expect(
+      screen.getByText("Lieu sélectionné : Granby, QC"),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes a single primary generate action", () => {
+    renderForm();
+
+    const generate = screen.getAllByRole("button", { name: "Générer ma ride" });
+    expect(generate).toHaveLength(1);
+    expect(generate[0]).toHaveAttribute("type", "submit");
+  });
+
+  it("uses large radio controls for type and style instead of select lists (NFR-001)", () => {
+    renderForm();
+
+    expect(document.querySelector("select")).toBeNull();
+    expect(screen.getByRole("radio", { name: /Boucle/ })).toHaveClass(
+      "min-h-12",
+    );
+    expect(screen.getByRole("radio", { name: "Courbes" })).toHaveClass(
+      "min-h-12",
+    );
+    expect(screen.getByRole("radio", { name: "Panoramique" })).toHaveClass(
+      "min-h-12",
+    );
+    expect(screen.getByRole("radio", { name: "Touring" })).toHaveClass(
+      "min-h-12",
+    );
+  });
+
   it("hides destination for a loop and shows it for a destination ride (FR-018)", () => {
     renderForm();
 
