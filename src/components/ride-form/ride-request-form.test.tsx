@@ -12,9 +12,14 @@ import {
   TARGET_DISTANCE_POSITIVE_KM_MESSAGE,
   TARGET_DISTANCE_REQUIRED_MESSAGE,
 } from "@/domain/ride/target-distance";
+import {
+  MAP_UNAVAILABLE_MESSAGE,
+  type MapEngine,
+} from "@/components/map/map-engine";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
+  GeneratedDestinationRoute,
   GeneratedLoopRoute,
 } from "@/domain/ride/types";
 import { RideRequestForm, type RideRequestFormProps } from "./ride-request-form";
@@ -46,6 +51,12 @@ async function selectPlace(label: string, query: string) {
   fireEvent.click(await screen.findByRole("option", { name: query }));
 }
 
+function stubMapEngine(): MapEngine {
+  return {
+    mount: vi.fn(() => ({ destroy: vi.fn() })),
+  };
+}
+
 const generatedLoop: GeneratedLoopRoute = {
   id: "route-1",
   type: "loop",
@@ -66,6 +77,25 @@ const generatedLoop: GeneratedLoopRoute = {
   warnings: ["Certains segments ont une surface inconnue."],
 };
 
+const generatedDestination: GeneratedDestinationRoute = {
+  id: "route-dest",
+  type: "destination",
+  start: granby,
+  destination: tremblant,
+  style: "scenic",
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.7342, 45.4001],
+      [-74.5962, 46.1185],
+    ],
+  },
+  segments: [],
+  distanceKm: 140.2,
+  durationMinutes: 110,
+  warnings: [],
+};
+
 function okGenerateRide(): (
   request: GenerateRideRequest,
 ) => Promise<GenerateRideResult> {
@@ -81,6 +111,7 @@ function renderForm(props: Partial<RideRequestFormProps> = {}) {
       searchPlaces={searchPlaces}
       debounceMs={0}
       generateRide={okGenerateRide()}
+      mapEngine={stubMapEngine()}
       {...props}
     />,
   );
@@ -153,6 +184,56 @@ describe("RideRequestForm (FR-014)", () => {
     expect(generated).toHaveTextContent(
       "Certains segments ont une surface inconnue.",
     );
+    const map = screen.getByRole("region", { name: "Carte du trajet" });
+    expect(map).toHaveTextContent("Sens : boucle depuis Granby, QC");
+    expect(map).toHaveTextContent("Départ : Granby, QC");
+    expect(map).not.toHaveTextContent("Destination :");
+  });
+
+  it("shows the generated route on a map with start and destination (FR-013)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: generatedDestination,
+    }));
+    renderForm({ generateRide });
+
+    fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
+    await selectPlace("Point de départ", "Granby, QC");
+    await selectPlace("Destination", "Mont-Tremblant, QC");
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    const generated = await screen.findByRole("region", { name: "Trajet généré" });
+    expect(generated).toHaveTextContent("140.2 km");
+    expect(generated).toHaveTextContent("110 min");
+    const map = screen.getByRole("region", { name: "Carte du trajet" });
+    expect(map).toHaveTextContent("Départ : Granby, QC");
+    expect(map).toHaveTextContent("Destination : Mont-Tremblant, QC");
+    expect(map).toHaveTextContent("Sens : Granby, QC → Mont-Tremblant, QC");
+  });
+
+  it("keeps textual results when the map engine fails (FR-013)", async () => {
+    const mapEngine: MapEngine = {
+      mount: (_container, _viewModel, { onError }) => {
+        onError(MAP_UNAVAILABLE_MESSAGE);
+        return { destroy() {} };
+      },
+    };
+    renderForm({ mapEngine });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    const generated = await screen.findByRole("region", { name: "Trajet généré" });
+    expect(generated).toHaveTextContent("198.4 km");
+    expect(generated).toHaveTextContent("150 min");
+    expect(generated).toHaveTextContent(
+      "Certains segments ont une surface inconnue.",
+    );
+    expect(await screen.findByText(MAP_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
+    expect(generated).toHaveTextContent("198.4 km");
   });
 
   it("ignores a stale generation after the ride type changes (FR-011)", async () => {
