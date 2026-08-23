@@ -137,6 +137,7 @@ async function generateValidatedLoop(
       const candidate: LoopCandidate = {
         geometry: result.geometry,
         segments: result.segments,
+        steps: result.steps ?? [],
         distanceKm: result.distanceKm,
         durationMinutes: result.durationMinutes,
         waypoints: set.waypoints,
@@ -266,6 +267,7 @@ async function generateValidatedLoop(
     style: request.style,
     geometry: evaluation.candidate.geometry,
     segments: evaluation.candidate.segments,
+    steps: evaluation.candidate.steps ?? [],
     distanceKm: evaluation.candidate.distanceKm,
     durationMinutes: evaluation.candidate.durationMinutes,
     statistics: {

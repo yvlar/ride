@@ -174,6 +174,112 @@ export type ParsedRegenerateRideEnvelope = z.infer<
   typeof regenerateRideEnvelopeSchema
 >;
 
+const navigationStepSchema = z.object({
+  id: z.string().min(1),
+  maneuverType: z.enum([
+    "depart",
+    "arrive",
+    "continue",
+    "turn",
+    "uturn",
+    "fork",
+    "merge",
+    "on_ramp",
+    "off_ramp",
+    "end_of_road",
+    "roundabout",
+    "new_name",
+    "unknown",
+  ]),
+  modifier: z.enum([
+    "left",
+    "right",
+    "sharp_left",
+    "sharp_right",
+    "slight_left",
+    "slight_right",
+    "straight",
+    "uturn",
+    "unknown",
+  ]),
+  location: coordinatesSchema,
+  bearingBeforeDeg: z.number().optional(),
+  bearingAfterDeg: z.number().optional(),
+  exit: z.number().int().positive().optional(),
+  name: z.string().optional(),
+  ref: z.string().optional(),
+  destinations: z.string().optional(),
+  rotaryName: z.string().optional(),
+  drivingSide: z.enum(["left", "right"]).optional(),
+  distanceKm: z.number().nonnegative(),
+  durationMinutes: z.number().nonnegative(),
+  geometry: lineStringSchema,
+});
+
+const routeSegmentSnapshotSchema = z.object({
+  id: z.string().min(1),
+  geometry: lineStringSchema,
+  distanceKm: z.number().nonnegative(),
+  durationMinutes: z.number().nonnegative(),
+  roadName: z.string().optional(),
+  surface: z.enum(["paved", "unpaved", "unknown"]).optional(),
+  roadClass: z.string().optional(),
+});
+
+const generatedRouteSnapshotSchema = z
+  .object({
+    id: z.string().min(1),
+    type: z.enum(["loop", "destination", "round_trip"]),
+    start: placeSchema,
+    destination: placeSchema.optional(),
+    style: rideStyleSchema.optional(),
+    targetDistanceKm: z.number().optional(),
+    geometry: lineStringSchema,
+    segments: z.array(routeSegmentSnapshotSchema),
+    steps: z.array(navigationStepSchema).optional(),
+    distanceKm: z.number().nonnegative(),
+    durationMinutes: z.number().nonnegative(),
+    warnings: z.array(z.string()),
+    statistics: z
+      .object({
+        repeatedRoadPercent: z.number().optional(),
+        outboundReturnOverlapPercent: z.number().optional(),
+      })
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type !== "loop" && !data.destination) {
+      ctx.addIssue(
+        "Le trajet original doit inclure la destination pour un recalcul (FR-026).",
+      );
+    }
+  });
+
+/** FR-026 — current GPS plus the in-memory route, only when rerouting. */
+export const recalculateRideEnvelopeSchema = z
+  .object({
+    currentPosition: coordinatesSchema,
+    progressKm: z.number().nonnegative(),
+    request: z.object({ type: z.unknown() }).passthrough(),
+    originalRoute: generatedRouteSnapshotSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.request.type !== data.originalRoute.type) {
+      ctx.addIssue(
+        "La demande de recalcul doit être du même type que le trajet courant (FR-026).",
+      );
+    }
+    if (lineStringLengthKm(data.originalRoute.geometry) <= 0) {
+      ctx.addIssue(
+        "Le trajet courant doit avoir une géométrie de longueur non nulle (FR-026).",
+      );
+    }
+  });
+
+export type ParsedRecalculateRideEnvelope = z.infer<
+  typeof recalculateRideEnvelopeSchema
+>;
+
 export function unsupportedRideTypeMessage(type: unknown): string {
   if (type === "round_trip") {
     return "Le type de trajet « round_trip » n’est pas pris en charge par ce générateur. Utilisez le générateur FR-003.";
