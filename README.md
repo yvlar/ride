@@ -236,9 +236,9 @@ npm ci
 npm run dev
 ```
 
-L’application démarre sur [http://localhost:3000](http://localhost:3000). Sans clés externes, le fournisseur de routage simulé (`ROUTING_PROVIDER=mock`) est utilisé. `ROUTING_PROVIDER=ai-rag` active un graphe local indexé (retrieval spatial); ce n’est pas un réseau OSM.
+L’application démarre sur [http://localhost:3000](http://localhost:3000). Le fichier `.env.example` conserve `ROUTING_PROVIDER=mock` afin que le démarrage local et les tests ne sollicitent aucun service partagé.
 
-Le projet Vercel `yvlars-projects/ride` est lié au dépôt GitHub. Les poussées vers `main` déploient la production; les autres branches créent des previews. `ROUTING_PROVIDER=mock` est défini pour Development, Preview et Production. Les clés de routage et de carte restent optionnelles jusqu’à l’intégration d’un fournisseur réel.
+Pour suivre les routes OpenStreetMap réelles, définir `ROUTING_PROVIDER=osrm` et `ROUTING_API_BASE_URL` vers une instance OSRM dédiée ou gérée dans chaque environnement Vercel visé. Le serveur public de démonstration n’est jamais configuré par défaut. `ROUTING_PROVIDER=ai-rag` reste disponible pour le graphe local indexé; ce n’est pas un réseau OSM.
 
 Commandes utiles :
 
