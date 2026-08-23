@@ -48,6 +48,20 @@ describe("createSpeechGuidance (FR-025)", () => {
     expect(() => guidance.speak("Bonjour")).not.toThrow();
   });
 
+  it("unlocks speechSynthesis without speaking a maneuver (FR-025)", () => {
+    const speak = vi.fn();
+    const resume = vi.fn();
+    const guidance = createSpeechGuidance({
+      getVoices: () => [],
+      speak,
+      cancel: vi.fn(),
+      resume,
+    });
+    guidance.unlock();
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(speak).not.toHaveBeenCalled();
+  });
+
   it("does not speak while muted", () => {
     const speak = vi.fn();
     const guidance = createSpeechGuidance({

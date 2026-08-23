@@ -733,6 +733,7 @@ describe("RideRequestForm (FR-014)", () => {
       listeners.clear();
     });
     const locationWatch = {
+      start: vi.fn(),
       subscribe: vi.fn((listener) => {
         listeners.add(listener);
         return unsubscribe;
@@ -744,6 +745,7 @@ describe("RideRequestForm (FR-014)", () => {
       speak: vi.fn(),
       cancel: vi.fn(),
       setMuted: vi.fn(),
+      unlock: vi.fn(),
     };
     renderForm({
       navigation: {
@@ -772,10 +774,13 @@ describe("RideRequestForm (FR-014)", () => {
     expect(locationWatch.subscribe).not.toHaveBeenCalled();
 
     fireEvent.click(start);
+    expect(locationWatch.start).toHaveBeenCalledTimes(1);
+    expect(speech.unlock).toHaveBeenCalledTimes(1);
     expect(locationWatch.subscribe).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByRole("dialog", { name: "Navigation" }),
-    ).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Navigation" });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.closest("[data-slot=card]")).toBeNull();
+    expect(document.body.contains(dialog)).toBe(true);
     expect(document.querySelector("form")).toHaveAttribute("inert");
     expect(
       screen.queryByRole("region", { name: "Carte du trajet" }),

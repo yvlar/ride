@@ -5,6 +5,8 @@ export type SpeechGuidance = {
   speak: (text: string) => void;
   cancel: () => void;
   setMuted: (muted: boolean) => void;
+  /** Unlock Web Speech during the user gesture that starts navigation (FR-025). */
+  unlock: () => void;
 };
 
 export type SpeechSynthesisLike = {
@@ -12,6 +14,7 @@ export type SpeechSynthesisLike = {
   getVoices: () => SpeechSynthesisVoice[];
   speak: (utterance: SpeechSynthesisUtterance) => void;
   cancel: () => void;
+  resume?: () => void;
 };
 
 export function createSpeechGuidance(
@@ -35,6 +38,9 @@ export function createSpeechGuidance(
     },
     cancel() {
       speech?.cancel();
+    },
+    unlock() {
+      speech?.resume?.();
     },
     speak(text) {
       if (!speech || muted || !text) {

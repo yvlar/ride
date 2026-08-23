@@ -58,6 +58,9 @@ function createWatch() {
   const listeners = new Set<(event: LocationWatchEvent) => void>();
   let native = 0;
   const watch: LocationWatch = {
+    start() {
+      native = 1;
+    },
     subscribe(listener) {
       listeners.add(listener);
       native = 1;
@@ -89,6 +92,7 @@ function stubSpeech() {
     speak: vi.fn(),
     cancel: vi.fn(),
     setMuted: vi.fn(),
+    unlock: vi.fn(),
   };
 }
 
@@ -229,6 +233,9 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       "min-h-12",
     );
     expect(screen.getByText(FOREGROUND_ONLY_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Navigation" }).parentElement).toBe(
+      document.body,
+    );
   });
 
   it("stops the GPS watch while the tab is hidden (NFR-006)", async () => {

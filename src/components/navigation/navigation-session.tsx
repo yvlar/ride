@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LocationWatch } from "@/domain/location/types";
 import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import {
@@ -272,12 +273,12 @@ export function NavigationSession({
     onStop();
   }
 
-  return (
+  const session = (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Navigation"
-      className="fixed inset-0 z-50 flex flex-col bg-background text-foreground"
+      className="fixed inset-0 z-50 flex h-dvh flex-col bg-background text-foreground"
     >
       <header className="flex items-start gap-3 border-b border-border px-4 py-3">
         <p
@@ -368,4 +369,9 @@ export function NavigationSession({
       </footer>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return session;
+  }
+  return createPortal(session, document.body);
 }

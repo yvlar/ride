@@ -54,4 +54,63 @@ describe("createBrowserLocationWatch (FR-023, NFR-006)", () => {
     createBrowserLocationWatch(api);
     expect(api.watchPosition).not.toHaveBeenCalled();
   });
+
+  it("starts watchPosition from start() before any subscriber (FR-023)", () => {
+    const { api } = fakeGeolocation();
+    const watch = createBrowserLocationWatch(api);
+    watch.start();
+    expect(api.watchPosition).toHaveBeenCalledTimes(1);
+    watch.subscribe(() => {});
+    expect(api.watchPosition).toHaveBeenCalledTimes(1);
+    expect(watch.activeNativeWatches()).toBe(1);
+  });
+
+  it("replays the last GPS event to a late subscriber (FR-023)", () => {
+    const { api, watches } = fakeGeolocation();
+    const watch = createBrowserLocationWatch(api);
+    watch.start();
+    const [firstWatch] = watches.values();
+    firstWatch?.({
+      coords: {
+        latitude: 45.4,
+        longitude: -72.7,
+        accuracy: 8,
+        heading: null,
+        speed: null,
+        altitude: null,
+        altitudeAccuracy: null,
+      },
+      timestamp: 1,
+    } as GeolocationPosition);
+
+    const listener = vi.fn();
+    watch.subscribe(listener);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "fix",
+        fix: expect.objectContaining({
+          coordinates: { latitude: 45.4, longitude: -72.7 },
+        }),
+      }),
+    );
+  });
+
+  it("does not throw when watchPosition rejects the call (FR-023)", () => {
+    const api = {
+      watchPosition: () => {
+        throw new Error("SecurityError");
+      },
+      clearWatch: vi.fn(),
+    };
+    const watch = createBrowserLocationWatch(api);
+    const listener = vi.fn();
+    expect(() => watch.start()).not.toThrow();
+    watch.subscribe(listener);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "error",
+        error: expect.objectContaining({ code: "UNAVAILABLE" }),
+      }),
+    );
+  });
 });
