@@ -11,6 +11,15 @@ import type {
 const DEFAULT_PROFILE = "driving";
 export const OSRM_REQUEST_TIMEOUT_MS = 7_000;
 const OSRM_USER_AGENT = "Ride/1.0 (+https://github.com/yvlar/ride)";
+const PUBLIC_OSRM_HOST = "router.project-osrm.org";
+const MOTORWAY_CLASSES = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+] as const;
+const MOTORWAY_NAME_PATTERN =
+  /\b(?:autoroute|autobahn|autostrada|autopista|motorway|freeway)\b/i;
 
 const positionSchema = z.tuple([
   z.number().min(-180).max(180),
@@ -26,6 +35,13 @@ const osrmStepSchema = z.object({
   geometry: lineStringSchema,
   name: z.string().optional(),
   ref: z.string().optional(),
+  intersections: z
+    .array(
+      z.object({
+        classes: z.array(z.string()).optional(),
+      }),
+    )
+    .optional(),
 });
 const osrmRouteSchema = z.object({
   distance: z.number().nonnegative(),
@@ -48,6 +64,13 @@ const osrmSuccessSchema = z.object({
 
 type OsrmRoute = z.infer<typeof osrmRouteSchema>;
 type OsrmStep = z.infer<typeof osrmStepSchema>;
+type MotorwayExclusionSupport = "unknown" | "supported" | "unsupported";
+type MotorwayExclusionProbe = {
+  supported: boolean;
+  route?: ProviderRouteResult;
+};
+
+class UnsupportedMotorwayExclusionError extends Error {}
 
 /**
  * Real-road routing adapter backed by an OSRM HTTP service and OSM data.
@@ -55,6 +78,8 @@ type OsrmStep = z.infer<typeof osrmStepSchema>;
  */
 export class OsrmRoutingProvider implements RoutingProvider {
   private readonly baseUrl: URL;
+  private motorwayExclusionSupport: MotorwayExclusionSupport;
+  private motorwayExclusionProbe?: Promise<MotorwayExclusionProbe>;
 
   constructor(
     baseUrl: string,
@@ -63,12 +88,43 @@ export class OsrmRoutingProvider implements RoutingProvider {
     private readonly timeoutMs = OSRM_REQUEST_TIMEOUT_MS,
   ) {
     this.baseUrl = parseBaseUrl(baseUrl);
+    // The official public demo currently rejects exclude=motorway. Avoid a
+    // guaranteed 400 and let the domain select a highway-free candidate from
+    // the road classes/names returned by OSRM instead.
+    this.motorwayExclusionSupport =
+      this.baseUrl.hostname.toLowerCase() === PUBLIC_OSRM_HOST
+        ? "unsupported"
+        : "unknown";
   }
 
   async calculateRoute(
     input: ProviderRouteRequest,
   ): Promise<ProviderRouteResult> {
-    const url = this.buildRouteUrl(input);
+    if (!input.preferences?.avoidHighways) {
+      return this.requestRoute(input, false);
+    }
+
+    if (this.motorwayExclusionSupport === "supported") {
+      return this.requestRoute(input, true);
+    }
+    if (this.motorwayExclusionSupport === "unsupported") {
+      return this.requestRoute(input, false);
+    }
+
+    const ownsProbe = this.motorwayExclusionProbe === undefined;
+    this.motorwayExclusionProbe ??= this.probeMotorwayExclusion(input);
+    const probe = await this.motorwayExclusionProbe;
+    if (ownsProbe && probe.route) {
+      return probe.route;
+    }
+    return this.requestRoute(input, probe.supported);
+  }
+
+  private async requestRoute(
+    input: ProviderRouteRequest,
+    excludeMotorways: boolean,
+  ): Promise<ProviderRouteResult> {
+    const url = this.buildRouteUrl(input, excludeMotorways);
     const response = await this.fetcher(url, {
       method: "GET",
       headers: {
@@ -81,6 +137,13 @@ export class OsrmRoutingProvider implements RoutingProvider {
 
     const payload = await readPayload(response);
     const envelope = osrmEnvelopeSchema.safeParse(payload);
+    if (
+      excludeMotorways &&
+      envelope.success &&
+      envelope.data.code === "InvalidValue"
+    ) {
+      throw new UnsupportedMotorwayExclusionError();
+    }
     if (
       envelope.success &&
       (envelope.data.code === "NoRoute" || envelope.data.code === "NoSegment")
@@ -105,7 +168,28 @@ export class OsrmRoutingProvider implements RoutingProvider {
     return toProviderResult(parsed.data.routes[0]);
   }
 
-  private buildRouteUrl(input: ProviderRouteRequest): URL {
+  private async probeMotorwayExclusion(
+    input: ProviderRouteRequest,
+  ): Promise<MotorwayExclusionProbe> {
+    try {
+      const route = await this.requestRoute(input, true);
+      this.motorwayExclusionSupport = "supported";
+      return { supported: true, route };
+    } catch (error) {
+      if (!(error instanceof UnsupportedMotorwayExclusionError)) {
+        throw error;
+      }
+      this.motorwayExclusionSupport = "unsupported";
+      return { supported: false };
+    } finally {
+      this.motorwayExclusionProbe = undefined;
+    }
+  }
+
+  private buildRouteUrl(
+    input: ProviderRouteRequest,
+    excludeMotorways: boolean,
+  ): URL {
     const stops = [input.start, ...(input.waypoints ?? []), input.destination];
     const coordinatePath = stops.map(serializeCoordinates).join(";");
     const url = new URL(
@@ -116,7 +200,7 @@ export class OsrmRoutingProvider implements RoutingProvider {
     url.searchParams.set("geometries", "geojson");
     url.searchParams.set("overview", "full");
     url.searchParams.set("continue_straight", "false");
-    if (input.preferences?.avoidHighways) {
+    if (excludeMotorways) {
       url.searchParams.set("exclude", "motorway");
     }
     return url;
@@ -188,6 +272,7 @@ function toRouteSegment(
     distanceKm: step.distance / 1_000,
     durationMinutes: step.duration / 60,
     roadName: formatRoadName(step),
+    roadClass: inferRoadClass(step),
     surface: "unknown",
   };
 }
@@ -227,6 +312,25 @@ function formatRoadName(step: OsrmStep): string | undefined {
     (part): part is string => Boolean(part),
   );
   return [...new Set(parts)].join(" — ") || undefined;
+}
+
+function inferRoadClass(step: OsrmStep): string | undefined {
+  const classes = new Set(
+    step.intersections?.flatMap((intersection) => intersection.classes ?? []),
+  );
+  const knownClass = MOTORWAY_CLASSES.find((roadClass) =>
+    classes.has(roadClass),
+  );
+  if (knownClass) {
+    return knownClass;
+  }
+
+  // Some OSRM deployments, including the public demo, omit edge classes.
+  // Named motorway steps still let the provider expose useful FR-007
+  // knowledge instead of treating every road class as unknown.
+  return MOTORWAY_NAME_PATTERN.test(step.name ?? "")
+    ? "motorway"
+    : undefined;
 }
 
 function noRouteFoundError(): RoutingKnowledgeError {

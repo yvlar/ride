@@ -122,6 +122,116 @@ describe("OsrmRoutingProvider", () => {
     expect(url.searchParams.get("exclude")).toBe("motorway");
   });
 
+  it("routes without the unsupported exclude flag on the public OSRM demo", async () => {
+    const fetcher = mockFetch(SUCCESS_RESPONSE);
+    const provider = new OsrmRoutingProvider(
+      "https://router.project-osrm.org",
+      fetcher,
+    );
+
+    await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetcher.mock.calls[0]?.[0]));
+    expect(url.searchParams.has("exclude")).toBe(false);
+  });
+
+  it("shares one exclusion probe and remembers unsupported profiles", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            code: "InvalidValue",
+            message: "Exclude flag combination is not supported.",
+          },
+          400,
+        ),
+      )
+      .mockImplementation(async () => jsonResponse(SUCCESS_RESPONSE));
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    await Promise.all([
+      provider.calculateRoute({
+        start: GRANBY,
+        destination: WATERLOO,
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      }),
+      provider.calculateRoute({
+        start: WATERLOO,
+        destination: GRANBY,
+        preferences: { avoidHighways: true, avoidUnpaved: false },
+      }),
+    ]);
+    await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(
+      fetcher.mock.calls.map(([url]) =>
+        new URL(String(url)).searchParams.get("exclude"),
+      ),
+    ).toEqual(["motorway", null, null, null]);
+  });
+
+  it("maps OSRM motorway classes and public-demo road names (FR-007)", async () => {
+    const route = SUCCESS_RESPONSE.routes[0];
+    const firstLeg = route.legs[0];
+    const firstStep = firstLeg.steps[0];
+    const fetcher = mockFetch({
+      ...SUCCESS_RESPONSE,
+      routes: [
+        {
+          ...route,
+          legs: [
+            {
+              ...firstLeg,
+              steps: [
+                {
+                  ...firstStep,
+                  name: "Autoroute des Cantons-de-l'Est",
+                },
+              ],
+            },
+            {
+              ...route.legs[1],
+              steps: [
+                {
+                  ...route.legs[1].steps[0],
+                  intersections: [{ classes: ["motorway_link"] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const provider = new OsrmRoutingProvider(
+      "https://router.project-osrm.org",
+      fetcher,
+    );
+
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+    });
+
+    expect(result.segments.map((segment) => segment.roadClass)).toEqual([
+      "motorway",
+      "motorway_link",
+    ]);
+  });
+
   it("maps an OSRM no-route response to the provider-agnostic failure", async () => {
     const fetcher = mockFetch(
       { code: "NoRoute", message: "No route found" },
@@ -271,10 +381,12 @@ describe("createRoutingProvider with OSRM", () => {
 });
 
 function mockFetch(payload: unknown, status = 200) {
-  return vi.fn<typeof fetch>(async () =>
-    new Response(JSON.stringify(payload), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    }),
-  );
+  return vi.fn<typeof fetch>(async () => jsonResponse(payload, status));
+}
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
