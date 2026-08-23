@@ -77,8 +77,8 @@ describe("stabilizeProgressKm hysteresis (FR-024)", () => {
     expect(stabilizeProgressKm(1.2, 1.1)).toBe(1.1);
   });
 
-  it("rejects an implausible leap to the end of the route", () => {
-    expect(stabilizeProgressKm(1, 32.2)).toBe(1);
+  it("still advances after a large but real gap (tunnel, hidden tab)", () => {
+    expect(stabilizeProgressKm(0.2, 2.2)).toBe(2.2);
   });
 });
 
@@ -131,5 +131,33 @@ describe("evaluateNavigationProgress low accuracy (FR-024)", () => {
     expect(progress?.projection.progressKm).toBeCloseTo(0.2, 5);
     expect(progress?.nextStep?.id).toBe("turn");
     expect(progress?.distanceToNextManeuverM).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("catches up after a multi-kilometre GPS gap on an open line", () => {
+    const first = evaluateNavigationProgress({
+      fix: {
+        coordinates: offsetCoordinates(origin, 90, 0.2),
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+      geometry,
+      steps: [step("depart", 2), step("arrive", 0)],
+      totalDistanceKm: 2,
+      totalDurationMinutes: 4,
+      previousProgressKm: null,
+    });
+    const second = evaluateNavigationProgress({
+      fix: {
+        coordinates: east2,
+        accuracyMeters: 8,
+        recordedAtMs: 2,
+      },
+      geometry,
+      steps: [step("depart", 2), step("arrive", 0)],
+      totalDistanceKm: 2,
+      totalDurationMinutes: 4,
+      previousProgressKm: first?.projection.progressKm ?? 0.2,
+    });
+    expect(second?.projection.progressKm).toBeCloseTo(2, 1);
   });
 });

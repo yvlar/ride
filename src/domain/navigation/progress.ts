@@ -6,7 +6,6 @@ import {
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import {
   LOW_ACCURACY_LIMIT_M,
-  PROGRESS_FORWARD_MAX_M,
   PROGRESS_HYSTERESIS_M,
   PROGRESS_MATCH_PENALTY_M_PER_KM,
 } from "./constants";
@@ -25,14 +24,12 @@ export function stabilizeProgressKm(
   previousKm: number | null,
   measuredKm: number,
   hysteresisM = PROGRESS_HYSTERESIS_M,
-  forwardMaxM = PROGRESS_FORWARD_MAX_M,
 ): number {
   if (previousKm === null) {
     return measuredKm;
   }
   if (measuredKm >= previousKm) {
-    const jumpM = (measuredKm - previousKm) * 1_000;
-    return jumpM <= forwardMaxM ? measuredKm : previousKm;
+    return measuredKm;
   }
   const dropM = (previousKm - measuredKm) * 1_000;
   return dropM <= hysteresisM ? previousKm : measuredKm;

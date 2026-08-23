@@ -14,9 +14,6 @@ export const PROGRESS_HYSTERESIS_M = 35;
  */
 export const PROGRESS_MATCH_PENALTY_M_PER_KM = 250;
 
-/** FR-024 — reject an implausible forward leap from a single GPS reading. */
-export const PROGRESS_FORWARD_MAX_M = 1_500;
-
 /** FR-024 / FR-026 — too coarse to advance a maneuver or trigger a reroute. */
 export const LOW_ACCURACY_LIMIT_M = 80;
 
