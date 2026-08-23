@@ -1,0 +1,176 @@
+import { describe, expect, it, vi } from "vitest";
+import type { Coordinates } from "@/domain/geo/types";
+import { createRoutingProvider } from "./create-routing-provider";
+import { OsrmRoutingProvider } from "./osrm-routing-provider";
+import { RoutingKnowledgeError } from "./routing-knowledge-error";
+
+const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
+const WATERLOO: Coordinates = { latitude: 45.35, longitude: -72.516 };
+
+const SUCCESS_RESPONSE = {
+  code: "Ok",
+  routes: [
+    {
+      distance: 15_100,
+      duration: 1_210,
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.734, 45.403],
+          [-72.67, 45.43],
+          [-72.6, 45.39],
+          [-72.516, 45.35],
+        ],
+      },
+      legs: [
+        {
+          steps: [
+            {
+              distance: 7_500,
+              duration: 600,
+              name: "Route 112",
+              ref: "112",
+              geometry: {
+                type: "LineString",
+                coordinates: [
+                  [-72.734, 45.403],
+                  [-72.67, 45.43],
+                ],
+              },
+            },
+          ],
+        },
+        {
+          steps: [
+            {
+              distance: 7_600,
+              duration: 610,
+              name: "Chemin de campagne",
+              geometry: {
+                type: "LineString",
+                coordinates: [
+                  [-72.67, 45.43],
+                  [-72.6, 45.39],
+                  [-72.516, 45.35],
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+} as const;
+
+describe("OsrmRoutingProvider", () => {
+  it("routes every stop on the real-road OSRM endpoint", async () => {
+    const fetcher = mockFetch(SUCCESS_RESPONSE);
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test/osrm",
+      fetcher,
+    );
+
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      waypoints: [{ latitude: 45.43, longitude: -72.67 }],
+      destination: WATERLOO,
+    });
+
+    const requestUrl = fetcher.mock.calls[0]?.[0];
+    expect(requestUrl).toBeInstanceOf(URL);
+    const url = new URL(String(requestUrl));
+    expect(url.pathname).toBe(
+      "/osrm/route/v1/driving/-72.734000,45.403000;-72.670000,45.430000;-72.516000,45.350000",
+    );
+    expect(url.searchParams.get("steps")).toBe("true");
+    expect(url.searchParams.get("geometries")).toBe("geojson");
+    expect(url.searchParams.get("overview")).toBe("full");
+
+    expect(result.geometry.coordinates).toHaveLength(4);
+    expect(result.distanceKm).toBe(15.1);
+    expect(result.durationMinutes).toBeCloseTo(20.17, 2);
+    expect(result.segments).toHaveLength(2);
+    expect(result.segments[0]).toMatchObject({
+      roadName: "112 — Route 112",
+      surface: "unknown",
+      distanceKm: 7.5,
+      durationMinutes: 10,
+    });
+  });
+
+  it("asks OSRM to exclude motorways when requested (FR-007)", async () => {
+    const fetcher = mockFetch(SUCCESS_RESPONSE);
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    await provider.calculateRoute({
+      start: GRANBY,
+      destination: WATERLOO,
+      preferences: { avoidHighways: true, avoidUnpaved: false },
+    });
+
+    const url = new URL(String(fetcher.mock.calls[0]?.[0]));
+    expect(url.searchParams.get("exclude")).toBe("motorway");
+  });
+
+  it("maps an OSRM no-route response to the provider-agnostic failure", async () => {
+    const fetcher = mockFetch(
+      { code: "NoRoute", message: "No route found" },
+      400,
+    );
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    await expect(
+      provider.calculateRoute({ start: GRANBY, destination: WATERLOO }),
+    ).rejects.toBeInstanceOf(RoutingKnowledgeError);
+  });
+
+  it("rejects malformed success payloads instead of inventing geometry", async () => {
+    const fetcher = mockFetch({ code: "Ok", routes: [] });
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    await expect(
+      provider.calculateRoute({ start: GRANBY, destination: WATERLOO }),
+    ).rejects.toThrow("Réponse OSRM incomplète");
+  });
+
+  it("requires HTTP(S) for the configured routing endpoint", () => {
+    expect(
+      () => new OsrmRoutingProvider("file:///tmp/osrm"),
+    ).toThrow("HTTP ou HTTPS");
+  });
+});
+
+describe("createRoutingProvider with OSRM", () => {
+  it("creates the real-road adapter when its endpoint is configured", () => {
+    const provider = createRoutingProvider({
+      ROUTING_PROVIDER: "osrm",
+      ROUTING_API_BASE_URL: "https://routing.example.test",
+    });
+
+    expect(provider).toBeInstanceOf(OsrmRoutingProvider);
+  });
+
+  it("fails fast when OSRM has no endpoint", () => {
+    expect(() =>
+      createRoutingProvider({ ROUTING_PROVIDER: "osrm" }),
+    ).toThrow("ROUTING_API_BASE_URL");
+  });
+});
+
+function mockFetch(payload: unknown, status = 200) {
+  return vi.fn<typeof fetch>(async () =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}

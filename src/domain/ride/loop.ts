@@ -37,6 +37,37 @@ export type LoopWaypointSet = {
   waypoints: Coordinates[];
 };
 
+type LoopSeedVertex = {
+  bearingOffsetDeg: number;
+  radiusFactor: number;
+};
+
+type LoopSeedPattern = {
+  /** Leaves room for real roads to be longer than straight seed segments. */
+  perimeterScale: number;
+  vertices: readonly LoopSeedVertex[];
+};
+
+const LOOP_ORIENTATIONS_DEG = [22.5, 112.5, 202.5, 292.5] as const;
+const LOOP_SEED_PATTERNS: readonly LoopSeedPattern[] = [
+  {
+    perimeterScale: 0.72,
+    vertices: [
+      { bearingOffsetDeg: 0, radiusFactor: 1 },
+      { bearingOffsetDeg: 38, radiusFactor: 1.16 },
+      { bearingOffsetDeg: 88, radiusFactor: 0.78 },
+      { bearingOffsetDeg: 132, radiusFactor: 0.92 },
+    ],
+  },
+  {
+    perimeterScale: 0.84,
+    vertices: [
+      { bearingOffsetDeg: 0, radiusFactor: 0.88 },
+      { bearingOffsetDeg: 73, radiusFactor: 1.12 },
+    ],
+  },
+] as const;
+
 /**
  * FR-001 — candidate waypoint rings around the start.
  * The geometric ring is only a seed; the routing provider must snap it to roads.
@@ -45,50 +76,69 @@ export function createLoopWaypointSets(
   start: Coordinates,
   targetDistanceKm: number,
 ): LoopWaypointSet[] {
-  const bearings = [0, 90, 180, 270];
-  const radiusFactors = [1 / 4, 1 / 3];
   const sets: LoopWaypointSet[] = [];
 
-  for (const bearingDeg of bearings) {
-    for (const factor of radiusFactors) {
-      const radiusKm = targetDistanceKm * factor;
-      sets.push({
+  for (const bearingDeg of LOOP_ORIENTATIONS_DEG) {
+    for (const pattern of LOOP_SEED_PATTERNS) {
+      const seed = createAsymmetricWaypoints(
+        start,
         bearingDeg,
-        radiusKm,
-        waypoints: squareWaypoints(start, bearingDeg, radiusKm),
-      });
-      sets.push({
-        bearingDeg,
-        radiusKm,
-        waypoints: triangleWaypoints(start, bearingDeg, radiusKm),
-      });
+        targetDistanceKm,
+        pattern,
+      );
+      sets.push({ bearingDeg, ...seed });
     }
   }
 
   return sets;
 }
 
-function squareWaypoints(
+function createAsymmetricWaypoints(
   start: Coordinates,
   bearingDeg: number,
-  sideKm: number,
-): Coordinates[] {
-  return [
-    offsetCoordinates(start, bearingDeg, sideKm),
-    offsetCoordinates(start, bearingDeg + 45, sideKm * Math.SQRT2),
-    offsetCoordinates(start, bearingDeg + 90, sideKm),
-  ];
+  targetDistanceKm: number,
+  pattern: LoopSeedPattern,
+): Pick<LoopWaypointSet, "radiusKm" | "waypoints"> {
+  const perimeterUnits = normalizedPatternPerimeter(pattern.vertices);
+  const unitKm = (targetDistanceKm * pattern.perimeterScale) / perimeterUnits;
+  const radiiKm = pattern.vertices.map(
+    (vertex) => vertex.radiusFactor * unitKm,
+  );
+
+  return {
+    radiusKm: Math.max(...radiiKm),
+    waypoints: pattern.vertices.map((vertex, index) =>
+      offsetCoordinates(
+        start,
+        bearingDeg + vertex.bearingOffsetDeg,
+        radiiKm[index] ?? unitKm,
+      ),
+    ),
+  };
 }
 
-function triangleWaypoints(
-  start: Coordinates,
-  bearingDeg: number,
-  sideKm: number,
-): Coordinates[] {
-  return [
-    offsetCoordinates(start, bearingDeg, sideKm),
-    offsetCoordinates(start, bearingDeg + 60, sideKm),
+function normalizedPatternPerimeter(vertices: readonly LoopSeedVertex[]): number {
+  const points = [
+    { x: 0, y: 0 },
+    ...vertices.map((vertex) => {
+      const angle = (vertex.bearingOffsetDeg * Math.PI) / 180;
+      return {
+        x: Math.sin(angle) * vertex.radiusFactor,
+        y: Math.cos(angle) * vertex.radiusFactor,
+      };
+    }),
+    { x: 0, y: 0 },
   ];
+
+  let perimeter = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1];
+    const to = points[index];
+    if (from && to) {
+      perimeter += Math.hypot(to.x - from.x, to.y - from.y);
+    }
+  }
+  return perimeter;
 }
 
 export type EvaluatedLoopCandidate = {

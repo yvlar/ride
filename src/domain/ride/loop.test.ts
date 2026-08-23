@@ -96,11 +96,20 @@ function stubLoopEvaluation(input: {
 }
 
 describe("createLoopWaypointSets (FR-001)", () => {
-  it("seeds several non-circular waypoint rings around the start", () => {
+  it("seeds several asymmetric waypoint rings around the start", () => {
     const sets = createLoopWaypointSets(GRANBY, 80);
 
-    expect(sets.length).toBeGreaterThan(8);
-    expect(sets[0]?.waypoints.length).toBeGreaterThanOrEqual(2);
+    expect(sets).toHaveLength(8);
+    expect(sets[0]?.waypoints.length).toBeGreaterThanOrEqual(3);
+    const distances = (sets[0]?.waypoints ?? []).map((point) =>
+      Math.hypot(
+        point.latitude - GRANBY.latitude,
+        point.longitude - GRANBY.longitude,
+      ),
+    );
+    expect(Math.max(...distances) - Math.min(...distances)).toBeGreaterThan(
+      0.01,
+    );
     for (const point of sets[0]?.waypoints ?? []) {
       expect(point.latitude).not.toBeCloseTo(GRANBY.latitude, 4);
     }

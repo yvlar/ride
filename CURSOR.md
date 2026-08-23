@@ -112,9 +112,9 @@ Créer des adaptateurs interchangeables pour :
 - la recherche de points d’intérêt;
 - les tuiles cartographiques.
 
-Le fournisseur de routage par défaut est `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches de la demande, puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’appelle pas de modèle distant.
+Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches de la demande, puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’appelle pas de modèle distant.
 
-`GraphHopper`, `Valhalla` et `OSRM` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
+`OsrmRoutingProvider` (`ROUTING_PROVIDER=osrm`) appelle un service OSRM configuré par `ROUTING_API_BASE_URL` et retourne une géométrie GeoJSON suivant les routes OpenStreetMap. `GraphHopper` et `Valhalla` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
 
 Ne jamais appeler directement le fournisseur de routage depuis un composant React. Tous les appels passent par le serveur et par l’interface `RoutingProvider`.
 
@@ -951,10 +951,12 @@ Le mode simulé doit être évident dans l’environnement de développement et 
 
 ### Phase 4 — Fournisseur réel
 
-- ~~choisir et documenter le fournisseur;~~ **décidé : graphe local `mock` par défaut; RAG optionnel (`ai-rag`) sur le même graphe**;
+- ~~choisir et documenter le fournisseur;~~ **OSRM pour le réseau routier réel; `mock` et `ai-rag` conservés hors ligne**;
+- ~~implémenter un adaptateur de routage sur des routes OpenStreetMap;~~
+- configurer une instance OSRM dédiée ou gérée pour la production;
 - ancrer le RAG sur des arêtes de graphe + retrieval spatial (pas de courbe dilatée);
 - faire remonter l’absence de corridors comme erreur métier (`FR-021`);
-- un moteur OSM/GraphHopper/Valhalla/OSRM ou un LLM distant reste remplaçable plus tard, sans réécrire le domaine.
+- GraphHopper, Valhalla ou un autre moteur reste remplaçable sans réécrire le domaine.
 
 ### Phase 5 — Sauvegarde et export
 
@@ -1030,7 +1032,7 @@ Une tâche n’est terminée que si :
 
 Cursor ne doit pas choisir silencieusement ces éléments :
 
-- fournisseur de routage alternatif (graphe OSM ou LLM distant) et tarification associée — le MVP utilise un graphe local simulé (`mock`, optionnellement indexé en RAG);
+- hébergement OSRM de production, zone OSM couverte, capacité et tarification — le serveur public ne sert qu’à l’évaluation locale;
 - fournisseur de géocodage;
 - fournisseur et licence des tuiles;
 - zones géographiques officiellement prises en charge;
