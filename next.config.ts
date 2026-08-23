@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/maplibre-gl-:file.mjs",
+        source: "/maplibre-gl-worker.js",
         headers: [
           {
             key: "Content-Type",

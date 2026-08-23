@@ -8,6 +8,7 @@ const dest = join(root, "public");
 
 mkdirSync(dest, { recursive: true });
 
-for (const file of ["maplibre-gl-worker.mjs", "maplibre-gl-shared.mjs"]) {
-  copyFileSync(join(dist, file), join(dest, file));
-}
+copyFileSync(
+  join(dist, "maplibre-gl-csp-worker.js"),
+  join(dest, "maplibre-gl-worker.js"),
+);
