@@ -774,7 +774,7 @@ describe("RideRequestForm (FR-014)", () => {
       screen.getByRole("dialog", { name: "Navigation" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByLabelText("Carte du trajet"),
+      screen.queryByRole("region", { name: "Carte du trajet" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));

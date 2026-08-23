@@ -30,6 +30,7 @@ Le MVP doit permettre de :
 - afficher la distance, la durée et les statistiques essentielles;
 - mesurer la répétition des segments d’un itinéraire;
 - demander une autre route sensiblement différente;
+- démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet;
 - sauvegarder localement une ride;
 - exporter un trajet en GPX.
 
