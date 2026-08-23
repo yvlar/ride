@@ -129,4 +129,88 @@ describe("RideMap (FR-013, NFR-001)", () => {
     ).toHaveTextContent("Sens : boucle depuis Granby, QC");
     expect(screen.queryByText(MAP_UNAVAILABLE_MESSAGE)).not.toBeInTheDocument();
   });
+
+  it("does not refit the initial camera after mount (FR-013, NFR-006)", async () => {
+    const setViewModel = vi.fn();
+    const mount = vi.fn(() => ({ destroy: vi.fn(), setViewModel }));
+    const engine: MapEngine = { mount };
+
+    render(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    expect(setViewModel).not.toHaveBeenCalled();
+  });
+
+  it("updates the preview route without remounting the engine (FR-013, FR-026)", async () => {
+    const destroy = vi.fn();
+    const setViewModel = vi.fn();
+    const mount = vi.fn(() => ({ destroy, setViewModel }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = render(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<RideMap route={{ ...loop, id: "loop-2" }} engine={engine} />);
+    await waitFor(() => {
+      expect(setViewModel).toHaveBeenCalled();
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the street map mounted when the preview expands for navigation (FR-013, FR-023)", async () => {
+    const destroy = vi.fn();
+    const setUserLocation = vi.fn();
+    const resize = vi.fn();
+    const setGeolocateEnabled = vi.fn();
+    const mount = vi.fn(() => ({
+      destroy,
+      setUserLocation,
+      resize,
+      setGeolocateEnabled,
+    }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = render(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(setGeolocateEnabled).toHaveBeenCalledWith(true);
+    });
+
+    rerender(
+      <RideMap
+        route={loop}
+        engine={engine}
+        expanded
+        userLocation={{ latitude: 45.4001, longitude: -72.7342 }}
+      />,
+    );
+    await waitFor(() => {
+      expect(setUserLocation).toHaveBeenCalledWith({
+        latitude: 45.4001,
+        longitude: -72.7342,
+      });
+    });
+    expect(setGeolocateEnabled).toHaveBeenCalledWith(false);
+    expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
+      "Sens : boucle depuis Granby, QC",
+    );
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(resize).toHaveBeenCalled();
+    });
+
+    rerender(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(setGeolocateEnabled).toHaveBeenLastCalledWith(true);
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+  });
 });

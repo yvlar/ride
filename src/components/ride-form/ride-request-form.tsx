@@ -147,6 +147,13 @@ export function RideRequestForm({
   const [composedRequest, setComposedRequest] =
     useState<GenerateRideRequest | null>(null);
   const [navigating, setNavigating] = useState(false);
+  const [navUserLocation, setNavUserLocation] = useState<Coordinates | null>(
+    null,
+  );
+  const mapRecenterRef = useRef<() => void>(() => {});
+  const setMapGeolocateEnabledRef = useRef<(enabled: boolean) => void>(
+    () => {},
+  );
   const generationId = useRef(0);
   const startRef = useRef(start);
   const ownedLocationWatch = useMemo(() => createBrowserLocationWatch(), []);
@@ -164,10 +171,16 @@ export function RideRequestForm({
     setGeneratedRoute(null);
     setGenerationError(null);
     setNavigating(false);
+    setNavUserLocation(null);
     setComposedRequest(null);
   }
 
   function startNavigation() {
+    try {
+      setMapGeolocateEnabledRef.current(false);
+    } catch {
+      // Preview GPS teardown must not block the explicit start (FR-023).
+    }
     try {
       locationWatch.start();
     } catch {
@@ -250,7 +263,7 @@ export function RideRequestForm({
   }
 
   return (
-    <Card>
+    <Card className={navigating ? "overflow-visible" : undefined}>
       <CardHeader>
         <CardTitle>Composer la ride</CardTitle>
       </CardHeader>
@@ -562,9 +575,20 @@ export function RideRequestForm({
               className="space-y-2 rounded-lg border border-border px-3 py-3"
             >
               <h2 className="text-base font-medium">Trajet généré</h2>
-              {!navigating ? (
-                <RideMap route={generatedRoute} engine={mapEngine} />
-              ) : null}
+              <div className={navigating ? "fixed inset-0 z-40" : undefined}>
+                <RideMap
+                  route={generatedRoute}
+                  engine={mapEngine}
+                  expanded={navigating}
+                  userLocation={navigating ? navUserLocation : null}
+                  onRecenterReady={(recenter) => {
+                    mapRecenterRef.current = recenter;
+                  }}
+                  onGeolocateReady={(setEnabled) => {
+                    setMapGeolocateEnabledRef.current = setEnabled;
+                  }}
+                />
+              </div>
               <p className="text-sm leading-6">
                 {formatGeneratedDistanceKm(generatedRoute.distanceKm)} ·{" "}
                 {formatGeneratedDuration(generatedRoute.durationMinutes)}
@@ -604,12 +628,17 @@ export function RideRequestForm({
           <NavigationSession
             route={generatedRoute}
             request={composedRequest}
-            onStop={() => setNavigating(false)}
+            renderMap={false}
+            onUserLocation={setNavUserLocation}
+            onRecenter={() => mapRecenterRef.current()}
+            onStop={() => {
+              setNavigating(false);
+              setNavUserLocation(null);
+            }}
             onRouteChange={setGeneratedRoute}
             locationWatch={locationWatch}
             speech={speechEngine}
             recalculate={navigation?.recalculate}
-            mapEngine={navigation?.mapEngine}
             now={navigation?.now}
           />
         ) : null}

@@ -8,6 +8,10 @@ export type MapEngineHandle = {
   destroy: () => void;
   setUserLocation?: (coordinates: Coordinates | null) => void;
   recenter?: () => void;
+  setViewModel?: (viewModel: RideMapViewModel) => void;
+  resize?: () => void;
+  /** Preview GPS (FR-022). False during navigation so only LocationWatch stays (NFR-006). */
+  setGeolocateEnabled?: (enabled: boolean) => void;
 };
 
 export type MapEngineHandlers = {

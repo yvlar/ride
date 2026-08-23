@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Coordinates } from "@/domain/geo/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
 import {
@@ -13,18 +14,58 @@ import { toRideMapViewModel } from "./ride-map-view-model";
 export type RideMapProps = {
   route: GeneratedRideRoute;
   engine?: MapEngine;
+  userLocation?: Coordinates | null;
+  expanded?: boolean;
+  onRecenterReady?: (recenter: () => void) => void;
+  onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
 };
 
-export function RideMap({ route, engine }: RideMapProps) {
+export function RideMap({
+  route,
+  engine,
+  userLocation,
+  expanded = false,
+  onRecenterReady,
+  onGeolocateReady,
+}: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<MapEngineHandle | undefined>(undefined);
+  const viewModelRef = useRef(toRideMapViewModel(route));
+  const onRecenterReadyRef = useRef(onRecenterReady);
+  const onGeolocateReadyRef = useRef(onGeolocateReady);
+  const userLocationRef = useRef(userLocation);
+  const expandedRef = useRef(expanded);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+  const mountedViewModelRef = useRef(viewModel);
+  const hasViewModel = Boolean(viewModel);
+
+  useEffect(() => {
+    viewModelRef.current = viewModel;
+  }, [viewModel]);
+
+  useEffect(() => {
+    onRecenterReadyRef.current = onRecenterReady;
+  }, [onRecenterReady]);
+
+  useEffect(() => {
+    onGeolocateReadyRef.current = onGeolocateReady;
+  }, [onGeolocateReady]);
+
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
+
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !viewModel) {
-      setError(viewModel ? null : MAP_UNAVAILABLE_MESSAGE);
+    const initial = viewModelRef.current;
+    if (!container || !initial) {
+      setError(initial ? null : MAP_UNAVAILABLE_MESSAGE);
       return;
     }
 
@@ -41,7 +82,7 @@ export function RideMap({ route, engine }: RideMapProps) {
         if (cancelled) {
           return;
         }
-        handle = resolved.mount(container, viewModel, {
+        handle = resolved.mount(container, initial, {
           onError: (message) => {
             if (!cancelled) {
               setError(message);
@@ -53,13 +94,56 @@ export function RideMap({ route, engine }: RideMapProps) {
             }
           },
         });
+        handleRef.current = handle;
+        const latest = viewModelRef.current ?? initial;
+        mountedViewModelRef.current = latest;
+        if (latest !== initial) {
+          handle.setViewModel?.(latest);
+        }
+        handle.setUserLocation?.(userLocationRef.current ?? null);
+        handle.setGeolocateEnabled?.(!expandedRef.current);
+        onRecenterReadyRef.current?.(() => handle?.recenter?.());
+        onGeolocateReadyRef.current?.((enabled) => {
+          handle?.setGeolocateEnabled?.(enabled);
+        });
         if (cancelled) {
           handle.destroy();
-          handle = undefined;
+          handleRef.current = undefined;
         }
       } catch {
-        if (!cancelled) {
-          setError(MAP_UNAVAILABLE_MESSAGE);
+        if (cancelled) {
+          return;
+        }
+        try {
+          const fallback = (
+            await import("./lightweight-navigation-map-engine")
+          ).createLightweightNavigationMapEngine();
+          if (cancelled) {
+            return;
+          }
+          handle = fallback.mount(container, initial, {
+            onError: (message) => {
+              if (!cancelled) {
+                setError(message);
+              }
+            },
+          });
+          handleRef.current = handle;
+          const latest = viewModelRef.current ?? initial;
+          mountedViewModelRef.current = latest;
+          if (latest !== initial) {
+            handle.setViewModel?.(latest);
+          }
+          handle.setUserLocation?.(userLocationRef.current ?? null);
+          handle.setGeolocateEnabled?.(!expandedRef.current);
+          onRecenterReadyRef.current?.(() => handle?.recenter?.());
+          onGeolocateReadyRef.current?.((enabled) => {
+            handle?.setGeolocateEnabled?.(enabled);
+          });
+        } catch {
+          if (!cancelled) {
+            setError(MAP_UNAVAILABLE_MESSAGE);
+          }
         }
       }
     })();
@@ -67,12 +151,41 @@ export function RideMap({ route, engine }: RideMapProps) {
     return () => {
       cancelled = true;
       handle?.destroy();
+      if (handleRef.current === handle) {
+        handleRef.current = undefined;
+      }
     };
-  }, [engine, route, viewModel]);
+  }, [engine, hasViewModel]);
+
+  useEffect(() => {
+    if (!viewModel || !handleRef.current) {
+      return;
+    }
+    if (viewModel === mountedViewModelRef.current) {
+      return;
+    }
+    mountedViewModelRef.current = viewModel;
+    handleRef.current.setViewModel?.(viewModel);
+  }, [viewModel]);
+
+  useEffect(() => {
+    handleRef.current?.setUserLocation?.(userLocation ?? null);
+  }, [userLocation]);
+
+  useLayoutEffect(() => {
+    handleRef.current?.setGeolocateEnabled?.(!expanded);
+    const frame = requestAnimationFrame(() => {
+      handleRef.current?.resize?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [expanded]);
 
   return (
-    <section aria-label="Carte du trajet" className="space-y-2">
-      {viewModel ? (
+    <section
+      aria-label="Carte du trajet"
+      className={cn(expanded ? "relative h-full w-full" : "space-y-2")}
+    >
+      {viewModel && !expanded ? (
         <>
           <p className="text-sm leading-6">{viewModel.directionLabel}</p>
           <ul className="space-y-1 text-sm leading-6 text-muted-foreground">
@@ -100,7 +213,10 @@ export function RideMap({ route, engine }: RideMapProps) {
       <div
         ref={containerRef}
         className={cn(
-          "h-64 min-h-64 w-full overflow-hidden rounded-lg border border-border bg-muted",
+          "w-full overflow-hidden bg-muted",
+          expanded
+            ? "h-full min-h-full rounded-none border-0"
+            : "h-64 min-h-64 rounded-lg border border-border",
           error ? "hidden" : undefined,
         )}
       />

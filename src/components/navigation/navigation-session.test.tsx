@@ -96,6 +96,17 @@ function stubSpeech() {
   };
 }
 
+function stubMapEngine() {
+  return {
+    mount: vi.fn(() => ({
+      destroy: vi.fn(),
+      setUserLocation: vi.fn(),
+      recenter: vi.fn(),
+      setViewModel: vi.fn(),
+    })),
+  };
+}
+
 describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
   it("starts and stops a single location watch on mount and unmount", () => {
     const helper = createWatch();
@@ -108,13 +119,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         locationWatch={helper.watch}
         speech={speech}
         recalculate={async () => ({ ok: true, route })}
-        mapEngine={{
-          mount: () => ({
-            destroy: vi.fn(),
-            setUserLocation: vi.fn(),
-            recenter: vi.fn(),
-          }),
-        }}
+        mapEngine={stubMapEngine()}
       />,
     );
 
@@ -132,7 +137,9 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       destroy,
       setUserLocation: vi.fn(),
       recenter: vi.fn(),
+      setViewModel: vi.fn(),
     }));
+    const mapEngine = { mount };
     render(
       <NavigationSession
         route={route}
@@ -141,7 +148,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         locationWatch={watch}
         speech={stubSpeech()}
         recalculate={async () => ({ ok: true, route })}
-        mapEngine={{ mount }}
+        mapEngine={mapEngine}
       />,
     );
 
@@ -181,13 +188,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         locationWatch={watch}
         speech={speech}
         recalculate={async () => ({ ok: true, route })}
-        mapEngine={{
-          mount: () => ({
-            destroy: vi.fn(),
-            setUserLocation: vi.fn(),
-            recenter: vi.fn(),
-          }),
-        }}
+        mapEngine={stubMapEngine()}
       />,
     );
 
@@ -216,13 +217,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         onStop={() => {}}
         locationWatch={createWatch().watch}
         speech={stubSpeech()}
-        mapEngine={{
-          mount: () => ({
-            destroy: vi.fn(),
-            setUserLocation: vi.fn(),
-            recenter: vi.fn(),
-          }),
-        }}
+        mapEngine={stubMapEngine()}
       />,
     );
     expect(screen.getByRole("button", { name: "Muet" })).toHaveClass("min-h-12");
@@ -247,13 +242,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         onStop={() => {}}
         locationWatch={helper.watch}
         speech={stubSpeech()}
-        mapEngine={{
-          mount: () => ({
-            destroy: vi.fn(),
-            setUserLocation: vi.fn(),
-            recenter: vi.fn(),
-          }),
-        }}
+        mapEngine={stubMapEngine()}
       />,
     );
     expect(helper.native).toBe(1);
@@ -277,6 +266,46 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     });
   });
 
+  it("keeps the session up if a GPS tick throws (NFR-006)", async () => {
+    const { watch, emit } = createWatch();
+    const speech = stubSpeech();
+    speech.speak.mockImplementation(() => {
+      throw new Error("speech failed");
+    });
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
+    });
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4002, longitude: -72.6998 },
+        accuracyMeters: 10,
+        recordedAtMs: 2,
+      },
+    });
+    expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
+    expect(screen.getByText(/Tournez à droite/)).toBeInTheDocument();
+  });
+
   it("does not call the network on ordinary GPS ticks (FR-026)", async () => {
     const { watch, emit } = createWatch();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -289,13 +318,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         locationWatch={watch}
         speech={stubSpeech()}
         recalculate={recalculate}
-        mapEngine={{
-          mount: () => ({
-            destroy: vi.fn(),
-            setUserLocation: vi.fn(),
-            recenter: vi.fn(),
-          }),
-        }}
+        mapEngine={stubMapEngine()}
       />,
     );
     emit({
@@ -312,5 +335,48 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(recalculate).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it("can reuse an external street map instead of mounting a second one (FR-013, FR-023)", async () => {
+    const { watch, emit } = createWatch();
+    const onUserLocation = vi.fn();
+    const onRecenter = vi.fn();
+    const mount = vi.fn();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        mapEngine={{ mount }}
+        renderMap={false}
+        onUserLocation={onUserLocation}
+        onRecenter={onRecenter}
+      />,
+    );
+
+    expect(mount).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("region", { name: "Carte de navigation" }),
+    ).not.toBeInTheDocument();
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(onUserLocation).toHaveBeenCalledWith({
+        latitude: 45.4,
+        longitude: -72.7,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
+    expect(onRecenter).toHaveBeenCalledTimes(1);
   });
 });

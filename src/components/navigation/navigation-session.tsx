@@ -15,6 +15,7 @@ import {
 } from "@/domain/navigation/off-route";
 import { decideAnnouncement, emptyVoiceMemory, resetVoiceMemory } from "@/domain/navigation/voice";
 import { formatFrenchInstruction, roadLabel } from "@/domain/navigation/instructions";
+import type { Coordinates } from "@/domain/geo/types";
 import type { GenerateRideRequest, GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
 import { Button } from "@/components/ui/button";
 import { createBrowserLocationWatch } from "@/infrastructure/location/browser-location-watch";
@@ -45,6 +46,9 @@ export type NavigationSessionProps = {
   ) => ReturnType<typeof requestRecalculatedRide>;
   now?: () => number;
   mapEngine?: NavigationMapProps["engine"];
+  renderMap?: boolean;
+  onUserLocation?: (point: Coordinates | null) => void;
+  onRecenter?: () => void;
 };
 
 export function NavigationSession({
@@ -57,6 +61,9 @@ export function NavigationSession({
   recalculate = requestRecalculatedRide,
   now = Date.now,
   mapEngine,
+  renderMap = true,
+  onUserLocation,
+  onRecenter,
 }: NavigationSessionProps) {
   const [currentRoute, setCurrentRoute] = useState(route);
   const [muted, setMuted] = useState(false);
@@ -73,6 +80,8 @@ export function NavigationSession({
   const [recalculating, setRecalculating] = useState(false);
   const [hidden, setHidden] = useState(false);
   const recenterRef = useRef<() => void>(() => {});
+  const onUserLocationRef = useRef(onUserLocation);
+  const onRecenterRef = useRef(onRecenter);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -111,6 +120,12 @@ export function NavigationSession({
   useEffect(() => {
     hiddenRef.current = hidden;
   }, [hidden]);
+  useEffect(() => {
+    onUserLocationRef.current = onUserLocation;
+  }, [onUserLocation]);
+  useEffect(() => {
+    onRecenterRef.current = onRecenter;
+  }, [onRecenter]);
 
   useEffect(() => {
     speechEngine.setMuted(muted);
@@ -191,72 +206,77 @@ export function NavigationSession({
     }
     const watch = locationWatch ?? createBrowserLocationWatch();
     const unsubscribe = watch.subscribe((event) => {
-      if (event.type === "error") {
-        setGpsError(event.error.message);
-        return;
-      }
-      setGpsError(null);
-      setAccuracyMeters(event.fix.accuracyMeters);
-      setUserLocation(event.fix.coordinates);
+      try {
+        if (event.type === "error") {
+          setGpsError(event.error.message);
+          return;
+        }
+        setGpsError(null);
+        setAccuracyMeters(event.fix.accuracyMeters);
+        setUserLocation(event.fix.coordinates);
+        onUserLocationRef.current?.(event.fix.coordinates);
 
-      const active = routeRef.current;
-      const evaluated = evaluateNavigationProgress({
-        fix: event.fix,
-        geometry: active.geometry,
-        steps: active.steps ?? [],
-        totalDistanceKm: active.distanceKm,
-        totalDurationMinutes: active.durationMinutes,
-        previousProgressKm: progressRef.current,
-      });
-      if (!evaluated) {
-        return;
-      }
+        const active = routeRef.current;
+        const evaluated = evaluateNavigationProgress({
+          fix: event.fix,
+          geometry: active.geometry,
+          steps: active.steps ?? [],
+          totalDistanceKm: active.distanceKm,
+          totalDurationMinutes: active.durationMinutes,
+          previousProgressKm: progressRef.current,
+        });
+        if (!evaluated) {
+          return;
+        }
 
-      progressRef.current = evaluated.projection.progressKm;
-      setProgressKm(evaluated.projection.progressKm);
-      setRemainingDistanceKm(evaluated.remainingDistanceKm);
-      setRemainingMinutes(evaluated.remainingDurationMinutes);
-      setArrow(maneuverArrow(evaluated.nextStep));
-      setNextRoad(evaluated.nextStep ? roadLabel(evaluated.nextStep) : undefined);
-      setDistanceToManeuverKm(
-        Number.isFinite(evaluated.distanceToNextManeuverM)
-          ? evaluated.distanceToNextManeuverM / 1_000
-          : 0,
-      );
-      if (evaluated.nextStep) {
-        setInstruction(formatFrenchInstruction(evaluated.nextStep));
-      }
-
-      if (evaluated.lowAccuracy || hiddenRef.current) {
-        return;
-      }
-
-      const announcement = decideAnnouncement({
-        step: evaluated.nextStep,
-        distanceToManeuverM: evaluated.distanceToNextManeuverM,
-        muted: mutedRef.current,
-        memory: voiceRef.current,
-      });
-      voiceRef.current = announcement.memory;
-      if (announcement.speak) {
-        speechEngine.speak(announcement.speak);
-      }
-
-      const off = evaluateOffRoute({
-        distanceToRouteM: evaluated.projection.distanceToRouteM,
-        accuracyMeters: event.fix.accuracyMeters,
-        progressKm: evaluated.projection.progressKm,
-        nowMs: now(),
-        navigating: true,
-        recalculating: recalculatingRef.current,
-        tracker: offRouteRef.current,
-      });
-      offRouteRef.current = off.tracker;
-      if (off.decision.shouldRecalculate) {
-        void runRecalculateRef.current(
-          event.fix.coordinates,
-          evaluated.projection.progressKm,
+        progressRef.current = evaluated.projection.progressKm;
+        setProgressKm(evaluated.projection.progressKm);
+        setRemainingDistanceKm(evaluated.remainingDistanceKm);
+        setRemainingMinutes(evaluated.remainingDurationMinutes);
+        setArrow(maneuverArrow(evaluated.nextStep));
+        setNextRoad(evaluated.nextStep ? roadLabel(evaluated.nextStep) : undefined);
+        setDistanceToManeuverKm(
+          Number.isFinite(evaluated.distanceToNextManeuverM)
+            ? evaluated.distanceToNextManeuverM / 1_000
+            : 0,
         );
+        if (evaluated.nextStep) {
+          setInstruction(formatFrenchInstruction(evaluated.nextStep));
+        }
+
+        if (evaluated.lowAccuracy || hiddenRef.current) {
+          return;
+        }
+
+        const announcement = decideAnnouncement({
+          step: evaluated.nextStep,
+          distanceToManeuverM: evaluated.distanceToNextManeuverM,
+          muted: mutedRef.current,
+          memory: voiceRef.current,
+        });
+        voiceRef.current = announcement.memory;
+        if (announcement.speak) {
+          speechEngine.speak(announcement.speak);
+        }
+
+        const off = evaluateOffRoute({
+          distanceToRouteM: evaluated.projection.distanceToRouteM,
+          accuracyMeters: event.fix.accuracyMeters,
+          progressKm: evaluated.projection.progressKm,
+          nowMs: now(),
+          navigating: true,
+          recalculating: recalculatingRef.current,
+          tracker: offRouteRef.current,
+        });
+        offRouteRef.current = off.tracker;
+        if (off.decision.shouldRecalculate) {
+          void runRecalculateRef.current(
+            event.fix.coordinates,
+            evaluated.projection.progressKm,
+          );
+        }
+      } catch {
+        // NFR-006: a bad GPS tick must not take down the navigation tree.
       }
     });
 
@@ -278,9 +298,13 @@ export function NavigationSession({
       role="dialog"
       aria-modal="true"
       aria-label="Navigation"
-      className="fixed inset-0 z-50 flex h-dvh flex-col bg-background text-foreground"
+      className={
+        renderMap
+          ? "fixed inset-0 z-50 flex h-dvh flex-col bg-background text-foreground"
+          : "pointer-events-none fixed inset-0 z-50 flex h-dvh flex-col bg-transparent text-foreground"
+      }
     >
-      <header className="flex items-start gap-3 border-b border-border px-4 py-3">
+      <header className="pointer-events-auto flex items-start gap-3 border-b border-border bg-background px-4 py-3">
         <p
           aria-hidden="true"
           className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary text-2xl text-primary-foreground"
@@ -296,16 +320,20 @@ export function NavigationSession({
         </div>
       </header>
 
-      <NavigationMap
-        route={currentRoute}
-        userLocation={userLocation}
-        engine={mapEngine}
-        onRecenterReady={(recenter) => {
-          recenterRef.current = recenter;
-        }}
-      />
+      {renderMap ? (
+        <NavigationMap
+          route={currentRoute}
+          userLocation={userLocation}
+          engine={mapEngine}
+          onRecenterReady={(recenter) => {
+            recenterRef.current = recenter;
+          }}
+        />
+      ) : (
+        <div className="min-h-0 flex-1 bg-transparent" aria-hidden="true" />
+      )}
 
-      <footer className="space-y-3 border-t border-border px-4 py-3">
+      <footer className="pointer-events-auto space-y-3 border-t border-border bg-background px-4 py-3">
         <p className="text-sm leading-6 text-muted-foreground">
           {formatDistanceLabel(remainingDistanceKm)} restants ·{" "}
           {formatDurationLabel(remainingMinutes)} · ETA {formatEta(now(), remainingMinutes)}
@@ -353,7 +381,10 @@ export function NavigationSession({
             type="button"
             variant="outline"
             className="min-h-12 min-w-12 text-base"
-            onClick={() => recenterRef.current()}
+            onClick={() => {
+              onRecenterRef.current?.();
+              recenterRef.current();
+            }}
           >
             Recentrer
           </Button>

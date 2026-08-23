@@ -29,7 +29,7 @@ export type MapLibreEngineOptions = {
 export function createMapLibreEngine(
   options: MapLibreEngineOptions = {},
 ): MapEngine {
-  const geolocateEnabled = options.geolocate !== false;
+  const geolocateAllowed = options.geolocate !== false;
 
   return {
     mount(container, viewModel, { onError, onWarning }): MapEngineHandle {
@@ -39,7 +39,8 @@ export function createMapLibreEngine(
       let disposed = false;
 
       ensureMapLibreWorkerUrl();
-      const camera = mapCameraFrame(viewModel.bounds);
+      let camera = mapCameraFrame(viewModel.bounds);
+      let currentViewModel = viewModel;
 
       try {
         map = new MapLibreMap({
@@ -74,7 +75,10 @@ export function createMapLibreEngine(
         };
       }
 
-      if (geolocateEnabled) {
+      function attachGeolocateControl() {
+        if (!map || disposed || geolocateControl || !geolocateAllowed) {
+          return;
+        }
         geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
         map.addControl(geolocateControl, "top-right");
         labelGeolocateControl(container);
@@ -85,6 +89,24 @@ export function createMapLibreEngine(
         });
       }
 
+      function detachGeolocateControl() {
+        if (!geolocateControl) {
+          return;
+        }
+        if (map) {
+          try {
+            map.removeControl(geolocateControl);
+          } catch {
+            geolocateControl.onRemove();
+          }
+        } else {
+          geolocateControl.onRemove();
+        }
+        geolocateControl = undefined;
+      }
+
+      attachGeolocateControl();
+
       map.on("error", () => {
         if (disposed || !map || map.isStyleLoaded()) {
           return;
@@ -92,48 +114,78 @@ export function createMapLibreEngine(
         onError(MAP_UNAVAILABLE_MESSAGE);
       });
 
+      function renderRoute(
+        next: typeof viewModel,
+        options: { fitCamera?: boolean } = {},
+      ) {
+        currentViewModel = next;
+        camera = mapCameraFrame(next.bounds);
+        if (!map || disposed || !map.isStyleLoaded()) {
+          return;
+        }
+
+        try {
+          const source = map.getSource("ride-route");
+          const data = {
+            type: "Feature" as const,
+            properties: {},
+            geometry: next.geometry,
+          };
+          if (source && "setData" in source && typeof source.setData === "function") {
+            source.setData(data);
+          } else {
+            map.addSource("ride-route", {
+              type: "geojson",
+              data,
+            });
+            map.addLayer({
+              id: "ride-route-line",
+              type: "line",
+              source: "ride-route",
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#38bdf8",
+                "line-width": 4,
+              },
+            });
+          }
+
+          for (const marker of markers) {
+            marker.remove();
+          }
+          markers.length = 0;
+          markers.push(placeMarker(map, next.start.label, next.start.coordinates));
+          if (next.destination) {
+            markers.push(
+              placeMarker(
+                map,
+                next.destination.label,
+                next.destination.coordinates,
+              ),
+            );
+          }
+          for (const arrow of next.directionArrows) {
+            markers.push(placeArrow(map, arrow));
+          }
+
+          // The constructor already frames the first view. A second fitBounds
+          // during load can throw inside MapLibre's camera ease (NFR-006).
+          if (options.fitCamera) {
+            map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+          }
+        } catch {
+          onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+        }
+      }
+
       map.on("load", () => {
         if (disposed || !map) {
           return;
         }
-
-        map.addSource("ride-route", {
-          type: "geojson",
-          data: {
-            type: "Feature",
-            properties: {},
-            geometry: viewModel.geometry,
-          },
-        });
-        map.addLayer({
-          id: "ride-route-line",
-          type: "line",
-          source: "ride-route",
-          layout: {
-            "line-cap": "round",
-            "line-join": "round",
-          },
-          paint: {
-            "line-color": "#38bdf8",
-            "line-width": 4,
-          },
-        });
-
-        markers.push(placeMarker(map, viewModel.start.label, viewModel.start.coordinates));
-        if (viewModel.destination) {
-          markers.push(
-            placeMarker(
-              map,
-              viewModel.destination.label,
-              viewModel.destination.coordinates,
-            ),
-          );
-        }
-        for (const arrow of viewModel.directionArrows) {
-          markers.push(placeArrow(map, arrow));
-        }
-
-        map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+        renderRoute(currentViewModel);
       });
 
       let userMarker: Marker | undefined;
@@ -141,14 +193,7 @@ export function createMapLibreEngine(
       return {
         destroy() {
           disposed = true;
-          if (map && geolocateControl) {
-            try {
-              map.removeControl(geolocateControl);
-            } catch {
-              geolocateControl.onRemove();
-            }
-          }
-          geolocateControl = undefined;
+          detachGeolocateControl();
           userMarker?.remove();
           userMarker = undefined;
           for (const marker of markers) {
@@ -159,39 +204,73 @@ export function createMapLibreEngine(
           map = undefined;
           removeMapSafely(mapToRemove);
         },
+        setViewModel(next) {
+          if (disposed) {
+            return;
+          }
+          renderRoute(next, { fitCamera: true });
+        },
+        resize() {
+          if (!map || disposed) {
+            return;
+          }
+          try {
+            map.resize();
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+          }
+        },
         setUserLocation(coordinates) {
           if (!map || disposed) {
             return;
           }
-          if (!coordinates) {
-            userMarker?.remove();
-            userMarker = undefined;
+          try {
+            if (!coordinates) {
+              userMarker?.remove();
+              userMarker = undefined;
+              return;
+            }
+            if (!userMarker) {
+              const element = document.createElement("div");
+              element.setAttribute("aria-label", "Position actuelle");
+              element.style.width = "16px";
+              element.style.height = "16px";
+              element.style.borderRadius = "999px";
+              element.style.background = "#38bdf8";
+              element.style.border = "2px solid white";
+              userMarker = new Marker({ element, anchor: "center" }).addTo(map);
+            }
+            userMarker.setLngLat(coordinatesToPosition(coordinates));
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+          }
+        },
+        setGeolocateEnabled(enabled) {
+          if (disposed) {
             return;
           }
-          if (!userMarker) {
-            const element = document.createElement("div");
-            element.setAttribute("aria-label", "Position actuelle");
-            element.style.width = "16px";
-            element.style.height = "16px";
-            element.style.borderRadius = "999px";
-            element.style.background = "#38bdf8";
-            element.style.border = "2px solid white";
-            userMarker = new Marker({ element, anchor: "center" }).addTo(map);
+          if (enabled) {
+            attachGeolocateControl();
+            return;
           }
-          userMarker.setLngLat(coordinatesToPosition(coordinates));
+          detachGeolocateControl();
         },
         recenter() {
           if (!map || disposed) {
             return;
           }
-          if (userMarker) {
-            map.easeTo({
-              center: userMarker.getLngLat(),
-              duration: 400,
-            });
-            return;
+          try {
+            if (userMarker) {
+              map.easeTo({
+                center: userMarker.getLngLat(),
+                duration: 400,
+              });
+              return;
+            }
+            map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
-          map.fitBounds(camera.bounds, camera.fitBoundsOptions);
         },
       };
     },
