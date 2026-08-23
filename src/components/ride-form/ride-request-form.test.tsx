@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "@/components/map/geolocate-control-options";
 import type { Place } from "@/domain/geo/types";
+import { CURRENT_POSITION_FALLBACK_LABEL } from "@/infrastructure/geocoding/labels";
+import { CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE } from "./reverse-geocode-place";
 import {
   AVAILABLE_DURATION_HINT,
   AVAILABLE_DURATION_POSITIVE_MESSAGE,
@@ -118,6 +121,84 @@ function renderForm(props: Partial<RideRequestFormProps> = {}) {
 }
 
 describe("RideRequestForm (FR-014)", () => {
+  it("does not request GPS automatically on load (FR-017, FR-022)", () => {
+    const requestCoordinates = vi.fn();
+    renderForm({ requestCoordinates, reversePlace: vi.fn() });
+
+    expect(screen.getByRole("button", { name: "Ma position" })).toBeEnabled();
+    expect(requestCoordinates).not.toHaveBeenCalled();
+  });
+
+  it("fills the start field with the reverse-geocoded address (FR-017)", async () => {
+    const coordinates = { latitude: 45.4001, longitude: -72.7342 };
+    const onRequestComposed = vi.fn();
+    renderForm({
+      onRequestComposed,
+      requestCoordinates: async () => coordinates,
+      reversePlace: async () => ({
+        label: "12 Rue Principale, Granby",
+        coordinates,
+      }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ma position" }));
+
+    expect(
+      await screen.findByText("Lieu sélectionné : 12 Rue Principale, Granby"),
+    ).toBeInTheDocument();
+    fireEvent.change(targetDistanceField(), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(onRequestComposed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start: {
+            label: "12 Rue Principale, Granby",
+            coordinates,
+          },
+        }),
+      );
+    });
+  });
+
+  it("keeps the current position when reverse geocoding fails (FR-017)", async () => {
+    const coordinates = { latitude: 45.4001, longitude: -72.7342 };
+    const onRequestComposed = vi.fn();
+    renderForm({
+      onRequestComposed,
+      requestCoordinates: async () => coordinates,
+      reversePlace: async () => {
+        throw new Error("unavailable");
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ma position" }));
+
+    expect(
+      await screen.findByText(`Lieu sélectionné : ${CURRENT_POSITION_FALLBACK_LABEL}`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE),
+    ).toBeInTheDocument();
+
+    fireEvent.change(targetDistanceField(), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(onRequestComposed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start: {
+            label: CURRENT_POSITION_FALLBACK_LABEL,
+            coordinates,
+          },
+        }),
+      );
+    });
+    expect(
+      screen.getByRole("region", { name: "Trajet généré" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows the selected start address on the composition screen (FR-017)", async () => {
     renderForm();
 
@@ -269,6 +350,33 @@ describe("RideRequestForm (FR-014)", () => {
       "Certains segments ont une surface inconnue.",
     );
     expect(await screen.findByText(MAP_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
+    expect(generated).toHaveTextContent("198.4 km");
+  });
+
+  it("keeps textual results when GPS tracking fails (FR-022)", async () => {
+    const mapEngine: MapEngine = {
+      mount: (_container, _viewModel, { onWarning }) => {
+        onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);
+        return { destroy() {} };
+      },
+    };
+    renderForm({ mapEngine });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    const generated = await screen.findByRole("region", { name: "Trajet généré" });
+    expect(generated).toHaveTextContent("198.4 km");
+    expect(generated).toHaveTextContent("150 min");
+    expect(generated).toHaveTextContent(
+      "Certains segments ont une surface inconnue.",
+    );
+    expect(
+      await screen.findByText(GPS_TRACKING_UNAVAILABLE_MESSAGE),
+    ).toBeInTheDocument();
     expect(generated).toHaveTextContent("198.4 km");
   });
 
