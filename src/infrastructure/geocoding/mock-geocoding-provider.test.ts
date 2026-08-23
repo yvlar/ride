@@ -23,13 +23,19 @@ describe("MockGeocodingProvider (FR-017)", () => {
     await expect(mockGeocodingProvider.search("g", "fr")).resolves.toEqual([]);
   });
 
-  it("labels reverse geocoding as the current position", async () => {
-    const place = await mockGeocodingProvider.reverse(
-      { latitude: 45.4, longitude: -72.73 },
-      "fr",
-    );
+  it("labels a nearby reverse lookup with the closest known place", async () => {
+    const coordinates = { latitude: 45.4, longitude: -72.73 };
+    const place = await mockGeocodingProvider.reverse(coordinates, "fr");
+
+    expect(place.label).toBe("Granby, QC");
+    expect(place.coordinates).toEqual(coordinates);
+  });
+
+  it("falls back to the current-position label far from known places", async () => {
+    const coordinates = { latitude: 0, longitude: 0 };
+    const place = await mockGeocodingProvider.reverse(coordinates, "fr");
 
     expect(place.label).toBe("Position actuelle");
-    expect(place.coordinates).toEqual({ latitude: 45.4, longitude: -72.73 });
+    expect(place.coordinates).toEqual(coordinates);
   });
 });

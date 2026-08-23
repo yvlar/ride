@@ -1,5 +1,7 @@
+import { haversineKm } from "@/domain/geo/distance";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { GeocodingProvider } from "@/infrastructure/geocoding/geocoding-provider";
+import { CURRENT_POSITION_FALLBACK_LABEL } from "@/infrastructure/geocoding/labels";
 
 const MOCK_PLACES: Place[] = [
   { label: "Granby, QC", coordinates: { latitude: 45.4001, longitude: -72.7342 } },
@@ -26,6 +28,7 @@ const MOCK_PLACES: Place[] = [
 
 const MIN_QUERY_LENGTH = 2;
 const MAX_RESULTS = 8;
+const NEAREST_PLACE_MAX_KM = 30;
 
 function normalize(value: string): string {
   return value
@@ -50,11 +53,25 @@ export class MockGeocodingProvider implements GeocodingProvider {
 
   async reverse(coordinates: Coordinates, locale: string): Promise<Place> {
     void locale;
+    const nearest = nearestMockPlace(coordinates);
     return {
-      label: "Position actuelle",
+      label: nearest?.label ?? CURRENT_POSITION_FALLBACK_LABEL,
       coordinates,
     };
   }
+}
+
+function nearestMockPlace(coordinates: Coordinates): Place | undefined {
+  return MOCK_PLACES.reduce<{ place?: Place; distanceKm: number }>(
+    (best, place) => {
+      const distanceKm = haversineKm(coordinates, place.coordinates);
+      if (distanceKm > NEAREST_PLACE_MAX_KM || distanceKm >= best.distanceKm) {
+        return best;
+      }
+      return { place, distanceKm };
+    },
+    { distanceKm: Number.POSITIVE_INFINITY },
+  ).place;
 }
 
 export const mockGeocodingProvider = new MockGeocodingProvider();
