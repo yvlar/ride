@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Coordinates } from "@/domain/geo/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ export type RideMapProps = {
   userLocation?: Coordinates | null;
   expanded?: boolean;
   onRecenterReady?: (recenter: () => void) => void;
+  onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
 };
 
 export function RideMap({
@@ -25,12 +26,15 @@ export function RideMap({
   userLocation,
   expanded = false,
   onRecenterReady,
+  onGeolocateReady,
 }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
   const viewModelRef = useRef(toRideMapViewModel(route));
   const onRecenterReadyRef = useRef(onRecenterReady);
+  const onGeolocateReadyRef = useRef(onGeolocateReady);
   const userLocationRef = useRef(userLocation);
+  const expandedRef = useRef(expanded);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
@@ -44,6 +48,14 @@ export function RideMap({
   useEffect(() => {
     onRecenterReadyRef.current = onRecenterReady;
   }, [onRecenterReady]);
+
+  useEffect(() => {
+    onGeolocateReadyRef.current = onGeolocateReady;
+  }, [onGeolocateReady]);
+
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
 
   useEffect(() => {
     userLocationRef.current = userLocation;
@@ -89,7 +101,11 @@ export function RideMap({
           handle.setViewModel?.(latest);
         }
         handle.setUserLocation?.(userLocationRef.current ?? null);
+        handle.setGeolocateEnabled?.(!expandedRef.current);
         onRecenterReadyRef.current?.(() => handle?.recenter?.());
+        onGeolocateReadyRef.current?.((enabled) => {
+          handle?.setGeolocateEnabled?.(enabled);
+        });
         if (cancelled) {
           handle.destroy();
           handleRef.current = undefined;
@@ -113,8 +129,17 @@ export function RideMap({
             },
           });
           handleRef.current = handle;
+          const latest = viewModelRef.current ?? initial;
+          mountedViewModelRef.current = latest;
+          if (latest !== initial) {
+            handle.setViewModel?.(latest);
+          }
           handle.setUserLocation?.(userLocationRef.current ?? null);
+          handle.setGeolocateEnabled?.(!expandedRef.current);
           onRecenterReadyRef.current?.(() => handle?.recenter?.());
+          onGeolocateReadyRef.current?.((enabled) => {
+            handle?.setGeolocateEnabled?.(enabled);
+          });
         } catch {
           if (!cancelled) {
             setError(MAP_UNAVAILABLE_MESSAGE);
@@ -147,7 +172,8 @@ export function RideMap({
     handleRef.current?.setUserLocation?.(userLocation ?? null);
   }, [userLocation]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    handleRef.current?.setGeolocateEnabled?.(!expanded);
     const frame = requestAnimationFrame(() => {
       handleRef.current?.resize?.();
     });

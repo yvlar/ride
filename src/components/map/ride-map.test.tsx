@@ -165,12 +165,21 @@ describe("RideMap (FR-013, NFR-001)", () => {
     const destroy = vi.fn();
     const setUserLocation = vi.fn();
     const resize = vi.fn();
-    const mount = vi.fn(() => ({ destroy, setUserLocation, resize }));
+    const setGeolocateEnabled = vi.fn();
+    const mount = vi.fn(() => ({
+      destroy,
+      setUserLocation,
+      resize,
+      setGeolocateEnabled,
+    }));
     const engine: MapEngine = { mount };
 
     const { rerender } = render(<RideMap route={loop} engine={engine} />);
     await waitFor(() => {
       expect(mount).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(setGeolocateEnabled).toHaveBeenCalledWith(true);
     });
 
     rerender(
@@ -187,6 +196,7 @@ describe("RideMap (FR-013, NFR-001)", () => {
         longitude: -72.7342,
       });
     });
+    expect(setGeolocateEnabled).toHaveBeenCalledWith(false);
     expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
       "Sens : boucle depuis Granby, QC",
     );
@@ -195,5 +205,12 @@ describe("RideMap (FR-013, NFR-001)", () => {
     await waitFor(() => {
       expect(resize).toHaveBeenCalled();
     });
+
+    rerender(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(setGeolocateEnabled).toHaveBeenLastCalledWith(true);
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
   });
 });

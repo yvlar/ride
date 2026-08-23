@@ -122,16 +122,86 @@ describe("geolocation watch probe (FR-022, FR-023, NFR-006)", () => {
     appendFileSync(
       "/opt/cursor/logs/debug.log",
       `${JSON.stringify({
-        id: `log_${Date.now()}_summary`,
+        id: `log_${Date.now()}_hazard`,
         timestamp: Date.now(),
         hypothesisId: "B",
-        location: "geolocation-watch-probe.test.ts:summary",
-        message: "dual-watch confirmation",
+        location: "geolocation-watch-probe.test.ts:hazard",
+        message: "dual-watch still happens without teardown",
         data: {
           afterPreview,
           afterNavigation,
           locationWatchNative: locationWatch.activeNativeWatches(),
           secondWatchOpened: afterNavigation.outstandingCount >= 2,
+        },
+      })}\n`,
+    );
+  });
+
+  it("leaves one native watch when GeolocateControl is torn down before LocationWatch.start (FR-022, FR-023, NFR-006)", async () => {
+    stubBrowserGeolocation();
+    installGeolocationWatchProbe();
+    resetGeolocationWatchProbe();
+
+    const control = new GeolocateControl({
+      ...RIDE_GEOLOCATE_CONTROL_OPTIONS,
+      showUserLocation: false,
+      showAccuracyCircle: false,
+    });
+    const map = fakeMap();
+    control.onAdd(map as never);
+    await vi.waitFor(() => {
+      expect(
+        (control as unknown as { _setup?: boolean })._setup,
+      ).toBe(true);
+    });
+    expect(control.trigger()).toBe(true);
+    expect(getGeolocationWatchSnapshot().outstandingCount).toBe(1);
+
+    control.onRemove();
+    const afterTeardown = getGeolocationWatchSnapshot();
+    // #region agent log
+    writeGeolocationWatchLog({
+      hypothesisId: "C",
+      location: "geolocation-watch-probe.test.ts:afterTeardown",
+      message: "after GeolocateControl.onRemove",
+      data: afterTeardown,
+    });
+    // #endregion
+
+    const locationWatch = createBrowserLocationWatch();
+    locationWatch.start();
+    const afterNavigation = getGeolocationWatchSnapshot();
+    // #region agent log
+    writeGeolocationWatchLog({
+      hypothesisId: "B",
+      location: "geolocation-watch-probe.test.ts:afterTeardownThenStart",
+      message: "after LocationWatch.start with preview geolocate removed",
+      data: {
+        ...afterNavigation,
+        locationWatchNative: locationWatch.activeNativeWatches(),
+      },
+    });
+    // #endregion
+
+    expect(afterTeardown.outstandingCount).toBe(0);
+    expect(afterTeardown.clearWatchCalls).toBeGreaterThanOrEqual(1);
+    expect(afterNavigation.outstandingCount).toBe(1);
+    expect(afterNavigation.sources).toEqual(["location-watch"]);
+    expect(locationWatch.activeNativeWatches()).toBe(1);
+
+    appendFileSync(
+      "/opt/cursor/logs/debug.log",
+      `${JSON.stringify({
+        id: `log_${Date.now()}_fix`,
+        timestamp: Date.now(),
+        hypothesisId: "C",
+        location: "geolocation-watch-probe.test.ts:fix",
+        message: "single-watch after teardown",
+        data: {
+          afterTeardown,
+          afterNavigation,
+          locationWatchNative: locationWatch.activeNativeWatches(),
+          singleWatch: afterNavigation.outstandingCount === 1,
         },
       })}\n`,
     );

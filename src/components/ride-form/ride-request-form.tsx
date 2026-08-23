@@ -156,6 +156,9 @@ export function RideRequestForm({
     null,
   );
   const mapRecenterRef = useRef<() => void>(() => {});
+  const setMapGeolocateEnabledRef = useRef<(enabled: boolean) => void>(
+    () => {},
+  );
   const generationId = useRef(0);
   const startRef = useRef(start);
   const ownedLocationWatch = useMemo(() => createBrowserLocationWatch(), []);
@@ -179,6 +182,11 @@ export function RideRequestForm({
 
   function startNavigation() {
     installGeolocationWatchProbe();
+    try {
+      setMapGeolocateEnabledRef.current(false);
+    } catch {
+      // Preview GPS teardown must not block the explicit start (FR-023).
+    }
     try {
       locationWatch.start();
     } catch {
@@ -592,6 +600,9 @@ export function RideRequestForm({
                   userLocation={navigating ? navUserLocation : null}
                   onRecenterReady={(recenter) => {
                     mapRecenterRef.current = recenter;
+                  }}
+                  onGeolocateReady={(setEnabled) => {
+                    setMapGeolocateEnabledRef.current = setEnabled;
                   }}
                 />
               </div>

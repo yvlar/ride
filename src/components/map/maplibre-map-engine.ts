@@ -34,7 +34,7 @@ export type MapLibreEngineOptions = {
 export function createMapLibreEngine(
   options: MapLibreEngineOptions = {},
 ): MapEngine {
-  const geolocateEnabled = options.geolocate !== false;
+  const geolocateAllowed = options.geolocate !== false;
 
   return {
     mount(container, viewModel, { onError, onWarning }): MapEngineHandle {
@@ -80,29 +80,60 @@ export function createMapLibreEngine(
         };
       }
 
-      if (geolocateEnabled) {
+      function attachGeolocateControl() {
+        if (!map || disposed || geolocateControl || !geolocateAllowed) {
+          return;
+        }
         installGeolocationWatchProbe();
         geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
         map.addControl(geolocateControl, "top-right");
         labelGeolocateControl(container);
-        // #region agent log
-        writeGeolocationWatchLog({
-          hypothesisId: "A",
-          location: "maplibre-map-engine.ts:addGeolocateControl",
-          message: "GeolocateControl added (not yet watching)",
-          data: {
-            geolocateEnabled,
-            trackUserLocation: RIDE_GEOLOCATE_CONTROL_OPTIONS.trackUserLocation,
-            probe: getGeolocationWatchSnapshot(),
-          },
-        });
-        // #endregion
         geolocateControl.on("error", () => {
           if (!disposed) {
             onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);
           }
         });
+        // #region agent log
+        writeGeolocationWatchLog({
+          hypothesisId: "A",
+          location: "maplibre-map-engine.ts:attachGeolocateControl",
+          message: "GeolocateControl added (not yet watching)",
+          data: {
+            geolocateAllowed,
+            trackUserLocation: RIDE_GEOLOCATE_CONTROL_OPTIONS.trackUserLocation,
+            probe: getGeolocationWatchSnapshot(),
+          },
+        });
+        // #endregion
       }
+
+      function detachGeolocateControl() {
+        if (!geolocateControl) {
+          return;
+        }
+        if (map) {
+          try {
+            map.removeControl(geolocateControl);
+          } catch {
+            geolocateControl.onRemove();
+          }
+        } else {
+          geolocateControl.onRemove();
+        }
+        geolocateControl = undefined;
+        // #region agent log
+        writeGeolocationWatchLog({
+          hypothesisId: "C",
+          location: "maplibre-map-engine.ts:detachGeolocateControl",
+          message: "GeolocateControl torn down for navigation",
+          data: {
+            probe: getGeolocationWatchSnapshot(),
+          },
+        });
+        // #endregion
+      }
+
+      attachGeolocateControl();
 
       map.on("error", () => {
         if (disposed || !map || map.isStyleLoaded()) {
@@ -190,14 +221,7 @@ export function createMapLibreEngine(
       return {
         destroy() {
           disposed = true;
-          if (map && geolocateControl) {
-            try {
-              map.removeControl(geolocateControl);
-            } catch {
-              geolocateControl.onRemove();
-            }
-          }
-          geolocateControl = undefined;
+          detachGeolocateControl();
           userMarker?.remove();
           userMarker = undefined;
           for (const marker of markers) {
@@ -248,6 +272,16 @@ export function createMapLibreEngine(
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
+        },
+        setGeolocateEnabled(enabled) {
+          if (disposed) {
+            return;
+          }
+          if (enabled) {
+            attachGeolocateControl();
+            return;
+          }
+          detachGeolocateControl();
         },
         recenter() {
           if (!map || disposed) {

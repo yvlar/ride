@@ -150,6 +150,7 @@ export function createLightweightNavigationMapEngine(): MapEngine {
           updateFollowView();
         },
         resize() {},
+        setGeolocateEnabled() {},
       };
     },
   };

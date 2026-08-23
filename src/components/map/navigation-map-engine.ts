@@ -71,6 +71,9 @@ export function createNavigationMapEngine(
         resize() {
           handle.resize?.();
         },
+        setGeolocateEnabled(enabled) {
+          handle.setGeolocateEnabled?.(enabled);
+        },
       };
     },
   };

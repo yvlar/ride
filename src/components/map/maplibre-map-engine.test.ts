@@ -221,6 +221,51 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     expect(addControl).not.toHaveBeenCalled();
   });
 
+  it("tears down GeolocateControl without remounting and restores it without trigger (FR-022, FR-023, NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine().mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    expect(addControl).toHaveBeenCalledTimes(1);
+    const first = addControl.mock.calls[0]?.[0] as InstanceType<
+      typeof FakeGeolocateControl
+    >;
+    expect(first.trigger).not.toHaveBeenCalled();
+
+    handle.setGeolocateEnabled?.(false);
+    expect(removeControl).toHaveBeenCalledTimes(1);
+    expect(removeControl.mock.calls[0]?.[0]).toBe(first);
+    expect(mapRemove).not.toHaveBeenCalled();
+
+    handle.setGeolocateEnabled?.(false);
+    expect(removeControl).toHaveBeenCalledTimes(1);
+
+    handle.setGeolocateEnabled?.(true);
+    expect(addControl).toHaveBeenCalledTimes(2);
+    const restored = addControl.mock.calls[1]?.[0] as InstanceType<
+      typeof FakeGeolocateControl
+    >;
+    expect(restored).toBeInstanceOf(FakeGeolocateControl);
+    expect(restored).not.toBe(first);
+    expect(restored.trigger).not.toHaveBeenCalled();
+    expect(mapRemove).not.toHaveBeenCalled();
+  });
+
+  it("does not add a GeolocateControl when the engine opted out (FR-023, NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setGeolocateEnabled?.(true);
+    expect(addControl).not.toHaveBeenCalled();
+  });
+
   it("reports a GPS error as a warning without treating the map as unavailable", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const onError = vi.fn();
