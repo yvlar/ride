@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
 import {
+  browserPlatform,
+  prefersLightweightNavigationMap,
+} from "./browser-map-platform";
+import {
   MAP_UNAVAILABLE_MESSAGE,
   type MapEngine,
   type MapEngineHandle,
@@ -17,14 +21,22 @@ export type RideMapProps = {
 
 export function RideMap({ route, engine }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<MapEngineHandle | undefined>(undefined);
+  const viewModelRef = useRef(toRideMapViewModel(route));
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+  const hasViewModel = Boolean(viewModel);
+
+  useEffect(() => {
+    viewModelRef.current = viewModel;
+  }, [viewModel]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !viewModel) {
-      setError(viewModel ? null : MAP_UNAVAILABLE_MESSAGE);
+    const initial = viewModelRef.current;
+    if (!container || !initial) {
+      setError(initial ? null : MAP_UNAVAILABLE_MESSAGE);
       return;
     }
 
@@ -37,11 +49,14 @@ export function RideMap({ route, engine }: RideMapProps) {
       try {
         const resolved =
           engine ??
-          (await import("./maplibre-map-engine")).createMapLibreEngine();
+          (prefersLightweightNavigationMap(browserPlatform())
+            ? (await import("./lightweight-navigation-map-engine"))
+                .createLightweightNavigationMapEngine()
+            : (await import("./maplibre-map-engine")).createMapLibreEngine());
         if (cancelled) {
           return;
         }
-        handle = resolved.mount(container, viewModel, {
+        handle = resolved.mount(container, initial, {
           onError: (message) => {
             if (!cancelled) {
               setError(message);
@@ -53,9 +68,14 @@ export function RideMap({ route, engine }: RideMapProps) {
             }
           },
         });
+        handleRef.current = handle;
+        const latest = viewModelRef.current;
+        if (latest) {
+          handle.setViewModel?.(latest);
+        }
         if (cancelled) {
           handle.destroy();
-          handle = undefined;
+          handleRef.current = undefined;
         }
       } catch {
         if (!cancelled) {
@@ -67,8 +87,18 @@ export function RideMap({ route, engine }: RideMapProps) {
     return () => {
       cancelled = true;
       handle?.destroy();
+      if (handleRef.current === handle) {
+        handleRef.current = undefined;
+      }
     };
-  }, [engine, route, viewModel]);
+  }, [engine, hasViewModel]);
+
+  useEffect(() => {
+    if (!viewModel) {
+      return;
+    }
+    handleRef.current?.setViewModel?.(viewModel);
+  }, [viewModel]);
 
   return (
     <section aria-label="Carte du trajet" className="space-y-2">

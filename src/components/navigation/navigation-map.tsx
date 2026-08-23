@@ -31,8 +31,19 @@ export function NavigationMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<NavigationMapHandle | undefined>(undefined);
   const onRecenterReadyRef = useRef(onRecenterReady);
-  const [error, setError] = useState<string | null>(null);
+  const userLocationRef = useRef(userLocation);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+  const viewModelRef = useRef(viewModel);
+  const [error, setError] = useState<string | null>(null);
+  const hasViewModel = Boolean(viewModel);
+
+  useEffect(() => {
+    viewModelRef.current = viewModel;
+  }, [viewModel]);
+
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   useEffect(() => {
     onRecenterReadyRef.current = onRecenterReady;
@@ -40,8 +51,9 @@ export function NavigationMap({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !viewModel) {
-      setError(viewModel ? null : MAP_UNAVAILABLE_MESSAGE);
+    const initial = viewModelRef.current;
+    if (!container || !initial) {
+      setError(initial ? null : MAP_UNAVAILABLE_MESSAGE);
       return;
     }
 
@@ -56,9 +68,10 @@ export function NavigationMap({
     };
 
     const resolved = engine ?? createNavigationMapEngine();
-    const handle = resolved.mount(container, viewModel, handlers);
+    const handle = resolved.mount(container, initial, handlers);
     handleRef.current = handle;
     onRecenterReadyRef.current?.(() => handle.recenter());
+    handle.setUserLocation(userLocationRef.current ?? null);
     if (cancelled) {
       handle.destroy();
     }
@@ -66,9 +79,18 @@ export function NavigationMap({
     return () => {
       cancelled = true;
       handle.destroy();
-      handleRef.current = undefined;
+      if (handleRef.current === handle) {
+        handleRef.current = undefined;
+      }
     };
-  }, [engine, route, viewModel]);
+  }, [engine, hasViewModel]);
+
+  useEffect(() => {
+    if (!viewModel) {
+      return;
+    }
+    handleRef.current?.setViewModel?.(viewModel);
+  }, [viewModel]);
 
   useEffect(() => {
     handleRef.current?.setUserLocation(userLocation ?? null);

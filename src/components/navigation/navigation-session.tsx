@@ -191,72 +191,76 @@ export function NavigationSession({
     }
     const watch = locationWatch ?? createBrowserLocationWatch();
     const unsubscribe = watch.subscribe((event) => {
-      if (event.type === "error") {
-        setGpsError(event.error.message);
-        return;
-      }
-      setGpsError(null);
-      setAccuracyMeters(event.fix.accuracyMeters);
-      setUserLocation(event.fix.coordinates);
+      try {
+        if (event.type === "error") {
+          setGpsError(event.error.message);
+          return;
+        }
+        setGpsError(null);
+        setAccuracyMeters(event.fix.accuracyMeters);
+        setUserLocation(event.fix.coordinates);
 
-      const active = routeRef.current;
-      const evaluated = evaluateNavigationProgress({
-        fix: event.fix,
-        geometry: active.geometry,
-        steps: active.steps ?? [],
-        totalDistanceKm: active.distanceKm,
-        totalDurationMinutes: active.durationMinutes,
-        previousProgressKm: progressRef.current,
-      });
-      if (!evaluated) {
-        return;
-      }
+        const active = routeRef.current;
+        const evaluated = evaluateNavigationProgress({
+          fix: event.fix,
+          geometry: active.geometry,
+          steps: active.steps ?? [],
+          totalDistanceKm: active.distanceKm,
+          totalDurationMinutes: active.durationMinutes,
+          previousProgressKm: progressRef.current,
+        });
+        if (!evaluated) {
+          return;
+        }
 
-      progressRef.current = evaluated.projection.progressKm;
-      setProgressKm(evaluated.projection.progressKm);
-      setRemainingDistanceKm(evaluated.remainingDistanceKm);
-      setRemainingMinutes(evaluated.remainingDurationMinutes);
-      setArrow(maneuverArrow(evaluated.nextStep));
-      setNextRoad(evaluated.nextStep ? roadLabel(evaluated.nextStep) : undefined);
-      setDistanceToManeuverKm(
-        Number.isFinite(evaluated.distanceToNextManeuverM)
-          ? evaluated.distanceToNextManeuverM / 1_000
-          : 0,
-      );
-      if (evaluated.nextStep) {
-        setInstruction(formatFrenchInstruction(evaluated.nextStep));
-      }
-
-      if (evaluated.lowAccuracy || hiddenRef.current) {
-        return;
-      }
-
-      const announcement = decideAnnouncement({
-        step: evaluated.nextStep,
-        distanceToManeuverM: evaluated.distanceToNextManeuverM,
-        muted: mutedRef.current,
-        memory: voiceRef.current,
-      });
-      voiceRef.current = announcement.memory;
-      if (announcement.speak) {
-        speechEngine.speak(announcement.speak);
-      }
-
-      const off = evaluateOffRoute({
-        distanceToRouteM: evaluated.projection.distanceToRouteM,
-        accuracyMeters: event.fix.accuracyMeters,
-        progressKm: evaluated.projection.progressKm,
-        nowMs: now(),
-        navigating: true,
-        recalculating: recalculatingRef.current,
-        tracker: offRouteRef.current,
-      });
-      offRouteRef.current = off.tracker;
-      if (off.decision.shouldRecalculate) {
-        void runRecalculateRef.current(
-          event.fix.coordinates,
-          evaluated.projection.progressKm,
+        progressRef.current = evaluated.projection.progressKm;
+        setProgressKm(evaluated.projection.progressKm);
+        setRemainingDistanceKm(evaluated.remainingDistanceKm);
+        setRemainingMinutes(evaluated.remainingDurationMinutes);
+        setArrow(maneuverArrow(evaluated.nextStep));
+        setNextRoad(evaluated.nextStep ? roadLabel(evaluated.nextStep) : undefined);
+        setDistanceToManeuverKm(
+          Number.isFinite(evaluated.distanceToNextManeuverM)
+            ? evaluated.distanceToNextManeuverM / 1_000
+            : 0,
         );
+        if (evaluated.nextStep) {
+          setInstruction(formatFrenchInstruction(evaluated.nextStep));
+        }
+
+        if (evaluated.lowAccuracy || hiddenRef.current) {
+          return;
+        }
+
+        const announcement = decideAnnouncement({
+          step: evaluated.nextStep,
+          distanceToManeuverM: evaluated.distanceToNextManeuverM,
+          muted: mutedRef.current,
+          memory: voiceRef.current,
+        });
+        voiceRef.current = announcement.memory;
+        if (announcement.speak) {
+          speechEngine.speak(announcement.speak);
+        }
+
+        const off = evaluateOffRoute({
+          distanceToRouteM: evaluated.projection.distanceToRouteM,
+          accuracyMeters: event.fix.accuracyMeters,
+          progressKm: evaluated.projection.progressKm,
+          nowMs: now(),
+          navigating: true,
+          recalculating: recalculatingRef.current,
+          tracker: offRouteRef.current,
+        });
+        offRouteRef.current = off.tracker;
+        if (off.decision.shouldRecalculate) {
+          void runRecalculateRef.current(
+            event.fix.coordinates,
+            evaluated.projection.progressKm,
+          );
+        }
+      } catch {
+        // NFR-006: a bad GPS tick must not take down the navigation tree.
       }
     });
 

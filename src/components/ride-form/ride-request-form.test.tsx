@@ -756,6 +756,7 @@ describe("RideRequestForm (FR-014)", () => {
             destroy: vi.fn(),
             setUserLocation: vi.fn(),
             recenter: vi.fn(),
+            setViewModel: vi.fn(),
           }),
         },
       },

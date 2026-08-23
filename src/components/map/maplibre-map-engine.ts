@@ -39,7 +39,8 @@ export function createMapLibreEngine(
       let disposed = false;
 
       ensureMapLibreWorkerUrl();
-      const camera = mapCameraFrame(viewModel.bounds);
+      let camera = mapCameraFrame(viewModel.bounds);
+      let currentViewModel = viewModel;
 
       try {
         map = new MapLibreMap({
@@ -92,48 +93,67 @@ export function createMapLibreEngine(
         onError(MAP_UNAVAILABLE_MESSAGE);
       });
 
-      map.on("load", () => {
-        if (disposed || !map) {
+      function renderRoute(next: typeof viewModel) {
+        currentViewModel = next;
+        camera = mapCameraFrame(next.bounds);
+        if (!map || disposed || !map.isStyleLoaded()) {
           return;
         }
 
-        map.addSource("ride-route", {
-          type: "geojson",
-          data: {
-            type: "Feature",
-            properties: {},
-            geometry: viewModel.geometry,
-          },
-        });
-        map.addLayer({
-          id: "ride-route-line",
-          type: "line",
-          source: "ride-route",
-          layout: {
-            "line-cap": "round",
-            "line-join": "round",
-          },
-          paint: {
-            "line-color": "#38bdf8",
-            "line-width": 4,
-          },
-        });
+        const source = map.getSource("ride-route");
+        const data = {
+          type: "Feature" as const,
+          properties: {},
+          geometry: next.geometry,
+        };
+        if (source && "setData" in source && typeof source.setData === "function") {
+          source.setData(data);
+        } else {
+          map.addSource("ride-route", {
+            type: "geojson",
+            data,
+          });
+          map.addLayer({
+            id: "ride-route-line",
+            type: "line",
+            source: "ride-route",
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+            paint: {
+              "line-color": "#38bdf8",
+              "line-width": 4,
+            },
+          });
+        }
 
-        markers.push(placeMarker(map, viewModel.start.label, viewModel.start.coordinates));
-        if (viewModel.destination) {
+        for (const marker of markers) {
+          marker.remove();
+        }
+        markers.length = 0;
+        markers.push(placeMarker(map, next.start.label, next.start.coordinates));
+        if (next.destination) {
           markers.push(
             placeMarker(
               map,
-              viewModel.destination.label,
-              viewModel.destination.coordinates,
+              next.destination.label,
+              next.destination.coordinates,
             ),
           );
         }
-        for (const arrow of viewModel.directionArrows) {
+        for (const arrow of next.directionArrows) {
           markers.push(placeArrow(map, arrow));
         }
 
         map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+      }
+
+      map.on("load", () => {
+        if (disposed || !map) {
+          return;
+        }
+        renderRoute(currentViewModel);
       });
 
       let userMarker: Marker | undefined;
@@ -159,39 +179,57 @@ export function createMapLibreEngine(
           map = undefined;
           removeMapSafely(mapToRemove);
         },
+        setViewModel(next) {
+          if (disposed) {
+            return;
+          }
+          try {
+            renderRoute(next);
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+          }
+        },
         setUserLocation(coordinates) {
           if (!map || disposed) {
             return;
           }
-          if (!coordinates) {
-            userMarker?.remove();
-            userMarker = undefined;
-            return;
+          try {
+            if (!coordinates) {
+              userMarker?.remove();
+              userMarker = undefined;
+              return;
+            }
+            if (!userMarker) {
+              const element = document.createElement("div");
+              element.setAttribute("aria-label", "Position actuelle");
+              element.style.width = "16px";
+              element.style.height = "16px";
+              element.style.borderRadius = "999px";
+              element.style.background = "#38bdf8";
+              element.style.border = "2px solid white";
+              userMarker = new Marker({ element, anchor: "center" }).addTo(map);
+            }
+            userMarker.setLngLat(coordinatesToPosition(coordinates));
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
-          if (!userMarker) {
-            const element = document.createElement("div");
-            element.setAttribute("aria-label", "Position actuelle");
-            element.style.width = "16px";
-            element.style.height = "16px";
-            element.style.borderRadius = "999px";
-            element.style.background = "#38bdf8";
-            element.style.border = "2px solid white";
-            userMarker = new Marker({ element, anchor: "center" }).addTo(map);
-          }
-          userMarker.setLngLat(coordinatesToPosition(coordinates));
         },
         recenter() {
           if (!map || disposed) {
             return;
           }
-          if (userMarker) {
-            map.easeTo({
-              center: userMarker.getLngLat(),
-              duration: 400,
-            });
-            return;
+          try {
+            if (userMarker) {
+              map.easeTo({
+                center: userMarker.getLngLat(),
+                duration: 400,
+              });
+              return;
+            }
+            map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
-          map.fitBounds(camera.bounds, camera.fitBoundsOptions);
         },
       };
     },

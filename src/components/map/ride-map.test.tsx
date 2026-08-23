@@ -129,4 +129,23 @@ describe("RideMap (FR-013, NFR-001)", () => {
     ).toHaveTextContent("Sens : boucle depuis Granby, QC");
     expect(screen.queryByText(MAP_UNAVAILABLE_MESSAGE)).not.toBeInTheDocument();
   });
+
+  it("updates the preview route without remounting the engine (FR-013, FR-026)", async () => {
+    const destroy = vi.fn();
+    const setViewModel = vi.fn();
+    const mount = vi.fn(() => ({ destroy, setViewModel }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = render(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<RideMap route={{ ...loop, id: "loop-2" }} engine={engine} />);
+    await waitFor(() => {
+      expect(setViewModel).toHaveBeenCalled();
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+  });
 });

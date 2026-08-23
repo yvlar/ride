@@ -8,6 +8,7 @@ export type MapEngineHandle = {
   destroy: () => void;
   setUserLocation?: (coordinates: Coordinates | null) => void;
   recenter?: () => void;
+  setViewModel?: (viewModel: RideMapViewModel) => void;
 };
 
 export type MapEngineHandlers = {

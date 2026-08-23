@@ -16,6 +16,7 @@ const {
   markerRemove,
   easeTo,
   mapState,
+  routeSource,
   FakeGeolocateControl,
   FakeMap,
   FakeMarker,
@@ -28,7 +29,7 @@ const {
   const geolocateOnRemove = vi.fn();
   const markerRemove = vi.fn();
   const easeTo = vi.fn();
-  const mapState = { painterAvailable: true };
+  const mapState = { painterAvailable: true, markerThrows: false };
 
   class FakeGeolocateControl {
     options: unknown;
@@ -42,6 +43,8 @@ const {
     onRemove = geolocateOnRemove;
   }
 
+  const routeSource = { type: "geojson", setData: vi.fn() };
+
   class FakeMap {
     painter = mapState.painterAvailable ? {} : undefined;
     addControl = addControl;
@@ -50,6 +53,7 @@ const {
     on = mapOn;
     addSource = vi.fn();
     addLayer = vi.fn();
+    getSource = vi.fn(() => routeSource);
     fitBounds = vi.fn();
     easeTo = easeTo;
     isStyleLoaded = () => true;
@@ -69,6 +73,9 @@ const {
       return this.lngLat;
     }
     addTo() {
+      if (mapState.markerThrows) {
+        throw new Error("WebGL transform unavailable");
+      }
       return this;
     }
     remove = markerRemove;
@@ -84,6 +91,7 @@ const {
     markerRemove,
     easeTo,
     mapState,
+    routeSource,
     FakeGeolocateControl,
     FakeMap,
     FakeMarker,
@@ -130,7 +138,9 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     geolocateOnRemove.mockReset();
     markerRemove.mockReset();
     easeTo.mockReset();
+    routeSource.setData.mockReset();
     mapState.painterAvailable = true;
+    mapState.markerThrows = false;
   });
 
   it("adds a voluntary high-accuracy GeolocateControl after mount", async () => {
@@ -243,5 +253,51 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     expect(addControl).not.toHaveBeenCalled();
     expect(() => handle.destroy()).not.toThrow();
     expect(mapRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates the route source in place without removing the map (FR-026)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    handle.setViewModel?.({
+      ...viewModel,
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-72.65, 45.5],
+        ],
+      },
+    });
+
+    expect(routeSource.setData).toHaveBeenCalled();
+    expect(mapRemove).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("does not throw when the GPS marker cannot be attached (NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const onError = vi.fn();
+    const onWarning = vi.fn();
+    mapState.markerThrows = true;
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError, onWarning },
+    );
+
+    expect(() =>
+      handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }),
+    ).not.toThrow();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onWarning).toHaveBeenCalledWith(MAP_UNAVAILABLE_MESSAGE);
   });
 });
