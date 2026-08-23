@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
   AVAILABLE_DURATION_HINT,
@@ -132,6 +132,11 @@ export function RideRequestForm({
     useState<RideGenerationError | null>(null);
   const [startWarning, setStartWarning] = useState<string | null>(null);
   const generationId = useRef(0);
+  const startRef = useRef(start);
+
+  useEffect(() => {
+    startRef.current = start;
+  }, [start]);
 
   function invalidateInFlightGeneration() {
     generationId.current += 1;
@@ -251,9 +256,16 @@ export function RideRequestForm({
                   invalidateInFlightGeneration();
                 }}
                 onError={(message) => {
+                  if (startRef.current) {
+                    setStartWarning(message);
+                    setErrors((current) => ({
+                      ...current,
+                      start: undefined,
+                    }));
+                    return;
+                  }
                   setErrors((current) => ({ ...current, start: message }));
                   setStartWarning(null);
-                  invalidateInFlightGeneration();
                 }}
               />
             }

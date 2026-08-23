@@ -67,11 +67,14 @@ describe("Home (FR-014)", () => {
       geolocation,
     });
 
-    render(<Home />);
+    try {
+      render(<Home />);
 
-    expect(screen.getByRole("button", { name: "Ma position" })).toBeEnabled();
-    expect(getCurrentPosition).not.toHaveBeenCalled();
-    expect(geolocation.watchPosition).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
+      expect(screen.getByRole("button", { name: "Ma position" })).toBeEnabled();
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+      expect(geolocation.watchPosition).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

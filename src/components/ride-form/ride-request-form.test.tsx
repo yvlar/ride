@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "@/components/map/geolocate-control-options";
 import type { Place } from "@/domain/geo/types";
 import { CURRENT_POSITION_FALLBACK_LABEL } from "@/infrastructure/geocoding/labels";
+import { CurrentPositionError } from "./browser-geolocation";
 import { CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE } from "./reverse-geocode-place";
 import {
   AVAILABLE_DURATION_HINT,
@@ -351,6 +352,38 @@ describe("RideRequestForm (FR-014)", () => {
     );
     expect(await screen.findByText(MAP_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
     expect(generated).toHaveTextContent("198.4 km");
+  });
+
+  it("keeps the generated route when Ma position later fails (FR-013, FR-022)", async () => {
+    const requestCoordinates = vi.fn(async () => {
+      throw new CurrentPositionError("permission_denied");
+    });
+    renderForm({ requestCoordinates });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    const generated = await screen.findByRole("region", { name: "Trajet généré" });
+    expect(generated).toHaveTextContent("198.4 km");
+    expect(generated).toHaveTextContent("150 min");
+
+    fireEvent.click(screen.getByRole("button", { name: "Ma position" }));
+
+    expect(
+      await screen.findByText(new CurrentPositionError("permission_denied").message),
+    ).toBeInTheDocument();
+    expect(generated).toHaveTextContent("198.4 km");
+    expect(generated).toHaveTextContent("150 min");
+    expect(generated).toHaveTextContent(
+      "Certains segments ont une surface inconnue.",
+    );
+    expect(
+      screen.getByText("Lieu sélectionné : Granby, QC"),
+    ).toBeInTheDocument();
+    expect(requestCoordinates).toHaveBeenCalledTimes(1);
   });
 
   it("keeps textual results when GPS tracking fails (FR-022)", async () => {
