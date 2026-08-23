@@ -1,0 +1,52 @@
+import { describe, expect, it, vi } from "vitest";
+import { createLightweightNavigationMapEngine } from "./lightweight-navigation-map-engine";
+import type { RideMapViewModel } from "./ride-map-view-model";
+
+const viewModel: RideMapViewModel = {
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.7, 45.4],
+      [-72.69, 45.41],
+      [-72.68, 45.4],
+    ],
+  },
+  bounds: { west: -72.7, south: 45.4, east: -72.68, north: 45.41 },
+  start: {
+    kind: "start",
+    label: "Départ",
+    placeLabel: "Granby",
+    coordinates: { latitude: 45.4, longitude: -72.7 },
+  },
+  directionLabel: "Sens : boucle depuis Granby",
+  directionArrows: [],
+};
+
+describe("createLightweightNavigationMapEngine", () => {
+  it("renders and follows GPS without creating a WebGL canvas", () => {
+    const container = document.createElement("div");
+    const handle = createLightweightNavigationMapEngine().mount(
+      container,
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    const svg = container.querySelector("svg");
+    const marker = container.querySelector("[data-current-location=true]");
+    expect(svg).not.toBeNull();
+    expect(container.querySelector("canvas")).toBeNull();
+    expect(container.textContent).toContain("stabilité iOS");
+    expect(marker).toHaveAttribute("visibility", "hidden");
+
+    handle.setUserLocation?.({ latitude: 45.405, longitude: -72.69 });
+    expect(marker).toHaveAttribute("visibility", "visible");
+    expect(marker?.getAttribute("transform")).toContain("translate(");
+
+    const fullRouteView = svg?.getAttribute("viewBox");
+    handle.recenter?.();
+    expect(svg?.getAttribute("viewBox")).not.toBe(fullRouteView);
+
+    handle.destroy();
+    expect(container).toBeEmptyDOMElement();
+  });
+});
