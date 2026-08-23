@@ -729,10 +729,13 @@ describe("RideRequestForm (FR-014)", () => {
 
   it("starts navigation only after the user action and uses one GPS watch (FR-023)", async () => {
     const listeners = new Set<(event: { type: string }) => void>();
+    const unsubscribe = vi.fn(() => {
+      listeners.clear();
+    });
     const locationWatch = {
       subscribe: vi.fn((listener) => {
         listeners.add(listener);
-        return () => listeners.delete(listener);
+        return unsubscribe;
       }),
       activeNativeWatches: () => listeners.size,
     };
@@ -783,9 +786,10 @@ describe("RideRequestForm (FR-014)", () => {
         screen.queryByRole("dialog", { name: "Navigation" }),
       ).not.toBeInTheDocument();
     });
-    expect(locationWatch.subscribe.mock.results[0]?.value).toBeTypeOf(
-      "function",
-    );
+    expect(unsubscribe).toHaveBeenCalled();
+    expect(
+      screen.getByRole("region", { name: "Carte du trajet" }),
+    ).toBeInTheDocument();
   });
 
   it("toggles route preferences (FR-007, FR-008)", async () => {

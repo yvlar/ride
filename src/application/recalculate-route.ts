@@ -151,6 +151,9 @@ export async function recalculateRoute(
       return staleResult();
     }
 
+    // Destination: GPS → final destination through RoutingProvider with the
+    // same style/preferences (FR-026, BR-008). This is not a new scenic
+    // generation: the rider needs a return to the planned end, not a new ride.
     const remainingAfterJoin =
       request.value.type === "destination"
         ? { geometry: { type: "LineString" as const, coordinates: [] }, steps: [] as NavigationStep[], segments: [] as RouteSegment[], distanceKm: 0, durationMinutes: 0 }
@@ -281,10 +284,17 @@ function splitRemainingAfterJoin(
 } {
   const joinKm = selectRejoinDistanceKm(remainingDistanceKm);
   const after = remainingGeometryFromProgress(remainingGeometry, joinKm);
-  const afterDistance = lineStringLengthKm(after);
+  const leftover =
+    after.coordinates.length >= 2
+      ? after
+      : { type: "LineString" as const, coordinates: [] };
+  const afterDistance = lineStringLengthKm(leftover);
   return {
-    geometry: after.coordinates.length >= 2 ? after : remainingGeometry,
-    steps: remainingStepsFromProgress(remainingSteps, joinKm),
+    geometry: leftover,
+    steps:
+      leftover.coordinates.length >= 2
+        ? remainingStepsFromProgress(remainingSteps, joinKm)
+        : [],
     segments: remainingRouteSegments(remainingSegments, remainingDistanceKm, joinKm),
     distanceKm: afterDistance,
     durationMinutes:

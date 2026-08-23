@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { LocationWatch, LocationWatchEvent } from "@/domain/location/types";
+import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
 import { NavigationSession } from "./navigation-session";
 
@@ -120,6 +121,50 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(speech.cancel).toHaveBeenCalled();
   });
 
+  it("keeps a single map mount across GPS updates (NFR-006)", async () => {
+    const { watch, emit } = createWatch();
+    const destroy = vi.fn();
+    const mount = vi.fn(() => ({
+      destroy,
+      setUserLocation: vi.fn(),
+      recenter: vi.fn(),
+    }));
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        recalculate={async () => ({ ok: true, route })}
+        mapEngine={{ mount }}
+      />,
+    );
+
+    expect(mount).toHaveBeenCalledTimes(1);
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4002, longitude: -72.6998 },
+        accuracyMeters: 10,
+        recordedAtMs: 2,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Tournez à droite/)).toBeInTheDocument();
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+  });
+
   it("does not speak while muted and allows stopping navigation", async () => {
     const { watch, emit } = createWatch();
     const speech = stubSpeech();
@@ -183,5 +228,82 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(screen.getByRole("button", { name: "Arrêter" })).toHaveClass(
       "min-h-12",
     );
+    expect(screen.getByText(FOREGROUND_ONLY_MESSAGE)).toBeInTheDocument();
+  });
+
+  it("stops the GPS watch while the tab is hidden (NFR-006)", async () => {
+    const helper = createWatch();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+        mapEngine={{
+          mount: () => ({
+            destroy: vi.fn(),
+            setUserLocation: vi.fn(),
+            recenter: vi.fn(),
+          }),
+        }}
+      />,
+    );
+    expect(helper.native).toBe(1);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => {
+      expect(helper.native).toBe(0);
+    });
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => {
+      expect(helper.native).toBe(1);
+    });
+  });
+
+  it("does not call the network on ordinary GPS ticks (FR-026)", async () => {
+    const { watch, emit } = createWatch();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const recalculate = vi.fn(async () => ({ ok: true as const, route }));
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        recalculate={recalculate}
+        mapEngine={{
+          mount: () => ({
+            destroy: vi.fn(),
+            setUserLocation: vi.fn(),
+            recenter: vi.fn(),
+          }),
+        }}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Tournez à droite/)).toBeInTheDocument();
+    });
+    expect(recalculate).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });

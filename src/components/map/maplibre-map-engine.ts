@@ -168,6 +168,13 @@ export function createMapLibreEngine(
           if (!map || disposed) {
             return;
           }
+          if (userMarker) {
+            map.easeTo({
+              center: userMarker.getLngLat(),
+              duration: 400,
+            });
+            return;
+          }
           map.fitBounds(camera.bounds, camera.fitBoundsOptions);
         },
       };

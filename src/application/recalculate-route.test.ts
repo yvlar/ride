@@ -271,6 +271,37 @@ describe("recalculateRoute (FR-026, BR-008)", () => {
     }
   });
 
+  it("does not append the leftover corridor twice near the end of a loop", async () => {
+    const calculateRoute = vi.fn(async (input) =>
+      new MockRoutingProvider().calculateRoute(input),
+    );
+    const result = await recalculateRoute(
+      {
+        currentPosition: offsetCoordinates(start.coordinates, 180, 0.3),
+        progressKm: 23.6,
+        request: {
+          type: "loop",
+          start,
+          targetDistanceKm: 24,
+          style: "scenic",
+          preferences: { avoidHighways: true, avoidUnpaved: false },
+        },
+        originalRoute: loopRoute,
+      },
+      { calculateRoute },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const length = result.route.geometry.coordinates.length;
+      const unique = new Set(
+        result.route.geometry.coordinates.map((point) => point.join(",")),
+      );
+      expect(length).toBeLessThan(loopGeometry.coordinates.length + 4);
+      expect(unique.size).toBe(length);
+    }
+  });
+
   it("does not call a real network provider in tests", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await recalculateRoute(

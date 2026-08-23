@@ -24,7 +24,6 @@ export function createSpeechGuidance(
         : null
       : synthesis;
   let muted = false;
-  let speaking = false;
 
   return {
     available: Boolean(speech),
@@ -32,19 +31,16 @@ export function createSpeechGuidance(
       muted = next;
       if (muted) {
         speech?.cancel();
-        speaking = false;
       }
     },
     cancel() {
       speech?.cancel();
-      speaking = false;
     },
     speak(text) {
       if (!speech || muted || !text) {
         return;
       }
       speech.cancel();
-      speaking = true;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "fr-CA";
       const voices = speech.getVoices();
@@ -53,14 +49,7 @@ export function createSpeechGuidance(
         utterance.voice = voices[index];
         utterance.lang = voices[index]!.lang || "fr-CA";
       }
-      utterance.onend = () => {
-        speaking = false;
-      };
-      utterance.onerror = () => {
-        speaking = false;
-      };
       speech.speak(utterance);
-      void speaking;
     },
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Coordinates } from "@/domain/geo/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import {
@@ -30,8 +30,13 @@ export function NavigationMap({
 }: NavigationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<NavigationMapHandle | undefined>(undefined);
+  const onRecenterReadyRef = useRef(onRecenterReady);
   const [error, setError] = useState<string | null>(null);
-  const viewModel = toRideMapViewModel(route);
+  const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+
+  useEffect(() => {
+    onRecenterReadyRef.current = onRecenterReady;
+  }, [onRecenterReady]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -53,7 +58,7 @@ export function NavigationMap({
     const resolved = engine ?? createNavigationMapEngine();
     const handle = resolved.mount(container, viewModel, handlers);
     handleRef.current = handle;
-    onRecenterReady?.(() => handle.recenter());
+    onRecenterReadyRef.current?.(() => handle.recenter());
     if (cancelled) {
       handle.destroy();
     }
@@ -63,7 +68,7 @@ export function NavigationMap({
       handle.destroy();
       handleRef.current = undefined;
     };
-  }, [engine, onRecenterReady, route, viewModel]);
+  }, [engine, route, viewModel]);
 
   useEffect(() => {
     handleRef.current?.setUserLocation(userLocation ?? null);

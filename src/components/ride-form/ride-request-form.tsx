@@ -235,7 +235,11 @@ export function RideRequestForm({
         <CardTitle>Composer la ride</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+        <form
+          className="flex flex-col gap-6"
+          onSubmit={handleSubmit}
+          inert={navigating}
+        >
           <PlaceSearchField
             id="start"
             label="Point de départ"
@@ -563,20 +567,6 @@ export function RideRequestForm({
             </section>
           ) : null}
 
-          {navigating && generatedRoute && composedRequest ? (
-            <NavigationSession
-              route={generatedRoute}
-              request={composedRequest}
-              onStop={() => setNavigating(false)}
-              onRouteChange={setGeneratedRoute}
-              locationWatch={navigation?.locationWatch}
-              speech={navigation?.speech}
-              recalculate={navigation?.recalculate}
-              mapEngine={navigation?.mapEngine}
-              now={navigation?.now}
-            />
-          ) : null}
-
           {generationError ? (
             <div role="alert" className="space-y-2 text-sm leading-6">
               <p className="text-destructive">{generationError.message}</p>
@@ -590,6 +580,19 @@ export function RideRequestForm({
             </div>
           ) : null}
         </form>
+        {navigating && generatedRoute && composedRequest ? (
+          <NavigationSession
+            route={generatedRoute}
+            request={composedRequest}
+            onStop={() => setNavigating(false)}
+            onRouteChange={setGeneratedRoute}
+            locationWatch={navigation?.locationWatch}
+            speech={navigation?.speech}
+            recalculate={navigation?.recalculate}
+            mapEngine={navigation?.mapEngine}
+            now={navigation?.now}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );

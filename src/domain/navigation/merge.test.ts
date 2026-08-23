@@ -7,6 +7,7 @@ import {
   mergeRecalculatedRoute,
   remainingGeometryFromProgress,
   remainingStepsFromProgress,
+  replaceDestinationRoute,
   selectRejoinDistanceKm,
 } from "./merge";
 import type { NavigationStep } from "./types";
@@ -128,8 +129,8 @@ describe("concatNavigationSteps (FR-026)", () => {
   });
 });
 
-describe("destination replacement shape (FR-026)", () => {
-  it("keeps destination metadata when used as the original route", () => {
+describe("replaceDestinationRoute (FR-026)", () => {
+  it("replaces geometry and steps while keeping destination metadata", () => {
     const destination: GeneratedDestinationRoute = {
       id: "dest-1",
       type: "destination",
@@ -138,11 +139,34 @@ describe("destination replacement shape (FR-026)", () => {
       style: "curvy",
       geometry: loopGeometry,
       segments: [],
-      steps: [],
+      steps: [step("depart", 1)],
       distanceKm: 4,
       durationMinutes: 8,
       warnings: [],
     };
-    expect(destination.destination.label).toBe("Waterloo");
+    const nextGeometry: import("@/domain/geo/types").LineString = {
+      type: "LineString",
+      coordinates: [
+        [start.longitude, start.latitude],
+        [east.longitude, east.latitude],
+      ],
+    };
+    const replaced = replaceDestinationRoute({
+      original: destination,
+      geometry: nextGeometry,
+      segments: [],
+      steps: [step("arrive", 0)],
+      distanceKm: 3.2,
+      durationMinutes: 6,
+      avoidHighways: true,
+    });
+
+    expect(replaced.type).toBe("destination");
+    if (replaced.type === "destination") {
+      expect(replaced.destination.label).toBe("Waterloo");
+    }
+    expect(replaced.geometry).toEqual(nextGeometry);
+    expect(replaced.steps?.map((item) => item.maneuverType)).toEqual(["arrive"]);
+    expect(replaced.distanceKm).toBe(3.2);
   });
 });

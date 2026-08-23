@@ -66,7 +66,6 @@ export function NavigationSession({
   const [distanceToManeuverKm, setDistanceToManeuverKm] = useState(0);
   const [remainingDistanceKm, setRemainingDistanceKm] = useState(route.distanceKm);
   const [remainingMinutes, setRemainingMinutes] = useState(route.durationMinutes);
-  const [lowAccuracy, setLowAccuracy] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [recalcError, setRecalcError] = useState<RideGenerationError | null>(null);
   const [recalculating, setRecalculating] = useState(false);
@@ -182,6 +181,9 @@ export function NavigationSession({
   }, [speechEngine]);
 
   useEffect(() => {
+    if (hidden) {
+      return;
+    }
     const watch = locationWatch ?? createBrowserLocationWatch();
     const unsubscribe = watch.subscribe((event) => {
       if (event.type === "error") {
@@ -209,7 +211,6 @@ export function NavigationSession({
       setProgressKm(evaluated.projection.progressKm);
       setRemainingDistanceKm(evaluated.remainingDistanceKm);
       setRemainingMinutes(evaluated.remainingDurationMinutes);
-      setLowAccuracy(evaluated.lowAccuracy);
       setArrow(maneuverArrow(evaluated.nextStep));
       setNextRoad(evaluated.nextStep ? roadLabel(evaluated.nextStep) : undefined);
       setDistanceToManeuverKm(
@@ -259,7 +260,7 @@ export function NavigationSession({
       abortRef.current?.abort();
       speechEngine.cancel();
     };
-  }, [locationWatch, now, speechEngine]);
+  }, [hidden, locationWatch, now, speechEngine]);
 
   function handleStop() {
     abortRef.current?.abort();
@@ -304,10 +305,7 @@ export function NavigationSession({
           {formatDurationLabel(remainingMinutes)} · ETA {formatEta(now(), remainingMinutes)}
         </p>
         <p className="text-sm leading-6" role="status">
-          {gpsError ??
-            (lowAccuracy
-              ? formatAccuracyLabel(accuracyMeters)
-              : formatAccuracyLabel(accuracyMeters))}
+          {gpsError ?? formatAccuracyLabel(accuracyMeters)}
           {recalculating ? " · Recalcul du trajet…" : ""}
         </p>
         <p className="text-xs leading-5 text-muted-foreground">
