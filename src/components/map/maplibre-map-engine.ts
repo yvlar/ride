@@ -93,60 +93,71 @@ export function createMapLibreEngine(
         onError(MAP_UNAVAILABLE_MESSAGE);
       });
 
-      function renderRoute(next: typeof viewModel) {
+      function renderRoute(
+        next: typeof viewModel,
+        options: { fitCamera?: boolean } = {},
+      ) {
         currentViewModel = next;
         camera = mapCameraFrame(next.bounds);
         if (!map || disposed || !map.isStyleLoaded()) {
           return;
         }
 
-        const source = map.getSource("ride-route");
-        const data = {
-          type: "Feature" as const,
-          properties: {},
-          geometry: next.geometry,
-        };
-        if (source && "setData" in source && typeof source.setData === "function") {
-          source.setData(data);
-        } else {
-          map.addSource("ride-route", {
-            type: "geojson",
-            data,
-          });
-          map.addLayer({
-            id: "ride-route-line",
-            type: "line",
-            source: "ride-route",
-            layout: {
-              "line-cap": "round",
-              "line-join": "round",
-            },
-            paint: {
-              "line-color": "#38bdf8",
-              "line-width": 4,
-            },
-          });
-        }
+        try {
+          const source = map.getSource("ride-route");
+          const data = {
+            type: "Feature" as const,
+            properties: {},
+            geometry: next.geometry,
+          };
+          if (source && "setData" in source && typeof source.setData === "function") {
+            source.setData(data);
+          } else {
+            map.addSource("ride-route", {
+              type: "geojson",
+              data,
+            });
+            map.addLayer({
+              id: "ride-route-line",
+              type: "line",
+              source: "ride-route",
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#38bdf8",
+                "line-width": 4,
+              },
+            });
+          }
 
-        for (const marker of markers) {
-          marker.remove();
-        }
-        markers.length = 0;
-        markers.push(placeMarker(map, next.start.label, next.start.coordinates));
-        if (next.destination) {
-          markers.push(
-            placeMarker(
-              map,
-              next.destination.label,
-              next.destination.coordinates,
-            ),
-          );
-        }
-        for (const arrow of next.directionArrows) {
-          markers.push(placeArrow(map, arrow));
-        }
+          for (const marker of markers) {
+            marker.remove();
+          }
+          markers.length = 0;
+          markers.push(placeMarker(map, next.start.label, next.start.coordinates));
+          if (next.destination) {
+            markers.push(
+              placeMarker(
+                map,
+                next.destination.label,
+                next.destination.coordinates,
+              ),
+            );
+          }
+          for (const arrow of next.directionArrows) {
+            markers.push(placeArrow(map, arrow));
+          }
 
-        map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+          // The constructor already frames the first view. A second fitBounds
+          // during load can throw inside MapLibre's camera ease (NFR-006).
+          if (options.fitCamera) {
+            map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+          }
+        } catch {
+          onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+        }
       }
 
       map.on("load", () => {
@@ -183,11 +194,7 @@ export function createMapLibreEngine(
           if (disposed) {
             return;
           }
-          try {
-            renderRoute(next);
-          } catch {
-            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
-          }
+          renderRoute(next, { fitCamera: true });
         },
         setUserLocation(coordinates) {
           if (!map || disposed) {

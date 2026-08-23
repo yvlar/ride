@@ -15,6 +15,7 @@ const {
   geolocateOnRemove,
   markerRemove,
   easeTo,
+  fitBounds,
   mapState,
   routeSource,
   FakeGeolocateControl,
@@ -29,6 +30,7 @@ const {
   const geolocateOnRemove = vi.fn();
   const markerRemove = vi.fn();
   const easeTo = vi.fn();
+  const fitBounds = vi.fn();
   const mapState = { painterAvailable: true, markerThrows: false };
 
   class FakeGeolocateControl {
@@ -54,7 +56,7 @@ const {
     addSource = vi.fn();
     addLayer = vi.fn();
     getSource = vi.fn(() => routeSource);
-    fitBounds = vi.fn();
+    fitBounds = fitBounds;
     easeTo = easeTo;
     isStyleLoaded = () => true;
   }
@@ -90,6 +92,7 @@ const {
     geolocateOnRemove,
     markerRemove,
     easeTo,
+    fitBounds,
     mapState,
     routeSource,
     FakeGeolocateControl,
@@ -138,6 +141,7 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     geolocateOnRemove.mockReset();
     markerRemove.mockReset();
     easeTo.mockReset();
+    fitBounds.mockReset();
     routeSource.setData.mockReset();
     mapState.painterAvailable = true;
     mapState.markerThrows = false;
@@ -280,6 +284,42 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
 
     expect(routeSource.setData).toHaveBeenCalled();
     expect(mapRemove).not.toHaveBeenCalled();
+    expect(fitBounds).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("does not throw if the camera ease fails while drawing the route (NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const onError = vi.fn();
+    const onWarning = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError, onWarning },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    expect(() => load?.()).not.toThrow();
+    expect(fitBounds).not.toHaveBeenCalled();
+
+    fitBounds.mockImplementationOnce(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'lng')");
+    });
+    expect(() =>
+      handle.setViewModel?.({
+        ...viewModel,
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [-72.7342, 45.4001],
+            [-72.65, 45.5],
+          ],
+        },
+      }),
+    ).not.toThrow();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onWarning).toHaveBeenCalledWith(MAP_UNAVAILABLE_MESSAGE);
     handle.destroy();
   });
 
