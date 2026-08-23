@@ -15,8 +15,7 @@ export default function Home() {
           </h1>
           <p className="max-w-xl text-base leading-7 text-muted-foreground">
             Créez une sortie à partir d’un départ, d’une distance ou d’une
-            destination, puis comparez des variantes adaptées aux courbes, aux
-            paysages et au touring.
+            destination, selon le type et le style de conduite.
           </p>
         </div>
         <RideRequestForm />
