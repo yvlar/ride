@@ -727,6 +727,67 @@ describe("RideRequestForm (FR-014)", () => {
     ).toBeInTheDocument();
   });
 
+  it("starts navigation only after the user action and uses one GPS watch (FR-023)", async () => {
+    const listeners = new Set<(event: { type: string }) => void>();
+    const locationWatch = {
+      subscribe: vi.fn((listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }),
+      activeNativeWatches: () => listeners.size,
+    };
+    const speech = {
+      available: true,
+      speak: vi.fn(),
+      cancel: vi.fn(),
+      setMuted: vi.fn(),
+    };
+    renderForm({
+      navigation: {
+        locationWatch,
+        speech,
+        mapEngine: {
+          mount: () => ({
+            destroy: vi.fn(),
+            setUserLocation: vi.fn(),
+            recenter: vi.fn(),
+          }),
+        },
+      },
+    });
+
+    expect(locationWatch.subscribe).not.toHaveBeenCalled();
+    expect(speech.speak).not.toHaveBeenCalled();
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    const start = await screen.findByRole("button", {
+      name: "Démarrer la navigation",
+    });
+    expect(locationWatch.subscribe).not.toHaveBeenCalled();
+
+    fireEvent.click(start);
+    expect(locationWatch.subscribe).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("dialog", { name: "Navigation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Carte du trajet"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Navigation" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(locationWatch.subscribe.mock.results[0]?.value).toBeTypeOf(
+      "function",
+    );
+  });
+
   it("toggles route preferences (FR-007, FR-008)", async () => {
     const onRequestComposed = vi.fn();
     renderForm({ onRequestComposed });

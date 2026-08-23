@@ -158,6 +158,17 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     expect(mapRemove).toHaveBeenCalledTimes(1);
   });
 
+  it("omits GeolocateControl when navigation disables it (FR-023, NFR-006)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    expect(addControl).not.toHaveBeenCalled();
+  });
+
   it("reports a GPS error as a warning without treating the map as unavailable", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const onError = vi.fn();
