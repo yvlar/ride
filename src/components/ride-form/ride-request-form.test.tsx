@@ -727,6 +727,72 @@ describe("RideRequestForm (FR-014)", () => {
     ).toBeInTheDocument();
   });
 
+  it("starts navigation only after the user action and uses one GPS watch (FR-023)", async () => {
+    const listeners = new Set<(event: { type: string }) => void>();
+    const unsubscribe = vi.fn(() => {
+      listeners.clear();
+    });
+    const locationWatch = {
+      subscribe: vi.fn((listener) => {
+        listeners.add(listener);
+        return unsubscribe;
+      }),
+      activeNativeWatches: () => listeners.size,
+    };
+    const speech = {
+      available: true,
+      speak: vi.fn(),
+      cancel: vi.fn(),
+      setMuted: vi.fn(),
+    };
+    renderForm({
+      navigation: {
+        locationWatch,
+        speech,
+        mapEngine: {
+          mount: () => ({
+            destroy: vi.fn(),
+            setUserLocation: vi.fn(),
+            recenter: vi.fn(),
+          }),
+        },
+      },
+    });
+
+    expect(locationWatch.subscribe).not.toHaveBeenCalled();
+    expect(speech.speak).not.toHaveBeenCalled();
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    const start = await screen.findByRole("button", {
+      name: "Démarrer la navigation",
+    });
+    expect(locationWatch.subscribe).not.toHaveBeenCalled();
+
+    fireEvent.click(start);
+    expect(locationWatch.subscribe).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("dialog", { name: "Navigation" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector("form")).toHaveAttribute("inert");
+    expect(
+      screen.queryByRole("region", { name: "Carte du trajet" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Navigation" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(unsubscribe).toHaveBeenCalled();
+    expect(
+      screen.getByRole("region", { name: "Carte du trajet" }),
+    ).toBeInTheDocument();
+  });
+
   it("toggles route preferences (FR-007, FR-008)", async () => {
     const onRequestComposed = vi.fn();
     renderForm({ onRequestComposed });

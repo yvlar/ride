@@ -295,6 +295,7 @@ async function generateValidatedRoundTrip(
     targetDistanceKm,
     geometry: evaluation.candidate.geometry,
     segments: evaluation.candidate.segments,
+    steps: evaluation.candidate.steps ?? [],
     distanceKm: evaluation.candidate.distanceKm,
     durationMinutes: evaluation.candidate.durationMinutes,
     statistics: {
@@ -329,6 +330,7 @@ async function fetchLegCandidates(
       const candidate: DestinationCandidate = {
         geometry: result.geometry,
         segments: result.segments,
+        steps: result.steps ?? [],
         distanceKm: result.distanceKm,
         durationMinutes: result.durationMinutes,
         waypoints: set.waypoints,

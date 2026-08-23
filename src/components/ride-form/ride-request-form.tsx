@@ -33,6 +33,10 @@ import {
 } from "@/components/ride-form/place-search-field";
 import type { MapEngine } from "@/components/map/map-engine";
 import { RideMap } from "@/components/map/ride-map";
+import {
+  NavigationSession,
+  type NavigationSessionProps,
+} from "@/components/navigation/navigation-session";
 import { requestGeneratedRide } from "@/components/ride-form/request-generated-ride";
 import { cn } from "@/lib/utils";
 
@@ -100,6 +104,12 @@ export type RideRequestFormProps = {
   mapEngine?: MapEngine;
   requestCoordinates?: () => Promise<Coordinates>;
   reversePlace?: (coordinates: Coordinates) => Promise<Place>;
+  navigation?: Partial<
+    Pick<
+      NavigationSessionProps,
+      "locationWatch" | "speech" | "recalculate" | "mapEngine" | "now"
+    >
+  >;
 };
 
 export function RideRequestForm({
@@ -110,6 +120,7 @@ export function RideRequestForm({
   mapEngine,
   requestCoordinates,
   reversePlace,
+  navigation,
 }: RideRequestFormProps) {
   const [startQuery, setStartQuery] = useState("");
   const [start, setStart] = useState<Place | null>(null);
@@ -131,6 +142,9 @@ export function RideRequestForm({
   const [generationError, setGenerationError] =
     useState<RideGenerationError | null>(null);
   const [startWarning, setStartWarning] = useState<string | null>(null);
+  const [composedRequest, setComposedRequest] =
+    useState<GenerateRideRequest | null>(null);
+  const [navigating, setNavigating] = useState(false);
   const generationId = useRef(0);
   const startRef = useRef(start);
 
@@ -143,6 +157,8 @@ export function RideRequestForm({
     setGenerating(false);
     setGeneratedRoute(null);
     setGenerationError(null);
+    setNavigating(false);
+    setComposedRequest(null);
   }
 
   const needsDestination = type !== "loop";
@@ -184,6 +200,7 @@ export function RideRequestForm({
     }
 
     setErrors({});
+    setComposedRequest(result.request);
     setStatus(summarizeRideRequest(result.request));
     onRequestComposed?.(result.request);
     const requestId = generationId.current + 1;
@@ -218,7 +235,11 @@ export function RideRequestForm({
         <CardTitle>Composer la ride</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+        <form
+          className="flex flex-col gap-6"
+          onSubmit={handleSubmit}
+          inert={navigating}
+        >
           <PlaceSearchField
             id="start"
             label="Point de départ"
@@ -521,7 +542,9 @@ export function RideRequestForm({
               className="space-y-2 rounded-lg border border-border px-3 py-3"
             >
               <h2 className="text-base font-medium">Trajet généré</h2>
-              <RideMap route={generatedRoute} engine={mapEngine} />
+              {!navigating ? (
+                <RideMap route={generatedRoute} engine={mapEngine} />
+              ) : null}
               <p className="text-sm leading-6">
                 {formatGeneratedDistanceKm(generatedRoute.distanceKm)} ·{" "}
                 {formatGeneratedDuration(generatedRoute.durationMinutes)}
@@ -533,6 +556,14 @@ export function RideRequestForm({
                   ))}
                 </ul>
               ) : null}
+              <Button
+                type="button"
+                size="lg"
+                className="min-h-12 w-full text-base"
+                onClick={() => setNavigating(true)}
+              >
+                Démarrer la navigation
+              </Button>
             </section>
           ) : null}
 
@@ -549,6 +580,19 @@ export function RideRequestForm({
             </div>
           ) : null}
         </form>
+        {navigating && generatedRoute && composedRequest ? (
+          <NavigationSession
+            route={generatedRoute}
+            request={composedRequest}
+            onStop={() => setNavigating(false)}
+            onRouteChange={setGeneratedRoute}
+            locationWatch={navigation?.locationWatch}
+            speech={navigation?.speech}
+            recalculate={navigation?.recalculate}
+            mapEngine={navigation?.mapEngine}
+            now={navigation?.now}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -86,6 +86,9 @@ export function headingChangePerKm(geometry: LineString): number {
   return totalChange / lengthKm;
 }
 
+/** Skip a join vertex when endpoints are within 15 m (FR-003, FR-026). */
+const JOIN_ENDPOINT_TOLERANCE_KM = 0.015;
+
 /** Join two traces without duplicating the shared endpoint (FR-003). */
 export function joinLineStrings(
   first: LineString,
@@ -103,8 +106,8 @@ export function joinLineStrings(
   const skipHead =
     last !== undefined &&
     head !== undefined &&
-    last[0] === head[0] &&
-    last[1] === head[1];
+    haversineKm(positionToCoordinates(last), positionToCoordinates(head)) <=
+      JOIN_ENDPOINT_TOLERANCE_KM;
 
   return {
     type: "LineString",

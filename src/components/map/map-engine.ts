@@ -1,3 +1,4 @@
+import type { Coordinates } from "@/domain/geo/types";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
 export const MAP_UNAVAILABLE_MESSAGE =
@@ -5,6 +6,8 @@ export const MAP_UNAVAILABLE_MESSAGE =
 
 export type MapEngineHandle = {
   destroy: () => void;
+  setUserLocation?: (coordinates: Coordinates | null) => void;
+  recenter?: () => void;
 };
 
 export type MapEngineHandlers = {

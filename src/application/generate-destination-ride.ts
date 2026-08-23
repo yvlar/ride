@@ -138,6 +138,7 @@ async function generateValidatedDestination(
       const candidate: DestinationCandidate = {
         geometry: result.geometry,
         segments: result.segments,
+        steps: result.steps ?? [],
         distanceKm: result.distanceKm,
         durationMinutes: result.durationMinutes,
         waypoints: set.waypoints,
@@ -279,6 +280,7 @@ async function generateValidatedDestination(
     targetDistanceKm,
     geometry: evaluation.candidate.geometry,
     segments: evaluation.candidate.segments,
+    steps: evaluation.candidate.steps ?? [],
     distanceKm: evaluation.candidate.distanceKm,
     durationMinutes: evaluation.candidate.durationMinutes,
     warnings: evaluation.warnings,
