@@ -35,7 +35,8 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 6. activer les préférences d’évitement d’autoroutes et de routes non pavées;
 7. générer un trajet;
 8. le visualiser sur une carte avec les statistiques essentielles;
-9. régénérer une variante sensiblement différente.
+9. régénérer une variante sensiblement différente;
+10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`).
 
 Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ.
 
@@ -277,9 +278,30 @@ La carte du MVP doit :
 - permettre d’identifier le sens général du trajet;
 - rester lisible sur un smartphone (`NFR-001`).
 
-La carte est un moyen d’affichage. Le composant cartographique, les tuiles et le SDK utilisés sont des détails d’infrastructure (`BR-004`, `NFR-005`). Une indisponibilité de la carte ne doit pas faire disparaître les informations textuelles du résultat (distance, durée, avertissements).
+La carte est un moyen d’affichage. Le composant cartographique, les tuiles et le SDK utilisés sont des détails d’infrastructure (`BR-004`, `NFR-005`). Une indisponibilité de la carte ou du suivi GPS ne doit pas faire disparaître les informations textuelles du résultat (distance, durée, avertissements).
 
 La modification interactive avancée du tracé (ajout, déplacement ou suppression d’étapes) n’est pas requise dans le MVP.
+
+### FR-022 — Suivi GPS de premier plan
+
+Après une génération réussie, l’utilisateur peut afficher et suivre sa position actuelle sur la carte.
+
+Le suivi GPS :
+
+- est **volontaire** : il commence uniquement lorsque l’utilisateur active le contrôle de localisation;
+- fonctionne uniquement lorsque l’application est ouverte au **premier plan**;
+- ne conserve aucune position (ni base de données, ni `localStorage`, ni cookie, ni journal);
+- ne partage aucune position avec un tiers au-delà de l’appel serveur de géocodage inverse effectué une seule fois lors du choix de « Ma position » (`FR-017`);
+- ne constitue **pas** une navigation virage par virage (`NFR-004`);
+- ne demande aucune permission de localisation en arrière-plan.
+
+La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position » ou le contrôle GPS de la carte. Aucune position n’est demandée automatiquement au chargement de la page.
+
+Le géocodage inverse de « Ma position » n’est exécuté **qu’une fois** à la sélection. Les mises à jour du suivi GPS sur la carte ne sont pas géocodées et ne remplacent pas le point de départ.
+
+Une erreur de suivi GPS ne doit pas faire disparaître le trajet, la distance, la durée ou les avertissements.
+
+Le domaine ne dépend ni de MapLibre ni d’un fournisseur de géocodage nommé (`BR-004`, `NFR-003`, `NFR-005`).
 
 ---
 
@@ -299,6 +321,7 @@ Le parcours MVP est le suivant :
 8. Lancer la génération (`FR-011`).
 9. Consulter le résultat sur la carte et dans le panneau de synthèse (`FR-013`, `FR-015`, `FR-020`).
 10. Régénérer si le trajet ne convient pas (`FR-012`).
+11. Activer au besoin le suivi GPS de premier plan sur la carte (`FR-022`).
 
 Le flux doit pouvoir être accompli avec un minimum de configuration (`NFR-002`) et avant de prendre la route (`NFR-004`).
 
@@ -454,8 +477,13 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - profils de motos;
 - automatisation des arrêts carburant;
 - import / export GPX;
-- intégration Garmin;
+- intégration Garmin, Google Maps ou Apple Maps;
 - navigation virage par virage;
+- instructions virage par virage et guidage vocal;
+- recalcul automatique hors trajet;
+- suivi GPS avec écran verrouillé;
+- localisation en arrière-plan;
+- historique des déplacements;
 - signalement communautaire de dangers;
 - alertes police;
 - commentaires publics;
@@ -519,6 +547,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-019` | Choix du style de trajet |
 | `FR-020` | Statistiques essentielles |
 | `FR-021` | Contraintes incompatibles |
+| `FR-022` | Suivi GPS de premier plan |
 
 ### Règles métier
 
