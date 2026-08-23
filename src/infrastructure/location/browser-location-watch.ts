@@ -18,6 +18,7 @@ export function createBrowserLocationWatch(
   const listeners = new Set<(event: LocationWatchEvent) => void>();
   let watchId: number | null = null;
   let nativeWatches = 0;
+  let lastEvent: LocationWatchEvent | null = null;
 
   const geolocation = () =>
     api ??
@@ -40,48 +41,60 @@ export function createBrowserLocationWatch(
       }
       return;
     }
-    watchId = geo.watchPosition(
-      (position) => {
-        emit({
-          type: "fix",
-          fix: {
-            coordinates: {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
+    try {
+      watchId = geo.watchPosition(
+        (position) => {
+          emit({
+            type: "fix",
+            fix: {
+              coordinates: {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              },
+              accuracyMeters: position.coords.accuracy,
+              headingDeg:
+                position.coords.heading == null || Number.isNaN(position.coords.heading)
+                  ? undefined
+                  : position.coords.heading,
+              speedMetersPerSecond:
+                position.coords.speed == null || Number.isNaN(position.coords.speed)
+                  ? undefined
+                  : position.coords.speed,
+              recordedAtMs: position.timestamp,
             },
-            accuracyMeters: position.coords.accuracy,
-            headingDeg:
-              position.coords.heading == null || Number.isNaN(position.coords.heading)
-                ? undefined
-                : position.coords.heading,
-            speedMetersPerSecond:
-              position.coords.speed == null || Number.isNaN(position.coords.speed)
-                ? undefined
-                : position.coords.speed,
-            recordedAtMs: position.timestamp,
-          },
-        });
-      },
-      (error) => {
-        emit({
-          type: "error",
-          error: {
-            code:
-              error.code === error.PERMISSION_DENIED
-                ? "PERMISSION_DENIED"
-                : error.code === error.TIMEOUT
-                  ? "TIMEOUT"
-                  : "POSITION_UNAVAILABLE",
-            message:
-              error.code === error.PERMISSION_DENIED
-                ? "L’autorisation de localisation a été refusée."
-                : "La position GPS n’est pas disponible.",
-          },
-        });
-      },
-      FOREGROUND_LOCATION_WATCH_OPTIONS,
-    );
-    nativeWatches += 1;
+          });
+        },
+        (error) => {
+          emit({
+            type: "error",
+            error: {
+              code:
+                error.code === error.PERMISSION_DENIED
+                  ? "PERMISSION_DENIED"
+                  : error.code === error.TIMEOUT
+                    ? "TIMEOUT"
+                    : "POSITION_UNAVAILABLE",
+              message:
+                error.code === error.PERMISSION_DENIED
+                  ? "L’autorisation de localisation a été refusée."
+                  : "La position GPS n’est pas disponible.",
+            },
+          });
+        },
+        FOREGROUND_LOCATION_WATCH_OPTIONS,
+      );
+      nativeWatches += 1;
+    } catch {
+      watchId = null;
+      emit({
+        type: "error",
+        error: {
+          code: "UNAVAILABLE",
+          message:
+            "La géolocalisation n’est pas disponible dans ce navigateur.",
+        },
+      });
+    }
   }
 
   function stopNative() {
@@ -91,19 +104,27 @@ export function createBrowserLocationWatch(
     }
     watchId = null;
     nativeWatches = 0;
+    lastEvent = null;
   }
 
   function emit(event: LocationWatchEvent) {
+    lastEvent = event;
     for (const listener of listeners) {
       listener(event);
     }
   }
 
   return {
+    start() {
+      startNative();
+    },
     subscribe(listener) {
       listeners.add(listener);
-      if (listeners.size === 1) {
+      if (watchId === null) {
         startNative();
+      }
+      if (lastEvent) {
+        listener(lastEvent);
       }
       return () => {
         listeners.delete(listener);

@@ -28,6 +28,12 @@ export type LocationUnsubscribe = () => void;
  * Implementations must expose at most one native watchPosition() at a time.
  */
 export type LocationWatch = {
+  /**
+   * Start the native `watchPosition()` in the current call stack (FR-023).
+   * Required on iOS/Safari, where a GPS watch opened later in `useEffect`
+   * is outside the user gesture that started navigation.
+   */
+  start: () => void;
   subscribe: (listener: (event: LocationWatchEvent) => void) => LocationUnsubscribe;
   activeNativeWatches: () => number;
 };

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createBrowserLocationWatch } from "@/infrastructure/location/browser-location-watch";
+import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
   AVAILABLE_DURATION_HINT,
@@ -147,6 +149,10 @@ export function RideRequestForm({
   const [navigating, setNavigating] = useState(false);
   const generationId = useRef(0);
   const startRef = useRef(start);
+  const ownedLocationWatch = useMemo(() => createBrowserLocationWatch(), []);
+  const ownedSpeech = useMemo(() => createSpeechGuidance(), []);
+  const locationWatch = navigation?.locationWatch ?? ownedLocationWatch;
+  const speechEngine = navigation?.speech ?? ownedSpeech;
 
   useEffect(() => {
     startRef.current = start;
@@ -159,6 +165,20 @@ export function RideRequestForm({
     setGenerationError(null);
     setNavigating(false);
     setComposedRequest(null);
+  }
+
+  function startNavigation() {
+    try {
+      locationWatch.start();
+    } catch {
+      // The overlay must still open after the explicit action (FR-023).
+    }
+    try {
+      speechEngine.unlock();
+    } catch {
+      // Visual navigation continues if speech cannot unlock (FR-025).
+    }
+    setNavigating(true);
   }
 
   const needsDestination = type !== "loop";
@@ -560,7 +580,7 @@ export function RideRequestForm({
                 type="button"
                 size="lg"
                 className="min-h-12 w-full text-base"
-                onClick={() => setNavigating(true)}
+                onClick={startNavigation}
               >
                 Démarrer la navigation
               </Button>
@@ -586,8 +606,8 @@ export function RideRequestForm({
             request={composedRequest}
             onStop={() => setNavigating(false)}
             onRouteChange={setGeneratedRoute}
-            locationWatch={navigation?.locationWatch}
-            speech={navigation?.speech}
+            locationWatch={locationWatch}
+            speech={speechEngine}
             recalculate={navigation?.recalculate}
             mapEngine={navigation?.mapEngine}
             now={navigation?.now}
