@@ -4,7 +4,6 @@ import {
   prefersLightweightNavigationMap,
   type NavigationBrowserPlatform,
 } from "./browser-map-platform";
-import { createLightweightNavigationMapEngine } from "./lightweight-navigation-map-engine";
 import { createMapLibreEngine } from "./maplibre-map-engine";
 import type { MapEngine, MapEngineHandle, MapEngineHandlers } from "./map-engine";
 import type { RideMapViewModel } from "./ride-map-view-model";
@@ -39,8 +38,11 @@ export function resolvePlatformMapEngine(
 ): MapEngine {
   const platform =
     options.platform === undefined ? browserPlatform() : options.platform;
-  if (prefersLightweightNavigationMap(platform)) {
-    return options.lightweight ?? createLightweightNavigationMapEngine();
+  // SVG is opt-in only. Auto-switching iOS to a schematic map made the blue
+  // route look detached from the streets (FR-013). Crash avoidance is a
+  // single shared MapLibre instance, not a second engine.
+  if (options.lightweight && prefersLightweightNavigationMap(platform)) {
+    return options.lightweight;
   }
   return options.mapLibre ?? createDefaultMapLibre();
 }
@@ -65,6 +67,9 @@ export function createNavigationMapEngine(
         },
         setViewModel(next) {
           handle.setViewModel?.(next);
+        },
+        resize() {
+          handle.resize?.();
         },
       };
     },

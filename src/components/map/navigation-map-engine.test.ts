@@ -51,12 +51,10 @@ const linuxDesktop = {
 };
 
 describe("createNavigationMapEngine (FR-023, NFR-006)", () => {
-  it("does not allocate MapLibre for an iPhone navigation session", () => {
+  it("keeps the street map on iPhone so the route stays on the roads (FR-013)", () => {
     const mapLibre = stubEngine();
-    const lightweight = stubEngine();
     const engine = createNavigationMapEngine({
       mapLibre: mapLibre.engine,
-      lightweight: lightweight.engine,
       platform: iPhone,
     });
 
@@ -68,12 +66,28 @@ describe("createNavigationMapEngine (FR-023, NFR-006)", () => {
     handle.recenter();
     handle.destroy();
 
-    expect(mapLibre.mount).not.toHaveBeenCalled();
+    expect(mapLibre.mount).toHaveBeenCalledTimes(1);
+    expect(mapLibre.handle.setUserLocation).toHaveBeenCalledTimes(1);
+    expect(mapLibre.handle.setViewModel).toHaveBeenCalledTimes(1);
+    expect(mapLibre.handle.recenter).toHaveBeenCalledTimes(1);
+    expect(mapLibre.handle.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses an explicit lightweight engine only when opted in", () => {
+    const mapLibre = stubEngine();
+    const lightweight = stubEngine();
+    const engine = createNavigationMapEngine({
+      mapLibre: mapLibre.engine,
+      lightweight: lightweight.engine,
+      platform: iPhone,
+    });
+
+    engine.mount(document.createElement("div"), viewModel, {
+      onError: vi.fn(),
+    });
+
     expect(lightweight.mount).toHaveBeenCalledTimes(1);
-    expect(lightweight.handle.setUserLocation).toHaveBeenCalledTimes(1);
-    expect(lightweight.handle.setViewModel).toHaveBeenCalledTimes(1);
-    expect(lightweight.handle.recenter).toHaveBeenCalledTimes(1);
-    expect(lightweight.handle.destroy).toHaveBeenCalledTimes(1);
+    expect(mapLibre.mount).not.toHaveBeenCalled();
   });
 
   it("keeps MapLibre on non-iOS browsers", () => {
@@ -95,12 +109,11 @@ describe("createNavigationMapEngine (FR-023, NFR-006)", () => {
 });
 
 describe("createRideMapEngine (FR-013, FR-023)", () => {
-  it("does not allocate MapLibre for an iPhone preview map", () => {
+  it("keeps the street map on an iPhone preview (FR-013)", () => {
     const mapLibre = stubEngine();
     const lightweight = stubEngine();
     const engine = createRideMapEngine({
       mapLibre: mapLibre.engine,
-      lightweight: lightweight.engine,
       platform: iPhone,
     });
 
@@ -108,8 +121,8 @@ describe("createRideMapEngine (FR-013, FR-023)", () => {
       onError: vi.fn(),
     });
 
-    expect(mapLibre.mount).not.toHaveBeenCalled();
-    expect(lightweight.mount).toHaveBeenCalledTimes(1);
+    expect(mapLibre.mount).toHaveBeenCalledTimes(1);
+    expect(lightweight.mount).not.toHaveBeenCalled();
   });
 
   it("keeps MapLibre on desktop preview maps", () => {

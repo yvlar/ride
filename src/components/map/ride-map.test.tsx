@@ -148,4 +148,40 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(mount).toHaveBeenCalledTimes(1);
     expect(destroy).not.toHaveBeenCalled();
   });
+
+  it("keeps the street map mounted when the preview expands for navigation (FR-013, FR-023)", async () => {
+    const destroy = vi.fn();
+    const setUserLocation = vi.fn();
+    const resize = vi.fn();
+    const mount = vi.fn(() => ({ destroy, setUserLocation, resize }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = render(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <RideMap
+        route={loop}
+        engine={engine}
+        expanded
+        userLocation={{ latitude: 45.4001, longitude: -72.7342 }}
+      />,
+    );
+    await waitFor(() => {
+      expect(setUserLocation).toHaveBeenCalledWith({
+        latitude: 45.4001,
+        longitude: -72.7342,
+      });
+    });
+    expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
+      "Sens : boucle depuis Granby, QC",
+    );
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(resize).toHaveBeenCalled();
+    });
+  });
 });

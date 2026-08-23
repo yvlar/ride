@@ -747,18 +747,19 @@ describe("RideRequestForm (FR-014)", () => {
       setMuted: vi.fn(),
       unlock: vi.fn(),
     };
+    const destroyPreviewMap = vi.fn();
+    const mountPreviewMap = vi.fn(() => ({
+      destroy: destroyPreviewMap,
+      setUserLocation: vi.fn(),
+      recenter: vi.fn(),
+      setViewModel: vi.fn(),
+      resize: vi.fn(),
+    }));
     renderForm({
+      mapEngine: { mount: mountPreviewMap },
       navigation: {
         locationWatch,
         speech,
-        mapEngine: {
-          mount: () => ({
-            destroy: vi.fn(),
-            setUserLocation: vi.fn(),
-            recenter: vi.fn(),
-            setViewModel: vi.fn(),
-          }),
-        },
       },
     });
 
@@ -774,7 +775,12 @@ describe("RideRequestForm (FR-014)", () => {
     });
     expect(locationWatch.subscribe).not.toHaveBeenCalled();
 
+    await waitFor(() => {
+      expect(mountPreviewMap).toHaveBeenCalledTimes(1);
+    });
     fireEvent.click(start);
+    expect(mountPreviewMap).toHaveBeenCalledTimes(1);
+    expect(destroyPreviewMap).not.toHaveBeenCalled();
     expect(locationWatch.start).toHaveBeenCalledTimes(1);
     expect(speech.unlock).toHaveBeenCalledTimes(1);
     expect(locationWatch.subscribe).toHaveBeenCalledTimes(1);
@@ -784,7 +790,10 @@ describe("RideRequestForm (FR-014)", () => {
     expect(document.body.contains(dialog)).toBe(true);
     expect(document.querySelector("form")).toHaveAttribute("inert");
     expect(
-      screen.queryByRole("region", { name: "Carte du trajet" }),
+      screen.getByRole("region", { name: "Carte du trajet", hidden: true }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Carte de navigation" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));

@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Coordinates } from "@/domain/geo/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
-import {
-  browserPlatform,
-  prefersLightweightNavigationMap,
-} from "./browser-map-platform";
 import {
   MAP_UNAVAILABLE_MESSAGE,
   type MapEngine,
@@ -17,12 +14,23 @@ import { toRideMapViewModel } from "./ride-map-view-model";
 export type RideMapProps = {
   route: GeneratedRideRoute;
   engine?: MapEngine;
+  userLocation?: Coordinates | null;
+  expanded?: boolean;
+  onRecenterReady?: (recenter: () => void) => void;
 };
 
-export function RideMap({ route, engine }: RideMapProps) {
+export function RideMap({
+  route,
+  engine,
+  userLocation,
+  expanded = false,
+  onRecenterReady,
+}: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
   const viewModelRef = useRef(toRideMapViewModel(route));
+  const onRecenterReadyRef = useRef(onRecenterReady);
+  const userLocationRef = useRef(userLocation);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
@@ -31,6 +39,14 @@ export function RideMap({ route, engine }: RideMapProps) {
   useEffect(() => {
     viewModelRef.current = viewModel;
   }, [viewModel]);
+
+  useEffect(() => {
+    onRecenterReadyRef.current = onRecenterReady;
+  }, [onRecenterReady]);
+
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -49,10 +65,7 @@ export function RideMap({ route, engine }: RideMapProps) {
       try {
         const resolved =
           engine ??
-          (prefersLightweightNavigationMap(browserPlatform())
-            ? (await import("./lightweight-navigation-map-engine"))
-                .createLightweightNavigationMapEngine()
-            : (await import("./maplibre-map-engine")).createMapLibreEngine());
+          (await import("./maplibre-map-engine")).createMapLibreEngine();
         if (cancelled) {
           return;
         }
@@ -73,13 +86,37 @@ export function RideMap({ route, engine }: RideMapProps) {
         if (latest) {
           handle.setViewModel?.(latest);
         }
+        handle.setUserLocation?.(userLocationRef.current ?? null);
+        onRecenterReadyRef.current?.(() => handle?.recenter?.());
         if (cancelled) {
           handle.destroy();
           handleRef.current = undefined;
         }
       } catch {
-        if (!cancelled) {
-          setError(MAP_UNAVAILABLE_MESSAGE);
+        if (cancelled) {
+          return;
+        }
+        try {
+          const fallback = (
+            await import("./lightweight-navigation-map-engine")
+          ).createLightweightNavigationMapEngine();
+          if (cancelled) {
+            return;
+          }
+          handle = fallback.mount(container, initial, {
+            onError: (message) => {
+              if (!cancelled) {
+                setError(message);
+              }
+            },
+          });
+          handleRef.current = handle;
+          handle.setUserLocation?.(userLocationRef.current ?? null);
+          onRecenterReadyRef.current?.(() => handle?.recenter?.());
+        } catch {
+          if (!cancelled) {
+            setError(MAP_UNAVAILABLE_MESSAGE);
+          }
         }
       }
     })();
@@ -100,9 +137,23 @@ export function RideMap({ route, engine }: RideMapProps) {
     handleRef.current?.setViewModel?.(viewModel);
   }, [viewModel]);
 
+  useEffect(() => {
+    handleRef.current?.setUserLocation?.(userLocation ?? null);
+  }, [userLocation]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      handleRef.current?.resize?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [expanded]);
+
   return (
-    <section aria-label="Carte du trajet" className="space-y-2">
-      {viewModel ? (
+    <section
+      aria-label="Carte du trajet"
+      className={cn(expanded ? "relative h-full w-full" : "space-y-2")}
+    >
+      {viewModel && !expanded ? (
         <>
           <p className="text-sm leading-6">{viewModel.directionLabel}</p>
           <ul className="space-y-1 text-sm leading-6 text-muted-foreground">
@@ -130,7 +181,10 @@ export function RideMap({ route, engine }: RideMapProps) {
       <div
         ref={containerRef}
         className={cn(
-          "h-64 min-h-64 w-full overflow-hidden rounded-lg border border-border bg-muted",
+          "w-full overflow-hidden bg-muted",
+          expanded
+            ? "h-full min-h-full rounded-none border-0"
+            : "h-64 min-h-64 rounded-lg border border-border",
           error ? "hidden" : undefined,
         )}
       />

@@ -11,8 +11,8 @@ const MAX_ROUTE_POINTS = 800;
 type ProjectedPoint = { x: number; y: number };
 
 /**
- * Route-only map that uses SVG instead of WebGL. Preview and navigation share
- * it on iOS so GPS guidance stays usable without a second GPU context.
+ * Route-only SVG map kept as an explicit fallback when WebGL cannot start.
+ * Production preview and navigation use a single shared street map (FR-013).
  */
 export function createLightweightNavigationMapEngine(): MapEngine {
   return {
@@ -149,6 +149,7 @@ export function createLightweightNavigationMapEngine(): MapEngine {
           followUser = Boolean(userPoint);
           updateFollowView();
         },
+        resize() {},
       };
     },
   };

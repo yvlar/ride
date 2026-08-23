@@ -196,6 +196,16 @@ export function createMapLibreEngine(
           }
           renderRoute(next, { fitCamera: true });
         },
+        resize() {
+          if (!map || disposed) {
+            return;
+          }
+          try {
+            map.resize();
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+          }
+        },
         setUserLocation(coordinates) {
           if (!map || disposed) {
             return;

@@ -246,7 +246,7 @@ Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et 
 
 La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal `speechSynthesis` et recalcul hors trajet. Elle exige que l’application reste ouverte au premier plan. La localisation en arrière-plan, l’écran verrouillé, la navigation hors ligne, Android Auto, Apple CarPlay et l’export GPX restent hors périmètre.
 
-Sur iPhone et iPad, l’aperçu et la navigation utilisent un tracé SVG allégé plutôt qu’une carte WebGL. Le suivi GPS, les manœuvres, la voix et le recalcul restent actifs; cette dégradation évite le plantage mémoire iOS suivi dans [MapLibre GL JS #7667](https://github.com/maplibre/maplibre-gl-js/issues/7667).
+L’aperçu et la navigation partagent une seule carte routière. Démarrer la navigation agrandit cette carte au lieu d’en monter une seconde, ce qui évite le plantage mémoire iOS suivi dans [MapLibre GL JS #7667](https://github.com/maplibre/maplibre-gl-js/issues/7667) tout en gardant le tracé aligné sur les rues (`FR-013`).
 
 Commandes utiles :
 

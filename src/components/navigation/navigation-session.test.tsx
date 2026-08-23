@@ -336,4 +336,47 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
+
+  it("can reuse an external street map instead of mounting a second one (FR-013, FR-023)", async () => {
+    const { watch, emit } = createWatch();
+    const onUserLocation = vi.fn();
+    const onRecenter = vi.fn();
+    const mount = vi.fn();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        mapEngine={{ mount }}
+        renderMap={false}
+        onUserLocation={onUserLocation}
+        onRecenter={onRecenter}
+      />,
+    );
+
+    expect(mount).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("region", { name: "Carte de navigation" }),
+    ).not.toBeInTheDocument();
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(onUserLocation).toHaveBeenCalledWith({
+        latitude: 45.4,
+        longitude: -72.7,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
+    expect(onRecenter).toHaveBeenCalledTimes(1);
+  });
 });
