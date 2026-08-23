@@ -37,7 +37,8 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 8. le visualiser sur une carte avec les statistiques essentielles;
 9. régénérer une variante sensiblement différente;
 10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`);
-11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`).
+11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`);
+12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier.
 
 Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan.
 
@@ -312,7 +313,7 @@ Le domaine ne dépend ni de MapLibre ni d’un fournisseur de géocodage nommé 
 
 Le parcours MVP est le suivant :
 
-1. Ouvrir l’écran principal (`FR-014`).
+1. Ouvrir l’écran principal (`FR-014`), y compris via la coque iOS (`FR-027`).
 2. Saisir ou sélectionner le point de départ (`FR-017`), y compris via la position actuelle dont l’adresse est alors affichée.
 3. Choisir le type de trajet : boucle, départ vers destination, ou aller-retour différent.
 4. Saisir la destination si le type l’exige (`FR-018`).
@@ -595,6 +596,26 @@ La navigation est conçue pour un smartphone tenu ou fixé, application ouverte.
 
 Une erreur de carte, de voix ou de GPS ne doit pas provoquer une boucle de requêtes.
 
+### NFR-007 — Conteneur natif remplaçable
+
+La coque iOS (`FR-027`) est un **détail d’infrastructure**. Capacitor, WKWebView, les plugins de localisation, de barre de statut ou de verrouillage d’écran ne doivent pas apparaître dans le domaine.
+
+Un remplacement du conteneur (autre WebView, autre pont natif) ne doit pas obliger à réécrire les règles métier, le générateur ou le calcul de navigation (`BR-004`, `NFR-003`).
+
+### FR-027 — Coque iOS
+
+L’application MVP peut s’ouvrir comme une application iPhone : icône, écran de lancement, barre de statut et zones sûres (encoche, indicateur d’accueil).
+
+La coque :
+
+- expose le même flux que le web (`FR-014` à `FR-016`);
+- réutilise la même carte, le même GPS de premier plan et la même navigation (`FR-013`, `FR-022` à `FR-026`);
+- demande uniquement la localisation **lorsque l’app est utilisée** (`NSLocationWhenInUseUsageDescription`);
+- n’active aucun mode d’arrière-plan de localisation;
+- ne prétend pas fonctionner écran verrouillé, en arrière-plan ou hors ligne.
+
+Le guidage vocal reste `speechSynthesis` (`FR-025`). Pendant une navigation démarrée (`FR-023`), la coque peut empêcher la mise en veille de l’écran tant que l’app reste au premier plan (`NFR-006`). Safari et l’ordinateur conservent les adaptateurs navigateur existants.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -618,7 +639,9 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - alertes police ou dangers;
 - données communautaires;
 - Android Auto et Apple CarPlay;
-- application native;
+- réécriture native Swift, SwiftUI, React Native ou Expo;
+- application Android;
+- publication App Store ou TestFlight (le dépôt fournit le projet Xcode);
 - partage de position;
 - enregistrement de l’historique GPS;
 - commentaires publics;
@@ -649,7 +672,10 @@ Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 9. mode « Surprise me »;
 10. comptes, synchronisation et partage;
 11. styles adventure et découverte;
-12. navigation hors ligne, arrière-plan ou écran verrouillé.
+12. navigation hors ligne, arrière-plan ou écran verrouillé;
+13. application Android;
+14. publication App Store;
+15. réécriture de l’interface en Swift ou React Native.
 
 Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre à jour cette spécification, puis le code, puis les tests.
 
@@ -687,6 +713,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-024` | Instructions de manœuvre |
 | `FR-025` | Guidage vocal |
 | `FR-026` | Détection hors trajet et recalcul |
+| `FR-027` | Coque iOS |
 
 ### Règles métier
 
@@ -711,3 +738,4 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `NFR-004` | Sécurité d’usage |
 | `NFR-005` | Remplaçabilité des fournisseurs |
 | `NFR-006` | Navigation sécuritaire de premier plan |
+| `NFR-007` | Conteneur natif remplaçable |

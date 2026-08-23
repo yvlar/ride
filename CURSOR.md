@@ -4,7 +4,7 @@ Ce document sert de cahier des charges technique et fonctionnel pour construire 
 
 ## 1. Mission
 
-Construire une application Web responsive, utilisable sur téléphone et ordinateur, qui permet à un motocycliste de générer une route agréable à partir de quelques paramètres.
+Construire une application Web responsive, utilisable sur téléphone et ordinateur, ainsi qu’une coque iOS Capacitor qui expose le même flux, afin qu’un motocycliste puisse générer une route agréable à partir de quelques paramètres.
 
 Le produit doit prendre en charge trois types de trajets :
 
@@ -45,8 +45,12 @@ Ne pas implémenter dans la première version :
 - les profils de plusieurs motos;
 - les pauses automatiques et la gestion complète de l’autonomie;
 - le partage public de trajets;
-- une application mobile native;
+- une réécriture native Swift, SwiftUI, React Native ou Expo;
+- une application Android;
+- la publication App Store ou TestFlight;
 - un moteur cartographique ou routier développé entièrement à l’interne.
+
+La coque iOS Capacitor (`FR-027`, `NFR-007`) fait partie du MVP : projet Xcode dans `ios/`, localisation « When In Use » uniquement, GPS et navigation de premier plan. Le build signé, le simulateur et l’ouverture Xcode exigent macOS. Capacitor, WKWebView et les plugins restent des adaptateurs ; le domaine ne les référence pas.
 
 Préparer l’architecture pour ces fonctions sans les construire prématurément.
 
@@ -92,7 +96,8 @@ Utiliser une architecture Web TypeScript simple et évolutive.
 - **Zod** pour la validation des formulaires, variables d’environnement et réponses externes;
 - **React Hook Form** pour les formulaires;
 - **Vitest** et Testing Library pour les tests unitaires et de composants;
-- **Playwright** pour les parcours critiques de bout en bout.
+- **Playwright** pour les parcours critiques de bout en bout;
+- **Capacitor** pour la coque iOS (`ios/`), avec plugins de géolocalisation, barre de statut, splash et maintien d’écran. Le domaine ne dépend pas de Capacitor (`NFR-007`). Le build Xcode se fait sur macOS.
 
 ### Données
 
