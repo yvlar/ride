@@ -3,11 +3,6 @@ import {
   type LocationWatch,
   type LocationWatchEvent,
 } from "@/domain/location/types";
-import {
-  getGeolocationWatchSnapshot,
-  installGeolocationWatchProbe,
-  writeGeolocationWatchLog,
-} from "@/infrastructure/location/geolocation-watch-probe";
 
 export type BrowserGeolocationApi = {
   watchPosition: typeof navigator.geolocation.watchPosition;
@@ -32,9 +27,7 @@ export function createBrowserLocationWatch(
       : null);
 
   function startNative() {
-    installGeolocationWatchProbe();
     const geo = geolocation();
-    const usingInjectedApi = Boolean(api);
     if (!geo || watchId !== null) {
       if (!geo) {
         emit({
@@ -91,18 +84,6 @@ export function createBrowserLocationWatch(
         FOREGROUND_LOCATION_WATCH_OPTIONS,
       );
       nativeWatches += 1;
-      // #region agent log
-      writeGeolocationWatchLog({
-        hypothesisId: "B",
-        location: "browser-location-watch.ts:startNative:after",
-        message: "LocationWatch startNative after watchPosition",
-        data: {
-          usingInjectedApi,
-          locationWatchNative: nativeWatches,
-          probe: getGeolocationWatchSnapshot(),
-        },
-      });
-      // #endregion
     } catch {
       watchId = null;
       emit({

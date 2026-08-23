@@ -19,11 +19,6 @@ import type { Coordinates } from "@/domain/geo/types";
 import type { GenerateRideRequest, GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
 import { Button } from "@/components/ui/button";
 import { createBrowserLocationWatch } from "@/infrastructure/location/browser-location-watch";
-import {
-  getGeolocationWatchSnapshot,
-  installGeolocationWatchProbe,
-  writeGeolocationWatchLog,
-} from "@/infrastructure/location/geolocation-watch-probe";
 import { createSpeechGuidance, type SpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import { NavigationMap, type NavigationMapProps } from "./navigation-map";
 import { maneuverArrow } from "./maneuver-arrow";
@@ -210,7 +205,6 @@ export function NavigationSession({
       return;
     }
     const watch = locationWatch ?? createBrowserLocationWatch();
-    installGeolocationWatchProbe();
     const unsubscribe = watch.subscribe((event) => {
       try {
         if (event.type === "error") {
@@ -285,19 +279,6 @@ export function NavigationSession({
         // NFR-006: a bad GPS tick must not take down the navigation tree.
       }
     });
-
-    // #region agent log
-    writeGeolocationWatchLog({
-      hypothesisId: "D",
-      location: "navigation-session.tsx:subscribe:after",
-      message: "NavigationSession subscribe after",
-      data: {
-        hasInjectedWatch: Boolean(locationWatch),
-        locationWatchNative: watch.activeNativeWatches(),
-        probe: getGeolocationWatchSnapshot(),
-      },
-    });
-    // #endregion
 
     return () => {
       unsubscribe();
