@@ -891,10 +891,13 @@ Créer `.env.example` sans valeur secrète :
 ROUTING_PROVIDER=mock
 ROUTING_API_BASE_URL=
 ROUTING_API_KEY=
+GEOCODING_PROVIDER=mock
 GEOCODING_API_BASE_URL=
 GEOCODING_API_KEY=
 NEXT_PUBLIC_MAP_STYLE_URL=
 ```
+
+`GEOCODING_PROVIDER=mock` est la valeur locale et de test. `GEOCODING_PROVIDER=nominatim` exige `GEOCODING_API_BASE_URL` vers un service dédié ou géré ; aucun serveur public de démonstration n’est configuré par défaut. Les appels de géocodage, y compris le géocodage inverse, restent côté serveur derrière `GeocodingProvider`.
 
 Valider les variables au démarrage. Les variables préfixées `NEXT_PUBLIC_` sont visibles dans le navigateur et ne doivent jamais contenir de secret.
 
