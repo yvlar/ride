@@ -20,6 +20,11 @@ import {
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
 import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
+import {
+  getGeolocationWatchSnapshot,
+  installGeolocationWatchProbe,
+  writeGeolocationWatchLog,
+} from "@/infrastructure/location/geolocation-watch-probe";
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -76,9 +81,22 @@ export function createMapLibreEngine(
       }
 
       if (geolocateEnabled) {
+        installGeolocationWatchProbe();
         geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
         map.addControl(geolocateControl, "top-right");
         labelGeolocateControl(container);
+        // #region agent log
+        writeGeolocationWatchLog({
+          hypothesisId: "A",
+          location: "maplibre-map-engine.ts:addGeolocateControl",
+          message: "GeolocateControl added (not yet watching)",
+          data: {
+            geolocateEnabled,
+            trackUserLocation: RIDE_GEOLOCATE_CONTROL_OPTIONS.trackUserLocation,
+            probe: getGeolocationWatchSnapshot(),
+          },
+        });
+        // #endregion
         geolocateControl.on("error", () => {
           if (!disposed) {
             onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);

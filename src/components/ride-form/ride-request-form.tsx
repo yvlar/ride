@@ -41,6 +41,11 @@ import {
 } from "@/components/navigation/navigation-session";
 import { requestGeneratedRide } from "@/components/ride-form/request-generated-ride";
 import { cn } from "@/lib/utils";
+import {
+  getGeolocationWatchSnapshot,
+  installGeolocationWatchProbe,
+  writeGeolocationWatchLog,
+} from "@/infrastructure/location/geolocation-watch-probe";
 
 const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
   {
@@ -173,11 +178,23 @@ export function RideRequestForm({
   }
 
   function startNavigation() {
+    installGeolocationWatchProbe();
     try {
       locationWatch.start();
     } catch {
       // The overlay must still open after the explicit action (FR-023).
     }
+    // #region agent log
+    writeGeolocationWatchLog({
+      hypothesisId: "D",
+      location: "ride-request-form.tsx:startNavigation:after",
+      message: "Démarrer la navigation after LocationWatch.start",
+      data: {
+        locationWatchNative: locationWatch.activeNativeWatches(),
+        probe: getGeolocationWatchSnapshot(),
+      },
+    });
+    // #endregion
     try {
       speechEngine.unlock();
     } catch {
