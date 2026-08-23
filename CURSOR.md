@@ -37,7 +37,7 @@ Le MVP doit permettre de :
 
 Ne pas implémenter dans la première version :
 
-- le guidage vocal virage par virage;
+- la localisation en arrière-plan, le fonctionnement écran verrouillé et la navigation hors ligne;
 - un réseau social;
 - les paiements ou abonnements;
 - la météo en temps réel;
@@ -418,6 +418,20 @@ Règles :
 - limiter les résultats;
 - mettre en cache les recherches fréquentes selon les conditions du fournisseur;
 - ne jamais journaliser une adresse complète sans nécessité.
+
+### `POST /api/routes/recalculate`
+
+Entrée : position actuelle, type de trajet, style, préférences, géométrie restante et étapes restantes, validés par Zod.
+
+Sortie : le trajet fusionné, ou une erreur métier qui conserve le trajet courant côté client.
+
+Règles :
+
+- n’accepter une position que pour un recalcul réellement nécessaire;
+- conserver le style, `avoidHighways` et `avoidUnpaved`;
+- passer uniquement par `RoutingProvider`;
+- ignorer les réponses obsolètes;
+- ne jamais journaliser de coordonnées.
 
 ### `POST /api/routes/export-gpx`
 
