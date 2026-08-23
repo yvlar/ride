@@ -9,9 +9,13 @@ import type {
 } from "./routing-provider";
 
 const DEFAULT_PROFILE = "driving";
-const DEFAULT_TIMEOUT_MS = 15_000;
+export const OSRM_REQUEST_TIMEOUT_MS = 7_000;
+const OSRM_USER_AGENT = "Ride/1.0 (+https://github.com/yvlar/ride)";
 
-const positionSchema = z.tuple([z.number(), z.number()]);
+const positionSchema = z.tuple([
+  z.number().min(-180).max(180),
+  z.number().min(-90).max(90),
+]);
 const lineStringSchema = z.object({
   type: z.literal("LineString"),
   coordinates: z.array(positionSchema).min(2),
@@ -56,7 +60,7 @@ export class OsrmRoutingProvider implements RoutingProvider {
     baseUrl: string,
     private readonly fetcher: typeof fetch = fetch,
     private readonly profile = DEFAULT_PROFILE,
-    private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
+    private readonly timeoutMs = OSRM_REQUEST_TIMEOUT_MS,
   ) {
     this.baseUrl = parseBaseUrl(baseUrl);
   }
@@ -67,7 +71,10 @@ export class OsrmRoutingProvider implements RoutingProvider {
     const url = this.buildRouteUrl(input);
     const response = await this.fetcher(url, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "User-Agent": OSRM_USER_AGENT,
+      },
       cache: "no-store",
       signal: AbortSignal.timeout(this.timeoutMs),
     });

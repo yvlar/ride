@@ -1032,7 +1032,7 @@ Une tâche n’est terminée que si :
 
 Cursor ne doit pas choisir silencieusement ces éléments :
 
-- hébergement OSRM de production, zone OSM couverte, capacité et tarification — le serveur public ne sert qu’à l’évaluation locale;
+- hébergement OSRM de production, zone OSM couverte, capacité et tarification — le serveur public n’est jamais configuré par défaut et ne convient qu’à des essais manuels à faible volume respectant sa politique d’utilisation;
 - fournisseur de géocodage;
 - fournisseur et licence des tuiles;
 - zones géographiques officiellement prises en charge;

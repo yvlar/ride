@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Coordinates } from "@/domain/geo/types";
 import { createRoutingProvider } from "./create-routing-provider";
-import { OsrmRoutingProvider } from "./osrm-routing-provider";
+import {
+  OSRM_REQUEST_TIMEOUT_MS,
+  OsrmRoutingProvider,
+} from "./osrm-routing-provider";
 import { RoutingKnowledgeError } from "./routing-knowledge-error";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
@@ -85,6 +88,10 @@ describe("OsrmRoutingProvider", () => {
     expect(url.searchParams.get("steps")).toBe("true");
     expect(url.searchParams.get("geometries")).toBe("geojson");
     expect(url.searchParams.get("overview")).toBe("full");
+    const requestHeaders = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
+    expect(requestHeaders.get("user-agent")).toBe(
+      "Ride/1.0 (+https://github.com/yvlar/ride)",
+    );
 
     expect(result.geometry.coordinates).toHaveLength(4);
     expect(result.distanceKm).toBe(15.1);
@@ -140,6 +147,103 @@ describe("OsrmRoutingProvider", () => {
     await expect(
       provider.calculateRoute({ start: GRANBY, destination: WATERLOO }),
     ).rejects.toThrow("Réponse OSRM incomplète");
+  });
+
+  it("rejects an out-of-range longitude inside the route geometry", async () => {
+    const route = SUCCESS_RESPONSE.routes[0];
+    const fetcher = mockFetch({
+      ...SUCCESS_RESPONSE,
+      routes: [
+        {
+          ...route,
+          geometry: {
+            ...route.geometry,
+            coordinates: [
+              [-72.734, 45.403],
+              [181, 45.43],
+              [-72.516, 45.35],
+            ],
+          },
+        },
+      ],
+    });
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    await expect(
+      provider.calculateRoute({ start: GRANBY, destination: WATERLOO }),
+    ).rejects.toThrow("Réponse OSRM incomplète");
+  });
+
+  it("rejects an out-of-range latitude inside a step geometry", async () => {
+    const route = SUCCESS_RESPONSE.routes[0];
+    const firstLeg = route.legs[0];
+    const firstStep = firstLeg.steps[0];
+    const fetcher = mockFetch({
+      ...SUCCESS_RESPONSE,
+      routes: [
+        {
+          ...route,
+          legs: [
+            {
+              ...firstLeg,
+              steps: [
+                {
+                  ...firstStep,
+                  geometry: {
+                    ...firstStep.geometry,
+                    coordinates: [
+                      [-72.734, 45.403],
+                      [-72.67, 91],
+                    ],
+                  },
+                },
+              ],
+            },
+            route.legs[1],
+          ],
+        },
+      ],
+    });
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+    );
+
+    await expect(
+      provider.calculateRoute({ start: GRANBY, destination: WATERLOO }),
+    ).rejects.toThrow("Réponse OSRM incomplète");
+  });
+
+  it("keeps the provider timeout below the 10-second route budget", () => {
+    expect(OSRM_REQUEST_TIMEOUT_MS).toBeLessThan(10_000);
+  });
+
+  it("aborts a stalled provider request at the configured timeout", async () => {
+    const fetcher = vi.fn<typeof fetch>((_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!(signal instanceof AbortSignal)) {
+          reject(new Error("Signal d’abandon manquant."));
+          return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        });
+      }),
+    );
+    const provider = new OsrmRoutingProvider(
+      "https://routing.example.test",
+      fetcher,
+      "driving",
+      5,
+    );
+
+    await expect(
+      provider.calculateRoute({ start: GRANBY, destination: WATERLOO }),
+    ).rejects.toMatchObject({ name: "TimeoutError" });
   });
 
   it("requires HTTP(S) for the configured routing endpoint", () => {
