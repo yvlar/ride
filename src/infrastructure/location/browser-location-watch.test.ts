@@ -106,11 +106,45 @@ describe("createBrowserLocationWatch (FR-023, NFR-006)", () => {
     const listener = vi.fn();
     expect(() => watch.start()).not.toThrow();
     watch.subscribe(listener);
+    expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "error",
         error: expect.objectContaining({ code: "UNAVAILABLE" }),
       }),
     );
+  });
+
+  it("delivers a subscribe-time GPS error once (FR-023)", () => {
+    const api = {
+      watchPosition: () => {
+        throw new Error("SecurityError");
+      },
+      clearWatch: vi.fn(),
+    };
+    const listener = vi.fn();
+    createBrowserLocationWatch(api).subscribe(listener);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replay a start() error that subscribe would emit again (FR-023)", () => {
+    const api = {
+      watchPosition: vi.fn(() => {
+        throw new Error("SecurityError");
+      }),
+      clearWatch: vi.fn(),
+    };
+    const watch = createBrowserLocationWatch(api);
+    watch.start();
+    expect(api.watchPosition).toHaveBeenCalledTimes(1);
+
+    const first = vi.fn();
+    const second = vi.fn();
+    watch.subscribe(first);
+    watch.subscribe(second);
+
+    expect(api.watchPosition).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
   });
 });
