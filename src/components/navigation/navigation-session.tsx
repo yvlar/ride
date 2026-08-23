@@ -9,6 +9,7 @@ import {
 import {
   emptyOffRouteTracker,
   evaluateOffRoute,
+  markRecalculateAborted,
   markRecalculateStarted,
 } from "@/domain/navigation/off-route";
 import { decideAnnouncement, emptyVoiceMemory, resetVoiceMemory } from "@/domain/navigation/voice";
@@ -143,6 +144,7 @@ export function NavigationSession({
     );
 
     if (generation !== generationRef.current || controller.signal.aborted) {
+      offRouteRef.current = markRecalculateAborted(offRouteRef.current);
       setRecalculating(false);
       recalculatingRef.current = false;
       return;
@@ -174,6 +176,8 @@ export function NavigationSession({
       setHidden(isHidden);
       if (isHidden) {
         speechEngine.cancel();
+        abortRef.current?.abort();
+        offRouteRef.current = markRecalculateAborted(offRouteRef.current);
       }
     }
     document.addEventListener("visibilitychange", onVisibility);
@@ -271,6 +275,7 @@ export function NavigationSession({
   return (
     <div
       role="dialog"
+      aria-modal="true"
       aria-label="Navigation"
       className="fixed inset-0 z-50 flex flex-col bg-background text-foreground"
     >

@@ -776,6 +776,7 @@ describe("RideRequestForm (FR-014)", () => {
     expect(
       screen.getByRole("dialog", { name: "Navigation" }),
     ).toBeInTheDocument();
+    expect(document.querySelector("form")).toHaveAttribute("inert");
     expect(
       screen.queryByRole("region", { name: "Carte du trajet" }),
     ).not.toBeInTheDocument();

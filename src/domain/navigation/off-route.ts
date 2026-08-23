@@ -114,6 +114,15 @@ export function markRecalculateStarted(
   };
 }
 
+export function markRecalculateAborted(
+  tracker: OffRouteTracker,
+): OffRouteTracker {
+  return {
+    ...tracker,
+    lastRecalculateAtMs: null,
+  };
+}
+
 function finish(
   reason: OffRouteDecision["reason"],
   shouldRecalculate: boolean,

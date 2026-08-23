@@ -76,6 +76,39 @@ describe("stabilizeProgressKm hysteresis (FR-024)", () => {
     expect(stabilizeProgressKm(1.2, 1.185)).toBe(1.2);
     expect(stabilizeProgressKm(1.2, 1.1)).toBe(1.1);
   });
+
+  it("rejects an implausible leap to the end of the route", () => {
+    expect(stabilizeProgressKm(1, 32.2)).toBe(1);
+  });
+});
+
+describe("projectOnRoute closed loop (FR-001, FR-024)", () => {
+  const south = offsetCoordinates(origin, 180, 16);
+  const west = offsetCoordinates(south, 270, 16);
+  const loop: import("@/domain/geo/types").LineString = {
+    type: "LineString",
+    coordinates: [
+      [origin.longitude, origin.latitude],
+      [east1.longitude, east1.latitude],
+      [south.longitude, south.latitude],
+      [west.longitude, west.latitude],
+      [origin.longitude, origin.latitude],
+    ],
+  };
+
+  it("keeps a first fix near the start on the outbound rather than the finish", () => {
+    const inboundNearStart = offsetCoordinates(origin, 180, 0.04);
+    const projection = projectOnRoute(inboundNearStart, loop);
+    expect(projection!.progressKm).toBeLessThan(1);
+    expect(projection!.remainingDistanceKm).toBeGreaterThan(30);
+  });
+
+  it("does not snap to the finish after the rider has left the start", () => {
+    const inboundNearStart = offsetCoordinates(origin, 180, 0.04);
+    const projection = projectOnRoute(inboundNearStart, loop, 1);
+    expect(projection!.progressKm).toBeLessThan(5);
+    expect(projection!.remainingDistanceKm).toBeGreaterThan(20);
+  });
 });
 
 describe("evaluateNavigationProgress low accuracy (FR-024)", () => {

@@ -7,6 +7,7 @@ import {
 import {
   emptyOffRouteTracker,
   evaluateOffRoute,
+  markRecalculateAborted,
   markRecalculateStarted,
   offRouteThresholdM,
 } from "./off-route";
@@ -90,6 +91,22 @@ describe("evaluateOffRoute (FR-026)", () => {
     });
     expect(decision.reason).toBe("cooldown");
     expect(decision.shouldRecalculate).toBe(false);
+  });
+
+  it("clears the cooldown when a recalculate is aborted (FR-026)", () => {
+    const aborted = markRecalculateAborted(
+      markRecalculateStarted(emptyOffRouteTracker(), 50_000),
+    );
+    const { decision } = evaluateOffRoute({
+      distanceToRouteM: 300,
+      accuracyMeters: 8,
+      progressKm: 1,
+      nowMs: 50_001,
+      navigating: true,
+      recalculating: false,
+      tracker: aborted,
+    });
+    expect(decision.reason).not.toBe("cooldown");
   });
 
   it("does not recalculate when accuracy is poor, already rerouting, or stopped", () => {

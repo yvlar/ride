@@ -6,7 +6,9 @@ import {
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import {
   LOW_ACCURACY_LIMIT_M,
+  PROGRESS_FORWARD_MAX_M,
   PROGRESS_HYSTERESIS_M,
+  PROGRESS_MATCH_PENALTY_M_PER_KM,
 } from "./constants";
 import type {
   LocationFix,
@@ -23,12 +25,14 @@ export function stabilizeProgressKm(
   previousKm: number | null,
   measuredKm: number,
   hysteresisM = PROGRESS_HYSTERESIS_M,
+  forwardMaxM = PROGRESS_FORWARD_MAX_M,
 ): number {
   if (previousKm === null) {
     return measuredKm;
   }
   if (measuredKm >= previousKm) {
-    return measuredKm;
+    const jumpM = (measuredKm - previousKm) * 1_000;
+    return jumpM <= forwardMaxM ? measuredKm : previousKm;
   }
   const dropM = (previousKm - measuredKm) * 1_000;
   return dropM <= hysteresisM ? previousKm : measuredKm;
@@ -37,13 +41,13 @@ export function stabilizeProgressKm(
 export function projectOnRoute(
   point: Coordinates,
   geometry: LineString,
+  previousProgressKm: number | null = null,
 ): RouteProjection | null {
   if (geometry.coordinates.length < 2) {
     return null;
   }
 
-  let bestDistanceKm = Number.POSITIVE_INFINITY;
-  let best: RouteProjection | null = null;
+  const candidates: RouteProjection[] = [];
   let traveledKm = 0;
 
   for (let index = 1; index < geometry.coordinates.length; index += 1) {
@@ -51,20 +55,28 @@ export function projectOnRoute(
     const to = positionToCoordinates(geometry.coordinates[index]!);
     const segmentKm = haversineKm(from, to);
     const closest = closestPointOnSegment(point, from, to);
-    if (closest.distanceKm < bestDistanceKm) {
-      bestDistanceKm = closest.distanceKm;
-      const progressKm = traveledKm + closest.t * segmentKm;
-      best = {
-        snapped: closest.point,
-        distanceToRouteM: closest.distanceKm * 1_000,
-        progressKm,
-        remainingDistanceKm: 0,
-        remainingDurationMinutes: 0,
-        segmentIndex: index - 1,
-      };
-    }
+    const progressKm = traveledKm + closest.t * segmentKm;
+    candidates.push({
+      snapped: closest.point,
+      distanceToRouteM: closest.distanceKm * 1_000,
+      progressKm,
+      remainingDistanceKm: 0,
+      remainingDurationMinutes: 0,
+      segmentIndex: index - 1,
+    });
     traveledKm += segmentKm;
   }
+
+  const targetProgressKm = previousProgressKm ?? 0;
+  const best = candidates.reduce<RouteProjection | null>((current, candidate) => {
+    if (!current) {
+      return candidate;
+    }
+    return projectionScore(candidate, targetProgressKm) <
+      projectionScore(current, targetProgressKm)
+      ? candidate
+      : current;
+  }, null);
 
   if (!best) {
     return null;
@@ -74,6 +86,17 @@ export function projectOnRoute(
     ...best,
     remainingDistanceKm: Math.max(0, traveledKm - best.progressKm),
   };
+}
+
+function projectionScore(
+  candidate: RouteProjection,
+  targetProgressKm: number,
+): number {
+  return (
+    candidate.distanceToRouteM +
+    PROGRESS_MATCH_PENALTY_M_PER_KM *
+      Math.abs(candidate.progressKm - targetProgressKm)
+  );
 }
 
 export function remainingAlongRoute(
@@ -150,7 +173,11 @@ export function evaluateNavigationProgress(input: {
   previousProgressKm: number | null;
 }): NavigationProgress | null {
   const lowAccuracy = !isAccuracyUsable(input.fix.accuracyMeters);
-  const projection = projectOnRoute(input.fix.coordinates, input.geometry);
+  const projection = projectOnRoute(
+    input.fix.coordinates,
+    input.geometry,
+    input.previousProgressKm,
+  );
   if (!projection) {
     return null;
   }
