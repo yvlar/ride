@@ -120,10 +120,12 @@ export function createBrowserLocationWatch(
     },
     subscribe(listener) {
       listeners.add(listener);
-      if (watchId === null) {
+      // A failed start() leaves watchId null but already stored lastEvent.
+      // Do not call startNative again: emit() would notify this listener,
+      // then the replay below would deliver the same error a second time.
+      if (watchId === null && lastEvent === null) {
         startNative();
-      }
-      if (lastEvent) {
+      } else if (lastEvent) {
         listener(lastEvent);
       }
       return () => {
