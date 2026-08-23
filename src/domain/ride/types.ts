@@ -1,4 +1,5 @@
 import type { Coordinates, LineString, Place } from "@/domain/geo/types";
+import type { NavigationStep } from "@/domain/navigation/types";
 
 export type RideType = "loop" | "destination" | "round_trip";
 export type RideStyle = "curvy" | "scenic" | "touring";
@@ -105,6 +106,7 @@ export type GeneratedLoopRoute = {
   style?: RideStyle;
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
   statistics: LoopRouteStatistics;
@@ -120,6 +122,7 @@ export type GeneratedDestinationRoute = {
   targetDistanceKm?: number;
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
   warnings: string[];
@@ -139,6 +142,7 @@ export type GeneratedRoundTripRoute = {
   targetDistanceKm?: number;
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
   statistics: RoundTripRouteStatistics;
@@ -156,7 +160,9 @@ export type RideGenerationErrorCode =
   | "NO_ROUTE_FOUND"
   | "DISTANCE_OUT_OF_TOLERANCE"
   | "GEOMETRIC_LOOP_REJECTED"
-  | "PROVIDER_ERROR";
+  | "PROVIDER_ERROR"
+  | "STALE_RECALCULATE"
+  | "RECALCULATE_IN_PROGRESS";
 
 export type RideGenerationError = {
   code: RideGenerationErrorCode;
@@ -180,6 +186,7 @@ export type RideGenerationOptions = {
 export type LoopCandidate = {
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
   waypoints: Coordinates[];
@@ -188,6 +195,7 @@ export type LoopCandidate = {
 export type DestinationCandidate = {
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
   waypoints: Coordinates[];
@@ -198,6 +206,7 @@ export type RoundTripCandidate = {
   inbound: DestinationCandidate;
   geometry: LineString;
   segments: RouteSegment[];
+  steps?: NavigationStep[];
   distanceKm: number;
   durationMinutes: number;
 };

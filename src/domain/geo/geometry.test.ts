@@ -56,6 +56,33 @@ describe("joinLineStrings (FR-003)", () => {
     expect(joined.coordinates).toHaveLength(3);
     expect(joined.coordinates[1]).toEqual([east.longitude, east.latitude]);
   });
+
+  it("skips a near-duplicate join vertex from a routing connector (FR-026)", () => {
+    const east = offsetCoordinates(GRANBY, 90, 10);
+    const snapped = offsetCoordinates(east, 0, 0.01);
+    const north = offsetCoordinates(east, 0, 10);
+    const connector: LineString = {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [snapped.longitude, snapped.latitude],
+      ],
+    };
+    const remaining: LineString = {
+      type: "LineString",
+      coordinates: [
+        [east.longitude, east.latitude],
+        [north.longitude, north.latitude],
+      ],
+    };
+
+    const joined = joinLineStrings(connector, remaining);
+    expect(joined.coordinates).toHaveLength(3);
+    expect(joined.coordinates[1]).toEqual([
+      snapped.longitude,
+      snapped.latitude,
+    ]);
+  });
 });
 
 describe("headingChangePerKm", () => {

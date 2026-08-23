@@ -36,9 +36,10 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 7. générer un trajet;
 8. le visualiser sur une carte avec les statistiques essentielles;
 9. régénérer une variante sensiblement différente;
-10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`).
+10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`);
+11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`).
 
-Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ.
+Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan.
 
 ---
 
@@ -292,7 +293,7 @@ Le suivi GPS :
 - fonctionne uniquement lorsque l’application est ouverte au **premier plan**;
 - ne conserve aucune position (ni base de données, ni `localStorage`, ni cookie, ni journal);
 - ne partage aucune position avec un tiers au-delà de l’appel serveur de géocodage inverse effectué une seule fois lors du choix de « Ma position » (`FR-017`);
-- ne constitue **pas** une navigation virage par virage (`NFR-004`);
+- ne constitue **pas** à lui seul une navigation virage par virage (`FR-023`);
 - ne demande aucune permission de localisation en arrière-plan.
 
 La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position » ou le contrôle GPS de la carte. Aucune position n’est demandée automatiquement au chargement de la page.
@@ -322,8 +323,9 @@ Le parcours MVP est le suivant :
 9. Consulter le résultat sur la carte et dans le panneau de synthèse (`FR-013`, `FR-015`, `FR-020`).
 10. Régénérer si le trajet ne convient pas (`FR-012`).
 11. Activer au besoin le suivi GPS de premier plan sur la carte (`FR-022`).
+12. Démarrer une navigation de premier plan si le trajet convient (`FR-023`, `FR-024`, `FR-025`, `FR-026`).
 
-Le flux doit pouvoir être accompli avec un minimum de configuration (`NFR-002`) et avant de prendre la route (`NFR-004`).
+Le flux de configuration doit pouvoir être accompli avec un minimum de réglages (`NFR-002`) et **avant** de prendre la route (`NFR-004`). La navigation virage par virage, une fois démarrée, reste limitée à des actions simples pendant que la moto roule (`NFR-006`).
 
 ---
 
@@ -380,9 +382,10 @@ L’écran résultat s’affiche après une génération réussie. Il contient a
 - les statistiques essentielles (`FR-020`);
 - les avertissements métier, le cas échéant;
 - une action de régénération (`FR-012`);
+- une action **Démarrer la navigation** (`FR-023`);
 - un moyen de revenir modifier la demande.
 
-Sur smartphone, la carte occupe la partie supérieure et le panneau d’information reste accessible sans masquer entièrement le tracé.
+Sur smartphone, la carte occupe la partie supérieure et le panneau d’information reste accessible sans masquer entièrement le tracé. Les trajets générés ne sont pas encore persistés : la session de navigation reçoit le trajet déjà en mémoire. Elle ne sérialise pas la géométrie dans l’URL et ne l’enregistre pas dans `localStorage`.
 
 ### FR-020 — Statistiques essentielles
 
@@ -412,6 +415,7 @@ Les règles suivantes gouvernent le comportement du générateur, indépendammen
 | `BR-005` | Une durée disponible est convertie en distance estimée selon le style. |
 | `BR-006` | Une régénération doit viser un corridor sensiblement différent. |
 | `BR-007` | Les routes non pavées connues ne sont pas relâchées silencieusement. |
+| `BR-008` | Un recalcul conserve le style et les préférences d’évitement. |
 
 ### BR-002 — Minimiser les routes répétées
 
@@ -446,7 +450,9 @@ Les règles métier restent isolées des fournisseurs externes, des frameworks d
 
 ### NFR-004 — Sécurité d’usage
 
-Le flux principal de configuration d’un trajet est prévu **avant** de rouler. L’interface ne doit pas exiger une interaction substantielle pendant que la moto est en mouvement. Le MVP n’inclut pas de navigation virage par virage.
+Le flux principal de configuration d’un trajet est prévu **avant** de rouler. L’interface de composition ne doit pas exiger une interaction substantielle pendant que la moto est en mouvement.
+
+Une fois la navigation démarrée (`FR-023`), seules des actions simples restent disponibles : couper le son, recentrer la carte et arrêter la navigation (`NFR-006`).
 
 ### NFR-005 — Remplaçabilité des fournisseurs
 
@@ -465,7 +471,133 @@ Ce pipeline est un détail d’infrastructure. Il ne constitue pas une fonctionn
 
 ---
 
-## 14. Hors périmètre du MVP
+## 14. Navigation virage par virage de premier plan
+
+La navigation assistée fait partie du contrat fonctionnel, **uniquement au premier plan**. Elle ne prétend pas fonctionner lorsque l’écran est verrouillé ou que l’application est suspendue.
+
+### FR-023 — Démarrage et arrêt d’une navigation
+
+Après une génération réussie, l’utilisateur peut démarrer une session de navigation sur le trajet déjà en mémoire.
+
+Le démarrage :
+
+- n’a lieu qu’après une action explicite de l’utilisateur;
+- n’active le suivi GPS (`watchPosition`) qu’à ce moment;
+- n’active le guidage vocal qu’après cette action;
+- réutilise **une seule** souscription de localisation pour la carte et la navigation;
+- affiche clairement que l’application doit rester ouverte au premier plan.
+
+L’arrêt, le retour à l’écran résultat ou le démontage :
+
+- interrompent immédiatement le suivi GPS;
+- annulent le guidage vocal en cours;
+- ignorent tout recalcul en vol;
+- ne conservent aucune position GPS.
+
+### FR-024 — Instructions de manœuvre
+
+Pendant la navigation, l’écran affiche au minimum :
+
+- la position actuelle projetée sur le trajet;
+- la prochaine manœuvre, avec une flèche correspondant au type;
+- la distance avant cette manœuvre;
+- le nom ou le numéro de la prochaine route, lorsqu’il est connu;
+- la distance totale restante;
+- la durée restante;
+- l’heure d’arrivée estimée;
+- l’état de précision GPS.
+
+Les types de manœuvre du domaine sont indépendants de tout fournisseur (`BR-004`) : départ, arrivée, continuer, tourner, demi-tour, bifurcation, fusion, entrée et sortie d’autoroute, fin de route, rond-point (avec numéro de sortie), changement de nom de route, et manœuvre inconnue avec repli sécuritaire.
+
+Une valeur de manœuvre inconnue d’un fournisseur ne doit pas faire échouer tout le trajet. Le système conserve les données utiles disponibles et utilise une instruction générique du type « Continuez sur la route ».
+
+La progression est calculée localement sur la géométrie. Une hystérésis évite qu’un bruit GPS fasse avancer et reculer les instructions. Une précision trop faible affiche un avertissement et ne déclenche ni fausse manœuvre ni recalcul.
+
+### FR-025 — Guidage vocal
+
+Le guidage vocal utilise uniquement l’API Web Speech `speechSynthesis` du navigateur.
+
+Contraintes :
+
+- aucune synthèse distante;
+- aucun enregistrement audio;
+- voix préférée `fr-CA`, puis `fr-FR`, puis une autre voix française, puis la voix disponible avec le texte français;
+- si `speechSynthesis` est indisponible, la navigation visuelle continue;
+- l’utilisateur peut couper et réactiver le son;
+- chaque seuil d’annonce n’est prononcé qu’une fois par manœuvre.
+
+Les seuils par défaut, configurables et testés, sont :
+
+- préparation à environ 500 m;
+- approche à environ 150 m;
+- manœuvre imminente à environ 40 m.
+
+Lors d’un recalcul, les annonces devenues obsolètes sont annulées. La file vocale est remplacée. Deux annonces ne se superposent jamais.
+
+### FR-026 — Détection hors trajet et recalcul
+
+Une seule lecture GPS hors géométrie ne constitue pas une sortie de trajet.
+
+Le seuil de distance est :
+
+```text
+seuil_hors_trajet = max(60 mètres, précision_GPS × 2)
+```
+
+L’utilisateur n’est déclaré hors trajet que lorsque plusieurs lectures **précises** consécutives dépassent ce seuil, que la situation persiste pendant une durée minimale, et que la progression ne correspond pas simplement à un raccourci ou à une route parallèle très proche.
+
+Un recalcul n’est pas déclenché si :
+
+- la précision GPS est insuffisante;
+- un recalcul est déjà en cours;
+- le délai de récupération suivant un recalcul n’est pas écoulé;
+- la navigation est arrêtée.
+
+La progression normale se calcule localement. Le système n’appelle pas un service de map-matching à chaque mise à jour GPS. Les appels réseau restent exceptionnels et n’ont lieu que lorsqu’un recalcul est réellement nécessaire.
+
+Le recalcul :
+
+- part de la position GPS actuelle;
+- passe uniquement par `RoutingProvider`;
+- valide strictement la requête;
+- conserve le style, `avoidHighways` et `avoidUnpaved` (`BR-008`);
+- applique les mêmes règles et avertissements que la génération initiale;
+- ignore les réponses obsolètes (identifiant de génération ou `AbortController`);
+- n’efface jamais silencieusement le trajet courant en cas d’échec.
+
+Comportement selon le type de trajet :
+
+- **Destination** : recalculer vers la destination finale.
+- **Boucle** : raccorder l’utilisateur à un point raisonnable plus loin sur la portion restante; ne pas prendre automatiquement le raccourci direct vers le départ.
+- **Aller-retour différent** : raccorder l’utilisateur au corridor restant approprié, sans transformer silencieusement le trajet en retour direct.
+
+La fusion évite les coordonnées et étapes dupliquées, recalcule les distances cumulées, met à jour les instructions et la géométrie affichée, conserve les avertissements pertinents et ne réannonce pas les manœuvres déjà franchies.
+
+Si le recalcul échoue, l’ancien trajet reste visible, une erreur compréhensible s’affiche, et l’utilisateur peut continuer ou réessayer.
+
+### BR-008 — Préservation des préférences lors du recalcul
+
+Un recalcul (`FR-026`) conserve le type de trajet, le style (`FR-004`, `FR-005`, `FR-006`) et les préférences d’évitement (`FR-007`, `FR-008`). Il ne relâche pas silencieusement une contrainte de surface connue (`BR-007`) et ne change pas le problème en plus court chemin vers le départ.
+
+### NFR-006 — Navigation sécuritaire de premier plan
+
+La navigation est conçue pour un smartphone tenu ou fixé, application ouverte. Elle :
+
+- utilise des cibles tactiles d’au moins 48 × 48 px;
+- évite toute configuration complexe pendant que la moto roule;
+- n’utilise qu’une seule souscription `watchPosition()` à la fois, avec `enableHighAccuracy` et `maximumAge: 0`;
+- nettoie toujours cette souscription à l’arrêt ou au démontage;
+- n’envoie une position au serveur que pour un recalcul réellement nécessaire;
+- ne journalise aucune coordonnée;
+- ne sauvegarde aucune position GPS;
+- ne demande aucune permission de localisation en arrière-plan;
+- ne prétend pas fonctionner écran verrouillé ou application suspendue.
+
+Une erreur de carte, de voix ou de GPS ne doit pas provoquer une boucle de requêtes.
+
+---
+
+## 15. Hors périmètre du MVP
 
 Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implémentées tant que cette spécification ne les a pas promu au contrat fonctionnel.
 
@@ -478,14 +610,17 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - automatisation des arrêts carburant;
 - import / export GPX;
 - intégration Garmin, Google Maps ou Apple Maps;
-- navigation virage par virage;
-- instructions virage par virage et guidage vocal;
-- recalcul automatique hors trajet;
-- suivi GPS avec écran verrouillé;
 - localisation en arrière-plan;
-- historique des déplacements;
-- signalement communautaire de dangers;
-- alertes police;
+- fonctionnement avec écran verrouillé;
+- navigation hors ligne;
+- alertes de circulation;
+- limites de vitesse;
+- alertes police ou dangers;
+- données communautaires;
+- Android Auto et Apple CarPlay;
+- application native;
+- partage de position;
+- enregistrement de l’historique GPS;
 - commentaires publics;
 - notes / évaluations de trajets;
 - partage de trajets;
@@ -499,7 +634,7 @@ Ces éléments peuvent apparaître dans `README.md` ou `CURSOR.md` comme vision 
 
 ---
 
-## 15. Fonctionnalités futures
+## 16. Fonctionnalités futures
 
 Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 
@@ -514,13 +649,13 @@ Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 9. mode « Surprise me »;
 10. comptes, synchronisation et partage;
 11. styles adventure et découverte;
-12. navigation assistée hors du flux de configuration.
+12. navigation hors ligne, arrière-plan ou écran verrouillé.
 
 Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre à jour cette spécification, puis le code, puis les tests.
 
 ---
 
-## 16. Index des exigences
+## 17. Index des exigences
 
 ### Exigences fonctionnelles
 
@@ -548,6 +683,10 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-020` | Statistiques essentielles |
 | `FR-021` | Contraintes incompatibles |
 | `FR-022` | Suivi GPS de premier plan |
+| `FR-023` | Démarrage et arrêt d’une navigation |
+| `FR-024` | Instructions de manœuvre |
+| `FR-025` | Guidage vocal |
+| `FR-026` | Détection hors trajet et recalcul |
 
 ### Règles métier
 
@@ -560,6 +699,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `BR-005` | Conversion durée → distance estimée |
 | `BR-006` | Différence minimale à la régénération |
 | `BR-007` | Pas de relâchement silencieux des contraintes de surface connues |
+| `BR-008` | Préservation des préférences lors du recalcul |
 
 ### Exigences non fonctionnelles
 
@@ -570,3 +710,4 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `NFR-003` | Maintenabilité |
 | `NFR-004` | Sécurité d’usage |
 | `NFR-005` | Remplaçabilité des fournisseurs |
+| `NFR-006` | Navigation sécuritaire de premier plan |
