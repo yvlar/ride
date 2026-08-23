@@ -130,6 +130,18 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(screen.queryByText(MAP_UNAVAILABLE_MESSAGE)).not.toBeInTheDocument();
   });
 
+  it("does not refit the initial camera after mount (FR-013, NFR-006)", async () => {
+    const setViewModel = vi.fn();
+    const mount = vi.fn(() => ({ destroy: vi.fn(), setViewModel }));
+    const engine: MapEngine = { mount };
+
+    render(<RideMap route={loop} engine={engine} />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    expect(setViewModel).not.toHaveBeenCalled();
+  });
+
   it("updates the preview route without remounting the engine (FR-013, FR-026)", async () => {
     const destroy = vi.fn();
     const setViewModel = vi.fn();

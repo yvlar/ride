@@ -34,6 +34,7 @@ export function RideMap({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+  const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);
 
   useEffect(() => {
@@ -82,8 +83,9 @@ export function RideMap({
           },
         });
         handleRef.current = handle;
-        const latest = viewModelRef.current;
-        if (latest) {
+        const latest = viewModelRef.current ?? initial;
+        mountedViewModelRef.current = latest;
+        if (latest !== initial) {
           handle.setViewModel?.(latest);
         }
         handle.setUserLocation?.(userLocationRef.current ?? null);
@@ -131,10 +133,14 @@ export function RideMap({
   }, [engine, hasViewModel]);
 
   useEffect(() => {
-    if (!viewModel) {
+    if (!viewModel || !handleRef.current) {
       return;
     }
-    handleRef.current?.setViewModel?.(viewModel);
+    if (viewModel === mountedViewModelRef.current) {
+      return;
+    }
+    mountedViewModelRef.current = viewModel;
+    handleRef.current.setViewModel?.(viewModel);
   }, [viewModel]);
 
   useEffect(() => {
