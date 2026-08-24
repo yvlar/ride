@@ -271,6 +271,8 @@ Prérequis sur un Mac : Xcode, CocoaPods, un iPhone simulateur ou physique.
 3. `npx cap sync ios` puis `npx cap open ios`.
 4. Dans Xcode, lancer Ride. Accorder la localisation **lorsque l’app est utilisée**.
 
+`Info.plist` autorise uniquement le réseau local (`NSAllowsLocalNetworking`) pour un `CAPACITOR_SERVER_URL` en `http://` sur le LAN. ATS reste actif pour Internet. Une origine `https://` de production n’a pas besoin de cleartext.
+
 Sans `CAPACITOR_SERVER_URL`, l’app affiche le placeholder `public/index.html`. Android, la publication App Store et une réécriture Swift / React Native restent hors MVP.
 
 Le cahier des charges technique est dans `CURSOR.md`.

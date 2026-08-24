@@ -10,6 +10,11 @@
 	<string>Ride utilise votre position au premier plan pour le départ « Ma position » et la navigation. Aucune position n’est demandée ni conservée en arrière-plan.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Ride utilise votre position au premier plan pour le départ « Ma position » et la navigation. Aucune position n’est demandée ni conservée en arrière-plan.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CFBundleDisplayName</key>
         <string>Ride</string>
 	<key>CFBundleExecutable</key>

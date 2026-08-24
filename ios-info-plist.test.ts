@@ -13,4 +13,9 @@ describe("iOS Info.plist (FR-027, NFR-006)", () => {
     expect(plist).toContain("premier plan");
     expect(plist).not.toContain("UIBackgroundModes");
   });
+
+  it("allows local HTTP for CAPACITOR_SERVER_URL without disabling ATS globally (FR-027)", () => {
+    expect(plist).toContain("NSAllowsLocalNetworking");
+    expect(plist).not.toContain("NSAllowsArbitraryLoads");
+  });
 });
