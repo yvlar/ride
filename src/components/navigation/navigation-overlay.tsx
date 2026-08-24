@@ -1,7 +1,11 @@
 "use client";
 
 import { LocateFixed, Volume2, VolumeX, X } from "lucide-react";
-import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
+import {
+  CARPLAY_ACTIVE_MESSAGE,
+  FOREGROUND_ONLY_MESSAGE,
+  HIDDEN_WITHOUT_CARPLAY_MESSAGE,
+} from "@/domain/navigation/session-copy";
 import type { RideGenerationError } from "@/domain/ride/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,6 +31,7 @@ export type NavigationOverlayProps = {
   gpsError: string | null;
   recalculating: boolean;
   hidden: boolean;
+  carPlayConnected?: boolean;
   muted: boolean;
   recalcError: RideGenerationError | null;
   onMuteToggle: () => void;
@@ -47,6 +52,7 @@ export function NavigationOverlay({
   gpsError,
   recalculating,
   hidden,
+  carPlayConnected = false,
   muted,
   recalcError,
   onMuteToggle,
@@ -157,10 +163,14 @@ export function NavigationOverlay({
           <p className="text-xs leading-5 text-muted-foreground">
             {FOREGROUND_ONLY_MESSAGE}
           </p>
-          {hidden ? (
+          {hidden && !carPlayConnected ? (
             <p role="status" className="text-sm text-destructive">
-              La navigation nécessite que l’application reste ouverte au premier
-              plan.
+              {HIDDEN_WITHOUT_CARPLAY_MESSAGE}
+            </p>
+          ) : null}
+          {hidden && carPlayConnected ? (
+            <p role="status" className="text-sm">
+              {CARPLAY_ACTIVE_MESSAGE}
             </p>
           ) : null}
           {recalcError ? (

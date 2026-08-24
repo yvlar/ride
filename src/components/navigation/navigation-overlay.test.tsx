@@ -119,4 +119,14 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
     expect(onRetryRecalculate).toHaveBeenCalledTimes(1);
   });
+
+  it("shows CarPlay as the active display when the phone is backgrounded (FR-028)", () => {
+    renderOverlay({ hidden: true, carPlayConnected: true });
+    expect(screen.getByText("Navigation active sur CarPlay.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "La navigation nécessite que l’application reste ouverte au premier plan.",
+      ),
+    ).not.toBeInTheDocument();
+  });
 });
