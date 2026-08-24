@@ -41,6 +41,11 @@ describe("createLightweightNavigationMapEngine", () => {
     handle.setUserLocation?.({ latitude: 45.405, longitude: -72.69 });
     expect(marker).toHaveAttribute("visibility", "visible");
     expect(marker?.getAttribute("transform")).toContain("translate(");
+    expect(marker?.querySelector("[data-motorcycle-glyph=true]")).not.toBeNull();
+    expect(marker?.querySelectorAll("path").length).toBeGreaterThan(0);
+
+    handle.setUserLocation?.({ latitude: 45.405, longitude: -72.69 }, 90);
+    expect(marker?.getAttribute("transform")).toContain("rotate(90)");
 
     const fullRouteView = svg?.getAttribute("viewBox");
     handle.setFollowUser?.(true);

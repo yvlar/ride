@@ -307,6 +307,10 @@ La modification interactive avancée du tracé (ajout, déplacement ou suppressi
 
 Après une génération réussie, l’utilisateur peut afficher et suivre sa position actuelle sur la carte.
 
+La position actuelle est affichée comme une **icône de moto**. Lorsque le cap GPS est connu, la moto est orientée dans le sens du déplacement ; sinon elle conserve le dernier cap valide.
+
+Le contrôle « Suivre ma position » centre et suit la moto en temps réel tant qu’il est actif, carte **nord en haut**. Ce suivi n’affiche aucune instruction de manœuvre et ne constitue pas une navigation virage par virage (`FR-023`).
+
 Le suivi GPS :
 
 - est **volontaire** : il commence uniquement lorsque l’utilisateur active le contrôle de localisation;
