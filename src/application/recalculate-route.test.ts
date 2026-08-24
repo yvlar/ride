@@ -116,6 +116,75 @@ describe("recalculateRoute (FR-026, BR-008)", () => {
     }
   });
 
+  it("fails before routing when GPS is in the United States and stayInCanada is on (FR-028, FR-026, FR-021)", async () => {
+    const calculateRoute = vi.fn();
+    const result = await recalculateRoute(
+      {
+        currentPosition: { latitude: 42.3314, longitude: -83.0458 },
+        progressKm: 2,
+        request: {
+          type: "destination",
+          start,
+          destination,
+          style: "curvy",
+          preferences: {
+            avoidHighways: false,
+            avoidUnpaved: false,
+            stayInCanada: true,
+          },
+        },
+        originalRoute: destinationRoute,
+      },
+      { calculateRoute },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/départ est aux États-Unis/);
+    expect(calculateRoute).not.toHaveBeenCalled();
+  });
+
+  it("fails before routing when the destination is in the United States and stayInCanada is on (FR-028, FR-026, FR-021)", async () => {
+    const calculateRoute = vi.fn();
+    const usDestination = {
+      label: "Detroit",
+      coordinates: { latitude: 42.3314, longitude: -83.0458 },
+    };
+    const result = await recalculateRoute(
+      {
+        currentPosition: offsetCoordinates(start.coordinates, 180, 0.4),
+        progressKm: 2,
+        request: {
+          type: "destination",
+          start,
+          destination: usDestination,
+          style: "curvy",
+          preferences: {
+            avoidHighways: false,
+            avoidUnpaved: false,
+            stayInCanada: true,
+          },
+        },
+        originalRoute: {
+          ...destinationRoute,
+          destination: usDestination,
+        },
+      },
+      { calculateRoute },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/destination est aux États-Unis/);
+    expect(calculateRoute).not.toHaveBeenCalled();
+  });
+
   it("keeps stayInCanada on a destination reroute (FR-028, BR-008)", async () => {
     const calculateRoute = vi.fn(async (input) => {
       return new MockRoutingProvider().calculateRoute(input);

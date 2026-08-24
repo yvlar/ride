@@ -31,6 +31,7 @@ import type {
 import {
   knowledgeUnavailableError,
   applyHardRoutePreferences,
+  stayInCanadaEndpointError,
 } from "./routing-failure";
 import { isRoutingKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 
@@ -123,6 +124,15 @@ export async function recalculateRoute(
         suggestions: ["Continuez sur le trajet affiché ou réessayez."],
       },
     };
+  }
+
+  const endpointError = stayInCanadaEndpointError(
+    parsed.data.currentPosition,
+    target,
+    preferences.stayInCanada,
+  );
+  if (endpointError) {
+    return { ok: false, error: endpointError };
   }
 
   try {
