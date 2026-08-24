@@ -15,6 +15,7 @@ import {
 import { pathfindOnRetrieved } from "./pathfind";
 import { buildRouteRetrievalQuery, isSpatiallyRelevant, LexicalCorridorRetriever } from "./retrieve";
 import {
+  canadaOnlyKnowledgeError,
   disconnectedKnowledgeError,
   emptyKnowledgeError,
   tooFarKnowledgeError,
@@ -104,6 +105,19 @@ export class RagRoutingProvider implements RoutingProvider {
       );
       if (withoutSurface !== null) {
         throw unpavedKnowledgeError();
+      }
+    }
+
+    if (preferences?.stayInCanada) {
+      const withoutCanada = pathfindOnRetrieved(
+        toCell(from, origin, this.cellKm),
+        toCell(to, origin, this.cellKm),
+        retrieved,
+        style,
+        { ...preferences, stayInCanada: false },
+      );
+      if (withoutCanada !== null) {
+        throw canadaOnlyKnowledgeError();
       }
     }
 

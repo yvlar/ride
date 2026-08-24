@@ -135,6 +135,24 @@ describe("createDestinationWaypointSets (FR-002)", () => {
 
     expect(withTarget.length).toBeGreaterThan(withoutTarget.length);
   });
+
+  it("drops destination seeds that land in the United States (FR-028)", () => {
+    const niagaraOnTheLake = {
+      latitude: 43.2554,
+      longitude: -79.0712,
+    };
+    const buffalo = { latitude: 42.8864, longitude: -78.8784 };
+    const unrestricted = createDestinationWaypointSets(niagaraOnTheLake, buffalo);
+    const canadian = createDestinationWaypointSets(
+      niagaraOnTheLake,
+      buffalo,
+      undefined,
+      true,
+    );
+
+    expect(canadian.some((set) => set.waypoints.length === 0)).toBe(true);
+    expect(canadian.length).toBeLessThan(unrestricted.length);
+  });
 });
 
 describe("evaluateDestinationCandidate (FR-002)", () => {
@@ -836,5 +854,77 @@ describe("selectBestDestinationCandidate (FR-008)", () => {
     }
     expect(selection.evaluation.candidate.segments[0]?.surface).toBe("unknown");
     expect(selection.evaluation.warnings).toContain(UNKNOWN_SURFACE_WARNING);
+  });
+
+  it("selects a Canadian corridor when stayInCanada is on (FR-028)", () => {
+    const canadian = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      fastestCandidate(),
+      { shortestDistanceKm: 180 },
+    );
+    const crossing = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...fastestCandidate(),
+        geometry: densify({
+          type: "LineString",
+          coordinates: [
+            [GRANBY.longitude, GRANBY.latitude],
+            [-83.0458, 42.3314],
+            [TREMBLANT.longitude, TREMBLANT.latitude],
+          ],
+        }),
+      },
+      { shortestDistanceKm: 180 },
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [crossing, canadian],
+      "touring",
+      undefined,
+      false,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.geometry.coordinates).toEqual(
+      canadian.candidate.geometry.coordinates,
+    );
+  });
+
+  it("rejects rather than silently keeping a United States crossing (FR-028, BR-009)", () => {
+    const crossing = evaluateDestinationCandidate(
+      GRANBY,
+      TREMBLANT,
+      {
+        ...fastestCandidate(),
+        geometry: densify({
+          type: "LineString",
+          coordinates: [
+            [GRANBY.longitude, GRANBY.latitude],
+            [-83.0458, 42.3314],
+            [TREMBLANT.longitude, TREMBLANT.latitude],
+          ],
+        }),
+      },
+      { shortestDistanceKm: 180 },
+    );
+
+    const selection = selectBestDestinationCandidate(
+      [crossing],
+      "touring",
+      undefined,
+      false,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("canada_only_rejected");
   });
 });

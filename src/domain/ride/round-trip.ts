@@ -18,6 +18,10 @@ import {
   usesHighway,
   withHighwayAvoidanceSignal,
 } from "./highways";
+import {
+  excludeUnitedStatesCrossing,
+  routeEntersUnitedStates,
+} from "./canada";
 import { measureOverlapPercent, measureRepeatedRoadPercent } from "./overlap";
 import {
   excludeKnownUnpaved,
@@ -40,8 +44,14 @@ export function createReturnWaypointSets(
   start: Coordinates,
   destination: Coordinates,
   targetDistanceKm?: number,
+  stayInCanada = false,
 ): DestinationWaypointSet[] {
-  return createDestinationWaypointSets(destination, start, targetDistanceKm);
+  return createDestinationWaypointSets(
+    destination,
+    start,
+    targetDistanceKm,
+    stayInCanada,
+  );
 }
 
 export function composeRoundTripCandidate(
@@ -174,6 +184,9 @@ export type RoundTripSelection =
     }
   | {
       status: "known_unpaved_rejected";
+    }
+  | {
+      status: "canada_only_rejected";
     };
 
 /**
@@ -185,6 +198,7 @@ export function selectBestRoundTripCandidate(
   targetDistanceKm?: number,
   avoidHighways = false,
   avoidUnpaved = false,
+  stayInCanada = false,
 ): RoundTripSelection {
   const viable = evaluations.filter(isViableRoundTrip);
   if (viable.length === 0) {
@@ -199,11 +213,23 @@ export function selectBestRoundTripCandidate(
   if (avoidUnpaved && viable.length > 0 && withoutUnpaved.length === 0) {
     return { status: "known_unpaved_rejected" };
   }
+  const withoutUnitedStates = excludeUnitedStatesCrossing(
+    withoutUnpaved,
+    (evaluation) => routeEntersUnitedStates(evaluation.candidate),
+    stayInCanada,
+  );
+  if (
+    stayInCanada &&
+    withoutUnpaved.length > 0 &&
+    withoutUnitedStates.length === 0
+  ) {
+    return { status: "canada_only_rejected" };
+  }
 
-  const reasonable = withoutUnpaved.filter(
+  const reasonable = withoutUnitedStates.filter(
     (evaluation) => !evaluation.disproportionateDetour,
   );
-  const pool = reasonable.length > 0 ? reasonable : withoutUnpaved;
+  const pool = reasonable.length > 0 ? reasonable : withoutUnitedStates;
   const inTolerance =
     targetDistanceKm === undefined
       ? pool

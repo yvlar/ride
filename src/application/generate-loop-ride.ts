@@ -24,13 +24,14 @@ import type {
   RideGenerationOptions,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
-import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
+import { unpavedKnowledgeError, canadaOnlyKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
+  applyHardRoutePreferences,
   errorFromExhaustedAttempts,
   knowledgeUnavailableError,
   primaryKnowledgeError,
-  rejectIfKnownUnpavedAvoided,
+  stayInCanadaEndpointError,
   withKnowledgeConstraint,
 } from "./routing-failure";
 
@@ -117,14 +118,30 @@ async function generateValidatedLoop(
     };
   }
 
+  const endpointError = stayInCanadaEndpointError(
+    request.start.coordinates,
+    undefined,
+    request.preferences?.stayInCanada,
+  );
+  if (endpointError) {
+    return { ok: false, error: endpointError };
+  }
+
   const waypointSets = createLoopWaypointSets(
     request.start.coordinates,
     targetDistanceKm,
+    request.preferences?.stayInCanada === true,
   );
+  if (waypointSets.length === 0) {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
+    };
+  }
 
   const settled = await Promise.allSettled(
     waypointSets.map(async (set) => {
-      const result = rejectIfKnownUnpavedAvoided(
+      const result = applyHardRoutePreferences(
         await routingProvider.calculateRoute({
           start: request.start.coordinates,
           destination: request.start.coordinates,
@@ -177,6 +194,7 @@ async function generateValidatedLoop(
     request.style,
     request.preferences?.avoidHighways === true,
     request.preferences?.avoidUnpaved === true,
+    request.preferences?.stayInCanada === true,
   );
   if (
     lostOnlyToPreviousCorridor(
@@ -188,6 +206,7 @@ async function generateValidatedLoop(
         request.style,
         request.preferences?.avoidHighways === true,
         request.preferences?.avoidUnpaved === true,
+        request.preferences?.stayInCanada === true,
       ).status,
     )
   ) {
@@ -199,6 +218,13 @@ async function generateValidatedLoop(
     return {
       ok: false,
       error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
+
+  if (selection.status === "canada_only_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
     };
   }
 

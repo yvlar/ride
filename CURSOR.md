@@ -247,6 +247,7 @@ type DistanceTolerance = 5 | 10 | 20;
 type RoutePreferences = {
   avoidHighways: boolean;
   avoidUnpaved: boolean;
+  stayInCanada?: boolean;
   avoidTolls: boolean;
   maxRepeatedRoadPercent: number;
 };
@@ -435,7 +436,7 @@ Sortie : le trajet fusionné, ou une erreur métier qui conserve le trajet coura
 Règles :
 
 - n’accepter une position que pour un recalcul réellement nécessaire;
-- conserver le style, `avoidHighways` et `avoidUnpaved`;
+- conserver le style, `avoidHighways`, `avoidUnpaved` et `stayInCanada`;
 - passer uniquement par `RoutingProvider`;
 - ignorer les réponses obsolètes;
 - ne jamais journaliser de coordonnées.

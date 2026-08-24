@@ -30,7 +30,8 @@ import type {
 } from "@/infrastructure/routing/routing-provider";
 import {
   knowledgeUnavailableError,
-  rejectIfKnownUnpavedAvoided,
+  applyHardRoutePreferences,
+  stayInCanadaEndpointError,
 } from "./routing-failure";
 import { isRoutingKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 
@@ -125,8 +126,17 @@ export async function recalculateRoute(
     };
   }
 
+  const endpointError = stayInCanadaEndpointError(
+    parsed.data.currentPosition,
+    target,
+    preferences.stayInCanada,
+  );
+  if (endpointError) {
+    return { ok: false, error: endpointError };
+  }
+
   try {
-    const connector = rejectIfKnownUnpavedAvoided(
+    const connector = applyHardRoutePreferences(
       await provider.calculateRoute(
         {
           start: parsed.data.currentPosition,

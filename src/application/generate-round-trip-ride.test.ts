@@ -446,4 +446,95 @@ describe("generateRoundTripRide (FR-003)", () => {
     expect(result.route.segments[0]?.surface).toBe("unknown");
     expect(result.route.warnings).toContain(UNKNOWN_SURFACE_WARNING);
   });
+
+  it("selects a Canadian round trip when stayInCanada is on (FR-028)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        if ((input.waypoints?.length ?? 0) === 0) {
+          return {
+            ...routed,
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [input.start.longitude, input.start.latitude],
+                [-83.0458, 42.3314],
+                [input.destination.longitude, input.destination.latitude],
+              ],
+            },
+          };
+        }
+        return routed;
+      },
+    };
+
+    const result = await generateRoundTripRide(
+      {
+        type: "round_trip",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.geometry.coordinates.some(
+        (position) => position[0] === -83.0458 && position[1] === 42.3314,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects every United States round trip (FR-028, BR-009)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        return {
+          ...routed,
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [input.start.longitude, input.start.latitude],
+              [-83.0458, 42.3314],
+              [input.destination.longitude, input.destination.latitude],
+            ],
+          },
+        };
+      },
+    };
+
+    const result = await generateRoundTripRide(
+      {
+        type: "round_trip",
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/Canada seulement/);
+    expect(result.error.message).toMatch(/FR-021/);
+  });
 });

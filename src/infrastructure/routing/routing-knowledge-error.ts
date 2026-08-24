@@ -2,12 +2,14 @@ export type KnowledgeMissReason =
   | "empty"
   | "disconnected"
   | "unpaved"
+  | "canada_only"
   | "too_far";
 
 const KNOWLEDGE_MISS_REASONS = new Set<string>([
   "empty",
   "disconnected",
   "unpaved",
+  "canada_only",
   "too_far",
 ]);
 
@@ -81,6 +83,17 @@ export function unpavedKnowledgeError(): RoutingKnowledgeError {
     [
       "Désactivez « éviter les routes non pavées ».",
       "Essayez un autre départ.",
+    ],
+  );
+}
+
+export function canadaOnlyKnowledgeError(): RoutingKnowledgeError {
+  return new RoutingKnowledgeError(
+    "canada_only",
+    "L’option « Canada seulement » empêche de construire ce trajet sans traverser aux États-Unis (FR-028, FR-021).",
+    [
+      "Désactivez « Canada seulement ».",
+      "Choisissez un départ et une destination au Canada.",
     ],
   );
 }

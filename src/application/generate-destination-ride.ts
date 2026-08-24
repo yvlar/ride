@@ -22,13 +22,14 @@ import type {
   RideGenerationOptions,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
-import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
+import { unpavedKnowledgeError, canadaOnlyKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
+  applyHardRoutePreferences,
   errorFromExhaustedAttempts,
   knowledgeUnavailableError,
   primaryKnowledgeError,
-  rejectIfKnownUnpavedAvoided,
+  stayInCanadaEndpointError,
   withKnowledgeConstraint,
 } from "./routing-failure";
 
@@ -116,16 +117,26 @@ async function generateValidatedDestination(
   routingProvider: RoutingProvider,
   options?: RideGenerationOptions,
 ): Promise<GenerateDestinationRideResult> {
+  const endpointError = stayInCanadaEndpointError(
+    request.start.coordinates,
+    request.destination.coordinates,
+    request.preferences.stayInCanada,
+  );
+  if (endpointError) {
+    return { ok: false, error: endpointError };
+  }
+
   const targetDistanceKm = resolveTargetDistanceKm(request);
   const waypointSets = createDestinationWaypointSets(
     request.start.coordinates,
     request.destination.coordinates,
     targetDistanceKm,
+    request.preferences.stayInCanada === true,
   );
 
   const settled = await Promise.allSettled(
     waypointSets.map(async (set) => {
-      const result = rejectIfKnownUnpavedAvoided(
+      const result = applyHardRoutePreferences(
         await routingProvider.calculateRoute({
           start: request.start.coordinates,
           destination: request.destination.coordinates,
@@ -209,6 +220,7 @@ async function generateValidatedDestination(
     targetDistanceKm,
     request.preferences.avoidHighways,
     request.preferences.avoidUnpaved,
+    request.preferences.stayInCanada === true,
   );
   if (
     lostOnlyToPreviousCorridor(
@@ -220,6 +232,7 @@ async function generateValidatedDestination(
         targetDistanceKm,
         request.preferences.avoidHighways,
         request.preferences.avoidUnpaved,
+        request.preferences.stayInCanada === true,
       ).status,
     )
   ) {
@@ -231,6 +244,13 @@ async function generateValidatedDestination(
     return {
       ok: false,
       error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
+
+  if (selection.status === "canada_only_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
     };
   }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
 import { createCircleLineString } from "@/domain/geo/geometry";
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import { isInUnitedStates } from "@/domain/geo/united-states";
 import { HIGH_REPEAT_WARNING_PERCENT } from "./constants";
 import { HIGHWAY_AVOIDANCE_WARNING } from "./highways";
 import { UNKNOWN_SURFACE_WARNING } from "./surfaces";
@@ -112,6 +113,23 @@ describe("createLoopWaypointSets (FR-001)", () => {
     );
     for (const point of sets[0]?.waypoints ?? []) {
       expect(point.latitude).not.toBeCloseTo(GRANBY.latitude, 4);
+    }
+  });
+
+  it("drops loop seeds that land in the United States (FR-028)", () => {
+    const niagaraOnTheLake = {
+      latitude: 43.2554,
+      longitude: -79.0712,
+    };
+    const unrestricted = createLoopWaypointSets(niagaraOnTheLake, 120);
+    const canadian = createLoopWaypointSets(niagaraOnTheLake, 120, true);
+
+    expect(canadian.length).toBeGreaterThan(0);
+    expect(canadian.length).toBeLessThan(unrestricted.length);
+    for (const set of canadian) {
+      for (const point of set.waypoints) {
+        expect(isInUnitedStates(point)).toBe(false);
+      }
     }
   });
 });
@@ -842,6 +860,74 @@ describe("selectBestLoopCandidate (FR-008)", () => {
     );
 
     expect(selection.status).toBe("known_unpaved_rejected");
+  });
+
+  it("selects a Canadian loop when stayInCanada is on (FR-028)", () => {
+    const canadian = stubLoopEvaluation({
+      repeatedRoadPercent: 12,
+      touringScore: 40,
+      roadClass: "secondary",
+      surface: "paved",
+    });
+    const crossing = stubLoopEvaluation({
+      repeatedRoadPercent: 8,
+      touringScore: 90,
+      roadClass: "secondary",
+      surface: "paved",
+    });
+    crossing.candidate.geometry = {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [-83.0458, 42.3314],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    };
+
+    const selection = selectBestLoopCandidate(
+      [crossing, canadian],
+      80,
+      "touring",
+      false,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.geometry.coordinates).toEqual(
+      canadian.candidate.geometry.coordinates,
+    );
+  });
+
+  it("rejects rather than silently keeping a United States crossing (FR-028, BR-009)", () => {
+    const crossing = stubLoopEvaluation({
+      repeatedRoadPercent: 10,
+      touringScore: 90,
+      roadClass: "secondary",
+      surface: "paved",
+    });
+    crossing.candidate.geometry = {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [-83.0458, 42.3314],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    };
+
+    const selection = selectBestLoopCandidate(
+      [crossing],
+      80,
+      "touring",
+      false,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("canada_only_rejected");
   });
 
   it("keeps an unknown surface, does not call it paved, and signals it", () => {

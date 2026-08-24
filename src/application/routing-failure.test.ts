@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canadaOnlyKnowledgeError,
   disconnectedKnowledgeError,
   emptyKnowledgeError,
   tooFarKnowledgeError,
@@ -10,6 +11,7 @@ import {
   errorFromExhaustedAttempts,
   primaryKnowledgeError,
   rejectIfKnownUnpavedAvoided,
+  rejectIfLeavesCanada,
   withKnowledgeConstraint,
 } from "./routing-failure";
 
@@ -37,6 +39,14 @@ describe("primaryKnowledgeError (FR-021)", () => {
       rejected(unpavedKnowledgeError()),
     ]);
     expect(selected?.reason).toBe("unpaved");
+  });
+
+  it("prefers canada_only over unpaved (FR-028)", () => {
+    const selected = primaryKnowledgeError([
+      rejected(unpavedKnowledgeError()),
+      rejected(canadaOnlyKnowledgeError()),
+    ]);
+    expect(selected?.reason).toBe("canada_only");
   });
 
   it("prefers too_far over empty and disconnected", () => {
@@ -93,6 +103,73 @@ describe("rejectIfKnownUnpavedAvoided (BR-007)", () => {
     };
     expect(
       rejectIfKnownUnpavedAvoided(leaked, {
+        avoidHighways: false,
+        avoidUnpaved: false,
+      }),
+    ).toBe(leaked);
+  });
+});
+
+describe("rejectIfLeavesCanada (FR-028, BR-009)", () => {
+  const canadian: ProviderRouteResult = {
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [-72.734, 45.403],
+        [-72.5, 45.5],
+      ],
+    },
+    segments: [
+      {
+        id: "qc",
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [-72.734, 45.403],
+            [-72.5, 45.5],
+          ],
+        },
+        distanceKm: 1,
+        durationMinutes: 1,
+      },
+    ],
+    distanceKm: 1,
+    durationMinutes: 1,
+  };
+
+  it("rejects geometry that enters the United States when stayInCanada is on", () => {
+    const leaked: ProviderRouteResult = {
+      ...canadian,
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.734, 45.403],
+          [-83.0458, 42.3314],
+        ],
+      },
+    };
+    expect(() =>
+      rejectIfLeavesCanada(leaked, {
+        avoidHighways: false,
+        avoidUnpaved: false,
+        stayInCanada: true,
+      }),
+    ).toThrow(canadaOnlyKnowledgeError().message);
+  });
+
+  it("allows a United States crossing when the preference is off", () => {
+    const leaked: ProviderRouteResult = {
+      ...canadian,
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.734, 45.403],
+          [-83.0458, 42.3314],
+        ],
+      },
+    };
+    expect(
+      rejectIfLeavesCanada(leaked, {
         avoidHighways: false,
         avoidUnpaved: false,
       }),

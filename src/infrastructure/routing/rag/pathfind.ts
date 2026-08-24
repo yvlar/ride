@@ -1,4 +1,5 @@
 import type { RideStyle, RoutePreferences } from "@/domain/ride/types";
+import { isInUnitedStates } from "@/domain/geo/united-states";
 import type { RetrievedCorridor, RouteKnowledgeDocument } from "./types";
 import { cellKey, type GridCell } from "./types";
 
@@ -96,6 +97,14 @@ function edgePenalty(
   preferences: RoutePreferences | undefined,
 ): number | null {
   if (preferences?.avoidUnpaved && document.surface === "unpaved") {
+    return null;
+  }
+  if (
+    preferences?.stayInCanada &&
+    (isInUnitedStates(document.from) ||
+      isInUnitedStates(document.to) ||
+      isInUnitedStates(document.midpoint))
+  ) {
     return null;
   }
 
