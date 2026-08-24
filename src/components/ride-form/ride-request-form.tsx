@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { createBrowserLocationWatch } from "@/infrastructure/location/browser-location-watch";
+import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
@@ -156,7 +156,7 @@ export function RideRequestForm({
   );
   const generationId = useRef(0);
   const startRef = useRef(start);
-  const ownedLocationWatch = useMemo(() => createBrowserLocationWatch(), []);
+  const ownedLocationWatch = useMemo(() => createForegroundLocationWatch(), []);
   const ownedSpeech = useMemo(() => createSpeechGuidance(), []);
   const locationWatch = navigation?.locationWatch ?? ownedLocationWatch;
   const speechEngine = navigation?.speech ?? ownedSpeech;

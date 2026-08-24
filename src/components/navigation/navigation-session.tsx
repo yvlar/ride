@@ -18,7 +18,11 @@ import { formatFrenchInstruction, roadLabel } from "@/domain/navigation/instruct
 import type { Coordinates } from "@/domain/geo/types";
 import type { GenerateRideRequest, GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
 import { Button } from "@/components/ui/button";
-import { createBrowserLocationWatch } from "@/infrastructure/location/browser-location-watch";
+import {
+  createForegroundScreenWakeLock,
+  type ScreenWakeLock,
+} from "@/infrastructure/device/screen-wake-lock";
+import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createSpeechGuidance, type SpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import { NavigationMap, type NavigationMapProps } from "./navigation-map";
 import { maneuverArrow } from "./maneuver-arrow";
@@ -49,6 +53,7 @@ export type NavigationSessionProps = {
   renderMap?: boolean;
   onUserLocation?: (point: Coordinates | null) => void;
   onRecenter?: () => void;
+  wakeLock?: ScreenWakeLock;
 };
 
 export function NavigationSession({
@@ -64,6 +69,7 @@ export function NavigationSession({
   renderMap = true,
   onUserLocation,
   onRecenter,
+  wakeLock,
 }: NavigationSessionProps) {
   const [currentRoute, setCurrentRoute] = useState(route);
   const [muted, setMuted] = useState(false);
@@ -107,6 +113,10 @@ export function NavigationSession({
     () => speech ?? createSpeechGuidance(),
     [speech],
   );
+  const screenWakeLock = useMemo(
+    () => wakeLock ?? createForegroundScreenWakeLock(),
+    [wakeLock],
+  );
 
   useEffect(() => {
     routeRef.current = currentRoute;
@@ -130,6 +140,17 @@ export function NavigationSession({
   useEffect(() => {
     speechEngine.setMuted(muted);
   }, [muted, speechEngine]);
+
+  useEffect(() => {
+    if (hidden) {
+      screenWakeLock.release();
+      return;
+    }
+    screenWakeLock.acquire();
+    return () => {
+      screenWakeLock.release();
+    };
+  }, [hidden, screenWakeLock]);
 
   const runRecalculate = useCallback(async (
     currentPosition: { latitude: number; longitude: number },
@@ -204,7 +225,7 @@ export function NavigationSession({
     if (hidden) {
       return;
     }
-    const watch = locationWatch ?? createBrowserLocationWatch();
+    const watch = locationWatch ?? createForegroundLocationWatch();
     const unsubscribe = watch.subscribe((event) => {
       try {
         if (event.type === "error") {
@@ -304,7 +325,7 @@ export function NavigationSession({
           : "pointer-events-none fixed inset-0 z-50 flex h-dvh flex-col bg-transparent text-foreground"
       }
     >
-      <header className="pointer-events-auto flex items-start gap-3 border-b border-border bg-background px-4 py-3">
+      <header className="pointer-events-auto flex items-start gap-3 border-b border-border bg-background px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
         <p
           aria-hidden="true"
           className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary text-2xl text-primary-foreground"
@@ -333,7 +354,7 @@ export function NavigationSession({
         <div className="min-h-0 flex-1 bg-transparent" aria-hidden="true" />
       )}
 
-      <footer className="pointer-events-auto space-y-3 border-t border-border bg-background px-4 py-3">
+      <footer className="pointer-events-auto space-y-3 border-t border-border bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
         <p className="text-sm leading-6 text-muted-foreground">
           {formatDistanceLabel(remainingDistanceKm)} restants ·{" "}
           {formatDurationLabel(remainingMinutes)} · ETA {formatEta(now(), remainingMinutes)}

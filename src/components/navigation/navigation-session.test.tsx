@@ -379,4 +379,22 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
     expect(onRecenter).toHaveBeenCalledTimes(1);
   });
+
+  it("holds the screen awake only while the session is mounted (FR-023, FR-027)", () => {
+    const wakeLock = { acquire: vi.fn(), release: vi.fn() };
+    const { unmount } = render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={createWatch().watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        wakeLock={wakeLock}
+      />,
+    );
+    expect(wakeLock.acquire).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(wakeLock.release).toHaveBeenCalled();
+  });
 });

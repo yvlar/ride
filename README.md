@@ -246,6 +246,8 @@ Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et 
 
 La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal `speechSynthesis` et recalcul hors trajet. Elle exige que l’application reste ouverte au premier plan. La localisation en arrière-plan, l’écran verrouillé, la navigation hors ligne, Android Auto, Apple CarPlay et l’export GPX restent hors périmètre.
 
+La coque iOS Capacitor (`FR-027`) encapsule la même application web. Le domaine et les API Next.js ne changent pas. Ce dépôt fournit le projet Xcode dans `ios/` ; la compilation, le simulateur et TestFlight exigent macOS et Xcode. Cet environnement Linux ne produit pas d’IPA.
+
 L’aperçu et la navigation partagent une seule carte routière. Démarrer la navigation agrandit cette carte au lieu d’en monter une seconde, ce qui évite le plantage mémoire iOS suivi dans [MapLibre GL JS #7667](https://github.com/maplibre/maplibre-gl-js/issues/7667) tout en gardant le tracé aligné sur les rues (`FR-013`).
 
 Commandes utiles :
@@ -257,6 +259,21 @@ Commandes utiles :
 | `npm run typecheck` | Vérification TypeScript |
 | `npm test` | Tests Vitest |
 | `npm run build` | Build de production |
+| `npm run cap:sync` | Copie la config Capacitor vers le projet iOS |
+| `npm run cap:ios` | Ouvre le projet dans Xcode (macOS uniquement) |
+
+### Application iOS (FR-027)
+
+Prérequis sur un Mac : Xcode, CocoaPods, un iPhone simulateur ou physique.
+
+1. Démarrer Next.js (`npm run dev`) ou déployer l’app.
+2. Définir `CAPACITOR_SERVER_URL` vers cette origine (exemple local : `http://192.168.1.10:3000`).
+3. `npx cap sync ios` puis `npx cap open ios`.
+4. Dans Xcode, lancer Ride. Accorder la localisation **lorsque l’app est utilisée**.
+
+`Info.plist` autorise uniquement le réseau local (`NSAllowsLocalNetworking`) pour un `CAPACITOR_SERVER_URL` en `http://` sur le LAN. ATS reste actif pour Internet. Une origine `https://` de production n’a pas besoin de cleartext.
+
+Sans `CAPACITOR_SERVER_URL`, l’app affiche le placeholder `public/index.html`. Android, la publication App Store et une réécriture Swift / React Native restent hors MVP.
 
 Le cahier des charges technique est dans `CURSOR.md`.
 

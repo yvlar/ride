@@ -53,6 +53,9 @@ describe("Home (FR-014)", () => {
     expect(generate[0]).toBeEnabled();
     expect(generate[0]).toHaveAttribute("type", "submit");
     expect(document.querySelector("select")).toBeNull();
+    expect(screen.getByText("Ride").closest("header")?.className).toContain(
+      "safe-area-inset-top",
+    );
   });
 
   it("does not request GPS automatically on load (FR-017, FR-022)", () => {

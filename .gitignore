@@ -46,3 +46,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Capacitor iOS (FR-027) — commit the Xcode project, not Pods or build output
+/ios/App/Pods
+/ios/App/build
+/ios/App/App/public
+/ios/DerivedData
+xcuserdata/
