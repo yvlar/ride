@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Place } from "@/domain/geo/types";
 import {
+  findRecentPlaceByCatalogId,
   parseCarPlayCatalogId,
+  recentCatalogId,
   savedCatalogId,
   toCarPlayCatalog,
 } from "./map-carplay-catalog";
@@ -10,6 +12,12 @@ const granby: Place = {
   label: "Granby, QC",
   name: "Granby",
   coordinates: { latitude: 45.4, longitude: -72.73 },
+};
+
+const magog: Place = {
+  label: "Magog, QC",
+  name: "Magog",
+  coordinates: { latitude: 45.27, longitude: -72.15 },
 };
 
 describe("toCarPlayCatalog (FR-028, FR-035)", () => {
@@ -41,7 +49,7 @@ describe("toCarPlayCatalog (FR-028, FR-035)", () => {
     });
 
     expect(catalog.recents[0]).toEqual({
-      id: "recent:0",
+      id: recentCatalogId(granby),
       title: "Granby",
       subtitle: "Granby, QC",
     });
@@ -49,12 +57,23 @@ describe("toCarPlayCatalog (FR-028, FR-035)", () => {
     expect(catalog.resumeTitle).toBe("Boucle · Granby, QC");
   });
 
+  it("keeps recent ids stable when the list is reordered", () => {
+    const first = toCarPlayCatalog({ recents: [granby, magog], saved: [] });
+    const reordered = toCarPlayCatalog({ recents: [magog, granby], saved: [] });
+    const granbyId = recentCatalogId(granby);
+
+    expect(first.recents[0]?.id).toBe(granbyId);
+    expect(reordered.recents[1]?.id).toBe(granbyId);
+    expect(findRecentPlaceByCatalogId([magog, granby], granbyId)).toEqual(granby);
+  });
+
   it("parses catalog selection ids", () => {
     expect(parseCarPlayCatalogId("resume")).toEqual({ type: "resume" });
-    expect(parseCarPlayCatalogId("recent:2")).toEqual({
+    expect(parseCarPlayCatalogId(recentCatalogId(granby))).toEqual({
       type: "recent",
-      index: 2,
+      key: recentCatalogId(granby).slice("recent:".length),
     });
+    expect(parseCarPlayCatalogId("recent:2")).toBeNull();
     expect(parseCarPlayCatalogId("saved:loop-1")).toEqual({
       type: "saved",
       id: "loop-1",

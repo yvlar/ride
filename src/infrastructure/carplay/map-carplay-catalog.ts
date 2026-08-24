@@ -4,8 +4,9 @@ import type { CarPlayCatalog } from "./types";
 
 export const CARPLAY_RESUME_ID = "resume";
 
-export function recentCatalogId(index: number): string {
-  return `recent:${index}`;
+export function recentCatalogId(place: Place): string {
+  const { latitude, longitude } = place.coordinates;
+  return `recent:${latitude},${longitude}:${encodeURIComponent(place.label)}`;
 }
 
 export function savedCatalogId(id: string): string {
@@ -25,8 +26,8 @@ export type CarPlayCatalogSource = {
  */
 export function toCarPlayCatalog(source: CarPlayCatalogSource): CarPlayCatalog {
   return {
-    recents: source.recents.map((place, index) => ({
-      id: recentCatalogId(index),
+    recents: source.recents.map((place) => ({
+      id: recentCatalogId(place),
       title: place.name?.trim() || place.label,
       subtitle: place.label !== place.name ? place.label : undefined,
     })),
@@ -42,8 +43,10 @@ export function toCarPlayCatalog(source: CarPlayCatalogSource): CarPlayCatalog {
 
 export type ParsedCarPlayCatalogId =
   | { type: "resume" }
-  | { type: "recent"; index: number }
+  | { type: "recent"; key: string }
   | { type: "saved"; id: string };
+
+const RECENT_KEY_PATTERN = /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?:/;
 
 export function parseCarPlayCatalogId(
   id: string,
@@ -52,14 +55,25 @@ export function parseCarPlayCatalogId(
     return { type: "resume" };
   }
   if (id.startsWith("recent:")) {
-    const index = Number(id.slice("recent:".length));
-    if (!Number.isInteger(index) || index < 0) {
+    const key = id.slice("recent:".length);
+    if (!RECENT_KEY_PATTERN.test(key)) {
       return null;
     }
-    return { type: "recent", index };
+    return { type: "recent", key };
   }
   if (id.startsWith("saved:")) {
-    return { type: "saved", id: id.slice("saved:".length) };
+    const savedId = id.slice("saved:".length);
+    if (!savedId) {
+      return null;
+    }
+    return { type: "saved", id: savedId };
   }
   return null;
+}
+
+export function findRecentPlaceByCatalogId(
+  recents: Place[],
+  catalogId: string,
+): Place | null {
+  return recents.find((place) => recentCatalogId(place) === catalogId) ?? null;
 }

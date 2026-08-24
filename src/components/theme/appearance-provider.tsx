@@ -4,8 +4,8 @@ import {
   createContext,
   useContext,
   useEffect,
-  useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
@@ -23,8 +23,41 @@ const AppearanceContext = createContext<{
   setMode: () => {},
 });
 
+const PREFERS_DARK_QUERY = "(prefers-color-scheme: dark)";
+
+function subscribePrefersDark(onStoreChange: () => void) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return () => {};
+  }
+  const media = window.matchMedia(PREFERS_DARK_QUERY);
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function getPrefersDarkSnapshot() {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return true;
+  }
+  return window.matchMedia(PREFERS_DARK_QUERY).matches;
+}
+
+function getPrefersDarkServerSnapshot() {
+  return true;
+}
+
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<AppearanceMode>("dark");
+  const prefersDark = useSyncExternalStore(
+    subscribePrefersDark,
+    getPrefersDarkSnapshot,
+    getPrefersDarkServerSnapshot,
+  );
 
   useEffect(() => {
     try {
@@ -41,16 +74,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     } catch {
       // Private mode.
     }
-  }, []);
-
-  const prefersDark = useMemo(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
-      return true;
-    }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
   }, []);
 
   useEffect(() => {

@@ -29,6 +29,7 @@ import type {
 } from "@/domain/ride/types";
 import { createCarPlayDisplay } from "@/infrastructure/carplay/create-carplay-display";
 import {
+  findRecentPlaceByCatalogId,
   parseCarPlayCatalogId,
   toCarPlayCatalog,
 } from "@/infrastructure/carplay/map-carplay-catalog";
@@ -177,7 +178,10 @@ export function RideApp(props: RideRequestFormProps) {
         return;
       }
       if (parsed.type === "recent") {
-        const place = recentsRef.current[parsed.index];
+        const place = findRecentPlaceByCatalogId(
+          recentsRef.current,
+          event.id,
+        );
         if (place) {
           openPlanner({ type: "destination", destination: place });
         }
