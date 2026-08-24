@@ -97,9 +97,9 @@ function clampScore(score: number): number {
 }
 
 /**
- * NFR-005 / FR-029 — ChatGPT ranks local corridor kinds; geometry stays on
- * the indexed graph. Unknown keys are ignored. Unranked kinds keep score 0
- * so the retrieved graph stays connected.
+ * NFR-005 / FR-029 — ChatGPT ranks local corridor kinds; it does not emit
+ * geometry. Unknown keys are ignored. Unranked kinds keep score 0 so the
+ * retrieved graph stays connected.
  */
 export class ChatGptCorridorRetriever implements CorridorRetriever {
   private readonly client: ChatCompletionsClient;

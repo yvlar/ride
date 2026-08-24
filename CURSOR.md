@@ -118,7 +118,7 @@ Créer des adaptateurs interchangeables pour :
 - la recherche de points d’intérêt;
 - les tuiles cartographiques.
 
-Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches, classe les corridors via ChatGPT (`OPENAI_API_KEY`, serveur uniquement), puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’invente pas de coordonnées. L’écran principal peut demander ce même adaptateur à la requête (`FR-029`, option « Corridors RAG ») sans changer `ROUTING_PROVIDER`.
+Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag` ou option « Corridors RAG ») indexe le même type de graphe sous forme de documents, récupère les arêtes proches, classe les corridors via ChatGPT (`OPENAI_API_KEY`, serveur uniquement), puis en déduit des points de passage. Il n’affine pas de courbe géométrique et n’invente pas de coordonnées. Le tracé affiché et navigable est produit par l’adaptateur de réseau routier configuré (`ROUTING_PROVIDER=osrm` lorsqu’il est branché ; sinon la géométrie simulée du graphe local). L’écran principal peut demander ce pipeline à la requête (`FR-029`) sans changer `ROUTING_PROVIDER`.
 
 `OsrmRoutingProvider` (`ROUTING_PROVIDER=osrm`) appelle un service OSRM configuré par `ROUTING_API_BASE_URL` et retourne une géométrie GeoJSON suivant les routes OpenStreetMap. `GraphHopper` et `Valhalla` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
 
@@ -930,7 +930,7 @@ Valider les variables au démarrage. Les variables préfixées `NEXT_PUBLIC_` so
 
 ## 26. Données simulées
 
-Le développement initial doit fonctionner sans clé externe grâce à `MockRoutingProvider`. `RagRoutingProvider` (`ai-rag` / option « Corridors RAG ») indexe un graphe local, pas un réseau OSM. En production, le classement des corridors appelle ChatGPT avec `OPENAI_API_KEY` côté serveur.
+Le développement initial doit fonctionner sans clé externe grâce à `MockRoutingProvider`. `RagRoutingProvider` (`ai-rag` / option « Corridors RAG ») indexe un graphe local pour classer des corridors ; le tracé final suit l’adaptateur de réseau configuré lorsqu’un réseau réel est branché. En production, le classement des corridors appelle ChatGPT avec `OPENAI_API_KEY` côté serveur.
 
 Prévoir au moins :
 
@@ -984,7 +984,7 @@ Le mode simulé doit être évident dans l’environnement de développement et 
 - ~~choisir et documenter le fournisseur;~~ **OSRM pour le réseau routier réel; `mock` et `ai-rag` conservés hors ligne**;
 - ~~implémenter un adaptateur de routage sur des routes OpenStreetMap;~~
 - configurer une instance OSRM dédiée ou gérée pour la production;
-- ancrer le RAG sur des arêtes de graphe + retrieval spatial (pas de courbe dilatée);
+- ancrer le RAG sur des arêtes de graphe + retrieval spatial (pas de courbe dilatée), puis coller le corridor sur l’adaptateur de réseau réel;
 - faire remonter l’absence de corridors comme erreur métier (`FR-021`);
 - GraphHopper, Valhalla ou un autre moteur reste remplaçable sans réécrire le domaine.
 

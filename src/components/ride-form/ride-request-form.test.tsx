@@ -865,6 +865,7 @@ describe("RideRequestForm (FR-014)", () => {
     expect(
       screen.getByText(/Classement des corridors par ChatGPT \(clé API serveur\)/),
     ).toBeInTheDocument();
+    expect(screen.getByText(/réseau routier configuré/)).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Corridors RAG"));
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
