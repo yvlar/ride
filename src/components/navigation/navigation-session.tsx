@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LocationWatch } from "@/domain/location/types";
-import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import {
   evaluateNavigationProgress,
 } from "@/domain/navigation/progress";
@@ -17,7 +16,6 @@ import { decideAnnouncement, emptyVoiceMemory, resetVoiceMemory } from "@/domain
 import { formatFrenchInstruction, roadLabel } from "@/domain/navigation/instructions";
 import type { Coordinates } from "@/domain/geo/types";
 import type { GenerateRideRequest, GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
-import { Button } from "@/components/ui/button";
 import {
   createForegroundScreenWakeLock,
   type ScreenWakeLock,
@@ -25,13 +23,8 @@ import {
 import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createSpeechGuidance, type SpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import { NavigationMap, type NavigationMapProps } from "./navigation-map";
+import { NavigationOverlay } from "./navigation-overlay";
 import { maneuverArrow } from "./maneuver-arrow";
-import {
-  formatAccuracyLabel,
-  formatDistanceLabel,
-  formatDurationLabel,
-  formatEta,
-} from "./format-navigation";
 import {
   requestRecalculatedRide,
   type RecalculateRideInput,
@@ -321,104 +314,49 @@ export function NavigationSession({
       aria-label="Navigation"
       className={
         renderMap
-          ? "fixed inset-0 z-50 flex h-dvh flex-col bg-background text-foreground"
-          : "pointer-events-none fixed inset-0 z-50 flex h-dvh flex-col bg-transparent text-foreground"
+          ? "fixed inset-0 z-50 h-dvh bg-background text-foreground"
+          : "pointer-events-none fixed inset-0 z-50 h-dvh bg-transparent text-foreground"
       }
     >
-      <header className="pointer-events-auto flex items-start gap-3 border-b border-border bg-background px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
-        <p
-          aria-hidden="true"
-          className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary text-2xl text-primary-foreground"
-        >
-          {arrow}
-        </p>
-        <div className="min-w-0 flex-1">
-          <p className="text-xl font-semibold leading-7">{instruction}</p>
-          <p className="text-sm text-muted-foreground">
-            {formatDistanceLabel(distanceToManeuverKm)}
-            {nextRoad ? ` · ${nextRoad}` : ""}
-          </p>
-        </div>
-      </header>
-
       {renderMap ? (
-        <NavigationMap
-          route={currentRoute}
-          userLocation={userLocation}
-          engine={mapEngine}
-          onRecenterReady={(recenter) => {
-            recenterRef.current = recenter;
-          }}
-        />
-      ) : (
-        <div className="min-h-0 flex-1 bg-transparent" aria-hidden="true" />
-      )}
-
-      <footer className="pointer-events-auto space-y-3 border-t border-border bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
-        <p className="text-sm leading-6 text-muted-foreground">
-          {formatDistanceLabel(remainingDistanceKm)} restants ·{" "}
-          {formatDurationLabel(remainingMinutes)} · ETA {formatEta(now(), remainingMinutes)}
-        </p>
-        <p className="text-sm leading-6" role="status">
-          {gpsError ?? formatAccuracyLabel(accuracyMeters)}
-          {recalculating ? " · Recalcul du trajet…" : ""}
-        </p>
-        <p className="text-xs leading-5 text-muted-foreground">
-          {FOREGROUND_ONLY_MESSAGE}
-        </p>
-        {hidden ? (
-          <p role="status" className="text-sm text-destructive">
-            La navigation nécessite que l’application reste ouverte au premier
-            plan.
-          </p>
-        ) : null}
-        {recalcError ? (
-          <div role="alert" className="space-y-2 text-sm">
-            <p className="text-destructive">{recalcError.message}</p>
-            <Button
-              type="button"
-              className="min-h-12 min-w-12"
-              onClick={() => {
-                if (userLocation) {
-                  void runRecalculate(userLocation, progressKm);
-                }
-              }}
-            >
-              Réessayer
-            </Button>
-          </div>
-        ) : null}
-        <div className="grid grid-cols-3 gap-2">
-          <Button
-            type="button"
-            variant={muted ? "secondary" : "outline"}
-            className="min-h-12 min-w-12 text-base"
-            aria-pressed={muted}
-            onClick={() => setMuted((current) => !current)}
-          >
-            {muted ? "Son" : "Muet"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-12 min-w-12 text-base"
-            onClick={() => {
-              onRecenterRef.current?.();
-              recenterRef.current();
+        <div className="absolute inset-0 flex flex-col">
+          <NavigationMap
+            route={currentRoute}
+            userLocation={userLocation}
+            engine={mapEngine}
+            onRecenterReady={(recenter) => {
+              recenterRef.current = recenter;
             }}
-          >
-            Recentrer
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            className="min-h-12 min-w-12 text-base"
-            onClick={handleStop}
-          >
-            Arrêter
-          </Button>
+          />
         </div>
-      </footer>
+      ) : null}
+
+      <NavigationOverlay
+        arrow={arrow}
+        instruction={instruction}
+        nextRoad={nextRoad}
+        distanceToManeuverKm={distanceToManeuverKm}
+        remainingDistanceKm={remainingDistanceKm}
+        remainingMinutes={remainingMinutes}
+        nowMs={now()}
+        accuracyMeters={accuracyMeters}
+        gpsError={gpsError}
+        recalculating={recalculating}
+        hidden={hidden}
+        muted={muted}
+        recalcError={recalcError}
+        onMuteToggle={() => setMuted((current) => !current)}
+        onRecenter={() => {
+          onRecenterRef.current?.();
+          recenterRef.current();
+        }}
+        onStop={handleStop}
+        onRetryRecalculate={() => {
+          if (userLocation) {
+            void runRecalculate(userLocation, progressKm);
+          }
+        }}
+      />
     </div>
   );
 

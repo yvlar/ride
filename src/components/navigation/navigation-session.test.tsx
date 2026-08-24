@@ -233,6 +233,31 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     );
   });
 
+  it("overlays the map with a maneuver banner and compact ETA sheet (FR-024)", () => {
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={createWatch().watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        now={() => Date.UTC(2026, 7, 24, 16, 0, 0)}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Navigation" });
+    expect(dialog).not.toHaveClass("flex-col");
+    expect(
+      screen.getByRole("banner", { name: "Prochaine manœuvre" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("contentinfo", { name: "Arrivée estimée" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2.0 km")).toBeInTheDocument();
+    expect(screen.getByText("3 min")).toBeInTheDocument();
+    expect(screen.getByText("GPS en attente")).toBeInTheDocument();
+  });
+
   it("stops the GPS watch while the tab is hidden (NFR-006)", async () => {
     const helper = createWatch();
     render(
@@ -360,6 +385,9 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(
       screen.queryByRole("region", { name: "Carte de navigation" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Navigation" })).not.toHaveClass(
+      "flex-col",
+    );
 
     emit({
       type: "fix",
