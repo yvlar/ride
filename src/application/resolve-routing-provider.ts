@@ -26,7 +26,7 @@ export function resolveRoutingProvider(
   if (injected) {
     return injected;
   }
-  return createRoutingProvider(process.env, {
+  return createRoutingProvider(undefined, {
     knowledgeRouting: isKnowledgeRoutingRequested(input),
   });
 }

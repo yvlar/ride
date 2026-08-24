@@ -1,5 +1,5 @@
 import type { AppEnv } from "@/lib/env";
-import { parseEnv } from "@/lib/env";
+import { parseEnv, serverProcessEnv } from "@/lib/env";
 import { MockRoutingProvider } from "./mock-routing-provider";
 import { OsrmRoutingProvider } from "./osrm-routing-provider";
 import { ChatGptCorridorRetriever } from "./rag/chatgpt-corridor-retriever";
@@ -16,14 +16,14 @@ export type CreateRoutingProviderOptions = {
 };
 
 export function createRoutingProvider(
-  source: Record<string, string | undefined> = process.env,
+  source?: Record<string, string | undefined>,
   options?: CreateRoutingProviderOptions,
 ): RoutingProvider {
-  if (options?.knowledgeRouting) {
-    return createChatGptRagRoutingProvider(parseEnv(source));
-  }
+  const env = parseEnv(source ?? serverProcessEnv());
 
-  const env = parseEnv(source);
+  if (options?.knowledgeRouting) {
+    return createChatGptRagRoutingProvider(env);
+  }
   if (env.ROUTING_PROVIDER === "mock") {
     return new MockRoutingProvider();
   }
