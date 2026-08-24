@@ -3,7 +3,7 @@ import UIKit
 
 final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
     private let mapView = MKMapView(frame: .zero)
-    private var puck: MKPointAnnotation?
+    private var puck: RideCarPlayPuckAnnotation?
     private var following = true
 
     override func viewDidLoad() {
@@ -29,6 +29,7 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
         if following {
             follow(snapshot)
         }
+        refreshPuckHeading()
     }
 
     func recenter(_ snapshot: RideCarPlaySnapshot?) {
@@ -36,6 +37,7 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
         if let snapshot {
             follow(snapshot)
         }
+        refreshPuckHeading()
     }
 
     func clear() {
@@ -63,6 +65,30 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
         return renderer
     }
 
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard let puckAnnotation = annotation as? RideCarPlayPuckAnnotation else {
+            return nil
+        }
+        let view =
+            (mapView.dequeueReusableAnnotationView(
+                withIdentifier: RideCarPlayPuckView.reuseIdentifier
+            ) as? RideCarPlayPuckView)
+            ?? RideCarPlayPuckView(
+                annotation: puckAnnotation,
+                reuseIdentifier: RideCarPlayPuckView.reuseIdentifier
+            )
+        view.annotation = puckAnnotation
+        view.apply(
+            headingDeg: puckAnnotation.headingDeg,
+            cameraHeading: mapView.camera.heading
+        )
+        return view
+    }
+
+    func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+        refreshPuckHeading()
+    }
+
     private func updateRoute(_ coordinates: [RideCarPlayCoordinate]) {
         mapView.removeOverlays(mapView.overlays)
         guard coordinates.count >= 2 else {
@@ -87,16 +113,27 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
             latitude: location.latitude,
             longitude: location.longitude
         )
+        let heading = finiteHeading(headingDeg)
         if let puck {
             puck.coordinate = coordinate
+            puck.headingDeg = heading
         } else {
-            let annotation = MKPointAnnotation()
+            let annotation = RideCarPlayPuckAnnotation()
             annotation.coordinate = coordinate
+            annotation.headingDeg = heading
             annotation.title = "Position"
             mapView.addAnnotation(annotation)
             puck = annotation
         }
-        _ = headingDeg
+    }
+
+    private func refreshPuckHeading() {
+        guard let puck,
+              let view = mapView.view(for: puck) as? RideCarPlayPuckView
+        else {
+            return
+        }
+        view.apply(headingDeg: puck.headingDeg, cameraHeading: mapView.camera.heading)
     }
 
     private func follow(_ snapshot: RideCarPlaySnapshot) {
@@ -121,7 +158,7 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
             ),
             fromDistance: cameraDistance(snapshot),
             pitch: 45,
-            heading: snapshot.headingDeg ?? 0
+            heading: finiteHeading(snapshot.headingDeg) ?? 0
         )
         mapView.setCamera(camera, animated: true)
     }
@@ -130,4 +167,65 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
         let meters = snapshot.maneuver?.distanceToManeuverM ?? 400
         return min(max(meters * 3, 250), 1_800)
     }
+}
+
+private final class RideCarPlayPuckAnnotation: MKPointAnnotation {
+    var headingDeg: Double?
+}
+
+private final class RideCarPlayPuckView: MKAnnotationView {
+    static let reuseIdentifier = "ride-carplay-puck"
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        image = Self.puckImage
+        canShowCallout = false
+        displayPriority = .required
+        collisionMode = .circle
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(headingDeg: Double?, cameraHeading: CLLocationDirection) {
+        guard let headingDeg else {
+            transform = .identity
+            return
+        }
+        let relative = headingDeg - cameraHeading
+        transform = CGAffineTransform(rotationAngle: CGFloat(relative * .pi / 180))
+    }
+
+    private static let puckImage: UIImage = {
+        let size = CGSize(width: 22, height: 28)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            let color = UIColor.systemCyan
+            let circle = CGRect(x: (size.width - 16) / 2, y: size.height - 16, width: 16, height: 16)
+            color.setFill()
+            UIBezierPath(ovalIn: circle).fill()
+            UIColor.white.setStroke()
+            let ring = UIBezierPath(ovalIn: circle.insetBy(dx: 1, dy: 1))
+            ring.lineWidth = 2
+            ring.stroke()
+
+            let triangle = UIBezierPath()
+            triangle.move(to: CGPoint(x: size.width / 2, y: 0))
+            triangle.addLine(to: CGPoint(x: size.width / 2 - 5, y: 8))
+            triangle.addLine(to: CGPoint(x: size.width / 2 + 5, y: 8))
+            triangle.close()
+            color.setFill()
+            triangle.fill()
+        }
+    }()
+}
+
+private func finiteHeading(_ headingDeg: Double?) -> Double? {
+    guard let headingDeg, headingDeg.isFinite else {
+        return nil
+    }
+    let wrapped = headingDeg.truncatingRemainder(dividingBy: 360)
+    return wrapped < 0 ? wrapped + 360 : wrapped
 }
