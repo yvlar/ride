@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CURRENT_POSITION_FALLBACK_LABEL } from "@/infrastructure/geocoding/labels";
+import type { Place } from "@/domain/geo/types";
 import { CurrentPositionError } from "./browser-geolocation";
 import { CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE } from "./reverse-geocode-place";
-import { LocateButton } from "./place-search-field";
+import { LocateButton, PlaceSearchField } from "./place-search-field";
 
 const coordinates = { latitude: 45.4001, longitude: -72.7342 };
 
@@ -138,5 +139,75 @@ describe("LocateButton (FR-017)", () => {
         CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE,
       );
     });
+  });
+});
+
+const granby: Place = {
+  label: "Granby, QC",
+  name: "Granby",
+  locality: "Granby",
+  region: "QC",
+  coordinates: { latitude: 45.4, longitude: -72.73 },
+};
+
+const fieldProps = {
+  id: "place",
+  label: "Lieu",
+  selectedPlace: null,
+  debounceMs: 0,
+  onQueryChange: () => {},
+  onPlaceSelected: () => {},
+};
+
+describe("PlaceSearchField (FR-032)", () => {
+  it("aborts the previous in-flight search when the query changes", async () => {
+    const signals: AbortSignal[] = [];
+    const searchPlaces = vi.fn((query: string, signal?: AbortSignal) => {
+      if (signal) {
+        signals.push(signal);
+      }
+      if (query === "Gra") {
+        return new Promise<Place[]>(() => {
+          // Stay pending so a newer query can cancel it.
+        });
+      }
+      return Promise.resolve([granby]);
+    });
+
+    const { rerender } = render(
+      <PlaceSearchField {...fieldProps} query="Gra" searchPlaces={searchPlaces} />,
+    );
+
+    await waitFor(() => {
+      expect(searchPlaces).toHaveBeenCalled();
+    });
+
+    rerender(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Gran"
+        searchPlaces={searchPlaces}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(searchPlaces.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    expect(signals[0]?.aborted).toBe(true);
+  });
+
+  it("shows a name and a distinguishing address line", async () => {
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Granby"
+        searchPlaces={async () => [granby]}
+      />,
+    );
+
+    expect(await screen.findByText("Granby")).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Granby, QC" }),
+    ).toBeInTheDocument();
   });
 });

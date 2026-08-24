@@ -1,7 +1,13 @@
 "use client";
 
-import { useRef, useEffect, useState, type ReactNode } from "react";
+import { useRef, useEffect, useReducer, useState, type ReactNode } from "react";
 import type { Coordinates, Place } from "@/domain/geo/types";
+import { placePrimaryName, placeSecondaryLine } from "@/domain/geo/place-display";
+import {
+  classifySearchFailure,
+  emptyPlaceSearchState,
+  reducePlaceSearch,
+} from "@/domain/search/place-search";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +28,7 @@ export type PlaceSearchFieldProps = {
   error?: string;
   placeholder?: string;
   debounceMs?: number;
-  searchPlaces?: (query: string) => Promise<Place[]>;
+  searchPlaces?: (query: string, signal?: AbortSignal) => Promise<Place[]>;
   onQueryChange: (query: string) => void;
   onPlaceSelected: (place: Place) => void;
   action?: ReactNode;
@@ -43,55 +49,69 @@ export function PlaceSearchField({
 }: PlaceSearchFieldProps) {
   const listId = `${id}-suggestions`;
   const errorId = `${id}-error`;
-  const [fetched, setFetched] = useState<{
-    query: string;
-    places: Place[];
-    error: string | null;
-  }>({ query: "", places: [], error: null });
-  const [dismissed, setDismissed] = useState(false);
+  const statusId = `${id}-status`;
+  const [search, dispatch] = useReducer(reducePlaceSearch, emptyPlaceSearchState());
+  const generationRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    dispatch({ type: "query", query });
+  }, [query]);
 
   const trimmedQuery = query.trim();
   const canSearch =
-    trimmedQuery.length >= 2 &&
-    selectedPlace?.label !== trimmedQuery;
+    trimmedQuery.length >= 2 && selectedPlace?.label !== trimmedQuery;
 
   useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     if (!canSearch) {
       return;
     }
 
     const queryToSearch = trimmedQuery;
-    let cancelled = false;
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    dispatch({ type: "begin", query: queryToSearch, generation });
+    const controller = new AbortController();
+    abortRef.current = controller;
     const timer = window.setTimeout(() => {
-      void searchPlaces(queryToSearch)
+      void searchPlaces(queryToSearch, controller.signal)
         .then((places) => {
-          if (!cancelled) {
-            setFetched({ query: queryToSearch, places, error: null });
-          }
+          dispatch({
+            type: "success",
+            generation,
+            query: queryToSearch,
+            places,
+          });
         })
-        .catch(() => {
-          if (!cancelled) {
-            setFetched({
-              query: queryToSearch,
-              places: [],
-              error: "La recherche de lieu a échoué.",
-            });
+        .catch((reason: unknown) => {
+          if (controller.signal.aborted) {
+            return;
           }
+          dispatch({
+            type: "failure",
+            generation,
+            reason: classifySearchFailure(reason),
+          });
         });
     }, debounceMs);
 
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [canSearch, debounceMs, searchPlaces, trimmedQuery]);
 
-  const suggestions =
-    canSearch && !dismissed && fetched.query === trimmedQuery
-      ? fetched.places
-      : [];
-  const searchError =
-    canSearch && fetched.query === trimmedQuery ? fetched.error : null;
+  const suggestions = search.status === "results" ? search.places : [];
+  const liveStatus =
+    search.status === "offline" || search.status === "provider_error"
+      ? search.error
+      : search.status === "loading"
+        ? "Recherche…"
+        : search.status === "no_results"
+          ? search.error
+          : null;
 
   return (
     <div className="space-y-2">
@@ -104,15 +124,20 @@ export function PlaceSearchField({
           aria-expanded={suggestions.length > 0}
           aria-controls={listId}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={
+            [error ? errorId : null, liveStatus ? statusId : null]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
           autoComplete="off"
           placeholder={placeholder}
           value={query}
           onChange={(event) => {
-            setDismissed(false);
+            abortRef.current?.abort();
+            dispatch({ type: "query", query: event.target.value });
             onQueryChange(event.target.value);
           }}
-          className="h-12 text-base"
+          className="h-12 min-h-12 text-base"
         />
         {action}
       </div>
@@ -123,26 +148,38 @@ export function PlaceSearchField({
           aria-label={`Suggestions pour ${label}`}
           className="overflow-hidden rounded-lg border border-border bg-card"
         >
-          {suggestions.map((place) => (
-            <li key={`${place.label}-${place.coordinates.latitude}`}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={selectedPlace?.label === place.label}
-                className="flex min-h-12 w-full items-center px-3 text-left text-base hover:bg-muted"
-                onClick={() => {
-                  setDismissed(true);
-                  onPlaceSelected(place);
-                }}
-              >
-                {place.label}
-              </button>
-            </li>
-          ))}
+          {suggestions.map((place) => {
+            const secondary = placeSecondaryLine(place);
+            return (
+              <li key={`${place.label}-${place.coordinates.latitude}`}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-label={place.label}
+                  aria-selected={selectedPlace?.label === place.label}
+                  className="flex min-h-12 w-full flex-col items-start justify-center px-3 py-2 text-left hover:bg-muted"
+                  onClick={() => {
+                    abortRef.current?.abort();
+                    dispatch({ type: "select", place });
+                    onPlaceSelected(place);
+                  }}
+                >
+                  <span className="text-base font-medium">
+                    {placePrimaryName(place)}
+                  </span>
+                  {secondary ? (
+                    <span className="text-sm text-muted-foreground">{secondary}</span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
-      {searchError ? (
-        <p className="text-sm text-destructive">{searchError}</p>
+      {liveStatus ? (
+        <p id={statusId} role="status" className="text-sm text-muted-foreground">
+          {liveStatus}
+        </p>
       ) : null}
       {error ? (
         <p id={errorId} className="text-sm text-destructive">
@@ -178,7 +215,7 @@ export function LocateButton({
     <Button
       type="button"
       variant="outline"
-      className="h-12 min-w-[7.5rem] shrink-0 px-3"
+      className="h-12 min-h-12 min-w-[7.5rem] shrink-0 px-3"
       disabled={pending}
       aria-busy={pending}
       aria-live="polite"
@@ -195,7 +232,7 @@ export function LocateButton({
             try {
               const place = await reversePlace(coordinates);
               onLocated({
-                label: place.label,
+                ...place,
                 coordinates,
               });
             } catch {

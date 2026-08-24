@@ -70,20 +70,28 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
       "min-h-12",
       "min-w-12",
     );
+    expect(screen.getByRole("button", { name: "Aperçu du trajet" })).toHaveClass(
+      "min-h-12",
+      "min-w-12",
+    );
   });
 
   it("toggles mute, recenters and stops through the floating actions (FR-023, FR-025)", () => {
     const onMuteToggle = vi.fn();
     const onRecenter = vi.fn();
+    const onOverview = vi.fn();
     const onStop = vi.fn();
-    renderOverlay({ onMuteToggle, onRecenter, onStop });
+    renderOverlay({ onMuteToggle, onRecenter, onOverview, onStop });
 
     fireEvent.click(screen.getByRole("button", { name: "Muet" }));
     fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aperçu du trajet" }));
     fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
 
     expect(onMuteToggle).toHaveBeenCalledTimes(1);
     expect(onRecenter).toHaveBeenCalledTimes(1);
+    expect(onOverview).toHaveBeenCalledTimes(1);
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 

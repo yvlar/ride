@@ -33,6 +33,9 @@ describe("HttpGeocodingProvider (FR-017)", () => {
     await expect(provider.reverse(GRANBY, "fr")).resolves.toEqual({
       label: "12 Rue Principale, Granby, Québec",
       coordinates: GRANBY,
+      name: "12 Rue Principale",
+      locality: "Granby",
+      region: "Québec",
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
     const requested = new URL(String(fetcher.mock.calls.at(0)?.at(0)));

@@ -53,11 +53,13 @@ export type NavigationSessionProps = {
   renderMap?: boolean;
   /** FR-029 — keep the knowledge adapter on FR-026 recalculation. */
   useKnowledgeRouting?: boolean;
+  initialMuted?: boolean;
   onUserLocation?: (
     point: Coordinates | null,
     headingDeg?: number | null,
   ) => void;
   onRecenter?: () => void;
+  onOverview?: () => void;
   wakeLock?: ScreenWakeLock;
 };
 
@@ -76,10 +78,12 @@ export function NavigationSession({
   useKnowledgeRouting = false,
   onUserLocation,
   onRecenter,
+  onOverview,
   wakeLock,
+  initialMuted = false,
 }: NavigationSessionProps) {
   const [currentRoute, setCurrentRoute] = useState(route);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(initialMuted);
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null);
   const [progressKm, setProgressKm] = useState(0);
   const [instruction, setInstruction] = useState("Recherche de la position…");
@@ -96,6 +100,7 @@ export function NavigationSession({
   const recenterRef = useRef<() => void>(() => {});
   const onUserLocationRef = useRef(onUserLocation);
   const onRecenterRef = useRef(onRecenter);
+  const onOverviewPropRef = useRef(onOverview);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -161,6 +166,9 @@ export function NavigationSession({
   useEffect(() => {
     onRecenterRef.current = onRecenter;
   }, [onRecenter]);
+  useEffect(() => {
+    onOverviewPropRef.current = onOverview;
+  }, [onOverview]);
 
   useEffect(() => {
     speechEngine.setMuted(muted);
@@ -539,6 +547,9 @@ export function NavigationSession({
         onRecenter={() => {
           onRecenterRef.current?.();
           recenterRef.current();
+        }}
+        onOverview={() => {
+          onOverviewPropRef.current?.();
         }}
         onStop={handleStop}
         onRetryRecalculate={() => {

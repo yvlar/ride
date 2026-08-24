@@ -26,6 +26,7 @@ export type RideMapViewModel = {
   destination?: RideMapMarker;
   directionLabel: string;
   directionArrows: RideMapArrow[];
+  idle?: boolean;
 };
 
 export type MapCameraFrame = {
@@ -85,6 +86,42 @@ export function toRideMapViewModel(
     destination,
     directionLabel: directionLabel(route),
     directionArrows: sampleDirectionArrows(route.geometry),
+  };
+}
+
+export const DEFAULT_EXPLORER_CENTER: Coordinates = {
+  latitude: 45.5,
+  longitude: -72.75,
+};
+
+/** FR-031 — map-first explorer before a route exists. */
+export function idleMapViewModel(
+  center: Coordinates = DEFAULT_EXPLORER_CENTER,
+): RideMapViewModel {
+  const span = 0.45;
+  return {
+    idle: true,
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [center.longitude, center.latitude],
+        [center.longitude + 0.0001, center.latitude],
+      ],
+    },
+    bounds: {
+      west: center.longitude - span,
+      south: center.latitude - span * 0.7,
+      east: center.longitude + span,
+      north: center.latitude + span * 0.7,
+    },
+    start: {
+      kind: "start",
+      label: "",
+      placeLabel: "",
+      coordinates: center,
+    },
+    directionLabel: "",
+    directionArrows: [],
   };
 }
 

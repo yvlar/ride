@@ -1,4 +1,5 @@
-import type { GenerateRideRequest, RideStyle, RideType } from "@/domain/ride/types";
+import { RIDE_STYLE_LABELS } from "@/domain/ride/style-catalog";
+import type { GenerateRideRequest, RideType } from "@/domain/ride/types";
 
 export const RIDE_TYPE_LABELS: Record<RideType, string> = {
   loop: "Boucle",
@@ -6,11 +7,7 @@ export const RIDE_TYPE_LABELS: Record<RideType, string> = {
   round_trip: "Aller-retour",
 };
 
-export const RIDE_STYLE_LABELS: Record<RideStyle, string> = {
-  curvy: "Courbes",
-  scenic: "Panoramique",
-  touring: "Touring",
-};
+export { RIDE_STYLE_LABELS };
 
 export function summarizeRideRequest(request: GenerateRideRequest): string {
   const distance =

@@ -11,6 +11,7 @@ export type MapEngineHandle = {
     headingDeg?: number | null,
   ) => void;
   recenter?: () => void;
+  overview?: () => void;
   setViewModel?: (viewModel: RideMapViewModel) => void;
   resize?: () => void;
   /** Preview GPS (FR-022). False during navigation so only LocationWatch stays (NFR-006). */

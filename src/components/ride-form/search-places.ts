@@ -6,9 +6,13 @@ type GeocodeSuccessBody = {
   };
 };
 
-export async function searchPlacesFromApi(query: string): Promise<Place[]> {
+export async function searchPlacesFromApi(
+  query: string,
+  signal?: AbortSignal,
+): Promise<Place[]> {
   const response = await fetch(
     `/api/geocode?q=${encodeURIComponent(query)}&locale=fr`,
+    { signal },
   );
 
   if (response.status === 400) {

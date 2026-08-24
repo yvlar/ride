@@ -21,7 +21,7 @@ export type ScenicLandscapeFeature =
 export type RoutePreferences = {
   avoidHighways: boolean;
   avoidUnpaved: boolean;
-  /** FR-028 — omit or false keeps current default (crossings allowed). */
+  /** FR-030 — omit or false keeps current default (crossings allowed). */
   stayInCanada?: boolean;
 };
 

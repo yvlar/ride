@@ -23,6 +23,7 @@ function mockPlugin(): RideCarPlayPlugin {
     start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
     update: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
+    setCatalog: vi.fn(async () => {}),
     getConnection: vi.fn(async () => ({
       connected: false,
       stopRequested: false,
@@ -43,10 +44,15 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
     });
     await display.update(snapshot);
     await display.stop();
+    await display.setCatalog?.({ recents: [], favorites: [] });
 
     expect(plugin.start).toHaveBeenCalledWith(snapshot);
     expect(plugin.update).toHaveBeenCalledWith(snapshot);
     expect(plugin.stop).toHaveBeenCalledTimes(1);
+    expect(plugin.setCatalog).toHaveBeenCalledWith({
+      recents: [],
+      favorites: [],
+    });
   });
 
   it("maps native connection, mute and stop events onto the display port", async () => {
@@ -59,6 +65,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
+      setCatalog: vi.fn(),
       getConnection: vi.fn(async () => ({
         connected: false,
         stopRequested: false,
@@ -108,6 +115,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
+      setCatalog: vi.fn(),
       getConnection: vi.fn(async () => {
         order.push("getConnection");
         return { connected: true, stopRequested: false, muted: false };
@@ -139,6 +147,8 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
         "listen:stopRequested",
         "listen:muteChange",
         "listen:connectionChange",
+        "listen:catalogSelect",
+        "listen:searchQuery",
         "getConnection",
       ]);
       expect(received).toEqual([
@@ -153,6 +163,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
+      setCatalog: vi.fn(),
       getConnection: vi.fn(async () => ({
         connected: true,
         stopRequested: true,
@@ -180,6 +191,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
+      setCatalog: vi.fn(),
       getConnection: vi.fn(async () => ({
         connected: true,
         stopRequested: false,

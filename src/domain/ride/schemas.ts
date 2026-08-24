@@ -25,6 +25,10 @@ const coordinatesSchema = z.object({
 const placeSchema = z.object({
   label: z.string().min(1),
   coordinates: coordinatesSchema,
+  name: z.string().min(1).optional(),
+  addressLine: z.string().min(1).optional(),
+  locality: z.string().min(1).optional(),
+  region: z.string().min(1).optional(),
 });
 
 export const rideStyleSchema = z.enum(["curvy", "scenic", "touring"]);

@@ -199,18 +199,20 @@ export function createMapLibreEngine(
             marker.remove();
           }
           markers.length = 0;
-          markers.push(placeMarker(map, next.start.label, next.start.coordinates));
-          if (next.destination) {
-            markers.push(
-              placeMarker(
-                map,
-                next.destination.label,
-                next.destination.coordinates,
-              ),
-            );
-          }
-          for (const arrow of next.directionArrows) {
-            markers.push(placeArrow(map, arrow));
+          if (!next.idle) {
+            markers.push(placeMarker(map, next.start.label, next.start.coordinates));
+            if (next.destination) {
+              markers.push(
+                placeMarker(
+                  map,
+                  next.destination.label,
+                  next.destination.coordinates,
+                ),
+              );
+            }
+            for (const arrow of next.directionArrows) {
+              markers.push(placeArrow(map, arrow));
+            }
           }
 
           // The constructor already frames the first view. A second fitBounds
@@ -383,6 +385,17 @@ export function createMapLibreEngine(
               applyFollowCamera();
               return;
             }
+            applyOverviewCamera();
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+          }
+        },
+        overview() {
+          if (!map || disposed) {
+            return;
+          }
+          try {
+            followUser = false;
             applyOverviewCamera();
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);

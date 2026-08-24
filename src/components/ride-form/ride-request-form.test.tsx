@@ -225,13 +225,13 @@ describe("RideRequestForm (FR-014)", () => {
     expect(screen.getByRole("radio", { name: /Boucle/ })).toHaveClass(
       "min-h-12",
     );
-    expect(screen.getByRole("radio", { name: "Courbes" })).toHaveClass(
+    expect(screen.getByRole("radio", { name: "Routes sinueuses" })).toHaveClass(
       "min-h-12",
     );
     expect(screen.getByRole("radio", { name: "Panoramique" })).toHaveClass(
       "min-h-12",
     );
-    expect(screen.getByRole("radio", { name: "Touring" })).toHaveClass(
+    expect(screen.getByRole("radio", { name: "Équilibré" })).toHaveClass(
       "min-h-12",
     );
   });
@@ -272,7 +272,7 @@ describe("RideRequestForm (FR-014)", () => {
     fireEvent.change(targetDistanceField(), {
       target: { value: "200" },
     });
-    fireEvent.click(screen.getByRole("radio", { name: "Courbes" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Routes sinueuses" }));
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
     await waitFor(() => {
@@ -381,9 +381,7 @@ describe("RideRequestForm (FR-014)", () => {
     expect(generated).toHaveTextContent(
       "Certains segments ont une surface inconnue.",
     );
-    expect(
-      screen.getByText("Lieu sélectionné : Granby, QC"),
-    ).toBeInTheDocument();
+    expect(generated).toHaveTextContent("position définie (Granby, QC)");
     expect(requestCoordinates).toHaveBeenCalledTimes(1);
   });
 
@@ -538,7 +536,7 @@ describe("RideRequestForm (FR-014)", () => {
     await selectPlace("Point de départ", "Granby, QC");
     fireEvent.click(screen.getByRole("radio", { name: /Aller-retour/ }));
     await selectPlace("Destination", "Mont-Tremblant, QC");
-    fireEvent.click(screen.getByRole("radio", { name: "Touring" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Équilibré" }));
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
     await waitFor(() => {
@@ -673,7 +671,7 @@ describe("RideRequestForm (FR-014)", () => {
     fireEvent.change(screen.getByLabelText("Durée disponible (h)"), {
       target: { value: "2" },
     });
-    fireEvent.click(screen.getByRole("radio", { name: "Courbes" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Routes sinueuses" }));
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
     await waitFor(() => {
@@ -811,6 +809,7 @@ describe("RideRequestForm (FR-014)", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
     await waitFor(() => {
       expect(
         screen.queryByRole("dialog", { name: "Navigation" }),
@@ -824,7 +823,7 @@ describe("RideRequestForm (FR-014)", () => {
     ).toBeInTheDocument();
   });
 
-  it("toggles route preferences (FR-007, FR-008, FR-028)", async () => {
+  it("toggles route preferences (FR-007, FR-008, FR-030)", async () => {
     const onRequestComposed = vi.fn();
     renderForm({ onRequestComposed });
 
@@ -900,5 +899,34 @@ describe("RideRequestForm (FR-014)", () => {
         useKnowledgeRouting: false,
       });
     });
+  });
+
+  it("collapses the composer after a successful generation (FR-015, FR-033)", async () => {
+    renderForm();
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Générer ma ride" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Modifier la demande" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/GPS : position définie/)).toBeInTheDocument();
+  });
+
+  it("shows unsupported styles and preferences as disabled (FR-019)", () => {
+    renderForm();
+    expect(screen.getByRole("button", { name: /Rapide/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Aventure/ })).toBeDisabled();
+    expect(screen.getByLabelText("Éviter les péages")).toBeDisabled();
+    expect(screen.getByLabelText("Éviter les traversiers")).toBeDisabled();
+    expect(
+      screen.getByLabelText("Chemins non asphaltés autorisés"),
+    ).toBeEnabled();
   });
 });

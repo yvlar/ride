@@ -2,7 +2,7 @@ import CarPlay
 import MapKit
 import UIKit
 
-final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPMapTemplateDelegate {
+final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate, CPMapTemplateDelegate, CPSearchTemplateDelegate {
     private var interfaceController: CPInterfaceController?
     private var mapTemplate: CPMapTemplate?
     private var mapViewController: RideCarPlayMapViewController?
@@ -36,6 +36,11 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             RideCarPlaySpeech.shared.speak(text)
         }
         updateNavigation(snapshot)
+    }
+
+    func applyCatalog(_ catalog: RideCarPlayCatalog) {
+        _ = catalog
+        refreshButtons(muted: RideCarPlaySession.shared.muted)
     }
 
     func recenter() {
@@ -95,7 +100,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let stop = CPBarButton(title: "Arrêter") { _ in
             RideCarPlaySession.shared.requestStop()
         }
-        mapTemplate.leadingNavigationBarButtons = [stop]
+        let trips = CPBarButton(title: "Trajets") { [weak self] _ in
+            self?.showCatalogList()
+        }
+        mapTemplate.leadingNavigationBarButtons = [stop, trips]
         let mute = CPBarButton(title: muted ? "Son" : "Muet") { _ in
             RideCarPlaySession.shared.toggleMute()
         }
@@ -105,7 +113,82 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             self?.recenter()
         }
         recenter.image = UIImage(systemName: "location.fill")
-        mapTemplate.mapButtons = [recenter]
+        let search = CPMapButton { [weak self] _ in
+            self?.showSearch()
+        }
+        search.image = UIImage(systemName: "magnifyingglass")
+        mapTemplate.mapButtons = [recenter, search]
+    }
+
+    private func showCatalogList() {
+        let catalog = RideCarPlaySession.shared.catalog
+        var sections: [CPListSection] = []
+        if let resume = catalog.resumeTitle {
+            let item = CPListItem(text: resume, detailText: catalog.resumeSubtitle ?? "Reprendre")
+            item.handler = { _, completion in
+                RideCarPlaySession.shared.selectCatalogItem(id: "resume")
+                completion()
+            }
+            sections.append(CPListSection(items: [item], header: "En cours", sectionIndexTitle: nil))
+        }
+        if !catalog.recents.isEmpty {
+            let items = catalog.recents.map { entry -> CPListItem in
+                let item = CPListItem(text: entry.title, detailText: entry.subtitle)
+                item.handler = { _, completion in
+                    RideCarPlaySession.shared.selectCatalogItem(id: entry.id)
+                    completion()
+                }
+                return item
+            }
+            sections.append(CPListSection(items: items, header: "Récents", sectionIndexTitle: nil))
+        }
+        if !catalog.favorites.isEmpty {
+            let items = catalog.favorites.map { entry -> CPListItem in
+                let item = CPListItem(text: entry.title, detailText: entry.subtitle)
+                item.handler = { _, completion in
+                    RideCarPlaySession.shared.selectCatalogItem(id: entry.id)
+                    completion()
+                }
+                return item
+            }
+            sections.append(CPListSection(items: items, header: "Enregistrés", sectionIndexTitle: nil))
+        }
+        let list = CPListTemplate(title: "Trajets", sections: sections)
+        interfaceController?.pushTemplate(list, animated: true)
+    }
+
+    private func showSearch() {
+        let search = CPSearchTemplate()
+        search.delegate = self
+        interfaceController?.pushTemplate(search, animated: true)
+    }
+
+    func searchTemplate(
+        _ searchTemplate: CPSearchTemplate,
+        updatedSearchText searchText: String,
+        completionHandler: @escaping ([CPListItem]) -> Void
+    ) {
+        RideCarPlaySession.shared.searchCatalog(query: searchText)
+        let matches = RideCarPlaySession.shared.catalog.recents.filter {
+            $0.title.localizedCaseInsensitiveContains(searchText)
+                || ($0.subtitle?.localizedCaseInsensitiveContains(searchText) ?? false)
+        }
+        completionHandler(matches.map { entry in
+            let item = CPListItem(text: entry.title, detailText: entry.subtitle)
+            item.handler = { _, completion in
+                RideCarPlaySession.shared.selectCatalogItem(id: entry.id)
+                completion()
+            }
+            return item
+        })
+    }
+
+    func searchTemplate(
+        _ searchTemplate: CPSearchTemplate,
+        selectedResult item: CPListItem,
+        completionHandler: @escaping () -> Void
+    ) {
+        completionHandler()
     }
 
     private func updateNavigation(_ snapshot: RideCarPlaySnapshot) {

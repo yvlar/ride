@@ -1,4 +1,5 @@
 import type {
+  CarPlayCatalog,
   CarPlayConnection,
   CarPlayDisplayEvent,
   CarPlaySessionSnapshot,
@@ -12,5 +13,6 @@ export type CarPlayDisplay = {
   start(snapshot: CarPlaySessionSnapshot): Promise<CarPlayConnection>;
   update(snapshot: CarPlaySessionSnapshot): Promise<void>;
   stop(): Promise<void>;
+  setCatalog?(catalog: CarPlayCatalog): Promise<void>;
   subscribe(listener: (event: CarPlayDisplayEvent) => void): () => void;
 };

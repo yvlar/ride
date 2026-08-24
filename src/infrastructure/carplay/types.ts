@@ -35,7 +35,23 @@ export type CarPlayConnection = {
   ownsVoice: boolean;
 };
 
+export type CarPlayCatalogItem = {
+  id: string;
+  title: string;
+  subtitle?: string;
+};
+
+/** Known places / saved rides for CPListTemplate and CPSearchTemplate (FR-028). */
+export type CarPlayCatalog = {
+  recents: CarPlayCatalogItem[];
+  favorites: CarPlayCatalogItem[];
+  resumeTitle?: string;
+  resumeSubtitle?: string;
+};
+
 export type CarPlayDisplayEvent =
   | { type: "connection"; connected: boolean }
   | { type: "mute"; muted: boolean }
-  | { type: "stop" };
+  | { type: "stop" }
+  | { type: "catalogSelect"; id: string }
+  | { type: "searchQuery"; query: string };

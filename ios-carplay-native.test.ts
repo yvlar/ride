@@ -45,8 +45,11 @@ describe("native CarPlay session (FR-028)", () => {
     expect(map).toContain("1_200");
   });
 
-  it("offers Arrêter, rebuilds the trip on routeId change, and cancels speech on recalculate", () => {
+  it("offers Arrêter, Trajets, CPListTemplate, CPSearchTemplate, rebuilds the trip on routeId change, and cancels speech on recalculate", () => {
     expect(scene).toContain("Arrêter");
+    expect(scene).toContain("Trajets");
+    expect(scene).toContain("CPListTemplate");
+    expect(scene).toContain("CPSearchTemplate");
     expect(scene).toContain("requestStop()");
     expect(scene).toContain("currentRouteId != snapshot.routeId");
     expect(scene).toContain("snapshot.muted || snapshot.cancelSpeech");
