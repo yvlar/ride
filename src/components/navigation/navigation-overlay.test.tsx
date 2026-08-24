@@ -87,6 +87,21 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it("does not show 0 m as the maneuver distance before a GPS fix (FR-024)", () => {
+    renderOverlay({
+      instruction: "Recherche de la position…",
+      distanceToManeuverKm: 0,
+      accuracyMeters: null,
+      gpsError: null,
+    });
+
+    const banner = screen.getByRole("banner", { name: "Prochaine manœuvre" });
+    expect(banner).toHaveTextContent("—");
+    expect(banner).not.toHaveTextContent("0 m");
+    expect(screen.getByText("GPS en attente")).toBeInTheDocument();
+    expect(screen.getByText("Recherche de la position…")).toBeInTheDocument();
+  });
+
   it("keeps a retry action when recalculation fails (FR-026)", () => {
     const onRetryRecalculate = vi.fn();
     renderOverlay({

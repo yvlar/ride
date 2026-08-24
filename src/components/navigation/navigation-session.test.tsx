@@ -256,6 +256,9 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(screen.getByText("2.0 km")).toBeInTheDocument();
     expect(screen.getByText("3 min")).toBeInTheDocument();
     expect(screen.getByText("GPS en attente")).toBeInTheDocument();
+    expect(
+      screen.getByRole("banner", { name: "Prochaine manœuvre" }),
+    ).not.toHaveTextContent("0 m");
   });
 
   it("stops the GPS watch while the tab is hidden (NFR-006)", async () => {

@@ -10,6 +10,7 @@ import {
   formatDistanceLabel,
   formatDurationLabel,
   formatEta,
+  formatManeuverDistanceLabel,
 } from "./format-navigation";
 
 const TOUCH_TARGET = "min-h-12 min-w-12 size-12 rounded-full";
@@ -71,7 +72,7 @@ export function NavigationOverlay({
           </p>
           <div className="min-w-0 flex-1">
             <p className="text-3xl font-semibold leading-none tracking-tight tabular-nums">
-              {formatDistanceLabel(distanceToManeuverKm)}
+              {formatManeuverDistanceLabel(distanceToManeuverKm, accuracyMeters)}
             </p>
             {nextRoad ? (
               <p className="mt-1 truncate text-base font-medium leading-6">
