@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isSpatiallyRelevant } from "./retrieve";
 import { DEFAULT_OPENAI_MODEL, type ChatCompletionsClient } from "./chat-completions-client";
+import { CorridorRankingError } from "./corridor-ranking-error";
 import type {
   CorridorRetriever,
   RetrievedCorridor,
@@ -74,9 +75,17 @@ export function parseJsonObjectContent(content: string): unknown {
     const start = trimmed.indexOf("{");
     const end = trimmed.lastIndexOf("}");
     if (start >= 0 && end > start) {
-      return JSON.parse(trimmed.slice(start, end + 1)) as unknown;
+      try {
+        return JSON.parse(trimmed.slice(start, end + 1)) as unknown;
+      } catch {
+        throw new CorridorRankingError(
+          "Le classement des corridors a renvoyé une réponse invalide.",
+        );
+      }
     }
-    throw new Error("Le classement des corridors a renvoyé une réponse invalide.");
+    throw new CorridorRankingError(
+      "Le classement des corridors a renvoyé une réponse invalide.",
+    );
   }
 }
 
@@ -168,7 +177,9 @@ export class ChatGptCorridorRetriever implements CorridorRetriever {
 
     const parsed = rankingSchema.safeParse(parseJsonObjectContent(content));
     if (!parsed.success) {
-      throw new Error("Le classement des corridors a renvoyé une réponse invalide.");
+      throw new CorridorRankingError(
+      "Le classement des corridors a renvoyé une réponse invalide.",
+    );
     }
 
     const scores = new Map<string, number>();

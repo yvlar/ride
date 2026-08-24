@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEnv } from "./env";
+import { parseEnv, serverProcessEnv } from "./env";
 
 describe("parseEnv", () => {
   it("defaults to the mock routing provider when env is empty", () => {
@@ -54,6 +54,12 @@ describe("parseEnv", () => {
     expect(env.ROUTING_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
+  });
+
+  it("reads OPENAI_API_KEY through a static process.env access (FR-029)", () => {
+    const fromProcess = serverProcessEnv();
+    expect(fromProcess).toHaveProperty("OPENAI_API_KEY");
+    expect(parseEnv().OPENAI_API_KEY).toBe(process.env.OPENAI_API_KEY);
   });
 
   it("rejects an invalid public map style URL", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CorridorRankingError } from "@/infrastructure/routing/rag/corridor-ranking-error";
 import {
   canadaOnlyKnowledgeError,
   disconnectedKnowledgeError,
@@ -200,6 +201,30 @@ describe("errorFromExhaustedAttempts (FR-021)", () => {
     expect(error.code).toBe("PROVIDER_ERROR");
   });
 
+  it("maps a corridor ranking failure to PROVIDER_ERROR (FR-029)", () => {
+    const error = errorFromExhaustedAttempts(
+      [
+        rejected(
+          new CorridorRankingError(
+            "La clé API du classement des corridors a été refusée (HTTP 401).",
+          ),
+        ),
+        rejected(
+          new CorridorRankingError(
+            "La clé API du classement des corridors a été refusée (HTTP 401).",
+          ),
+        ),
+      ],
+      { message: "fallback", suggestions: [] },
+    );
+    expect(error.code).toBe("PROVIDER_ERROR");
+    expect(error.message).toMatch(/HTTP 401/);
+    expect(error.message).not.toMatch(/cartographie/);
+    expect(error.suggestions.some((item) => item.includes("Vercel"))).toBe(
+      true,
+    );
+  });
+
   it("keeps the unpaved FR-021 message when one attempt is a generic Error", () => {
     const error = errorFromExhaustedAttempts(
       [
@@ -277,6 +302,24 @@ describe("providerConfigurationError (FR-029)", () => {
     expect(error.message).toMatch(/OPENAI_API_KEY/);
     expect(error.suggestions.some((item) => item.includes("serveur"))).toBe(
       true,
+    );
+    expect(error.suggestions.some((item) => item.includes("Vercel"))).toBe(
+      true,
+    );
+  });
+
+  it("maps a ChatGPT ranking error to PROVIDER_ERROR (FR-029)", () => {
+    const error = providerConfigurationError(
+      new CorridorRankingError(
+        "Le classement des corridors a échoué (HTTP 429).",
+      ),
+    );
+    expect(error.code).toBe("PROVIDER_ERROR");
+    expect(error.message).toMatch(/HTTP 429/);
+    expect(error.message).not.toMatch(/cartographie/);
+    expect(error.suggestions.some((item) => item.includes("quota"))).toBe(true);
+    expect(error.suggestions.some((item) => item.includes("redéployez"))).toBe(
+      false,
     );
   });
 

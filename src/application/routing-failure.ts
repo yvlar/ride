@@ -4,6 +4,10 @@ import { usesKnownUnpaved } from "@/domain/ride/constraints";
 import { routeEntersUnitedStates, stayInCanadaEnabled } from "@/domain/ride/canada";
 import type { RideGenerationError, RoutePreferences } from "@/domain/ride/types";
 import {
+  isCorridorRankingError,
+  type CorridorRankingError,
+} from "@/infrastructure/routing/rag/corridor-ranking-error";
+import {
   canadaOnlyKnowledgeError,
   isRoutingKnowledgeError,
   RoutingKnowledgeError,
@@ -93,16 +97,17 @@ export function stayInCanadaEndpointError(
 export function providerConfigurationError(
   error: unknown,
 ): RideGenerationError {
+  if (isCorridorRankingError(error)) {
+    return rankingProviderError(error);
+  }
+
   const message = error instanceof Error ? error.message : "";
   if (message.includes("OPENAI_API_KEY")) {
     return {
       code: "PROVIDER_ERROR",
       message:
         "La clé API du classement des corridors est absente. Définissez OPENAI_API_KEY côté serveur.",
-      suggestions: [
-        "Ajoutez OPENAI_API_KEY aux variables d’environnement du serveur.",
-        "N’exposez jamais cette clé dans le navigateur.",
-      ],
+      suggestions: rankingKeySuggestions(),
     };
   }
 
@@ -112,6 +117,45 @@ export function providerConfigurationError(
       "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
     suggestions: ["Vérifiez ROUTING_PROVIDER et ROUTING_API_BASE_URL."],
   };
+}
+
+export function rankingProviderError(
+  error: CorridorRankingError,
+): RideGenerationError {
+  return {
+    code: "PROVIDER_ERROR",
+    message: error.message,
+    suggestions: rankingSuggestionsFor(error.message),
+  };
+}
+
+function rankingSuggestionsFor(message: string): string[] {
+  if (/HTTP 429|temporairement limité/.test(message)) {
+    return [
+      "Réessayez dans quelques instants.",
+      "Vérifiez le quota de OPENAI_API_KEY (OpenAI ou crédits Vercel AI Gateway).",
+    ];
+  }
+  if (/HTTP 401|HTTP 403|refusée/.test(message)) {
+    return [
+      "Vérifiez OPENAI_API_KEY sur Vercel (Preview et Production), puis redéployez.",
+      "N’exposez jamais cette clé dans le navigateur.",
+    ];
+  }
+  if (/HTTP 402|limite de crédit/.test(message)) {
+    return [
+      "Ajoutez du crédit à la clé API serveur utilisée pour le classement.",
+      "N’exposez jamais cette clé dans le navigateur.",
+    ];
+  }
+  return rankingKeySuggestions();
+}
+
+function rankingKeySuggestions(): string[] {
+  return [
+    "Vérifiez OPENAI_API_KEY sur le serveur (Vercel Preview et Production), puis redéployez.",
+    "N’exposez jamais cette clé dans le navigateur.",
+  ];
 }
 
 export function errorFromExhaustedAttempts(
@@ -128,6 +172,10 @@ export function errorFromExhaustedAttempts(
   }
 
   if (everyAttemptFailed) {
+    const ranking = primaryRankingError(settled);
+    if (ranking) {
+      return rankingProviderError(ranking);
+    }
     return {
       code: "PROVIDER_ERROR",
       message:
@@ -208,4 +256,15 @@ export function primaryKnowledgeError(
     }
   }
   return selected;
+}
+
+export function primaryRankingError(
+  settled: PromiseSettledResult<unknown>[],
+): CorridorRankingError | undefined {
+  for (const result of settled) {
+    if (result.status === "rejected" && isCorridorRankingError(result.reason)) {
+      return result.reason;
+    }
+  }
+  return undefined;
 }

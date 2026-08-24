@@ -1,9 +1,14 @@
 import type { AppEnv } from "@/lib/env";
-import { parseEnv } from "@/lib/env";
+import { parseEnv, serverProcessEnv } from "@/lib/env";
 import { MockRoutingProvider } from "./mock-routing-provider";
 import { OsrmRoutingProvider } from "./osrm-routing-provider";
 import { ChatGptCorridorRetriever } from "./rag/chatgpt-corridor-retriever";
-import { HttpChatCompletionsClient } from "./rag/chat-completions-client";
+import {
+  HttpChatCompletionsClient,
+  normalizeChatApiKey,
+  resolveChatCompletionsBaseUrl,
+  resolveChatCompletionsModel,
+} from "./rag/chat-completions-client";
 import { RagRoutingProvider } from "./rag/rag-routing-provider";
 import type { RoutingProvider } from "./routing-provider";
 
@@ -16,14 +21,14 @@ export type CreateRoutingProviderOptions = {
 };
 
 export function createRoutingProvider(
-  source: Record<string, string | undefined> = process.env,
+  source?: Record<string, string | undefined>,
   options?: CreateRoutingProviderOptions,
 ): RoutingProvider {
-  if (options?.knowledgeRouting) {
-    return createChatGptRagRoutingProvider(parseEnv(source));
-  }
+  const env = parseEnv(source ?? serverProcessEnv());
 
-  const env = parseEnv(source);
+  if (options?.knowledgeRouting) {
+    return createChatGptRagRoutingProvider(env);
+  }
   if (env.ROUTING_PROVIDER === "mock") {
     return new MockRoutingProvider();
   }
@@ -47,17 +52,26 @@ export function createRoutingProvider(
 }
 
 function createChatGptRagRoutingProvider(env: AppEnv): RagRoutingProvider {
-  if (!env.OPENAI_API_KEY) {
+  const apiKey = normalizeChatApiKey(env.OPENAI_API_KEY);
+  if (!apiKey) {
     throw new Error(MISSING_CHAT_API_KEY_MESSAGE);
   }
+
+  const baseUrl = resolveChatCompletionsBaseUrl({
+    apiKey,
+    baseUrl: env.OPENAI_API_BASE_URL,
+  });
 
   return new RagRoutingProvider(
     new ChatGptCorridorRetriever({
       client: new HttpChatCompletionsClient({
-        apiKey: env.OPENAI_API_KEY,
-        baseUrl: env.OPENAI_API_BASE_URL,
+        apiKey,
+        baseUrl,
       }),
-      model: env.OPENAI_MODEL,
+      model: resolveChatCompletionsModel({
+        model: env.OPENAI_MODEL,
+        baseUrl,
+      }),
     }),
   );
 }

@@ -36,8 +36,27 @@ export const envSchema = z.object({
 
 export type AppEnv = z.infer<typeof envSchema>;
 
+/**
+ * Next.js only includes server env vars that are read as `process.env.NAME`.
+ * Passing the `process.env` object through does not expose Vercel secrets.
+ */
+export function serverProcessEnv(): Record<string, string | undefined> {
+  return {
+    ROUTING_PROVIDER: process.env.ROUTING_PROVIDER,
+    ROUTING_API_BASE_URL: process.env.ROUTING_API_BASE_URL,
+    ROUTING_API_KEY: process.env.ROUTING_API_KEY,
+    GEOCODING_PROVIDER: process.env.GEOCODING_PROVIDER,
+    GEOCODING_API_BASE_URL: process.env.GEOCODING_API_BASE_URL,
+    GEOCODING_API_KEY: process.env.GEOCODING_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_API_BASE_URL: process.env.OPENAI_API_BASE_URL,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
+    NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
+  };
+}
+
 export function parseEnv(
-  source: Record<string, string | undefined> = process.env,
+  source: Record<string, string | undefined> = serverProcessEnv(),
 ): AppEnv {
   return envSchema.parse({
     ROUTING_PROVIDER: source.ROUTING_PROVIDER,

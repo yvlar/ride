@@ -9,6 +9,7 @@ import { availableDurationCeilingWarning } from "@/domain/ride/duration";
 import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { UNKNOWN_SURFACE_WARNING } from "@/domain/ride/surfaces";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import { CorridorRankingError } from "@/infrastructure/routing/rag/corridor-ranking-error";
 import {
   disconnectedKnowledgeError,
   emptyKnowledgeError,
@@ -725,6 +726,34 @@ describe("generateLoopRide (FR-001)", () => {
       return;
     }
     expect(result.error.code).toBe("PROVIDER_ERROR");
+  });
+
+  it("maps a corridor ranking failure to PROVIDER_ERROR (FR-029)", async () => {
+    const ranking: RoutingProvider = {
+      async calculateRoute() {
+        throw new CorridorRankingError(
+          "La clé API du classement des corridors a été refusée (HTTP 401).",
+        );
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "scenic",
+      },
+      ranking,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("PROVIDER_ERROR");
+    expect(result.error.message).toMatch(/HTTP 401/);
+    expect(result.error.message).not.toMatch(/cartographie/);
   });
 
   it("maps a mix of knowledge and provider errors to the unpaved FR-021 message", async () => {

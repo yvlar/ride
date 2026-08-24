@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateRide } from "./generate-ride";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import { CorridorRankingError } from "@/infrastructure/routing/rag/corridor-ranking-error";
 import type {
   ProviderRouteRequest,
   ProviderRouteResult,
@@ -278,5 +279,33 @@ describe("generateRide knowledge option (FR-029)", () => {
     }
     expect(result.error.code).toBe("PROVIDER_ERROR");
     expect(result.error.message).toMatch(/OPENAI_API_KEY/);
+  });
+
+  it("maps a ChatGPT ranking failure to PROVIDER_ERROR (FR-029)", async () => {
+    const ranking: RoutingProvider = {
+      async calculateRoute() {
+        throw new CorridorRankingError(
+          "Le classement des corridors a échoué (HTTP 401).",
+        );
+      },
+    };
+    const result = await generateRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "scenic",
+        useKnowledgeRouting: true,
+      },
+      ranking,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("PROVIDER_ERROR");
+    expect(result.error.message).toMatch(/classement des corridors/);
+    expect(result.error.message).not.toMatch(/cartographie/);
   });
 });
