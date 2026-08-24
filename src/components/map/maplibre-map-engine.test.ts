@@ -65,10 +65,12 @@ const {
     lngLat = { lng: 0, lat: 0 };
     rotation = 0;
     element: HTMLElement | undefined;
+    hasLngLat = false;
     constructor(options?: { element?: HTMLElement }) {
       this.element = options?.element;
     }
     setLngLat(value: { lng?: number; lat?: number } | [number, number]) {
+      this.hasLngLat = true;
       if (Array.isArray(value)) {
         this.lngLat = { lng: value[0], lat: value[1] };
       } else {
@@ -90,6 +92,9 @@ const {
       return this;
     }
     addTo() {
+      if (!this.hasLngLat) {
+        throw new Error("Marker.addTo requires setLngLat");
+      }
       if (mapState.markerThrows) {
         throw new Error("WebGL transform unavailable");
       }

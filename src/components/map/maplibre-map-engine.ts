@@ -294,15 +294,19 @@ export function createMapLibreEngine(
               userMarker = undefined;
               return;
             }
+            const lngLat = coordinatesToPosition(coordinates);
             if (!userMarker) {
               userMarker = new Marker({
                 element: createUserPuckElement(),
                 anchor: "center",
                 rotationAlignment: "map",
                 pitchAlignment: "viewport",
-              }).addTo(map);
+              })
+                .setLngLat(lngLat)
+                .addTo(map);
+            } else {
+              userMarker.setLngLat(lngLat);
             }
-            userMarker.setLngLat(coordinatesToPosition(coordinates));
             applyUserPuckHeading(headingDeg);
             applyFollowCamera();
           } catch {
