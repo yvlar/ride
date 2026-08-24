@@ -292,6 +292,7 @@ describe("RideRequestForm (FR-014)", () => {
         targetDistanceKm: 200,
         style: "curvy",
       }),
+      { useKnowledgeRouting: false },
     );
     expect(
       screen.getByRole("status"),
@@ -870,9 +871,11 @@ describe("RideRequestForm (FR-014)", () => {
         { useKnowledgeRouting: true },
       );
     });
-    expect(generateRide.mock.calls[0]?.[0]).not.toHaveProperty(
-      "useKnowledgeRouting",
-    );
+    const firstCall = generateRide.mock.calls[0] as unknown as
+      | [GenerateRideRequest, { useKnowledgeRouting?: boolean }]
+      | undefined;
+    expect(firstCall?.[0]).toBeDefined();
+    expect(firstCall?.[0]).not.toHaveProperty("useKnowledgeRouting");
   });
 
   it("omits the RAG option by default (FR-029)", async () => {
