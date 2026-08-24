@@ -276,12 +276,13 @@ Lorsque l’option est active :
 - la génération (`FR-011`), la régénération (`FR-012`) et le recalcul (`FR-026`) utilisent le même adaptateur de connaissance;
 - le formulaire reste celui de `FR-014` : départ, type, destination le cas échéant, distance ou durée, style et préférences d’évitement;
 - l’option ne choisit pas une destination à la place de l’utilisateur et n’est pas une recommandation de sorties;
-- l’adaptateur reste local : il n’appelle pas de modèle distant;
+- l’adaptateur indexe un graphe routier local, classe les corridors via un modèle de chat appelé **côté serveur** avec une clé API, puis compose le tracé **uniquement** sur les géométries indexées ; il n’invente pas de coordonnées;
+- une clé API absente ou un échec du modèle produit une erreur explicite (`PROVIDER_ERROR`);
 - si aucun corridor connu ne relie la demande, le système renvoie une erreur métier explicite (`FR-021`).
 
 Lorsque l’option est inactive, le comportement actuel est inchangé (`ROUTING_PROVIDER`).
 
-L’écran présente l’option sous le libellé **« Corridors RAG »**, avec une mention claire que ce n’est **pas** le réseau routier OSM ni une intelligence artificielle distante. Le domaine ne nomme pas `ai-rag`, un modèle de langage ou un corpus (`BR-004`).
+L’écran présente l’option sous le libellé **« Corridors RAG »**, avec une mention claire que ce n’est **pas** le réseau routier OSM, et que le classement des corridors passe par **ChatGPT** via une **clé API serveur**. Le domaine ne nomme pas le fournisseur de modèle (`BR-004`).
 
 ### BR-006 — Différence minimale à la régénération
 
@@ -500,14 +501,15 @@ Une fois la navigation démarrée (`FR-023`), seules des actions simples restent
 
 Les fournisseurs de carte et de routage doivent pouvoir être remplacés sans réécrire les règles métier. Toute intégration passe par une interface interne. Le domaine ne référence pas un fournisseur nommé.
 
-L’adaptateur de routage par connaissance est un pipeline RAG optionnel (`ROUTING_PROVIDER=ai-rag`) :
+L’adaptateur de routage par connaissance est un pipeline RAG optionnel (`ROUTING_PROVIDER=ai-rag` ou option produit `FR-029`) :
 
 1. indexer un graphe routier **local** dont chaque arête est un document (géométrie d’arête, pas une forme géométrique dilatée);
-2. récupérer les arêtes par proximité spatiale et par pertinence (type de trajet, style);
-3. composer un chemin **uniquement** sur les arêtes récupérées;
-4. si aucun corridor connu ne relie la demande, renvoyer une erreur métier explicite (`FR-021`).
+2. récupérer les arêtes par proximité spatiale;
+3. classer la pertinence de ces corridors (type de trajet, style) via un modèle de chat côté serveur, authentifié par une clé API;
+4. composer un chemin **uniquement** sur les arêtes récupérées;
+5. si aucun corridor connu ne relie la demande, renvoyer une erreur métier explicite (`FR-021`).
 
-Tant qu’aucun réseau routier réel n’est branché, `ROUTING_PROVIDER=mock` reste la valeur par défaut afin que le mode simulé soit explicite. `ai-rag` réutilise le même type de graphe local déterministe; il n’invente pas de coordonnées par transformation d’une courbe, et n’appelle pas un modèle distant.
+Tant qu’aucun réseau routier réel n’est branché, `ROUTING_PROVIDER=mock` reste la valeur par défaut afin que le mode simulé soit explicite. `ai-rag` réutilise le même type de graphe local déterministe; il n’invente pas de coordonnées par transformation d’une courbe. Le classement RAG appelle ChatGPT avec `OPENAI_API_KEY` (serveur uniquement, jamais `NEXT_PUBLIC_`). Les tests n’appellent pas l’API réelle.
 
 L’option produit `FR-029` peut demander ce même adaptateur **à la requête**, sans changer `ROUTING_PROVIDER`. Le drapeau de transport n’appartient pas au domaine : la couche application choisit l’adaptateur, Zod retire le champ à la validation.
 
