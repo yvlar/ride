@@ -200,6 +200,41 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
   });
 
+  it("restores mute and RAG preferences from the session (FR-035)", async () => {
+    window.sessionStorage.setItem(
+      RIDE_SESSION_STORAGE_KEY,
+      JSON.stringify({
+        request: {
+          type: "loop",
+          start: granby,
+          targetDistanceKm: 80,
+          style: "curvy",
+        } satisfies GenerateRideRequest,
+        route: loop,
+        navigating: false,
+        muted: true,
+        useKnowledgeRouting: true,
+        savedAtMs: 1,
+      }),
+    );
+
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reprendre la navigation" }),
+    );
+    expect(screen.getByText(/Guidage vocal désactivé/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Guidage vocal" }),
+    ).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Modifier la demande" }));
+    expect(screen.getByRole("switch", { name: "Corridors RAG" })).toBeChecked();
+  });
+
   it("keeps shell and form navigation state aligned after a CarPlay catalog pick (FR-033, FR-036)", async () => {
     window.localStorage.setItem(
       "ride.library.v1",
