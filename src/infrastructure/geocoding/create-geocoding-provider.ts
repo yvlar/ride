@@ -1,12 +1,12 @@
-import { parseEnv } from "@/lib/env";
+import { parseEnv, serverProcessEnv } from "@/lib/env";
 import type { GeocodingProvider } from "./geocoding-provider";
 import { HttpGeocodingProvider } from "./http-geocoding-provider";
 import { mockGeocodingProvider } from "./mock-geocoding-provider";
 
 export function createGeocodingProvider(
-  source: Record<string, string | undefined> = process.env,
+  source?: Record<string, string | undefined>,
 ): GeocodingProvider {
-  const env = parseEnv(source);
+  const env = parseEnv(source ?? serverProcessEnv());
 
   if (env.GEOCODING_PROVIDER === "mock") {
     return mockGeocodingProvider;
