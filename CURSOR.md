@@ -926,7 +926,7 @@ Laisser `NEXT_PUBLIC_MAP_STYLE_URL` vide utilise le repli raster OSM (`FR-013`, 
 
 `GEOCODING_PROVIDER=mock` est la valeur locale et de test. `GEOCODING_PROVIDER=nominatim` exige `GEOCODING_API_BASE_URL` vers un service dédié ou géré ; aucun serveur public de démonstration n’est configuré par défaut. Les appels de géocodage, y compris le géocodage inverse, restent côté serveur derrière `GeocodingProvider`.
 
-Valider les variables au démarrage. Les variables préfixées `NEXT_PUBLIC_` sont visibles dans le navigateur et ne doivent jamais contenir de secret. Côté serveur, lire chaque secret via `process.env.NOM` (voir `serverProcessEnv`) : passer l’objet `process.env` ne suffit pas pour que Next.js expose `OPENAI_API_KEY` injecté par Vercel.
+Valider les variables au démarrage. Les variables préfixées `NEXT_PUBLIC_` sont visibles dans le navigateur et ne doivent jamais contenir de secret. Côté serveur, lire chaque secret via `process.env.NOM` (voir `serverProcessEnv`) : passer l’objet `process.env` ne suffit pas pour que Next.js expose `OPENAI_API_KEY` injecté par Vercel. Après un ajout ou une rotation de clé sur Vercel, redéployer. Une clé AI Gateway (`vck_…`) est envoyée à `https://ai-gateway.vercel.sh/v1` ; une clé OpenAI reste sur `https://api.openai.com/v1`.
 
 ## 26. Données simulées
 

@@ -408,6 +408,20 @@ describe("createRoutingProvider", () => {
     expect(() => createRoutingProvider({ ROUTING_PROVIDER: "ai-rag" })).toThrow(
       MISSING_CHAT_API_KEY_MESSAGE,
     );
+    expect(() =>
+      createRoutingProvider(
+        { ROUTING_PROVIDER: "mock", OPENAI_API_KEY: "   " },
+        { knowledgeRouting: true },
+      ),
+    ).toThrow(MISSING_CHAT_API_KEY_MESSAGE);
+  });
+
+  it("accepts a Vercel AI Gateway key for knowledge routing (FR-029)", () => {
+    const provider = createRoutingProvider(
+      { ROUTING_PROVIDER: "mock", OPENAI_API_KEY: "vck_test_key" },
+      { knowledgeRouting: true },
+    );
+    expect(provider).toBeInstanceOf(RagRoutingProvider);
   });
 
   it("rejects an unwired named graph engine (BR-004)", () => {
