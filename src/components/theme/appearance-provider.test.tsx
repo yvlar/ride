@@ -1,4 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { APPEARANCE_STORAGE_KEY } from "@/domain/appearance/appearance";
 import { AppearanceProvider, useAppearance } from "./appearance-provider";
@@ -77,5 +78,23 @@ describe("AppearanceProvider (FR-037)", () => {
     });
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("system");
+  });
+
+  it("does not clobber a stored preference while hydrating (FR-037)", async () => {
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, "system");
+    installMatchMedia(false);
+    render(
+      <StrictMode>
+        <AppearanceProvider>
+          <ModeProbe />
+        </AppearanceProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mode")).toHaveTextContent("system");
+    });
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe("system");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });

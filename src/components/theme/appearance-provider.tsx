@@ -53,6 +53,7 @@ function getPrefersDarkServerSnapshot() {
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<AppearanceMode>("dark");
+  const [hydrated, setHydrated] = useState(false);
   const prefersDark = useSyncExternalStore(
     subscribePrefersDark,
     getPrefersDarkSnapshot,
@@ -60,6 +61,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- localStorage hydrate */
     try {
       const stored = window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
       if (
@@ -68,15 +70,19 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
         stored === "night" ||
         stored === "system"
       ) {
-        /* eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage hydrate */
         setMode(stored);
       }
     } catch {
       // Private mode.
     }
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
     const resolved = resolveAppearance(mode, prefersDark);
     const root = document.documentElement;
     root.classList.remove("dark", "night");
@@ -88,7 +94,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore.
     }
-  }, [mode, prefersDark]);
+  }, [hydrated, mode, prefersDark]);
 
   return (
     <AppearanceContext.Provider value={{ mode, setMode }}>
