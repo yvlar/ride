@@ -26,6 +26,8 @@ import {
   createDirectionArrowElement,
   createPlaceMarkerElement,
   createUserPuckElement,
+  enhanceGeolocateDotWithMotorcycle,
+  headingFromGeolocateEvent,
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
 import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
@@ -54,6 +56,7 @@ export function createMapLibreEngine(
       let map: MapLibreMap | undefined;
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
+      let lastGeolocateHeadingDeg: number | null = null;
 
       ensureMapLibreWorkerUrl();
       let camera = mapCameraFrame(viewModel.bounds);
@@ -105,6 +108,22 @@ export function createMapLibreEngine(
         geolocateControl = new GeolocateControl(RIDE_GEOLOCATE_CONTROL_OPTIONS);
         map.addControl(geolocateControl, "top-right");
         labelGeolocateControl(container);
+        geolocateControl.on("geolocate", (event) => {
+          if (disposed) {
+            return;
+          }
+          const heading = headingFromGeolocateEvent(event);
+          if (heading != null) {
+            lastGeolocateHeadingDeg = heading;
+          }
+          const dot = container.querySelector<HTMLElement>(
+            ".maplibregl-user-location-dot",
+          );
+          if (!dot) {
+            return;
+          }
+          enhanceGeolocateDotWithMotorcycle(dot, lastGeolocateHeadingDeg);
+        });
         geolocateControl.on("error", () => {
           if (!disposed) {
             onWarning?.(GPS_TRACKING_UNAVAILABLE_MESSAGE);

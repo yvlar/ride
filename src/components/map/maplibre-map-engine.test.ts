@@ -24,6 +24,7 @@ const {
   fitBounds,
   addLayer,
   mapState,
+  createdMarkers,
   routeSource,
   FakeGeolocateControl,
   FakeMap,
@@ -39,6 +40,7 @@ const {
   const easeTo = vi.fn();
   const fitBounds = vi.fn();
   const addLayer = vi.fn();
+  const createdMarkers: { element?: HTMLElement }[] = [];
   const rasterStyle = {
     version: 8 as const,
     sources: {
@@ -109,6 +111,7 @@ const {
     hasLngLat = false;
     constructor(options?: { element?: HTMLElement }) {
       this.element = options?.element;
+      createdMarkers.push(this);
     }
     setLngLat(value: { lng?: number; lat?: number } | [number, number]) {
       this.hasLngLat = true;
@@ -156,6 +159,7 @@ const {
     fitBounds,
     addLayer,
     mapState,
+    createdMarkers,
     routeSource,
     FakeGeolocateControl,
     FakeMap,
@@ -206,6 +210,7 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     fitBounds.mockReset();
     routeSource.setData.mockReset();
     addLayer.mockReset();
+    createdMarkers.length = 0;
     mapState.painterAvailable = true;
     mapState.markerThrows = false;
     mapState.lastOptions = undefined;
@@ -225,6 +230,7 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     >;
     expect(control).toBeInstanceOf(FakeGeolocateControl);
     expect(control.options).toEqual(RIDE_GEOLOCATE_CONTROL_OPTIONS);
+    expect(geolocateOn).toHaveBeenCalledWith("geolocate", expect.any(Function));
     expect(geolocateOn).toHaveBeenCalledWith("error", expect.any(Function));
   });
 
@@ -349,6 +355,77 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("shows a motorcycle on the geolocate dot and orients it by heading (FR-022)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const container = document.createElement("div");
+    const dot = document.createElement("div");
+    dot.className = "maplibregl-user-location-dot";
+    container.append(dot);
+
+    createMapLibreEngine().mount(container, viewModel, { onError: vi.fn() });
+
+    const handler = geolocateOn.mock.calls.find(
+      (call) => call[0] === "geolocate",
+    )?.[1] as ((event: unknown) => void) | undefined;
+    handler?.({
+      coords: { latitude: 45.41, longitude: -72.72, heading: 90 },
+    });
+
+    expect(dot).toHaveClass("ride-map-user-puck");
+    expect(dot.querySelector("svg.ride-map-user-puck-icon")).not.toBeNull();
+    expect(
+      dot.querySelector<HTMLElement>(".ride-map-user-puck-heading")?.style
+        .transform,
+    ).toBe("rotate(90deg)");
+  });
+
+  it("keeps the motorcycle heading when a later GPS fix has no cap (FR-022)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const container = document.createElement("div");
+    const dot = document.createElement("div");
+    dot.className = "maplibregl-user-location-dot";
+    container.append(dot);
+
+    createMapLibreEngine().mount(container, viewModel, { onError: vi.fn() });
+
+    const handler = geolocateOn.mock.calls.find(
+      (call) => call[0] === "geolocate",
+    )?.[1] as ((event: unknown) => void) | undefined;
+    handler?.({
+      coords: { latitude: 45.41, longitude: -72.72, heading: 45 },
+    });
+    handler?.({
+      coords: { latitude: 45.42, longitude: -72.71, heading: null },
+    });
+
+    expect(dot.querySelector("svg.ride-map-user-puck-icon")).not.toBeNull();
+    expect(
+      dot.querySelector<HTMLElement>(".ride-map-user-puck-heading")?.style
+        .transform,
+    ).toBe("rotate(45deg)");
+  });
+
+  it("does not throw when a geolocate event arrives without a location dot (FR-022)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const onError = vi.fn();
+    const onWarning = vi.fn();
+    createMapLibreEngine().mount(document.createElement("div"), viewModel, {
+      onError,
+      onWarning,
+    });
+
+    const handler = geolocateOn.mock.calls.find(
+      (call) => call[0] === "geolocate",
+    )?.[1] as ((event: unknown) => void) | undefined;
+    expect(() =>
+      handler?.({
+        coords: { latitude: 45.41, longitude: -72.72, heading: 90 },
+      }),
+    ).not.toThrow();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onWarning).not.toHaveBeenCalled();
+  });
+
   it("does not crash when WebGL2 leaves MapLibre partially initialized", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const onError = vi.fn();
@@ -465,6 +542,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     fitBounds.mockReset();
     routeSource.setData.mockReset();
     addLayer.mockReset();
+    createdMarkers.length = 0;
     mapState.painterAvailable = true;
     mapState.markerThrows = false;
     mapState.lastOptions = undefined;
@@ -509,6 +587,10 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
         bearing: 90,
       }),
     );
+    const puck = createdMarkers.find((marker) =>
+      marker.element?.classList.contains("ride-map-user-puck"),
+    );
+    expect(puck?.element?.querySelector("svg.ride-map-user-puck-icon")).not.toBeNull();
   });
 
   it("pitches the follow camera even without a heading (FR-024)", async () => {
