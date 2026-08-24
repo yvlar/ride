@@ -107,3 +107,38 @@ struct RideCarPlaySnapshot {
         return nil
     }
 }
+
+struct RideCarPlayCatalogItem {
+    let id: String
+    let title: String
+    let subtitle: String?
+}
+
+struct RideCarPlayCatalog {
+    var recents: [RideCarPlayCatalogItem] = []
+    var favorites: [RideCarPlayCatalogItem] = []
+    var resumeTitle: String?
+    var resumeSubtitle: String?
+
+    static func from(call: CAPPluginCall) -> RideCarPlayCatalog {
+        func items(_ key: String) -> [RideCarPlayCatalogItem] {
+            let raw = call.getArray(key, JSObject.self) ?? []
+            return raw.compactMap { object in
+                guard let id = object["id"] as? String, let title = object["title"] as? String else {
+                    return nil
+                }
+                return RideCarPlayCatalogItem(
+                    id: id,
+                    title: title,
+                    subtitle: object["subtitle"] as? String
+                )
+            }
+        }
+        return RideCarPlayCatalog(
+            recents: items("recents"),
+            favorites: items("favorites"),
+            resumeTitle: call.getString("resumeTitle"),
+            resumeSubtitle: call.getString("resumeSubtitle")
+        )
+    }
+}

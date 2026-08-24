@@ -10,6 +10,7 @@ public class RideCarPlayPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "update", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getConnection", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setCatalog", returnType: CAPPluginReturnPromise),
     ]
 
     override public func load() {
@@ -51,6 +52,22 @@ public class RideCarPlayPlugin: CAPInstancePlugin, CAPBridgedPlugin {
                 "muted": RideCarPlaySession.shared.muted,
             ])
         }
+    }
+
+    @objc func setCatalog(_ call: CAPPluginCall) {
+        let catalog = RideCarPlayCatalog.from(call: call)
+        DispatchQueue.main.async {
+            RideCarPlaySession.shared.setCatalog(catalog)
+            call.resolve()
+        }
+    }
+
+    func emitCatalogSelect(id: String) {
+        notifyListeners("catalogSelect", data: ["id": id])
+    }
+
+    func emitSearchQuery(query: String) {
+        notifyListeners("searchQuery", data: ["query": query])
     }
 
     func emitConnection(connected: Bool) {

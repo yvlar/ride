@@ -16,6 +16,9 @@ export function createCapacitorCarPlayDisplay(
     stop() {
       return plugin.stop();
     },
+    setCatalog(catalog) {
+      return plugin.setCatalog(catalog);
+    },
     subscribe(listener: (event: CarPlayDisplayEvent) => void) {
       let removed = false;
       const handles: PluginListenerHandle[] = [];
@@ -50,6 +53,30 @@ export function createCapacitorCarPlayDisplay(
           return;
         }
         handles.push(connectionHandle);
+
+        const catalogHandle = await plugin.addListener(
+          "catalogSelect",
+          (event) => {
+            listener({ type: "catalogSelect", id: event.id });
+          },
+        );
+        if (removed) {
+          await catalogHandle.remove();
+          return;
+        }
+        handles.push(catalogHandle);
+
+        const searchHandle = await plugin.addListener(
+          "searchQuery",
+          (event) => {
+            listener({ type: "searchQuery", query: event.query });
+          },
+        );
+        if (removed) {
+          await searchHandle.remove();
+          return;
+        }
+        handles.push(searchHandle);
 
         const status = await plugin.getConnection();
         if (removed) {

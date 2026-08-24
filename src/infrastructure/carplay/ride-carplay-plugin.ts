@@ -1,6 +1,7 @@
 import { registerPlugin } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
 import type {
+  CarPlayCatalog,
   CarPlayConnection,
   CarPlaySessionSnapshot,
 } from "./types";
@@ -28,6 +29,15 @@ export type RideCarPlayPlugin = {
     eventName: "stopRequested",
     listener: () => void,
   ): Promise<PluginListenerHandle>;
+  setCatalog(catalog: CarPlayCatalog): Promise<void>;
+  addListener(
+    eventName: "catalogSelect",
+    listener: (event: { id: string }) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: "searchQuery",
+    listener: (event: { query: string }) => void,
+  ): Promise<PluginListenerHandle>;
 };
 
 class RideCarPlayWeb {
@@ -42,6 +52,8 @@ class RideCarPlayWeb {
   async getConnection(): Promise<RideCarPlayPluginStatus> {
     return { connected: false, stopRequested: false, muted: false };
   }
+
+  async setCatalog(): Promise<void> {}
 }
 
 export const RideCarPlay = registerPlugin<RideCarPlayPlugin>("RideCarPlay", {

@@ -8,6 +8,7 @@ export function createNoopCarPlayDisplay(): CarPlayDisplay {
     },
     async update() {},
     async stop() {},
+    async setCatalog() {},
     subscribe() {
       return () => {};
     },

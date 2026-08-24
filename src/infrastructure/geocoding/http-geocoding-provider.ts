@@ -24,6 +24,7 @@ const nominatimAddressSchema = z
 
 const nominatimPlaceSchema = z.object({
   display_name: z.string().min(1),
+  name: z.string().optional(),
   lat: z.union([z.string(), z.number()]),
   lon: z.union([z.string(), z.number()]),
   address: nominatimAddressSchema.optional(),
@@ -69,12 +70,7 @@ export class HttpGeocodingProvider implements GeocodingProvider {
       if (!coordinates) {
         return [];
       }
-      return [
-        {
-          label: formatPlaceLabel(item),
-          coordinates,
-        },
-      ];
+      return [toPlace(item, coordinates)];
     });
   }
 
@@ -96,10 +92,7 @@ export class HttpGeocodingProvider implements GeocodingProvider {
       throw new Error("Réponse de géocodage invalide.");
     }
 
-    return {
-      label: formatPlaceLabel(parsed.data),
-      coordinates,
-    };
+    return toPlace(parsed.data, coordinates);
   }
 
   private async request(url: URL): Promise<unknown> {
@@ -165,24 +158,56 @@ function parseNominatimCoordinates(
 }
 
 function formatPlaceLabel(place: z.infer<typeof nominatimPlaceSchema>): string {
+  const parts = placeParts(place);
+  const labeled = [parts.name, parts.addressLine, parts.locality, parts.region]
+    .filter((part): part is string => Boolean(part))
+    .filter((part, index, all) => all.indexOf(part) === index);
+  if (labeled.length > 0) {
+    return labeled.join(", ");
+  }
+  return place.display_name;
+}
+
+function toPlace(
+  place: z.infer<typeof nominatimPlaceSchema>,
+  coordinates: Coordinates,
+): Place {
+  const parts = placeParts(place);
+  return {
+    label: formatPlaceLabel(place),
+    coordinates,
+    ...(parts.name ? { name: parts.name } : {}),
+    ...(parts.addressLine ? { addressLine: parts.addressLine } : {}),
+    ...(parts.locality ? { locality: parts.locality } : {}),
+    ...(parts.region ? { region: parts.region } : {}),
+  };
+}
+
+function placeParts(place: z.infer<typeof nominatimPlaceSchema>): {
+  name?: string;
+  addressLine?: string;
+  locality?: string;
+  region?: string;
+} {
   const address = place.address;
-  if (address) {
-    const street = [address.house_number, address.road ?? address.pedestrian]
-      .filter((part): part is string => Boolean(part?.trim()))
-      .join(" ");
-    const locality =
-      address.city ??
+  const street = address
+    ? [address.house_number, address.road ?? address.pedestrian]
+        .filter((part): part is string => Boolean(part?.trim()))
+        .join(" ")
+    : "";
+  const locality = address
+    ? (address.city ??
       address.town ??
       address.village ??
       address.municipality ??
       address.suburb ??
-      address.city_district;
-    const parts = [street || undefined, locality, address.state].filter(
-      (part): part is string => Boolean(part?.trim()),
-    );
-    if (parts.length > 0) {
-      return parts.join(", ");
-    }
-  }
-  return place.display_name;
+      address.city_district)
+    : undefined;
+  const name = place.name?.trim() || street || locality;
+  return {
+    name: name || undefined,
+    addressLine: street && street !== name ? street : undefined,
+    locality: locality && locality !== name ? locality : undefined,
+    region: address?.state?.trim() || undefined,
+  };
 }

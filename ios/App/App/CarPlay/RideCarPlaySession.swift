@@ -102,4 +102,19 @@ final class RideCarPlaySession {
     func recenter() {
         scene?.recenter()
     }
+
+    private(set) var catalog = RideCarPlayCatalog()
+
+    func setCatalog(_ catalog: RideCarPlayCatalog) {
+        self.catalog = catalog
+        scene?.applyCatalog(catalog)
+    }
+
+    func selectCatalogItem(id: String) {
+        plugin?.emitCatalogSelect(id: id)
+    }
+
+    func searchCatalog(query: String) {
+        plugin?.emitSearchQuery(query: query)
+    }
 }

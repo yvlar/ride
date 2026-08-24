@@ -9,15 +9,16 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
-import { toRideMapViewModel } from "./ride-map-view-model";
+import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
 
 export type RideMapProps = {
-  route: GeneratedRideRoute;
+  route: GeneratedRideRoute | null;
   engine?: MapEngine;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
   expanded?: boolean;
   onRecenterReady?: (recenter: () => void) => void;
+  onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
 };
 
@@ -28,19 +29,26 @@ export function RideMap({
   headingDeg = null,
   expanded = false,
   onRecenterReady,
+  onOverviewReady,
   onGeolocateReady,
 }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
-  const viewModelRef = useRef(toRideMapViewModel(route));
+  const viewModelRef = useRef(
+    route ? toRideMapViewModel(route) : idleMapViewModel(),
+  );
   const onRecenterReadyRef = useRef(onRecenterReady);
+  const onOverviewReadyRef = useRef(onOverviewReady);
   const onGeolocateReadyRef = useRef(onGeolocateReady);
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
   const expandedRef = useRef(expanded);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+  const viewModel = useMemo(
+    () => (route ? toRideMapViewModel(route) : idleMapViewModel()),
+    [route],
+  );
   const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);
 
@@ -51,6 +59,10 @@ export function RideMap({
   useEffect(() => {
     onRecenterReadyRef.current = onRecenterReady;
   }, [onRecenterReady]);
+
+  useEffect(() => {
+    onOverviewReadyRef.current = onOverviewReady;
+  }, [onOverviewReady]);
 
   useEffect(() => {
     onGeolocateReadyRef.current = onGeolocateReady;
@@ -114,6 +126,7 @@ export function RideMap({
         handle.setGeolocateEnabled?.(!expandedRef.current);
         handle.setFollowUser?.(expandedRef.current);
         onRecenterReadyRef.current?.(() => handle?.recenter?.());
+        onOverviewReadyRef.current?.(() => handle?.overview?.());
         onGeolocateReadyRef.current?.((enabled) => {
           handle?.setGeolocateEnabled?.(enabled);
         });
@@ -152,6 +165,7 @@ export function RideMap({
           handle.setGeolocateEnabled?.(!expandedRef.current);
           handle.setFollowUser?.(expandedRef.current);
           onRecenterReadyRef.current?.(() => handle?.recenter?.());
+        onOverviewReadyRef.current?.(() => handle?.overview?.());
           onGeolocateReadyRef.current?.((enabled) => {
             handle?.setGeolocateEnabled?.(enabled);
           });
@@ -201,7 +215,7 @@ export function RideMap({
       aria-label="Carte du trajet"
       className={cn(expanded ? "relative h-full w-full" : "space-y-2")}
     >
-      {viewModel && !expanded ? (
+      {viewModel && !expanded && !viewModel.idle ? (
         <>
           <p className="text-sm leading-6">{viewModel.directionLabel}</p>
           <ul className="space-y-1 text-sm leading-6 text-muted-foreground">

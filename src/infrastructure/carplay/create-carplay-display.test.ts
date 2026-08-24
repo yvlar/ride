@@ -27,6 +27,7 @@ describe("createCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
       update: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
+      setCatalog: vi.fn(async () => {}),
       getConnection: vi.fn(async () => ({
         connected: true,
         stopRequested: false,

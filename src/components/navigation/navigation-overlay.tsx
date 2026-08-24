@@ -1,6 +1,7 @@
 "use client";
 
-import { LocateFixed, Volume2, VolumeX, X } from "lucide-react";
+import { useState } from "react";
+import { LocateFixed, Maximize2, Volume2, VolumeX, X } from "lucide-react";
 import {
   CARPLAY_ACTIVE_MESSAGE,
   FOREGROUND_ONLY_MESSAGE,
@@ -36,6 +37,7 @@ export type NavigationOverlayProps = {
   recalcError: RideGenerationError | null;
   onMuteToggle: () => void;
   onRecenter: () => void;
+  onOverview?: () => void;
   onStop: () => void;
   onRetryRecalculate: () => void;
 };
@@ -57,9 +59,11 @@ export function NavigationOverlay({
   recalcError,
   onMuteToggle,
   onRecenter,
+  onOverview,
   onStop,
   onRetryRecalculate,
 }: NavigationOverlayProps) {
+  const [confirmStop, setConfirmStop] = useState(false);
   const gpsStatus = gpsError ?? formatAccuracyLabel(accuracyMeters);
   const etaLabel = formatEta(nowMs, remainingMinutes);
 
@@ -113,11 +117,26 @@ export function NavigationOverlay({
         <Button
           type="button"
           variant="secondary"
+          aria-label="Aperçu du trajet"
+          className={cn(
+            "pointer-events-auto min-h-12 min-w-12 gap-1 self-end rounded-full px-3 shadow-lg",
+          )}
+          onClick={onOverview}
+        >
+          <Maximize2 aria-hidden="true" className="size-6" />
+          <span className="pr-1 text-xs font-medium">Aperçu</span>
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
           aria-label="Recentrer"
-          className={cn(TOUCH_TARGET, "pointer-events-auto self-end shadow-lg")}
+          className={cn(
+            "pointer-events-auto min-h-12 min-w-12 gap-1 self-end rounded-full px-3 shadow-lg",
+          )}
           onClick={onRecenter}
         >
           <LocateFixed aria-hidden="true" className="size-6" />
+          <span className="pr-1 text-xs font-medium">Centre</span>
         </Button>
 
         <footer
@@ -150,12 +169,35 @@ export function NavigationOverlay({
               variant="outline"
               aria-label="Arrêter"
               className={cn(TOUCH_TARGET, "shrink-0")}
-              onClick={onStop}
+              onClick={() => setConfirmStop(true)}
             >
               <X aria-hidden="true" className="size-6" />
             </Button>
           </div>
 
+          {confirmStop ? (
+            <div role="alertdialog" aria-label="Terminer la navigation" className="space-y-2">
+              <p className="text-sm">Terminer la navigation ?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-12"
+                  onClick={() => setConfirmStop(false)}
+                >
+                  Continuer
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="min-h-12"
+                  onClick={onStop}
+                >
+                  Terminer
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <p className="text-sm leading-6" role="status">
             {gpsStatus}
             {recalculating ? " · Recalcul du trajet…" : ""}

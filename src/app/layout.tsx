@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { NativeChrome } from "@/components/native/native-chrome";
+import { AppearanceProvider } from "@/components/theme/appearance-provider";
 import { metadata, viewport } from "./document-chrome";
 import "./globals.css";
 
@@ -22,8 +23,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground font-sans">
-        <NativeChrome />
-        {children}
+        <AppearanceProvider>
+          <NativeChrome />
+          {children}
+        </AppearanceProvider>
       </body>
     </html>
   );

@@ -231,6 +231,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     });
     expect(speech.speak).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
     expect(onStop).toHaveBeenCalled();
   });
 
