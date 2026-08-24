@@ -40,6 +40,17 @@ describe("parseLoopRideRequest (FR-001)", () => {
     expect(request.style).toBe("scenic");
   });
 
+  it("strips the transport-only knowledge flag (FR-029, BR-004)", () => {
+    const request = parseLoopRideRequest({
+      type: "loop",
+      start,
+      targetDistanceKm: 80,
+      useKnowledgeRouting: true,
+    });
+
+    expect(request).not.toHaveProperty("useKnowledgeRouting");
+  });
+
   it("rejects a loop without distance or duration (FR-009)", () => {
     expect(() =>
       parseLoopRideRequest({

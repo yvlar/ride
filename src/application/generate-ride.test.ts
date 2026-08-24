@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateRide } from "./generate-ride";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
@@ -193,5 +193,90 @@ describe("generateRide (FR-011)", () => {
           request.preferences.avoidUnpaved === true,
       ),
     ).toBe(true);
+  });
+});
+
+function isKnowledgeRoadName(name: string | undefined): boolean {
+  return Boolean(name && !name.startsWith("Grid "));
+}
+
+describe("generateRide knowledge option (FR-029)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    process.env.OPENAI_API_KEY = "test-openai-key";
+  });
+
+  it("uses the knowledge adapter when useKnowledgeRouting is true", async () => {
+    const result = await generateRide({
+      type: "loop",
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic",
+      useKnowledgeRouting: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments.some((segment) => isKnowledgeRoadName(segment.roadName))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the environment mock adapter when the flag is absent", async () => {
+    const result = await generateRide({
+      type: "loop",
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.segments.every(
+        (segment) => !segment.roadName || segment.roadName.startsWith("Grid "),
+      ),
+    ).toBe(true);
+  });
+
+  it("maps an empty knowledge graph to FR-021", async () => {
+    const result = await generateRide({
+      type: "destination",
+      start: GRANBY,
+      destination: {
+        label: "Perth",
+        coordinates: { latitude: -31.95, longitude: 115.86 },
+      },
+      style: "touring",
+      useKnowledgeRouting: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.message).toMatch(/FR-021/);
+  });
+
+  it("maps a missing ChatGPT key to PROVIDER_ERROR (FR-029)", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const result = await generateRide({
+      type: "loop",
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic",
+      useKnowledgeRouting: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("PROVIDER_ERROR");
+    expect(result.error.message).toMatch(/OPENAI_API_KEY/);
   });
 });

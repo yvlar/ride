@@ -90,6 +90,30 @@ export function stayInCanadaEndpointError(
   return undefined;
 }
 
+export function providerConfigurationError(
+  error: unknown,
+): RideGenerationError {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("OPENAI_API_KEY")) {
+    return {
+      code: "PROVIDER_ERROR",
+      message:
+        "La clé API du classement des corridors est absente. Définissez OPENAI_API_KEY côté serveur.",
+      suggestions: [
+        "Ajoutez OPENAI_API_KEY aux variables d’environnement du serveur.",
+        "N’exposez jamais cette clé dans le navigateur.",
+      ],
+    };
+  }
+
+  return {
+    code: "PROVIDER_ERROR",
+    message:
+      "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
+    suggestions: ["Vérifiez ROUTING_PROVIDER et ROUTING_API_BASE_URL."],
+  };
+}
+
 export function errorFromExhaustedAttempts(
   settled: PromiseSettledResult<unknown>[],
   fallback: Pick<RideGenerationError, "message" | "suggestions">,

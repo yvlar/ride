@@ -118,7 +118,7 @@ Créer des adaptateurs interchangeables pour :
 - la recherche de points d’intérêt;
 - les tuiles cartographiques.
 
-Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches de la demande, puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’appelle pas de modèle distant.
+Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches, classe les corridors via ChatGPT (`OPENAI_API_KEY`, serveur uniquement), puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’invente pas de coordonnées. L’écran principal peut demander ce même adaptateur à la requête (`FR-029`, option « Corridors RAG ») sans changer `ROUTING_PROVIDER`.
 
 `OsrmRoutingProvider` (`ROUTING_PROVIDER=osrm`) appelle un service OSRM configuré par `ROUTING_API_BASE_URL` et retourne une géométrie GeoJSON suivant les routes OpenStreetMap. `GraphHopper` et `Valhalla` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
 
@@ -903,7 +903,7 @@ Scénarios critiques :
 7. gérer une absence de résultat;
 8. gérer un fournisseur indisponible.
 
-Les tests automatisés ne doivent pas dépendre d’un fournisseur externe réel ni d’un modèle de langage distant. Utiliser `MockRoutingProvider` ou `RagRoutingProvider` avec un corpus en mémoire et des données déterministes.
+Les tests automatisés ne doivent pas dépendre d’un fournisseur externe réel ni d’un modèle de langage distant. Utiliser `MockRoutingProvider` ou `RagRoutingProvider` avec un corpus en mémoire et des données déterministes. Les tests du classeur ChatGPT utilisent un client HTTP fictif.
 
 ## 25. Variables d’environnement
 
@@ -916,6 +916,9 @@ ROUTING_API_KEY=
 GEOCODING_PROVIDER=mock
 GEOCODING_API_BASE_URL=
 GEOCODING_API_KEY=
+OPENAI_API_KEY=
+OPENAI_API_BASE_URL=
+OPENAI_MODEL=
 NEXT_PUBLIC_MAP_STYLE_URL=
 ```
 
@@ -927,7 +930,7 @@ Valider les variables au démarrage. Les variables préfixées `NEXT_PUBLIC_` so
 
 ## 26. Données simulées
 
-Le développement initial doit fonctionner sans clé externe grâce à `MockRoutingProvider`. `RagRoutingProvider` (`ai-rag`) est un graphe local indexé, pas un réseau OSM : le mode simulé doit rester explicite.
+Le développement initial doit fonctionner sans clé externe grâce à `MockRoutingProvider`. `RagRoutingProvider` (`ai-rag` / option « Corridors RAG ») indexe un graphe local, pas un réseau OSM. En production, le classement des corridors appelle ChatGPT avec `OPENAI_API_KEY` côté serveur.
 
 Prévoir au moins :
 

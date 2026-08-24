@@ -27,13 +27,14 @@ import type {
   RideGenerationOptions,
   RoundTripRideRequest,
 } from "@/domain/ride/types";
-import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
+import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import { unpavedKnowledgeError, canadaOnlyKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   applyHardRoutePreferences,
   errorFromExhaustedAttempts,
   knowledgeUnavailableError,
+  providerConfigurationError,
   stayInCanadaEndpointError,
 } from "./routing-failure";
 
@@ -46,23 +47,11 @@ export async function generateRoundTripRide(
   routingProvider?: RoutingProvider,
   options?: RideGenerationOptions,
 ): Promise<GenerateRoundTripRideResult> {
-  let provider = routingProvider;
-  if (!provider) {
-    try {
-      provider = createRoutingProvider();
-    } catch {
-      return {
-        ok: false,
-        error: {
-          code: "PROVIDER_ERROR",
-          message:
-            "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
-          suggestions: [
-            "Vérifiez ROUTING_PROVIDER et ROUTING_API_BASE_URL.",
-          ],
-        },
-      };
-    }
+  let provider: RoutingProvider;
+  try {
+    provider = resolveRoutingProvider(input, routingProvider);
+  } catch (error) {
+    return { ok: false, error: providerConfigurationError(error) };
   }
 
   const type =

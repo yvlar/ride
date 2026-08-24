@@ -2,7 +2,7 @@ import { generateRide } from "@/application/generate-ride";
 import type { RideGenerationError } from "@/domain/ride/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 10;
+export const maxDuration = 15;
 
 const MAX_BODY_BYTES = 32_768;
 const NO_STORE = { "Cache-Control": "no-store" };

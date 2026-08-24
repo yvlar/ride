@@ -292,6 +292,7 @@ describe("RideRequestForm (FR-014)", () => {
         targetDistanceKm: 200,
         style: "curvy",
       }),
+      { useKnowledgeRouting: false },
     );
     expect(
       screen.getByRole("status"),
@@ -846,6 +847,57 @@ describe("RideRequestForm (FR-014)", () => {
           },
         }),
       );
+    });
+  });
+
+  it("sends the RAG knowledge option when Corridors RAG is on (FR-029)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: generatedLoop,
+    }));
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "150" },
+    });
+    expect(screen.getByLabelText("Corridors RAG")).not.toBeChecked();
+    expect(
+      screen.getByText(/Classement des corridors par ChatGPT \(clé API serveur\)/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Corridors RAG"));
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "loop" }),
+        { useKnowledgeRouting: true },
+      );
+    });
+    const firstCall = generateRide.mock.calls[0] as unknown as
+      | [GenerateRideRequest, { useKnowledgeRouting?: boolean }]
+      | undefined;
+    expect(firstCall?.[0]).toBeDefined();
+    expect(firstCall?.[0]).not.toHaveProperty("useKnowledgeRouting");
+  });
+
+  it("omits the RAG option by default (FR-029)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: generatedLoop,
+    }));
+    renderForm({ generateRide });
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(targetDistanceField(), {
+      target: { value: "150" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
+
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(expect.anything(), {
+        useKnowledgeRouting: false,
+      });
     });
   });
 });

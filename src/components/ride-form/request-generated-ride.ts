@@ -22,15 +22,25 @@ type GenerateErrorBody = {
   error: RideGenerationError;
 };
 
+export type GenerateRideClientOptions = {
+  useKnowledgeRouting?: boolean;
+};
+
 export async function requestGeneratedRide(
   request: GenerateRideRequest,
+  options?: GenerateRideClientOptions,
 ): Promise<GenerateRideResult> {
+  const payload =
+    options?.useKnowledgeRouting === true
+      ? { ...request, useKnowledgeRouting: true }
+      : request;
+
   let response: Response;
   try {
     response = await fetch("/api/routes/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
     });
   } catch {
     return { ok: false, error: PROVIDER_UNAVAILABLE };

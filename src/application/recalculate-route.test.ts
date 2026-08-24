@@ -430,4 +430,30 @@ describe("recalculateRoute (FR-026, BR-008)", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
+
+  it("uses the knowledge adapter when the flag is on the request (FR-029, BR-008)", async () => {
+    const result = await recalculateRoute({
+      currentPosition: offsetCoordinates(start.coordinates, 180, 0.4),
+      progressKm: 2,
+      request: {
+        type: "destination",
+        start,
+        destination,
+        style: "curvy",
+        preferences: { avoidHighways: false, avoidUnpaved: false },
+        useKnowledgeRouting: true,
+      },
+      originalRoute: destinationRoute,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.segments.some(
+        (segment) => segment.roadName && !segment.roadName.startsWith("Grid "),
+      ),
+    ).toBe(true);
+  });
 });

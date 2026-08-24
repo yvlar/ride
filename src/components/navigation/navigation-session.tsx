@@ -51,6 +51,8 @@ export type NavigationSessionProps = {
   now?: () => number;
   mapEngine?: NavigationMapProps["engine"];
   renderMap?: boolean;
+  /** FR-029 — keep the knowledge adapter on FR-026 recalculation. */
+  useKnowledgeRouting?: boolean;
   onUserLocation?: (
     point: Coordinates | null,
     headingDeg?: number | null,
@@ -71,6 +73,7 @@ export function NavigationSession({
   now = Date.now,
   mapEngine,
   renderMap = true,
+  useKnowledgeRouting = false,
   onUserLocation,
   onRecenter,
   wakeLock,
@@ -261,6 +264,7 @@ export function NavigationSession({
         progressKm: currentProgressKm,
         request,
         originalRoute: routeRef.current,
+        useKnowledgeRouting,
       },
       controller.signal,
     );
@@ -290,7 +294,7 @@ export function NavigationSession({
     remainingMinutesRef.current = result.route.durationMinutes;
     onRouteChange?.(result.route);
     pushCarPlay(null);
-  }, [now, onRouteChange, pushCarPlay, recalculate, request, speechEngine]);
+  }, [now, onRouteChange, pushCarPlay, recalculate, request, speechEngine, useKnowledgeRouting]);
 
   useEffect(() => {
     runRecalculateRef.current = runRecalculate;

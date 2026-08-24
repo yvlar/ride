@@ -1,19 +1,35 @@
+import type { AppEnv } from "@/lib/env";
 import { parseEnv } from "@/lib/env";
 import { MockRoutingProvider } from "./mock-routing-provider";
 import { OsrmRoutingProvider } from "./osrm-routing-provider";
+import { ChatGptCorridorRetriever } from "./rag/chatgpt-corridor-retriever";
+import { HttpChatCompletionsClient } from "./rag/chat-completions-client";
 import { RagRoutingProvider } from "./rag/rag-routing-provider";
 import type { RoutingProvider } from "./routing-provider";
 
+export const MISSING_CHAT_API_KEY_MESSAGE =
+  "OPENAI_API_KEY est requis pour Corridors RAG. Définissez la clé côté serveur.";
+
+export type CreateRoutingProviderOptions = {
+  /** FR-029 — per-request override to the knowledge/RAG adapter. */
+  knowledgeRouting?: boolean;
+};
+
 export function createRoutingProvider(
   source: Record<string, string | undefined> = process.env,
+  options?: CreateRoutingProviderOptions,
 ): RoutingProvider {
+  if (options?.knowledgeRouting) {
+    return createChatGptRagRoutingProvider(parseEnv(source));
+  }
+
   const env = parseEnv(source);
   if (env.ROUTING_PROVIDER === "mock") {
     return new MockRoutingProvider();
   }
 
   if (env.ROUTING_PROVIDER === "ai-rag") {
-    return new RagRoutingProvider();
+    return createChatGptRagRoutingProvider(env);
   }
 
   if (env.ROUTING_PROVIDER === "osrm") {
@@ -27,5 +43,21 @@ export function createRoutingProvider(
 
   throw new Error(
     `Le fournisseur de routage « ${env.ROUTING_PROVIDER} » n’est pas encore branché. Utilisez ROUTING_PROVIDER=osrm, ai-rag ou mock.`,
+  );
+}
+
+function createChatGptRagRoutingProvider(env: AppEnv): RagRoutingProvider {
+  if (!env.OPENAI_API_KEY) {
+    throw new Error(MISSING_CHAT_API_KEY_MESSAGE);
+  }
+
+  return new RagRoutingProvider(
+    new ChatGptCorridorRetriever({
+      client: new HttpChatCompletionsClient({
+        apiKey: env.OPENAI_API_KEY,
+        baseUrl: env.OPENAI_API_BASE_URL,
+      }),
+      model: env.OPENAI_MODEL,
+    }),
   );
 }

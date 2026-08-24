@@ -47,6 +47,13 @@ describe("Home (FR-014)", () => {
     expect(
       screen.getByLabelText("Éviter les routes non pavées"),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Canada seulement")).toBeInTheDocument();
+    expect(screen.getByLabelText("Corridors RAG")).toBeInTheDocument();
+    expect(screen.getByLabelText("Corridors RAG")).not.toBeChecked();
+    expect(
+      screen.getByText(/Classement des corridors par ChatGPT/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/clé API serveur/i)).toBeInTheDocument();
 
     const generate = screen.getAllByRole("button", { name: "Générer ma ride" });
     expect(generate).toHaveLength(1);

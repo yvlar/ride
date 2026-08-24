@@ -5,7 +5,10 @@ import { haversineKm, offsetCoordinates } from "@/domain/geo/distance";
 import { radiusCoefficientOfVariation } from "@/domain/geo/geometry";
 import type { Coordinates } from "@/domain/geo/types";
 import { MockRoutingProvider } from "../mock-routing-provider";
-import { createRoutingProvider } from "../create-routing-provider";
+import {
+  createRoutingProvider,
+  MISSING_CHAT_API_KEY_MESSAGE,
+} from "../create-routing-provider";
 import { composeRetrievedRoute } from "./compose";
 import { buildLocalRoadIndex } from "./local-road-index";
 import { RagRoutingProvider } from "./rag-routing-provider";
@@ -379,9 +382,32 @@ describe("createRoutingProvider", () => {
     expect(provider).toBeInstanceOf(MockRoutingProvider);
   });
 
-  it("returns the RAG adapter when ROUTING_PROVIDER=ai-rag", () => {
-    const provider = createRoutingProvider({ ROUTING_PROVIDER: "ai-rag" });
+  it("returns the RAG adapter when knowledgeRouting is requested (FR-029)", () => {
+    const provider = createRoutingProvider(
+      { ROUTING_PROVIDER: "mock", OPENAI_API_KEY: "test-openai-key" },
+      { knowledgeRouting: true },
+    );
     expect(provider).toBeInstanceOf(RagRoutingProvider);
+  });
+
+  it("returns the RAG adapter for ROUTING_PROVIDER=ai-rag when the ChatGPT key is set (NFR-005)", () => {
+    const provider = createRoutingProvider({
+      ROUTING_PROVIDER: "ai-rag",
+      OPENAI_API_KEY: "test-openai-key",
+    });
+    expect(provider).toBeInstanceOf(RagRoutingProvider);
+  });
+
+  it("rejects knowledge routing without a server ChatGPT key (FR-029)", () => {
+    expect(() =>
+      createRoutingProvider(
+        { ROUTING_PROVIDER: "mock" },
+        { knowledgeRouting: true },
+      ),
+    ).toThrow(MISSING_CHAT_API_KEY_MESSAGE);
+    expect(() => createRoutingProvider({ ROUTING_PROVIDER: "ai-rag" })).toThrow(
+      MISSING_CHAT_API_KEY_MESSAGE,
+    );
   });
 
   it("rejects an unwired named graph engine (BR-004)", () => {

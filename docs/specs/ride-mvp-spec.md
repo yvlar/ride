@@ -255,7 +255,7 @@ La génération doit :
 
 Le MVP affiche **un trajet principal** à la fois. La comparaison de plusieurs variantes simultanées n’est pas requise dans ce périmètre.
 
-Le domaine évalue les candidats. Le fournisseur de routage calcule des chemins; il ne décide pas des règles métier. Un adaptateur RAG récupère des corridors connus puis compose un tracé : il reste un calculateur de chemins, pas un moteur de règles.
+Le domaine évalue les candidats. Le fournisseur de routage calcule des chemins; il ne décide pas des règles métier. Un adaptateur RAG récupère des corridors connus puis compose un tracé : il reste un calculateur de chemins, pas un moteur de règles. L’utilisateur peut le demander à la requête via `FR-029`.
 
 ### FR-012 — Régénération
 
@@ -263,9 +263,26 @@ L’utilisateur peut demander une nouvelle route à partir des mêmes critères.
 
 La régénération doit :
 
-- conserver le type, le style, les points et les préférences de la demande initiale;
+- conserver le type, le style, les points, les préférences et l’option de corridors connus (`FR-029`) de la demande initiale;
 - tenter de produire un corridor **sensiblement différent** du trajet précédent;
 - rester soumise à `BR-001`, `BR-002` et aux préférences d’évitement.
+
+### FR-029 — Option de génération par corridors connus (RAG)
+
+L’utilisateur peut activer une option facultative, **désactivée par défaut**, pour générer le trajet via l’adaptateur de routage par connaissance (`NFR-005`) plutôt que via le fournisseur configuré par l’environnement.
+
+Lorsque l’option est active :
+
+- la génération (`FR-011`), la régénération (`FR-012`) et le recalcul (`FR-026`) utilisent le même adaptateur de connaissance;
+- le formulaire reste celui de `FR-014` : départ, type, destination le cas échéant, distance ou durée, style et préférences d’évitement;
+- l’option ne choisit pas une destination à la place de l’utilisateur et n’est pas une recommandation de sorties;
+- l’adaptateur indexe un graphe routier local, classe les corridors via un modèle de chat appelé **côté serveur** avec une clé API, puis compose le tracé **uniquement** sur les géométries indexées ; il n’invente pas de coordonnées;
+- une clé API absente ou un échec du modèle produit une erreur explicite (`PROVIDER_ERROR`);
+- si aucun corridor connu ne relie la demande, le système renvoie une erreur métier explicite (`FR-021`).
+
+Lorsque l’option est inactive, le comportement actuel est inchangé (`ROUTING_PROVIDER`).
+
+L’écran présente l’option sous le libellé **« Corridors RAG »**, avec une mention claire que ce n’est **pas** le réseau routier OSM, et que le classement des corridors passe par **ChatGPT** via une **clé API serveur**. Le domaine ne nomme pas le fournisseur de modèle (`BR-004`).
 
 ### BR-006 — Différence minimale à la régénération
 
@@ -344,7 +361,7 @@ Le parcours MVP est le suivant :
 4. Saisir la destination si le type l’exige (`FR-018`).
 5. Indiquer une distance cible (`FR-009`) et/ou une durée disponible (`FR-010`).
 6. Choisir un style (`FR-019`).
-7. Activer au besoin « éviter les autoroutes » (`FR-007`), « éviter les routes non pavées » (`FR-008`) et « Canada seulement » (`FR-028`).
+7. Activer au besoin « éviter les autoroutes » (`FR-007`), « éviter les routes non pavées » (`FR-008`), « Canada seulement » (`FR-028`) et « Corridors RAG » (`FR-029`).
 8. Lancer la génération (`FR-011`).
 9. Consulter le résultat sur la carte et dans le panneau de synthèse (`FR-013`, `FR-015`, `FR-020`).
 10. Régénérer si le trajet ne convient pas (`FR-012`).
@@ -396,7 +413,7 @@ L’écran principal permet de composer la demande de génération. Il contient 
 - la destination, uniquement si le type l’exige;
 - la distance cible et/ou la durée disponible;
 - le style de trajet;
-- les options « éviter les autoroutes », « éviter les routes non pavées » et « Canada seulement »;
+- les options « éviter les autoroutes », « éviter les routes non pavées », « Canada seulement » et « Corridors RAG »;
 - une action principale unique de génération.
 
 L’écran est conçu pour le pouce sur smartphone. Les choix importants utilisent des contrôles larges plutôt que de longues listes.
@@ -486,14 +503,17 @@ Une fois la navigation démarrée (`FR-023`), seules des actions simples restent
 
 Les fournisseurs de carte et de routage doivent pouvoir être remplacés sans réécrire les règles métier. Toute intégration passe par une interface interne. Le domaine ne référence pas un fournisseur nommé.
 
-L’adaptateur de routage par connaissance est un pipeline RAG optionnel (`ROUTING_PROVIDER=ai-rag`) :
+L’adaptateur de routage par connaissance est un pipeline RAG optionnel (`ROUTING_PROVIDER=ai-rag` ou option produit `FR-029`) :
 
 1. indexer un graphe routier **local** dont chaque arête est un document (géométrie d’arête, pas une forme géométrique dilatée);
-2. récupérer les arêtes par proximité spatiale et par pertinence (type de trajet, style);
-3. composer un chemin **uniquement** sur les arêtes récupérées;
-4. si aucun corridor connu ne relie la demande, renvoyer une erreur métier explicite (`FR-021`).
+2. récupérer les arêtes par proximité spatiale;
+3. classer la pertinence de ces corridors (type de trajet, style) via un modèle de chat côté serveur, authentifié par une clé API;
+4. composer un chemin **uniquement** sur les arêtes récupérées;
+5. si aucun corridor connu ne relie la demande, renvoyer une erreur métier explicite (`FR-021`).
 
-Tant qu’aucun réseau routier réel n’est branché, `ROUTING_PROVIDER=mock` reste la valeur par défaut afin que le mode simulé soit explicite. `ai-rag` réutilise le même type de graphe local déterministe; il n’invente pas de coordonnées par transformation d’une courbe, et n’appelle pas un modèle distant.
+Tant qu’aucun réseau routier réel n’est branché, `ROUTING_PROVIDER=mock` reste la valeur par défaut afin que le mode simulé soit explicite. `ai-rag` réutilise le même type de graphe local déterministe; il n’invente pas de coordonnées par transformation d’une courbe. Le classement RAG appelle ChatGPT avec `OPENAI_API_KEY` (serveur uniquement, jamais `NEXT_PUBLIC_`). Les tests n’appellent pas l’API réelle.
+
+L’option produit `FR-029` peut demander ce même adaptateur **à la requête**, sans changer `ROUTING_PROVIDER`. Le drapeau de transport n’appartient pas au domaine : la couche application choisit l’adaptateur, Zod retire le champ à la validation.
 
 Ce pipeline est un détail d’infrastructure. Il ne constitue pas une fonctionnalité de recommandation de sorties. Un remplacement par un moteur de graphe routier nommé reste possible via la même interface interne.
 
@@ -599,7 +619,7 @@ Le recalcul :
 - part de la position GPS actuelle;
 - passe uniquement par `RoutingProvider`;
 - valide strictement la requête;
-- conserve le style, `avoidHighways`, `avoidUnpaved` et `stayInCanada` (`BR-008`);
+- conserve le style, `avoidHighways`, `avoidUnpaved`, `stayInCanada` et l’option de corridors connus (`BR-008`, `FR-029`);
 - applique les mêmes règles et avertissements que la génération initiale;
 - ignore les réponses obsolètes (identifiant de génération ou `AbortController`);
 - n’efface jamais silencieusement le trajet courant en cas d’échec.
@@ -616,7 +636,7 @@ Si le recalcul échoue, l’ancien trajet reste visible, une erreur compréhensi
 
 ### BR-008 — Préservation des préférences lors du recalcul
 
-Un recalcul (`FR-026`) conserve le type de trajet, le style (`FR-004`, `FR-005`, `FR-006`) et les préférences d’évitement (`FR-007`, `FR-008`, `FR-028`). Il ne relâche pas silencieusement une contrainte de surface connue (`BR-007`) ni un passage aux États-Unis (`BR-009`) et ne change pas le problème en plus court chemin vers le départ.
+Un recalcul (`FR-026`) conserve le type de trajet, le style (`FR-004`, `FR-005`, `FR-006`), les préférences d’évitement (`FR-007`, `FR-008`, `FR-028`) et l’option de corridors connus (`FR-029`). Il ne relâche pas silencieusement une contrainte de surface connue (`BR-007`) ni un passage aux États-Unis (`BR-009`) et ne change pas le problème en plus court chemin vers le départ.
 
 ### NFR-006 — Navigation sécuritaire de premier plan
 
@@ -689,7 +709,7 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - sorties de groupe;
 - suivi de motocyclistes;
 - météo;
-- recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’adaptateur de routage RAG qui calcule un chemin à la demande);
+- recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029` et de l’adaptateur de routage RAG qui calcule un chemin à la demande);
 - profils de motos;
 - automatisation des arrêts carburant;
 - import / export GPX;
@@ -779,6 +799,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-026` | Détection hors trajet et recalcul |
 | `FR-027` | Coque iOS |
 | `FR-028` | Navigation CarPlay |
+| `FR-029` | Option de génération par corridors connus (RAG) |
 
 ### Règles métier
 

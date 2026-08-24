@@ -28,6 +28,9 @@ export const envSchema = z.object({
   ),
   GEOCODING_API_BASE_URL: optionalUrl,
   GEOCODING_API_KEY: optionalSecret,
+  OPENAI_API_KEY: optionalSecret,
+  OPENAI_API_BASE_URL: optionalUrl,
+  OPENAI_MODEL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   NEXT_PUBLIC_MAP_STYLE_URL: optionalUrl,
 });
 
@@ -43,6 +46,9 @@ export function parseEnv(
     GEOCODING_PROVIDER: source.GEOCODING_PROVIDER,
     GEOCODING_API_BASE_URL: source.GEOCODING_API_BASE_URL,
     GEOCODING_API_KEY: source.GEOCODING_API_KEY,
+    OPENAI_API_KEY: source.OPENAI_API_KEY,
+    OPENAI_API_BASE_URL: source.OPENAI_API_BASE_URL,
+    OPENAI_MODEL: source.OPENAI_MODEL,
     NEXT_PUBLIC_MAP_STYLE_URL: source.NEXT_PUBLIC_MAP_STYLE_URL,
   });
 }
