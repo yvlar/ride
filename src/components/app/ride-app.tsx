@@ -78,6 +78,7 @@ export function RideApp(props: RideRequestFormProps) {
   const routeRef = useRef(route);
   const recentsRef = useRef(recents);
   const savedRef = useRef(saved);
+  const navigatingRef = useRef(navigating);
   const carPlay = useMemo(() => createCarPlayDisplay(), []);
 
   useEffect(() => {
@@ -85,7 +86,8 @@ export function RideApp(props: RideRequestFormProps) {
     routeRef.current = route;
     recentsRef.current = recents;
     savedRef.current = saved;
-  }, [request, route, recents, saved]);
+    navigatingRef.current = navigating;
+  }, [request, route, recents, saved, navigating]);
 
   useEffect(() => {
     /* Client storage is unavailable during SSR; hydrate after mount (FR-035). */
@@ -163,6 +165,9 @@ export function RideApp(props: RideRequestFormProps) {
         return;
       }
       if (parsed.type === "resume") {
+        if (navigatingRef.current) {
+          return;
+        }
         const currentRequest = requestRef.current;
         const currentRoute = routeRef.current;
         if (currentRequest && currentRoute) {
@@ -171,7 +176,6 @@ export function RideApp(props: RideRequestFormProps) {
             seed: {
               request: currentRequest,
               route: currentRoute,
-              autoStart: true,
             },
           });
         }
@@ -194,7 +198,6 @@ export function RideApp(props: RideRequestFormProps) {
           seed: {
             request: item.request,
             route: item.route,
-            autoStart: true,
           },
         });
       }

@@ -1,10 +1,41 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppearanceProvider } from "@/components/theme/appearance-provider";
 import { RideApp } from "./ride-app";
 import type { Place } from "@/domain/geo/types";
 import type { GenerateRideRequest, GenerateRideResult, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { MapEngine } from "@/components/map/map-engine";
+import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
+import { RIDE_SESSION_STORAGE_KEY } from "@/domain/ride/session-snapshot";
+
+const carPlayHarness = vi.hoisted(() => {
+  const listeners = new Set<(event: CarPlayDisplayEvent) => void>();
+  return {
+    listeners,
+    emit(event: CarPlayDisplayEvent) {
+      for (const listener of listeners) {
+        listener(event);
+      }
+    },
+  };
+});
+
+vi.mock("@/infrastructure/carplay/create-carplay-display", () => ({
+  createCarPlayDisplay: () => ({
+    async start() {
+      return { connected: false, ownsVoice: false };
+    },
+    async update() {},
+    async stop() {},
+    async setCatalog() {},
+    subscribe(listener: (event: CarPlayDisplayEvent) => void) {
+      carPlayHarness.listeners.add(listener);
+      return () => {
+        carPlayHarness.listeners.delete(listener);
+      };
+    },
+  }),
+}));
 
 const granby: Place = {
   label: "Granby, QC",
@@ -38,11 +69,13 @@ function stubMapEngine(): MapEngine {
 beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  carPlayHarness.listeners.clear();
 });
 
 afterEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  carPlayHarness.listeners.clear();
 });
 
 describe("RideApp mobile shell (FR-031, FR-035)", () => {
@@ -85,6 +118,86 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
+  });
+
+  it("opens pre-departure from a CarPlay saved ride (FR-033, FR-028)", async () => {
+    window.localStorage.setItem(
+      "ride.library.v1",
+      JSON.stringify({
+        recents: [],
+        saved: [
+          {
+            id: "saved-1",
+            name: "Boucle · Granby, QC",
+            savedAtMs: 1,
+            request: {
+              type: "loop",
+              start: granby,
+              targetDistanceKm: 80,
+              style: "curvy",
+            } satisfies GenerateRideRequest,
+            route: loop,
+          },
+        ],
+      }),
+    );
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          generateRide={async (): Promise<GenerateRideResult> => ({
+            ok: true,
+            route: loop,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    await screen.findByRole("button", { name: "Boucle · Granby, QC" });
+    act(() => {
+      carPlayHarness.emit({ type: "catalogSelect", id: "saved:saved-1" });
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
+  });
+
+  it("opens pre-departure from CarPlay resume of a composed route (FR-033)", async () => {
+    window.sessionStorage.setItem(
+      RIDE_SESSION_STORAGE_KEY,
+      JSON.stringify({
+        request: {
+          type: "loop",
+          start: granby,
+          targetDistanceKm: 80,
+          style: "curvy",
+        } satisfies GenerateRideRequest,
+        route: loop,
+        navigating: false,
+        muted: false,
+        useKnowledgeRouting: false,
+        savedAtMs: 1,
+      }),
+    );
+
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} />
+      </AppearanceProvider>,
+    );
+
+    await screen.findByRole("button", { name: "Reprendre la navigation" });
+    act(() => {
+      carPlayHarness.emit({ type: "catalogSelect", id: "resume" });
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
   });
 
   it("parses a natural-language loop without inventing geometry (FR-034)", async () => {
