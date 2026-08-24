@@ -219,7 +219,7 @@ Les segments dont la surface est inconnue ne doivent pas être présentés comme
 
 Une route connue comme non pavée ne doit pas être proposée lorsque `FR-008` est actif. Si cette contrainte rend la génération impossible, le système l’explique et suggère l’assouplissement le plus utile. Il ne doit pas ignorer silencieusement l’exclusion.
 
-### FR-028 — Canada seulement
+### FR-030 — Canada seulement
 
 L’utilisateur peut demander que le trajet reste **au Canada** et **ne traverse pas aux États-Unis**.
 
@@ -235,7 +235,7 @@ L’option est **facultative** et **désactivée par défaut**.
 
 ### BR-009 — Pas de relâchement silencieux du passage aux États-Unis
 
-Un segment, un pont ou un corridor qui entre aux États-Unis ne doit pas être proposé lorsque `FR-028` est actif. Si cette contrainte rend la génération impossible — y compris lorsque le départ ou la destination est déjà aux États-Unis — le système l’explique et suggère l’assouplissement le plus utile (désactiver l’option, ou choisir un départ et une destination au Canada). Il ne doit pas ignorer silencieusement le passage de frontière.
+Un segment, un pont ou un corridor qui entre aux États-Unis ne doit pas être proposé lorsque `FR-030` est actif. Si cette contrainte rend la génération impossible — y compris lorsque le départ ou la destination est déjà aux États-Unis — le système l’explique et suggère l’assouplissement le plus utile (désactiver l’option, ou choisir un départ et une destination au Canada). Il ne doit pas ignorer silencieusement le passage de frontière.
 
 ---
 
@@ -363,7 +363,7 @@ Le parcours MVP est le suivant :
 4. Saisir la destination si le type l’exige (`FR-018`).
 5. Indiquer une distance cible (`FR-009`) et/ou une durée disponible (`FR-010`).
 6. Choisir un style (`FR-019`).
-7. Activer au besoin « éviter les autoroutes » (`FR-007`), « éviter les routes non pavées » (`FR-008`), « Canada seulement » (`FR-028`) et « Corridors RAG » (`FR-029`).
+7. Activer au besoin « éviter les autoroutes » (`FR-007`), « éviter les routes non pavées » (`FR-008`), « Canada seulement » (`FR-030`) et « Corridors RAG » (`FR-029`).
 8. Lancer la génération (`FR-011`).
 9. Consulter le résultat sur la carte et dans le panneau de synthèse (`FR-013`, `FR-015`, `FR-020`).
 10. Régénérer si le trajet ne convient pas (`FR-012`).
@@ -408,7 +408,7 @@ La destination est :
 
 ### FR-014 — Écran principal
 
-L’écran principal permet de composer la demande de génération. Il contient au minimum :
+L’écran principal permet de composer la demande de génération. Il peut s’ouvrir par **divulgation progressive** (`FR-031`) : l’explorateur affiche d’abord les actions principales, puis un panneau de composition. Le flux contient au minimum :
 
 - le point de départ, avec l’adresse du lieu sélectionné ou de la position actuelle (`FR-017`);
 - le type de trajet;
@@ -428,10 +428,10 @@ L’écran résultat s’affiche après une génération réussie. Il contient a
 - les statistiques essentielles (`FR-020`);
 - les avertissements métier, le cas échéant;
 - une action de régénération (`FR-012`);
-- une action **Démarrer la navigation** (`FR-023`);
+- une action **Démarrer la navigation** (`FR-023`), précédée d’un écran avant le départ (`FR-033`);
 - un moyen de revenir modifier la demande.
 
-Sur smartphone, la carte occupe la partie supérieure et le panneau d’information reste accessible sans masquer entièrement le tracé. Les trajets générés ne sont pas encore persistés : la session de navigation reçoit le trajet déjà en mémoire. Elle ne sérialise pas la géométrie dans l’URL et ne l’enregistre pas dans `localStorage`.
+Sur smartphone, la carte occupe la majorité de l’écran et un panneau inférieur reste accessible sans masquer entièrement le tracé. Un trajet n’est persisté que si l’utilisateur l’enregistre (`FR-035`) ou pour rétablir une session après rafraîchissement (`sessionStorage`, sans positions GPS). La géométrie n’est pas mise dans l’URL.
 
 ### FR-020 — Statistiques essentielles
 
@@ -690,9 +690,13 @@ L’écran CarPlay et l’écran iPhone partagent le même chrome, calqué sur u
 - vue 3D cap-en-haut pendant le suivi, alignée sur l’iPhone (`FR-024`), y compris les bâtiments 3D du fournisseur de carte lorsqu’ils sont disponibles;
 - bannière de prochaine manœuvre (flèche, distance, nom ou numéro de route);
 - barre d’arrivée (distance restante, durée restante, heure d’arrivée estimée);
-- actions simples uniquement : couper le son, recentrer, arrêter (`NFR-004`, `NFR-006`).
+- actions simples uniquement : couper le son, recentrer, aperçu du trajet, arrêter (`NFR-004`, `NFR-006`);
+- reprise du trajet actif, liste des récents et des trajets enregistrés via `CPListTemplate` (`FR-035`);
+- recherche limitée aux lieux **déjà connus** sur l’appareil via `CPSearchTemplate` (pas une imitation web de CarPlay).
 
-Hors portée de `FR-028` : Street View photographique, trafic, limitations de vitesse, guidage de voies, Siri, recherche d’adresse ou génération de trajet depuis le tableau de bord, Android Auto. La vue 3D de navigation n’est pas du Street View.
+La planification d’une boucle (distance, style, corridors) se fait sur l’iPhone (`FR-031`, `FR-034`), puis le trajet prêt apparaît dans CarPlay.
+
+Hors portée de `FR-028` : Street View photographique, trafic, limitations de vitesse, guidage de voies, Siri, génération d’une boucle complexe depuis le tableau de bord, Android Auto. La vue 3D de navigation n’est pas du Street View. Une PWA ou une page web n’est **pas** une app CarPlay.
 
 Tant que la scène CarPlay reste connectée :
 
@@ -701,6 +705,50 @@ Tant que la scène CarPlay reste connectée :
 - à la déconnexion, les règles de premier plan iPhone (`NFR-006`, `FR-027`) s’appliquent à nouveau.
 
 Le WebView Capacitor n’est pas affiché sur CarPlay. L’adaptateur natif (template de carte et synthèse vocale locale) reste hors du domaine (`NFR-007`). L’entitlement Apple Navigation (`com.apple.developer.carplay-maps`) et la compilation Xcode / simulateur CarPlay exigent un Mac et une demande Apple ; ce dépôt fournit le code et la configuration, pas l’approbation.
+
+### FR-031 — Architecture d’information mobile
+
+L’interface téléphone est **carte d’abord**. La navigation principale compte quatre onglets : Explorer, Mes trajets, Enregistrés, Réglages. Une session de guidage (`FR-023`) est un mode plein écran : la barre d’onglets est masquée.
+
+L’explorateur montre d’abord :
+
+- « Où veux-tu rouler ? »;
+- l’état de la position (sans demander le GPS tout seul, `FR-017`);
+- Rechercher une destination, Créer une boucle moto, Décrire mon trajet;
+- Reprendre la navigation, s’il existe un trajet en mémoire;
+- les destinations récentes et les trajets favoris (`FR-035`).
+
+Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive dans un panneau inférieur. Les zones tactiles visent au moins 44 × 44 pt (`NFR-001`, `NFR-006`). La langue d’interface du MVP est le français canadien ; les chaînes restent extractibles pour une localisation anglaise future.
+
+### FR-032 — Recherche de lieu (états et annulation)
+
+La recherche par nom, adresse ou lieu affiche un nom et une ligne secondaire (adresse ou localité) pour distinguer les homonymes. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
+
+Une recherche plus récente **annule** la précédente. Un résultat obsolète ne doit jamais remplacer l’affichage d’une requête plus récente. L’intelligence artificielle ne fournit pas de coordonnées inventées.
+
+### FR-033 — Écran avant le départ
+
+Avant **Démarrer** (`FR-023`), l’utilisateur voit au minimum : destination ou nom de boucle, distance et durée, état GPS, disponibilité du trajet, guidage vocal activé ou non, avertissements pertinents. Si une permission manque, le message décrit le problème et offre une action directe (par ex. « Ma position »). **Démarrer** lance la navigation **dans Ride** : pas d’URL externe, pas de page blanche.
+
+### FR-034 — Saisie en langage naturel (critères structurés)
+
+L’utilisateur peut décrire un trajet en français, par exemple : « Crée une boucle de 250 km au départ de Granby, avec des routes sinueuses, sans autoroute et uniquement asphaltées. »
+
+Le parseur (éventuellement assisté par un modèle) ne produit que des **critères structurés** : type, requêtes de lieux, distance ou durée, style du domaine (`FR-004` à `FR-006`), préférences d’évitement. Il **n’invente pas** la géométrie. Le tracé final est toujours calculé et validé par le moteur de routage (`FR-011`, `BR-004`). Les styles ou préférences non offerts sont expliqués, pas simulés.
+
+### FR-035 — Destinations récentes et trajets enregistrés locaux
+
+Les lieux choisis et les trajets **enregistrés explicitement** sont conservés sur l’appareil (`localStorage`). Une session active peut être rétablie après rafraîchissement (`sessionStorage`) sans miettes GPS ni géométrie dans l’URL. Pas de compte cloud dans le MVP. Un trajet enregistré doit pouvoir être ramené à l’écran avant le départ en au plus trois interactions.
+
+### FR-036 — Machine d’état de navigation
+
+Le guidage s’appuie sur une machine d’état de domaine, indépendante de l’UI : inactif, permission requise, recherche de position, calcul, prévisualisation, prêt, navigation active, hors trajet, recalcul, GPS temporairement perdu, suspendu, arrivée, erreur.
+
+Un rafraîchissement ne doit pas perdre le trajet composé. Un hors-trajet réel déclenche un recalcul contrôlé (`FR-026`) sans effacer l’écran. Une imprécision GPS isolée ne compte pas comme sortie de route. Une perte temporaire de GPS ne fait pas planter l’application. Le recalcul conserve style et préférences (`BR-008`).
+
+### FR-037 — Modes clair, sombre et navigation nocturne
+
+L’interface offre un mode clair, un mode sombre et un mode navigation nocturne (contraste élevé, teinte chaude). Le mode système suit `prefers-color-scheme`. Les commandes ne s’appuient pas uniquement sur la couleur (`NFR-001`).
 
 ---
 
@@ -737,7 +785,7 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - péages, traversiers et règles de frontières comme préférences utilisateur;
 - scores composites et comparaison simultanée de plusieurs variantes;
 - modification interactive avancée du tracé;
-- sauvegarde cloud, comptes utilisateur et historique des routes parcourues.
+- sauvegarde cloud, comptes utilisateur et historique GPS des routes parcourues.
 
 Ces éléments peuvent apparaître dans `README.md` ou `CURSOR.md` comme vision élargie ou cible technique. Ils ne font pas partie du contrat fonctionnel actuel.
 
@@ -750,7 +798,7 @@ Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 1. plusieurs variantes distinctes par génération, avec scores de courbes et de paysage;
 2. seuil contractuel de chevauchement et régénération avec différence minimale chiffrée;
 3. tolérance de distance choisie par l’utilisateur;
-4. sauvegarde locale d’un trajet;
+4. sauvegarde cloud et comptes utilisateur;
 5. export GPX et ouvertures vers des applications de navigation externes;
 6. arrêts (stations-service, points de vue, pauses);
 7. profils de moto et autonomie;
@@ -803,6 +851,14 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-027` | Coque iOS |
 | `FR-028` | Navigation CarPlay |
 | `FR-029` | Option de génération par corridors connus (RAG) |
+| `FR-030` | Canada seulement |
+| `FR-031` | Architecture d’information mobile |
+| `FR-032` | Recherche de lieu (états et annulation) |
+| `FR-033` | Écran avant le départ |
+| `FR-034` | Saisie en langage naturel (critères structurés) |
+| `FR-035` | Destinations récentes et trajets enregistrés locaux |
+| `FR-036` | Machine d’état de navigation |
+| `FR-037` | Modes clair, sombre et navigation nocturne |
 
 ### Règles métier
 
