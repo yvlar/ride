@@ -552,6 +552,31 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     );
   });
 
+  it("restores the top-down frame after a pan then stop (FR-013, FR-023)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+
+    const dragstart = mapOn.mock.calls.find((call) => call[0] === "dragstart")?.[1] as
+      | ((event: { originalEvent?: Event }) => void)
+      | undefined;
+    dragstart?.({ originalEvent: new Event("mousedown") });
+    fitBounds.mockClear();
+
+    handle.setFollowUser?.(false);
+
+    expect(fitBounds).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ pitch: 0, bearing: 0 }),
+    );
+  });
+
   it("stops following after a user pan and resumes on Recentrer", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const handle = createMapLibreEngine({ geolocate: false }).mount(

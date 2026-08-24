@@ -218,6 +218,7 @@ export function createMapLibreEngine(
 
       let userMarker: Marker | undefined;
       let followUser = false;
+      let streetCameraActive = false;
       let lastUserCoordinates: Coordinates | null = null;
       let lastHeadingDeg: number | null = null;
 
@@ -237,6 +238,7 @@ export function createMapLibreEngine(
         map.easeTo(
           navigationFollowCamera(lastUserCoordinates, lastHeadingDeg),
         );
+        streetCameraActive = true;
       }
 
       function applyOverviewCamera() {
@@ -247,6 +249,7 @@ export function createMapLibreEngine(
           ...overviewFitBoundsOptions(camera),
           duration: NAVIGATION_FOLLOW_DURATION_MS,
         });
+        streetCameraActive = false;
       }
 
       function onUserCameraInteraction(event?: { originalEvent?: Event }) {
@@ -336,14 +339,15 @@ export function createMapLibreEngine(
           if (disposed) {
             return;
           }
-          const wasFollowing = followUser;
           followUser = enabled;
           try {
             if (enabled) {
               applyFollowCamera();
               return;
             }
-            if (wasFollowing) {
+            // A pan already clears followUser, but stop still must restore
+            // the top-down route frame (FR-013, FR-023).
+            if (streetCameraActive) {
               applyOverviewCamera();
             }
           } catch {
