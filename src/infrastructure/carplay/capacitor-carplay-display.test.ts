@@ -23,7 +23,11 @@ function mockPlugin(): RideCarPlayPlugin {
     start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
     update: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
-    getConnection: vi.fn(async () => ({ connected: false, stopRequested: false })),
+    getConnection: vi.fn(async () => ({
+      connected: false,
+      stopRequested: false,
+      muted: false,
+    })),
     addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
   };
 }
@@ -55,7 +59,11 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
-      getConnection: vi.fn(async () => ({ connected: false, stopRequested: false })),
+      getConnection: vi.fn(async () => ({
+        connected: false,
+        stopRequested: false,
+        muted: false,
+      })),
       addListener: vi.fn(async (eventName, listener) => {
         if (eventName === "connectionChange") {
           listeners.connectionChange = listener;
@@ -85,6 +93,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
 
     expect(received).toEqual([
       { type: "connection", connected: false },
+      { type: "mute", muted: false },
       { type: "connection", connected: true },
       { type: "mute", muted: true },
       { type: "stop" },
@@ -101,7 +110,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       stop: vi.fn(),
       getConnection: vi.fn(async () => {
         order.push("getConnection");
-        return { connected: true, stopRequested: false };
+        return { connected: true, stopRequested: false, muted: false };
       }),
       addListener: vi.fn(async (eventName) => {
         order.push(`listen:${eventName}`);
@@ -132,7 +141,10 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
         "listen:connectionChange",
         "getConnection",
       ]);
-      expect(received).toEqual([{ type: "connection", connected: true }]);
+      expect(received).toEqual([
+        { type: "connection", connected: true },
+        { type: "mute", muted: false },
+      ]);
     });
   });
 
@@ -141,7 +153,11 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
-      getConnection: vi.fn(async () => ({ connected: true, stopRequested: true })),
+      getConnection: vi.fn(async () => ({
+        connected: true,
+        stopRequested: true,
+        muted: false,
+      })),
       addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
     };
     const display = createCapacitorCarPlayDisplay(plugin);
@@ -153,7 +169,34 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
     await vi.waitFor(() => {
       expect(received).toEqual([
         { type: "connection", connected: true },
+        { type: "mute", muted: false },
         { type: "stop" },
+      ]);
+    });
+  });
+
+  it("replays the current CarPlay mute so JS does not overwrite it (FR-028)", async () => {
+    const plugin: RideCarPlayPlugin = {
+      start: vi.fn(),
+      update: vi.fn(),
+      stop: vi.fn(),
+      getConnection: vi.fn(async () => ({
+        connected: true,
+        stopRequested: false,
+        muted: true,
+      })),
+      addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
+    };
+    const display = createCapacitorCarPlayDisplay(plugin);
+    const received: unknown[] = [];
+    display.subscribe((event) => {
+      received.push(event);
+    });
+
+    await vi.waitFor(() => {
+      expect(received).toEqual([
+        { type: "connection", connected: true },
+        { type: "mute", muted: true },
       ]);
     });
   });

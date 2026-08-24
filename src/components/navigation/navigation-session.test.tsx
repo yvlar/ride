@@ -610,6 +610,14 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         speakText: spoken,
       }),
     );
+
+    vi.mocked(carPlay.display.update).mockClear();
+    carPlay.emit({ type: "connection", connected: true });
+    expect(
+      vi.mocked(carPlay.display.update).mock.calls.filter(
+        ([snapshot]) => snapshot.speakText,
+      ),
+    ).toHaveLength(0);
   });
 
   it("subscribes to CarPlay before starting so connection events are not missed (FR-028)", async () => {
@@ -659,6 +667,11 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       expect(carPlay.display.subscribe).toHaveBeenCalled();
     });
     carPlay.emit({ type: "mute", muted: true });
+    await waitFor(() => {
+      expect(carPlay.display.update).toHaveBeenCalledWith(
+        expect.objectContaining({ muted: true }),
+      );
+    });
     emit({
       type: "fix",
       fix: {

@@ -104,6 +104,7 @@ export function NavigationSession({
   const hiddenRef = useRef(false);
   const carPlayConnectedRef = useRef(false);
   const ownsVoiceRef = useRef(false);
+  const voiceHandedToCarPlayRef = useRef(false);
   const headingRef = useRef<number | null>(null);
   const userLocationRef = useRef<Coordinates | null>(null);
   const progressSnapshotRef = useRef<NavigationProgress | null>(null);
@@ -207,6 +208,10 @@ export function NavigationSession({
 
   const handOffVoiceToCarPlay = useCallback(() => {
     speechEngine.cancel();
+    if (voiceHandedToCarPlayRef.current) {
+      return;
+    }
+    voiceHandedToCarPlayRef.current = true;
     voiceRef.current = resetVoiceMemory();
     const progress = progressSnapshotRef.current;
     if (!progress) {
@@ -297,6 +302,8 @@ export function NavigationSession({
         ownsVoiceRef.current = event.connected;
         if (event.connected) {
           handOffVoiceToCarPlay();
+        } else {
+          voiceHandedToCarPlayRef.current = false;
         }
       }
       if (event.type === "mute") {
@@ -305,6 +312,7 @@ export function NavigationSession({
         if (event.muted) {
           speechEngine.cancel();
         }
+        pushCarPlay(null);
       }
       if (event.type === "stop") {
         handleStopRef.current();
@@ -339,7 +347,7 @@ export function NavigationSession({
       unsubscribe();
       void carPlayDisplay.stop();
     };
-  }, [carPlayDisplay, handOffVoiceToCarPlay, speechEngine]);
+  }, [carPlayDisplay, handOffVoiceToCarPlay, pushCarPlay, speechEngine]);
 
   useEffect(() => {
     function onVisibility() {

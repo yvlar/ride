@@ -14,6 +14,7 @@ final class RideCarPlaySession {
     private(set) var latest: RideCarPlaySnapshot?
     private var stopped = false
     private var pendingStop = false
+    private var awaitingMuteEcho = false
 
     private init() {}
 
@@ -34,6 +35,7 @@ final class RideCarPlaySession {
 
     func start(_ snapshot: RideCarPlaySnapshot) {
         stopped = false
+        awaitingMuteEcho = false
         muted = snapshot.muted
         latest = snapshot
         scene?.apply(snapshot)
@@ -43,9 +45,20 @@ final class RideCarPlaySession {
         guard !stopped else {
             return
         }
-        muted = snapshot.muted
-        latest = snapshot
-        scene?.apply(snapshot)
+        let applied: RideCarPlaySnapshot
+        if awaitingMuteEcho {
+            if snapshot.muted == muted {
+                awaitingMuteEcho = false
+                applied = snapshot
+            } else {
+                applied = snapshot.withMute(muted)
+            }
+        } else {
+            muted = snapshot.muted
+            applied = snapshot
+        }
+        latest = applied
+        scene?.apply(applied)
     }
 
     func stop() {
@@ -74,6 +87,7 @@ final class RideCarPlaySession {
 
     func toggleMute() {
         muted.toggle()
+        awaitingMuteEcho = true
         if muted {
             RideCarPlaySpeech.shared.cancel()
         }

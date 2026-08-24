@@ -56,6 +56,7 @@ export function createCapacitorCarPlayDisplay(
           return;
         }
         listener({ type: "connection", connected: status.connected });
+        listener({ type: "mute", muted: status.muted });
         if (status.stopRequested) {
           listener({ type: "stop" });
         }

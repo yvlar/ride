@@ -8,6 +8,7 @@ import type {
 export type RideCarPlayPluginStatus = {
   connected: boolean;
   stopRequested: boolean;
+  muted: boolean;
 };
 
 export type RideCarPlayPlugin = {
@@ -39,7 +40,7 @@ class RideCarPlayWeb {
   async stop(): Promise<void> {}
 
   async getConnection(): Promise<RideCarPlayPluginStatus> {
-    return { connected: false, stopRequested: false };
+    return { connected: false, stopRequested: false, muted: false };
   }
 }
 

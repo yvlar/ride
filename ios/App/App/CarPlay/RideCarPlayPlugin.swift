@@ -48,6 +48,7 @@ public class RideCarPlayPlugin: CAPInstancePlugin, CAPBridgedPlugin {
             call.resolve([
                 "connected": RideCarPlaySession.shared.isConnected,
                 "stopRequested": RideCarPlaySession.shared.consumePendingStop(),
+                "muted": RideCarPlaySession.shared.muted,
             ])
         }
     }
