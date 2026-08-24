@@ -16,9 +16,8 @@ import {
 import { pathfindOnRetrieved } from "./pathfind";
 import { buildRouteRetrievalQuery, isSpatiallyRelevant, LexicalCorridorRetriever } from "./retrieve";
 import {
+  corridorSnapAttempts,
   sampleCorridorViaPoints,
-  thinCorridorViaPoints,
-  uniqueWaypointAttempts,
 } from "./sample-corridor-via-points";
 import {
   canadaOnlyKnowledgeError,
@@ -114,13 +113,7 @@ export class RagRoutingProvider implements RoutingProvider {
     }
 
     const sampled = sampleCorridorViaPoints(corridor.geometry);
-    const attempts = uniqueWaypointAttempts([
-      sampled,
-      thinCorridorViaPoints(sampled, Math.ceil(sampled.length / 2)),
-      thinCorridorViaPoints(sampled, Math.min(3, sampled.length)),
-      input.waypoints ?? [],
-      [],
-    ]);
+    const attempts = corridorSnapAttempts(sampled, input.waypoints ?? []);
 
     let lastError: unknown;
     for (const waypoints of attempts) {

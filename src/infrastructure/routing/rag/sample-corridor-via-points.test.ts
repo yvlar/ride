@@ -4,6 +4,7 @@ import type { Coordinates, LineString } from "@/domain/geo/types";
 import {
   CORRIDOR_VIA_MAX_POINTS,
   CORRIDOR_VIA_MIN_SPACING_KM,
+  corridorSnapAttempts,
   sampleCorridorViaPoints,
   thinCorridorViaPoints,
   uniqueWaypointAttempts,
@@ -105,5 +106,24 @@ describe("uniqueWaypointAttempts (FR-029)", () => {
     const a = [offsetCoordinates(ORIGIN, 90, 8)];
     const attempts = uniqueWaypointAttempts([a, a, [], []]);
     expect(attempts).toHaveLength(2);
+  });
+});
+
+describe("corridorSnapAttempts (FR-029)", () => {
+  it("never falls back to an unconstrained empty via list when the corridor has vertices", () => {
+    const sampled = [
+      offsetCoordinates(ORIGIN, 90, 10),
+      offsetCoordinates(ORIGIN, 90, 20),
+      offsetCoordinates(ORIGIN, 90, 30),
+    ];
+    const attempts = corridorSnapAttempts(sampled, []);
+    expect(attempts.length).toBeGreaterThan(0);
+    expect(attempts.every((attempt) => attempt.length > 0)).toBe(true);
+  });
+
+  it("allows a direct snap only when the corridor has no intermediate vertices", () => {
+    expect(corridorSnapAttempts([], [])).toEqual([[]]);
+    const original = [offsetCoordinates(ORIGIN, 90, 8)];
+    expect(corridorSnapAttempts([], original)).toEqual([original]);
   });
 });

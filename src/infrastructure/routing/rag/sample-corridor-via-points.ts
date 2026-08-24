@@ -112,6 +112,25 @@ function capViaPoints(points: Coordinates[], maxPoints: number): Coordinates[] {
   return sampled;
 }
 
+/**
+ * FR-029 — snap retries stay on the retrieved corridor. An empty waypoint
+ * list is only used when the corridor has no intermediate vertices.
+ */
+export function corridorSnapAttempts(
+  sampled: Coordinates[],
+  originalWaypoints: Coordinates[] = [],
+): Coordinates[][] {
+  if (sampled.length === 0) {
+    return uniqueWaypointAttempts([originalWaypoints]);
+  }
+
+  return uniqueWaypointAttempts([
+    sampled,
+    thinCorridorViaPoints(sampled, Math.ceil(sampled.length / 2)),
+    thinCorridorViaPoints(sampled, Math.min(3, sampled.length)),
+  ]).filter((attempt) => attempt.length > 0);
+}
+
 export function uniqueWaypointAttempts(
   attempts: Coordinates[][],
 ): Coordinates[][] {

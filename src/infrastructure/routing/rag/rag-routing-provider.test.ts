@@ -491,6 +491,35 @@ describe("composeRetrievedRoute", () => {
     ).rejects.toMatchObject({ reason: "unpaved" });
     expect(calls).toBe(1);
   });
+
+  it("does not snap to an unconstrained start-destination when corridor vias fail (FR-029)", async () => {
+    const seen: ProviderRouteRequest[] = [];
+    const roads: RoutingProvider = {
+      async calculateRoute(input) {
+        seen.push(input);
+        throw disconnectedKnowledgeError();
+      },
+    };
+    const provider = new RagRoutingProvider(new LexicalCorridorRetriever(), {
+      roadNetwork: roads,
+    });
+
+    await expect(
+      provider.calculateRoute({
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+      }),
+    ).rejects.toMatchObject({ reason: "disconnected" });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(
+      seen.every(
+        (request) =>
+          Array.isArray(request.waypoints) && request.waypoints.length > 0,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("createRoutingProvider", () => {
