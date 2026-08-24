@@ -50,7 +50,7 @@ Ne pas implémenter dans la première version :
 - la publication App Store ou TestFlight;
 - un moteur cartographique ou routier développé entièrement à l’interne.
 
-La coque iOS Capacitor (`FR-027`, `NFR-007`) fait partie du MVP : projet Xcode dans `ios/`, localisation « When In Use » uniquement, GPS et navigation de premier plan. Le build signé, le simulateur et l’ouverture Xcode exigent macOS. Capacitor, WKWebView et les plugins restent des adaptateurs ; le domaine ne les référence pas.
+La coque iOS Capacitor (`FR-027`, `NFR-007`) fait partie du MVP : projet Xcode dans `ios/`, localisation « When In Use » uniquement, GPS et navigation de premier plan. La scène CarPlay (`FR-028`) est un adaptateur natif dans cette coque, pas une réécriture de l’app iPhone. Le build signé, le simulateur CarPlay et l’ouverture Xcode exigent macOS. Capacitor, WKWebView, CarPlay, MapKit et les plugins restent des adaptateurs ; le domaine ne les référence pas.
 
 Préparer l’architecture pour ces fonctions sans les construire prématurément.
 
@@ -97,7 +97,7 @@ Utiliser une architecture Web TypeScript simple et évolutive.
 - **React Hook Form** pour les formulaires;
 - **Vitest** et Testing Library pour les tests unitaires et de composants;
 - **Playwright** pour les parcours critiques de bout en bout;
-- **Capacitor** pour la coque iOS (`ios/`), avec plugins de géolocalisation, barre de statut, splash et maintien d’écran. Le domaine ne dépend pas de Capacitor (`NFR-007`). Le build Xcode se fait sur macOS.
+- **Capacitor** pour la coque iOS (`ios/`), avec plugins de géolocalisation, barre de statut, splash, maintien d’écran et un pont CarPlay local. Le domaine ne dépend pas de Capacitor (`NFR-007`). Le build Xcode se fait sur macOS. CarPlay utilise `CPMapTemplate` et MapKit uniquement comme adaptateur d’affichage (`FR-028`, `BR-004`).
 
 ### Données
 
@@ -171,7 +171,8 @@ Adaptateurs externes et persistance
 - géocodage;
 - stockage local ou base de données;
 - journalisation;
-- métriques.
+- métriques;
+- afficheur CarPlay (pont natif, hors domaine).
 
 ## 7. Structure de dossiers visée
 
