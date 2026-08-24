@@ -35,3 +35,14 @@ export function formatAccuracyLabel(accuracyMeters: number | null): string {
   }
   return `±${Math.round(accuracyMeters)} m`;
 }
+
+/** FR-024 — do not show "0 m" before the first GPS fix. */
+export function formatManeuverDistanceLabel(
+  distanceKm: number,
+  accuracyMeters: number | null,
+): string {
+  if (accuracyMeters === null) {
+    return "—";
+  }
+  return formatDistanceLabel(distanceKm);
+}

@@ -508,6 +508,14 @@ Pendant la navigation, l’écran affiche au minimum :
 - l’heure d’arrivée estimée;
 - l’état de précision GPS.
 
+Sur smartphone, ces informations sont présentées en overlay sur une carte plein écran, sans bandeaux qui coupent le tracé :
+
+- une bannière supérieure à fort contraste avec la distance avant la manœuvre, la flèche, le nom ou le numéro de route lorsqu’il est connu, et l’instruction;
+- un carteau inférieur compact avec l’heure d’arrivée estimée, la durée restante, la distance restante, l’état GPS et l’arrêt;
+- des actions flottantes pour couper le son et recentrer la carte (`NFR-006`).
+
+Cette présentation n’ajoute aucune capacité hors contrat. Elle ne constitue pas une intégration Google Maps (`BR-004`).
+
 Les types de manœuvre du domaine sont indépendants de tout fournisseur (`BR-004`) : départ, arrivée, continuer, tourner, demi-tour, bifurcation, fusion, entrée et sortie d’autoroute, fin de route, rond-point (avec numéro de sortie), changement de nom de route, et manœuvre inconnue avec repli sécuritaire.
 
 Une valeur de manœuvre inconnue d’un fournisseur ne doit pas faire échouer tout le trajet. Le système conserve les données utiles disponibles et utilise une instruction générique du type « Continuez sur la route ».
