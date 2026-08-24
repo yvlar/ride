@@ -1,5 +1,6 @@
 import type { Coordinates, Position } from "@/domain/geo/types";
 import type { MapEngine, MapEngineHandle } from "./map-engine";
+import { createMotorcycleSvgGlyph } from "./ride-map-markers";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -59,12 +60,12 @@ export function createLightweightNavigationMapEngine(): MapEngine {
       pulse.setAttribute("r", "28");
       pulse.setAttribute("fill", "#38bdf8");
       pulse.setAttribute("fill-opacity", "0.25");
-      const dot = createSvgElement("circle");
-      dot.setAttribute("r", "12");
-      dot.setAttribute("fill", "#0284c7");
-      dot.setAttribute("stroke", "white");
-      dot.setAttribute("stroke-width", "4");
-      userMarker.append(pulse, dot);
+      const disc = createSvgElement("circle");
+      disc.setAttribute("r", "18");
+      disc.setAttribute("fill", "#0284c7");
+      disc.setAttribute("stroke", "white");
+      disc.setAttribute("stroke-width", "3");
+      userMarker.append(pulse, disc, createMotorcycleSvgGlyph({ size: 28 }));
       svg.append(userMarker);
 
       const caption = document.createElement("p");
