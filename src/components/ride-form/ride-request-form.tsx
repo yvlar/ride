@@ -592,7 +592,7 @@ export function RideRequestForm({
                   id="use-knowledge-routing-hint"
                   className="text-sm text-muted-foreground"
                 >
-                  Index local de routes connues, pas le réseau OSM ni un modèle distant
+                  Classement des corridors par ChatGPT (clé API serveur), pas le réseau OSM
                 </p>
               </div>
               <Switch

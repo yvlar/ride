@@ -30,6 +30,8 @@ import type {
 /**
  * NFR-005 / BR-004 — RAG routing adapter on a local road graph.
  * Retrieve nearby grid edges, then pathfind using only those documents.
+ * Production wiring (`createRoutingProvider`) injects ChatGPT ranking;
+ * the default retriever stays lexical for deterministic unit tests.
  */
 export class RagRoutingProvider implements RoutingProvider {
   constructor(

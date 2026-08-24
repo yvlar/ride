@@ -8,6 +8,9 @@ describe("parseEnv", () => {
     expect(env.ROUTING_PROVIDER).toBe("mock");
     expect(env.GEOCODING_PROVIDER).toBe("mock");
     expect(env.ROUTING_API_KEY).toBeUndefined();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.OPENAI_API_BASE_URL).toBeUndefined();
+    expect(env.OPENAI_MODEL).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
 
@@ -27,15 +30,29 @@ describe("parseEnv", () => {
     );
   });
 
+  it("accepts a server-only ChatGPT key for knowledge routing (FR-029)", () => {
+    const env = parseEnv({
+      OPENAI_API_KEY: "test-openai-key",
+      OPENAI_API_BASE_URL: "https://api.openai.com/v1",
+      OPENAI_MODEL: "gpt-4o-mini",
+    });
+
+    expect(env.OPENAI_API_KEY).toBe("test-openai-key");
+    expect(env.OPENAI_API_BASE_URL).toBe("https://api.openai.com/v1");
+    expect(env.OPENAI_MODEL).toBe("gpt-4o-mini");
+  });
+
   it("treats blank strings as unset values", () => {
     const env = parseEnv({
       ROUTING_PROVIDER: "",
       ROUTING_API_KEY: "",
+      OPENAI_API_KEY: "",
       NEXT_PUBLIC_MAP_STYLE_URL: "",
     });
 
     expect(env.ROUTING_PROVIDER).toBe("mock");
     expect(env.ROUTING_API_KEY).toBeUndefined();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
 

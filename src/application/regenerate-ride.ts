@@ -3,6 +3,7 @@ import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import { regenerateRideEnvelopeSchema } from "@/domain/ride/schemas";
 import type { GenerateRideResult } from "@/domain/ride/types";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
+import { providerConfigurationError } from "./routing-failure";
 
 export async function regenerateRide(
   input: unknown,
@@ -25,18 +26,8 @@ export async function regenerateRide(
   let provider: RoutingProvider;
   try {
     provider = resolveRoutingProvider(parsed.data.request, routingProvider);
-  } catch {
-    return {
-      ok: false,
-      error: {
-        code: "PROVIDER_ERROR",
-        message:
-          "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
-        suggestions: [
-          "Vérifiez ROUTING_PROVIDER et ROUTING_API_BASE_URL.",
-        ],
-      },
-    };
+  } catch (error) {
+    return { ok: false, error: providerConfigurationError(error) };
   }
 
   return generateRide(parsed.data.request, provider, {

@@ -10,6 +10,7 @@ import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provi
 import {
   errorFromExhaustedAttempts,
   primaryKnowledgeError,
+  providerConfigurationError,
   rejectIfKnownUnpavedAvoided,
   rejectIfLeavesCanada,
   withKnowledgeConstraint,
@@ -264,5 +265,24 @@ describe("withKnowledgeConstraint (FR-021 + BR-001)", () => {
     expect(combined.message).toMatch(/FR-021/);
     expect(combined.message).toMatch(/non pavées/);
     expect(combined.suggestions).toContain(knowledge.suggestions[0]);
+  });
+});
+
+describe("providerConfigurationError (FR-029)", () => {
+  it("maps a missing ChatGPT key to PROVIDER_ERROR", () => {
+    const error = providerConfigurationError(
+      new Error("OPENAI_API_KEY est requis pour Corridors RAG."),
+    );
+    expect(error.code).toBe("PROVIDER_ERROR");
+    expect(error.message).toMatch(/OPENAI_API_KEY/);
+    expect(error.suggestions.some((item) => item.includes("serveur"))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the generic mapping outage for other setup failures", () => {
+    const error = providerConfigurationError(new Error("boom"));
+    expect(error.code).toBe("PROVIDER_ERROR");
+    expect(error.message).toMatch(/cartographie/);
   });
 });

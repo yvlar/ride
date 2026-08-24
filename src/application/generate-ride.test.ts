@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateRide } from "./generate-ride";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
@@ -201,6 +201,11 @@ function isKnowledgeRoadName(name: string | undefined): boolean {
 }
 
 describe("generateRide knowledge option (FR-029)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    process.env.OPENAI_API_KEY = "test-openai-key";
+  });
+
   it("uses the knowledge adapter when useKnowledgeRouting is true", async () => {
     const result = await generateRide({
       type: "loop",
@@ -255,5 +260,23 @@ describe("generateRide knowledge option (FR-029)", () => {
       return;
     }
     expect(result.error.message).toMatch(/FR-021/);
+  });
+
+  it("maps a missing ChatGPT key to PROVIDER_ERROR (FR-029)", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const result = await generateRide({
+      type: "loop",
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic",
+      useKnowledgeRouting: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("PROVIDER_ERROR");
+    expect(result.error.message).toMatch(/OPENAI_API_KEY/);
   });
 });

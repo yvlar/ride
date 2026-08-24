@@ -34,6 +34,7 @@ import {
   applyHardRoutePreferences,
   errorFromExhaustedAttempts,
   knowledgeUnavailableError,
+  providerConfigurationError,
   stayInCanadaEndpointError,
 } from "./routing-failure";
 
@@ -49,18 +50,8 @@ export async function generateRoundTripRide(
   let provider: RoutingProvider;
   try {
     provider = resolveRoutingProvider(input, routingProvider);
-  } catch {
-    return {
-      ok: false,
-      error: {
-        code: "PROVIDER_ERROR",
-        message:
-          "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
-        suggestions: [
-          "Vérifiez ROUTING_PROVIDER et ROUTING_API_BASE_URL.",
-        ],
-      },
-    };
+  } catch (error) {
+    return { ok: false, error: providerConfigurationError(error) };
   }
 
   const type =

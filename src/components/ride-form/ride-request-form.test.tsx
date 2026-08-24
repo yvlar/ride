@@ -862,6 +862,9 @@ describe("RideRequestForm (FR-014)", () => {
       target: { value: "150" },
     });
     expect(screen.getByLabelText("Corridors RAG")).not.toBeChecked();
+    expect(
+      screen.getByText(/Classement des corridors par ChatGPT \(clé API serveur\)/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Corridors RAG"));
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
