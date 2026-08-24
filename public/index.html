@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Ride</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: max(1.5rem, env(safe-area-inset-top))
+          max(1.5rem, env(safe-area-inset-right))
+          max(1.5rem, env(safe-area-inset-bottom))
+          max(1.5rem, env(safe-area-inset-left));
+        font-family: system-ui, sans-serif;
+        background: #252525;
+        color: #f5f5f5;
+      }
+      main {
+        max-width: 28rem;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Ride</p>
+      <p>
+        Définissez <code>CAPACITOR_SERVER_URL</code> vers l’origine Next.js
+        puis exécutez <code>npx cap sync ios</code> (FR-027).
+      </p>
+    </main>
+  </body>
+</html>
