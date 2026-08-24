@@ -4,7 +4,7 @@ import { RideRequestForm } from "@/components/ride-form/ride-request-form";
 export default function Home() {
   return (
     <div className="flex min-h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border px-6 py-4">
+      <header className="flex items-center justify-between border-b border-border px-6 py-4 pt-[max(1rem,env(safe-area-inset-top))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))]">
         <p className="text-sm font-semibold tracking-wide uppercase">Ride</p>
         <Badge variant="outline">MVP</Badge>
       </header>

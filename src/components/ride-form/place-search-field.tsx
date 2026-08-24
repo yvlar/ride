@@ -5,10 +5,8 @@ import type { Coordinates, Place } from "@/domain/geo/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  CurrentPositionError,
-  requestCurrentCoordinates,
-} from "@/components/ride-form/browser-geolocation";
+import { CurrentPositionError } from "@/components/ride-form/browser-geolocation";
+import { requestDeviceCoordinates } from "@/infrastructure/location/request-device-coordinates";
 import {
   CURRENT_POSITION_ADDRESS_UNAVAILABLE_MESSAGE,
   currentPositionFallback,
@@ -170,7 +168,7 @@ export type LocateButtonProps = {
 export function LocateButton({
   onLocated,
   onError,
-  requestCoordinates = requestCurrentCoordinates,
+  requestCoordinates = requestDeviceCoordinates,
   reversePlace = reverseGeocodePlace,
 }: LocateButtonProps) {
   const [pending, setPending] = useState(false);
