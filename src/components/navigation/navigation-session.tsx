@@ -201,7 +201,9 @@ export function NavigationSession({
     onStop();
   }, [carPlayDisplay, onStop, speechEngine]);
   const handleStopRef = useRef(handleStop);
-  handleStopRef.current = handleStop;
+  useEffect(() => {
+    handleStopRef.current = handleStop;
+  }, [handleStop]);
 
   const runRecalculate = useCallback(async (
     currentPosition: { latitude: number; longitude: number },
