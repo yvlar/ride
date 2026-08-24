@@ -11,6 +11,17 @@ import {
 } from "../create-routing-provider";
 import { composeRetrievedRoute } from "./compose";
 import { buildLocalRoadIndex } from "./local-road-index";
+import { OsrmRoutingProvider } from "../osrm-routing-provider";
+import {
+  disconnectedKnowledgeError,
+  unpavedKnowledgeError,
+} from "../routing-knowledge-error";
+import type {
+  ProviderRouteRequest,
+  ProviderRouteResult,
+  RoutingProvider,
+} from "../routing-provider";
+import { LexicalCorridorRetriever } from "./retrieve";
 import { RagRoutingProvider } from "./rag-routing-provider";
 import {
   undirectedEdgeId,
@@ -67,6 +78,39 @@ function sinuousShare(segments: { roadName?: string }[]): number {
     segments.filter((segment) => segment.roadName === "Route sinueuse").length /
     segments.length
   );
+}
+
+function sinuousRoadResult(
+  start: Coordinates,
+  destination: Coordinates,
+): ProviderRouteResult {
+  const geometry = {
+    type: "LineString" as const,
+    coordinates: [
+      [start.longitude, start.latitude],
+      [start.longitude - 0.31, start.latitude + 0.18],
+      [start.longitude - 0.72, start.latitude + 0.41],
+      [start.longitude - 1.21, start.latitude + 0.58],
+      [destination.longitude, destination.latitude],
+    ] as [number, number][],
+  };
+  return {
+    geometry,
+    segments: [
+      {
+        id: "road:0",
+        geometry,
+        distanceKm: 120,
+        durationMinutes: 140,
+        roadName: "Route 112",
+        surface: "paved",
+        roadClass: "secondary",
+      },
+    ],
+    steps: [],
+    distanceKm: 120,
+    durationMinutes: 140,
+  };
 }
 
 describe("RagRoutingProvider", () => {
@@ -374,6 +418,108 @@ describe("composeRetrievedRoute", () => {
       "panoramic",
     ]);
   });
+
+  it("returns road-network geometry instead of the local grid (FR-029, FR-001)", async () => {
+    const snapped = sinuousRoadResult(GRANBY, TREMBLANT);
+    const seen: ProviderRouteRequest[] = [];
+    const roads: RoutingProvider = {
+      async calculateRoute(input) {
+        seen.push(input);
+        return snapped;
+      },
+    };
+    const provider = new RagRoutingProvider(new LexicalCorridorRetriever(), {
+      roadNetwork: roads,
+    });
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination: TREMBLANT,
+      style: "touring",
+    });
+
+    expect(result.geometry).toEqual(snapped.geometry);
+    expect(isMostlyRectilinear(result.geometry.coordinates)).toBe(false);
+    expect(result.segments[0]?.roadName).toBe("Route 112");
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]?.waypoints?.length ?? 0).toBeLessThanOrEqual(12);
+  });
+
+  it("retries a disconnected snap with fewer via-points (FR-021)", async () => {
+    const snapped = sinuousRoadResult(GRANBY, TREMBLANT);
+    const waypointCounts: number[] = [];
+    const roads: RoutingProvider = {
+      async calculateRoute(input) {
+        waypointCounts.push(input.waypoints?.length ?? 0);
+        if (waypointCounts.length === 1) {
+          throw disconnectedKnowledgeError();
+        }
+        return snapped;
+      },
+    };
+    const provider = new RagRoutingProvider(new LexicalCorridorRetriever(), {
+      roadNetwork: roads,
+    });
+    const result = await provider.calculateRoute({
+      start: GRANBY,
+      destination: TREMBLANT,
+      style: "touring",
+    });
+
+    expect(result.geometry).toEqual(snapped.geometry);
+    expect(waypointCounts.length).toBeGreaterThanOrEqual(2);
+    expect(waypointCounts[1]).toBeLessThanOrEqual(waypointCounts[0] ?? 0);
+  });
+
+  it("does not retry a surface preference miss from the road network (FR-008)", async () => {
+    let calls = 0;
+    const roads: RoutingProvider = {
+      async calculateRoute() {
+        calls += 1;
+        throw unpavedKnowledgeError();
+      },
+    };
+    const provider = new RagRoutingProvider(new LexicalCorridorRetriever(), {
+      roadNetwork: roads,
+    });
+
+    await expect(
+      provider.calculateRoute({
+        start: GRANBY,
+        destination: TREMBLANT,
+        preferences: { avoidUnpaved: true, avoidHighways: false },
+      }),
+    ).rejects.toMatchObject({ reason: "unpaved" });
+    expect(calls).toBe(1);
+  });
+
+  it("does not snap to an unconstrained start-destination when corridor vias fail (FR-029)", async () => {
+    const seen: ProviderRouteRequest[] = [];
+    const roads: RoutingProvider = {
+      async calculateRoute(input) {
+        seen.push(input);
+        throw disconnectedKnowledgeError();
+      },
+    };
+    const provider = new RagRoutingProvider(new LexicalCorridorRetriever(), {
+      roadNetwork: roads,
+    });
+
+    await expect(
+      provider.calculateRoute({
+        start: GRANBY,
+        destination: TREMBLANT,
+        style: "touring",
+      }),
+    ).rejects.toMatchObject({ reason: "disconnected" });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(
+      seen.every(
+        (request) =>
+          Array.isArray(request.waypoints) && request.waypoints.length > 0,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("createRoutingProvider", () => {
@@ -388,6 +534,7 @@ describe("createRoutingProvider", () => {
       { knowledgeRouting: true },
     );
     expect(provider).toBeInstanceOf(RagRoutingProvider);
+    expect((provider as RagRoutingProvider).roadNetwork).toBeUndefined();
   });
 
   it("returns the RAG adapter for ROUTING_PROVIDER=ai-rag when the ChatGPT key is set (NFR-005)", () => {
@@ -422,6 +569,21 @@ describe("createRoutingProvider", () => {
       { knowledgeRouting: true },
     );
     expect(provider).toBeInstanceOf(RagRoutingProvider);
+  });
+
+  it("snaps knowledge corridors onto OSRM when that network is configured (FR-029, FR-001)", () => {
+    const provider = createRoutingProvider(
+      {
+        ROUTING_PROVIDER: "osrm",
+        ROUTING_API_BASE_URL: "https://routing.example.test",
+        OPENAI_API_KEY: "test-openai-key",
+      },
+      { knowledgeRouting: true },
+    );
+    expect(provider).toBeInstanceOf(RagRoutingProvider);
+    expect((provider as RagRoutingProvider).roadNetwork).toBeInstanceOf(
+      OsrmRoutingProvider,
+    );
   });
 
   it("rejects an unwired named graph engine (BR-004)", () => {

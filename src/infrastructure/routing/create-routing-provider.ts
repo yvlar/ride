@@ -26,29 +26,11 @@ export function createRoutingProvider(
 ): RoutingProvider {
   const env = parseEnv(source ?? serverProcessEnv());
 
-  if (options?.knowledgeRouting) {
-    return createChatGptRagRoutingProvider(env);
-  }
-  if (env.ROUTING_PROVIDER === "mock") {
-    return new MockRoutingProvider();
-  }
-
-  if (env.ROUTING_PROVIDER === "ai-rag") {
+  if (options?.knowledgeRouting || env.ROUTING_PROVIDER === "ai-rag") {
     return createChatGptRagRoutingProvider(env);
   }
 
-  if (env.ROUTING_PROVIDER === "osrm") {
-    if (!env.ROUTING_API_BASE_URL) {
-      throw new Error(
-        "ROUTING_API_BASE_URL est requis lorsque ROUTING_PROVIDER=osrm.",
-      );
-    }
-    return new OsrmRoutingProvider(env.ROUTING_API_BASE_URL);
-  }
-
-  throw new Error(
-    `Le fournisseur de routage « ${env.ROUTING_PROVIDER} » n’est pas encore branché. Utilisez ROUTING_PROVIDER=osrm, ai-rag ou mock.`,
-  );
+  return createRoadNetworkProvider(env);
 }
 
 function createChatGptRagRoutingProvider(env: AppEnv): RagRoutingProvider {
@@ -73,5 +55,36 @@ function createChatGptRagRoutingProvider(env: AppEnv): RagRoutingProvider {
         baseUrl,
       }),
     }),
+    {
+      // FR-029 / FR-001 — snap onto a real-road adapter when one is configured.
+      // Mock stays on indexed geometry so simulated data remains explicit.
+      roadNetwork:
+        env.ROUTING_PROVIDER === "osrm"
+          ? createOsrmRoutingProvider(env)
+          : undefined,
+    },
   );
+}
+
+function createRoadNetworkProvider(env: AppEnv): RoutingProvider {
+  if (env.ROUTING_PROVIDER === "mock") {
+    return new MockRoutingProvider();
+  }
+
+  if (env.ROUTING_PROVIDER === "osrm") {
+    return createOsrmRoutingProvider(env);
+  }
+
+  throw new Error(
+    `Le fournisseur de routage « ${env.ROUTING_PROVIDER} » n’est pas encore branché. Utilisez ROUTING_PROVIDER=osrm, ai-rag ou mock.`,
+  );
+}
+
+function createOsrmRoutingProvider(env: AppEnv): OsrmRoutingProvider {
+  if (!env.ROUTING_API_BASE_URL) {
+    throw new Error(
+      "ROUTING_API_BASE_URL est requis lorsque ROUTING_PROVIDER=osrm.",
+    );
+  }
+  return new OsrmRoutingProvider(env.ROUTING_API_BASE_URL);
 }

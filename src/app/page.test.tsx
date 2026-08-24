@@ -54,6 +54,7 @@ describe("Home (FR-014)", () => {
       screen.getByText(/Classement des corridors par ChatGPT/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/clé API serveur/i)).toBeInTheDocument();
+    expect(screen.getByText(/réseau routier configuré/i)).toBeInTheDocument();
 
     const generate = screen.getAllByRole("button", { name: "Générer ma ride" });
     expect(generate).toHaveLength(1);

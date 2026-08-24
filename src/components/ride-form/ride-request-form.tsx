@@ -592,7 +592,8 @@ export function RideRequestForm({
                   id="use-knowledge-routing-hint"
                   className="text-sm text-muted-foreground"
                 >
-                  Classement des corridors par ChatGPT (clé API serveur), pas le réseau OSM
+                  Classement des corridors par ChatGPT (clé API serveur). Le tracé
+                  suit le réseau routier configuré.
                 </p>
               </div>
               <Switch

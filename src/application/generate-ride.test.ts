@@ -3,6 +3,8 @@ import { generateRide } from "./generate-ride";
 import { isWithinDistanceTolerance } from "@/domain/ride/constraints";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
 import { CorridorRankingError } from "@/infrastructure/routing/rag/corridor-ranking-error";
+import { RagRoutingProvider } from "@/infrastructure/routing/rag/rag-routing-provider";
+import { LexicalCorridorRetriever } from "@/infrastructure/routing/rag/retrieve";
 import type {
   ProviderRouteRequest,
   ProviderRouteResult,
@@ -223,6 +225,68 @@ describe("generateRide knowledge option (FR-029)", () => {
     expect(result.route.segments.some((segment) => isKnowledgeRoadName(segment.roadName))).toBe(
       true,
     );
+  });
+
+  it("returns snapped road-network geometry when a road adapter is injected (FR-029, FR-001)", async () => {
+    const snapped: ProviderRouteResult = {
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.734, 45.403],
+          [-72.7, 45.403],
+          [-72.68, 45.42],
+          [-72.69, 45.45],
+          [-72.72, 45.46],
+          [-72.75, 45.44],
+          [-72.76, 45.41],
+          [-72.734, 45.403],
+        ],
+      },
+      segments: [
+        {
+          id: "road:0",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [-72.734, 45.403],
+              [-72.7, 45.403],
+            ],
+          },
+          distanceKm: 80,
+          durationMinutes: 90,
+          roadName: "Chemin du Lac",
+          surface: "paved",
+        },
+      ],
+      steps: [],
+      distanceKm: 80,
+      durationMinutes: 90,
+    };
+    const roads: RoutingProvider = {
+      async calculateRoute() {
+        return snapped;
+      },
+    };
+
+    const result = await generateRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "scenic",
+        useKnowledgeRouting: true,
+      },
+      new RagRoutingProvider(new LexicalCorridorRetriever(), {
+        roadNetwork: roads,
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.geometry).toEqual(snapped.geometry);
+    expect(result.route.segments[0]?.roadName).toBe("Chemin du Lac");
   });
 
   it("keeps the environment mock adapter when the flag is absent", async () => {
