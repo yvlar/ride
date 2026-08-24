@@ -194,4 +194,30 @@ describe("POST /api/routes/generate", () => {
     const payload = (await response.json()) as { error: { code: string } };
     expect(payload.error.code).toBe("VALIDATION_ERROR");
   });
+
+  it("uses knowledge corridors when useKnowledgeRouting is true (FR-029)", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/routes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "loop",
+          start: GRANBY,
+          targetDistanceKm: 80,
+          style: "scenic",
+          useKnowledgeRouting: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      data: { route: { segments: { roadName?: string }[] } };
+    };
+    expect(
+      payload.data.route.segments.some(
+        (segment) => segment.roadName && !segment.roadName.startsWith("Grid "),
+      ),
+    ).toBe(true);
+  });
 });

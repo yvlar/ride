@@ -432,3 +432,38 @@ describe("regenerateRide (FR-012, BR-006)", () => {
     expect(result.error.code).toBe("VALIDATION_ERROR");
   });
 });
+
+describe("regenerateRide knowledge option (FR-029, FR-012)", () => {
+  it("keeps the knowledge adapter when the flag is on the request", async () => {
+    const request = {
+      type: "loop" as const,
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic" as const,
+      useKnowledgeRouting: true,
+    };
+    const first = await generateRide(request);
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error(first.error.message);
+    }
+
+    const regenerated = await regenerateRide({
+      request,
+      previousRoute: {
+        type: "loop",
+        geometry: first.route.geometry,
+      },
+    });
+
+    expect(regenerated.ok).toBe(true);
+    if (!regenerated.ok) {
+      throw new Error(regenerated.error.message);
+    }
+    expect(
+      regenerated.route.segments.some(
+        (segment) => segment.roadName && !segment.roadName.startsWith("Grid "),
+      ),
+    ).toBe(true);
+  });
+});

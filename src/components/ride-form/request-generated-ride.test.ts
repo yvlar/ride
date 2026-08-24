@@ -99,4 +99,27 @@ describe("requestGeneratedRide (FR-011)", () => {
     expect(result.error.code).toBe("PROVIDER_ERROR");
     expect(result.error.message).toMatch(/ne répond pas/);
   });
+
+  it("includes the knowledge flag when requested (FR-029)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: { route: ROUTE },
+          meta: { requestId: "req-3" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestGeneratedRide(REQUEST, { useKnowledgeRouting: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/routes/generate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ ...REQUEST, useKnowledgeRouting: true }),
+      }),
+    );
+  });
 });

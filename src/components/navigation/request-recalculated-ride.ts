@@ -15,6 +15,8 @@ export type RecalculateRideInput = {
   progressKm: number;
   request: GenerateRideRequest;
   originalRoute: GeneratedRideRoute;
+  /** FR-029 — transport-only; not part of the domain request. */
+  useKnowledgeRouting?: boolean;
 };
 
 export async function requestRecalculatedRide(
@@ -23,12 +25,22 @@ export async function requestRecalculatedRide(
 ): Promise<
   { ok: true; route: GeneratedRideRoute } | { ok: false; error: RideGenerationError }
 > {
+  const request =
+    input.useKnowledgeRouting === true
+      ? { ...input.request, useKnowledgeRouting: true }
+      : input.request;
+
   let response: Response;
   try {
     response = await fetch("/api/routes/recalculate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        currentPosition: input.currentPosition,
+        progressKm: input.progressKm,
+        request,
+        originalRoute: input.originalRoute,
+      }),
       signal,
     });
   } catch (error) {

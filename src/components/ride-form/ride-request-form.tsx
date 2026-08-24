@@ -39,7 +39,10 @@ import {
   NavigationSession,
   type NavigationSessionProps,
 } from "@/components/navigation/navigation-session";
-import { requestGeneratedRide } from "@/components/ride-form/request-generated-ride";
+import {
+  requestGeneratedRide,
+  type GenerateRideClientOptions,
+} from "@/components/ride-form/request-generated-ride";
 import { cn } from "@/lib/utils";
 
 const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
@@ -102,7 +105,10 @@ export type RideRequestFormProps = {
   searchPlaces?: (query: string) => Promise<Place[]>;
   debounceMs?: number;
   onRequestComposed?: (request: GenerateRideRequest) => void;
-  generateRide?: (request: GenerateRideRequest) => Promise<GenerateRideResult>;
+  generateRide?: (
+    request: GenerateRideRequest,
+    options?: GenerateRideClientOptions,
+  ) => Promise<GenerateRideResult>;
   mapEngine?: MapEngine;
   requestCoordinates?: () => Promise<Coordinates>;
   reversePlace?: (coordinates: Coordinates) => Promise<Place>;
@@ -135,6 +141,7 @@ export function RideRequestForm({
   const [avoidHighways, setAvoidHighways] = useState(false);
   const [avoidUnpaved, setAvoidUnpaved] = useState(false);
   const [stayInCanada, setStayInCanada] = useState(false);
+  const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<RideFormField, string>>>(
     {},
   );
@@ -245,7 +252,9 @@ export function RideRequestForm({
     setGenerating(true);
 
     try {
-      const generated = await generateRide(result.request);
+      const generated = await generateRide(result.request, {
+        useKnowledgeRouting,
+      });
       if (generationId.current !== requestId) {
         return;
       }
@@ -574,6 +583,28 @@ export function RideRequestForm({
                 }}
               />
             </div>
+            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+              <div className="min-w-0">
+                <Label htmlFor="use-knowledge-routing" className="text-base">
+                  Corridors RAG
+                </Label>
+                <p
+                  id="use-knowledge-routing-hint"
+                  className="text-sm text-muted-foreground"
+                >
+                  Index local de routes connues, pas le réseau OSM ni un modèle distant
+                </p>
+              </div>
+              <Switch
+                id="use-knowledge-routing"
+                checked={useKnowledgeRouting}
+                aria-describedby="use-knowledge-routing-hint"
+                onCheckedChange={(checked) => {
+                  setUseKnowledgeRouting(checked);
+                  invalidateInFlightGeneration();
+                }}
+              />
+            </div>
           </div>
 
           <Button
@@ -672,6 +703,7 @@ export function RideRequestForm({
             speech={speechEngine}
             recalculate={navigation?.recalculate}
             now={navigation?.now}
+            useKnowledgeRouting={useKnowledgeRouting}
           />
         ) : null}
       </CardContent>

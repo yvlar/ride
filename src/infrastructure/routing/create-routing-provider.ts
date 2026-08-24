@@ -4,9 +4,19 @@ import { OsrmRoutingProvider } from "./osrm-routing-provider";
 import { RagRoutingProvider } from "./rag/rag-routing-provider";
 import type { RoutingProvider } from "./routing-provider";
 
+export type CreateRoutingProviderOptions = {
+  /** FR-029 — per-request override to the knowledge/RAG adapter. */
+  knowledgeRouting?: boolean;
+};
+
 export function createRoutingProvider(
   source: Record<string, string | undefined> = process.env,
+  options?: CreateRoutingProviderOptions,
 ): RoutingProvider {
+  if (options?.knowledgeRouting) {
+    return new RagRoutingProvider();
+  }
+
   const env = parseEnv(source);
   if (env.ROUTING_PROVIDER === "mock") {
     return new MockRoutingProvider();

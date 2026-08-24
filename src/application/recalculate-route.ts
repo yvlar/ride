@@ -23,7 +23,7 @@ import type {
   RoutePreferences,
   RouteSegment,
 } from "@/domain/ride/types";
-import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
+import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import type {
   RoutingProvider,
   RoutingProviderOptions,
@@ -57,15 +57,6 @@ export async function recalculateRoute(
     return staleResult();
   }
 
-  let provider = routingProvider;
-  if (!provider) {
-    try {
-      provider = createRoutingProvider();
-    } catch {
-      return providerUnavailable();
-    }
-  }
-
   const parsed = recalculateRideEnvelopeSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -78,6 +69,13 @@ export async function recalculateRoute(
         ],
       },
     };
+  }
+
+  let provider: RoutingProvider;
+  try {
+    provider = resolveRoutingProvider(parsed.data.request, routingProvider);
+  } catch {
+    return providerUnavailable();
   }
 
   const request = parseRecalculateRequest(parsed.data.request);

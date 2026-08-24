@@ -379,8 +379,11 @@ describe("createRoutingProvider", () => {
     expect(provider).toBeInstanceOf(MockRoutingProvider);
   });
 
-  it("returns the RAG adapter when ROUTING_PROVIDER=ai-rag", () => {
-    const provider = createRoutingProvider({ ROUTING_PROVIDER: "ai-rag" });
+  it("returns the RAG adapter when knowledgeRouting is requested (FR-029)", () => {
+    const provider = createRoutingProvider(
+      { ROUTING_PROVIDER: "mock" },
+      { knowledgeRouting: true },
+    );
     expect(provider).toBeInstanceOf(RagRoutingProvider);
   });
 

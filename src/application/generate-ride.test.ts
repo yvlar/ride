@@ -195,3 +195,65 @@ describe("generateRide (FR-011)", () => {
     ).toBe(true);
   });
 });
+
+function isKnowledgeRoadName(name: string | undefined): boolean {
+  return Boolean(name && !name.startsWith("Grid "));
+}
+
+describe("generateRide knowledge option (FR-029)", () => {
+  it("uses the knowledge adapter when useKnowledgeRouting is true", async () => {
+    const result = await generateRide({
+      type: "loop",
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic",
+      useKnowledgeRouting: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.segments.some((segment) => isKnowledgeRoadName(segment.roadName))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the environment mock adapter when the flag is absent", async () => {
+    const result = await generateRide({
+      type: "loop",
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.segments.every(
+        (segment) => !segment.roadName || segment.roadName.startsWith("Grid "),
+      ),
+    ).toBe(true);
+  });
+
+  it("maps an empty knowledge graph to FR-021", async () => {
+    const result = await generateRide({
+      type: "destination",
+      start: GRANBY,
+      destination: {
+        label: "Perth",
+        coordinates: { latitude: -31.95, longitude: 115.86 },
+      },
+      style: "touring",
+      useKnowledgeRouting: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.message).toMatch(/FR-021/);
+  });
+});

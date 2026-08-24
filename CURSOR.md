@@ -118,7 +118,7 @@ Créer des adaptateurs interchangeables pour :
 - la recherche de points d’intérêt;
 - les tuiles cartographiques.
 
-Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches de la demande, puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’appelle pas de modèle distant.
+Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag`) indexe le même type de graphe sous forme de documents, récupère les arêtes proches de la demande, puis compose un chemin uniquement sur ces arêtes. Il n’affine pas de courbe géométrique et n’appelle pas de modèle distant. L’écran principal peut demander ce même adaptateur à la requête (`FR-029`, option « Corridors RAG ») sans changer `ROUTING_PROVIDER`.
 
 `OsrmRoutingProvider` (`ROUTING_PROVIDER=osrm`) appelle un service OSRM configuré par `ROUTING_API_BASE_URL` et retourne une géométrie GeoJSON suivant les routes OpenStreetMap. `GraphHopper` et `Valhalla` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
 
