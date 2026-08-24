@@ -164,11 +164,13 @@ describe("RideMap (FR-013, NFR-001)", () => {
   it("keeps the street map mounted when the preview expands for navigation (FR-013, FR-023)", async () => {
     const destroy = vi.fn();
     const setUserLocation = vi.fn();
+    const setFollowUser = vi.fn();
     const resize = vi.fn();
     const setGeolocateEnabled = vi.fn();
     const mount = vi.fn(() => ({
       destroy,
       setUserLocation,
+      setFollowUser,
       resize,
       setGeolocateEnabled,
     }));
@@ -181,6 +183,9 @@ describe("RideMap (FR-013, NFR-001)", () => {
     await waitFor(() => {
       expect(setGeolocateEnabled).toHaveBeenCalledWith(true);
     });
+    await waitFor(() => {
+      expect(setFollowUser).toHaveBeenCalledWith(false);
+    });
 
     rerender(
       <RideMap
@@ -188,15 +193,20 @@ describe("RideMap (FR-013, NFR-001)", () => {
         engine={engine}
         expanded
         userLocation={{ latitude: 45.4001, longitude: -72.7342 }}
+        headingDeg={90}
       />,
     );
     await waitFor(() => {
-      expect(setUserLocation).toHaveBeenCalledWith({
-        latitude: 45.4001,
-        longitude: -72.7342,
-      });
+      expect(setUserLocation).toHaveBeenCalledWith(
+        {
+          latitude: 45.4001,
+          longitude: -72.7342,
+        },
+        90,
+      );
     });
     expect(setGeolocateEnabled).toHaveBeenCalledWith(false);
+    expect(setFollowUser).toHaveBeenCalledWith(true);
     expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
       "Sens : boucle depuis Granby, QC",
     );
@@ -210,6 +220,7 @@ describe("RideMap (FR-013, NFR-001)", () => {
     await waitFor(() => {
       expect(setGeolocateEnabled).toHaveBeenLastCalledWith(true);
     });
+    expect(setFollowUser).toHaveBeenLastCalledWith(false);
     expect(mount).toHaveBeenCalledTimes(1);
     expect(destroy).not.toHaveBeenCalled();
   });

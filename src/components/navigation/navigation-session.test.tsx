@@ -426,14 +426,59 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       },
     });
     await waitFor(() => {
-      expect(onUserLocation).toHaveBeenCalledWith({
-        latitude: 45.4,
-        longitude: -72.7,
-      });
+      expect(onUserLocation).toHaveBeenCalledWith(
+        {
+          latitude: 45.4,
+          longitude: -72.7,
+        },
+        expect.closeTo(90, 0),
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
     expect(onRecenter).toHaveBeenCalledTimes(1);
+  });
+
+  it("projects the shared map puck onto the route (FR-024)", async () => {
+    const { watch, emit } = createWatch();
+    const onUserLocation = vi.fn();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        mapEngine={{ mount: vi.fn() }}
+        renderMap={false}
+        onUserLocation={onUserLocation}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.40018, longitude: -72.69 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(onUserLocation).toHaveBeenCalled();
+    });
+    const [point, heading] = onUserLocation.mock.calls.at(-1)!;
+    expect(point).toEqual(
+      expect.objectContaining({
+        longitude: expect.closeTo(-72.69, 4),
+        latitude: expect.closeTo(45.4, 4),
+      }),
+    );
+    expect(point).not.toEqual({
+      latitude: 45.40018,
+      longitude: -72.69,
+    });
+    expect(heading).toEqual(expect.closeTo(90, 0));
   });
 
   it("holds the screen awake only while the session is mounted (FR-023, FR-027)", () => {

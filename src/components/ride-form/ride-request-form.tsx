@@ -150,6 +150,7 @@ export function RideRequestForm({
   const [navUserLocation, setNavUserLocation] = useState<Coordinates | null>(
     null,
   );
+  const [navHeadingDeg, setNavHeadingDeg] = useState<number | null>(null);
   const mapRecenterRef = useRef<() => void>(() => {});
   const setMapGeolocateEnabledRef = useRef<(enabled: boolean) => void>(
     () => {},
@@ -172,6 +173,7 @@ export function RideRequestForm({
     setGenerationError(null);
     setNavigating(false);
     setNavUserLocation(null);
+    setNavHeadingDeg(null);
     setComposedRequest(null);
   }
 
@@ -581,6 +583,7 @@ export function RideRequestForm({
                   engine={mapEngine}
                   expanded={navigating}
                   userLocation={navigating ? navUserLocation : null}
+                  headingDeg={navigating ? navHeadingDeg : null}
                   onRecenterReady={(recenter) => {
                     mapRecenterRef.current = recenter;
                   }}
@@ -629,11 +632,19 @@ export function RideRequestForm({
             route={generatedRoute}
             request={composedRequest}
             renderMap={false}
-            onUserLocation={setNavUserLocation}
+            onUserLocation={(point, heading) => {
+              setNavUserLocation(point);
+              setNavHeadingDeg(
+                typeof heading === "number" && Number.isFinite(heading)
+                  ? heading
+                  : null,
+              );
+            }}
             onRecenter={() => mapRecenterRef.current()}
             onStop={() => {
               setNavigating(false);
               setNavUserLocation(null);
+              setNavHeadingDeg(null);
             }}
             onRouteChange={setGeneratedRoute}
             locationWatch={locationWatch}

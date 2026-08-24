@@ -43,6 +43,12 @@ describe("createLightweightNavigationMapEngine", () => {
     expect(marker?.getAttribute("transform")).toContain("translate(");
 
     const fullRouteView = svg?.getAttribute("viewBox");
+    handle.setFollowUser?.(true);
+    expect(svg?.getAttribute("viewBox")).not.toBe(fullRouteView);
+
+    handle.setFollowUser?.(false);
+    expect(svg?.getAttribute("viewBox")).toBe(fullRouteView);
+
     handle.recenter?.();
     expect(svg?.getAttribute("viewBox")).not.toBe(fullRouteView);
 

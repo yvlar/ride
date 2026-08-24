@@ -63,6 +63,11 @@ const {
 
   class FakeMarker {
     lngLat = { lng: 0, lat: 0 };
+    rotation = 0;
+    element: HTMLElement | undefined;
+    constructor(options?: { element?: HTMLElement }) {
+      this.element = options?.element;
+    }
     setLngLat(value: { lng?: number; lat?: number } | [number, number]) {
       if (Array.isArray(value)) {
         this.lngLat = { lng: value[0], lat: value[1] };
@@ -73,6 +78,16 @@ const {
     }
     getLngLat() {
       return this.lngLat;
+    }
+    setRotation(value = 0) {
+      this.rotation = value;
+      return this;
+    }
+    setRotationAlignment() {
+      return this;
+    }
+    setPitchAlignment() {
+      return this;
     }
     addTo() {
       if (mapState.markerThrows) {
@@ -384,5 +399,107 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     ).not.toThrow();
     expect(onError).not.toHaveBeenCalled();
     expect(onWarning).toHaveBeenCalledWith(MAP_UNAVAILABLE_MESSAGE);
+  });
+});
+
+describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
+  beforeEach(() => {
+    addControl.mockReset();
+    removeControl.mockReset();
+    mapRemove.mockReset();
+    mapOn.mockReset();
+    geolocateOn.mockReset();
+    geolocateOnRemove.mockReset();
+    markerRemove.mockReset();
+    easeTo.mockReset();
+    fitBounds.mockReset();
+    routeSource.setData.mockReset();
+    mapState.painterAvailable = true;
+    mapState.markerThrows = false;
+  });
+
+  it("follows the rider heading-up after GeolocateControl is torn down", async () => {
+    const { createMapLibreEngine, NAVIGATION_FOLLOW_PADDING } = await import(
+      "./maplibre-map-engine"
+    );
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: { lng: -72.72, lat: 45.41 },
+        zoom: 16,
+        pitch: 45,
+        bearing: 90,
+        padding: NAVIGATION_FOLLOW_PADDING,
+      }),
+    );
+  });
+
+  it("stops following after a user pan and resumes on Recentrer", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+    easeTo.mockClear();
+
+    const dragstart = mapOn.mock.calls.find((call) => call[0] === "dragstart")?.[1] as
+      | ((event: { originalEvent?: Event }) => void)
+      | undefined;
+    dragstart?.({ originalEvent: new Event("mousedown") });
+
+    handle.setUserLocation?.({ latitude: 45.42, longitude: -72.71 }, 95);
+    expect(easeTo).not.toHaveBeenCalled();
+
+    handle.recenter?.();
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: { lng: -72.71, lat: 45.42 },
+        bearing: 95,
+      }),
+    );
+  });
+
+  it("does not refit the whole route while following a recalculated line (FR-013, FR-026)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+    fitBounds.mockClear();
+
+    handle.setViewModel?.({
+      ...viewModel,
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-72.65, 45.5],
+        ],
+      },
+    });
+
+    expect(routeSource.setData).toHaveBeenCalled();
+    expect(fitBounds).not.toHaveBeenCalled();
+    handle.destroy();
   });
 });

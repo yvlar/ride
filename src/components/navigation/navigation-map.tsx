@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 export type NavigationMapProps = {
   route: GeneratedRideRoute;
   userLocation?: Coordinates | null;
+  headingDeg?: number | null;
   engine?: NavigationMapEngine;
   onRecenterReady?: (recenter: () => void) => void;
 };
@@ -25,6 +26,7 @@ export type NavigationMapProps = {
 export function NavigationMap({
   route,
   userLocation,
+  headingDeg = null,
   engine,
   onRecenterReady,
 }: NavigationMapProps) {
@@ -32,6 +34,7 @@ export function NavigationMap({
   const handleRef = useRef<NavigationMapHandle | undefined>(undefined);
   const onRecenterReadyRef = useRef(onRecenterReady);
   const userLocationRef = useRef(userLocation);
+  const headingDegRef = useRef(headingDeg);
   const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
   const viewModelRef = useRef(viewModel);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +47,10 @@ export function NavigationMap({
   useEffect(() => {
     userLocationRef.current = userLocation;
   }, [userLocation]);
+
+  useEffect(() => {
+    headingDegRef.current = headingDeg;
+  }, [headingDeg]);
 
   useEffect(() => {
     onRecenterReadyRef.current = onRecenterReady;
@@ -71,7 +78,11 @@ export function NavigationMap({
     const handle = resolved.mount(container, initial, handlers);
     handleRef.current = handle;
     onRecenterReadyRef.current?.(() => handle.recenter());
-    handle.setUserLocation(userLocationRef.current ?? null);
+    handle.setFollowUser?.(true);
+    handle.setUserLocation(
+      userLocationRef.current ?? null,
+      headingDegRef.current,
+    );
     if (cancelled) {
       handle.destroy();
     }
@@ -93,8 +104,8 @@ export function NavigationMap({
   }, [viewModel]);
 
   useEffect(() => {
-    handleRef.current?.setUserLocation(userLocation ?? null);
-  }, [userLocation]);
+    handleRef.current?.setUserLocation(userLocation ?? null, headingDeg);
+  }, [userLocation, headingDeg]);
 
   return (
     <section aria-label="Carte de navigation" className="relative min-h-0 flex-1">

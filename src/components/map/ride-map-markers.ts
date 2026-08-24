@@ -7,6 +7,17 @@ export function createPlaceMarkerElement(label: string): HTMLElement {
   return element;
 }
 
+export function createUserPuckElement(): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "ride-map-user-puck";
+  element.setAttribute("aria-label", "Position actuelle");
+  const icon = document.createElement("div");
+  icon.className = "ride-map-user-puck-icon";
+  icon.setAttribute("aria-hidden", "true");
+  element.append(icon);
+  return element;
+}
+
 /** Rotation lives on an inner node so MapLibre can own the marker transform. */
 export function createDirectionArrowElement(bearingDeg: number): HTMLElement {
   const element = document.createElement("div");

@@ -17,9 +17,21 @@ import { ensureMapLibreWorkerUrl } from "./maplibre-worker-url";
 import {
   createDirectionArrowElement,
   createPlaceMarkerElement,
+  createUserPuckElement,
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
 import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
+
+/** Street-map follow camera while GeolocateControl is off (FR-024, FR-028). */
+export const NAVIGATION_FOLLOW_ZOOM = 16;
+export const NAVIGATION_FOLLOW_PITCH = 45;
+export const NAVIGATION_FOLLOW_DURATION_MS = 400;
+export const NAVIGATION_FOLLOW_PADDING = {
+  top: 160,
+  bottom: 200,
+  left: 40,
+  right: 40,
+} as const;
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -189,6 +201,58 @@ export function createMapLibreEngine(
       });
 
       let userMarker: Marker | undefined;
+      let followUser = false;
+      let lastHeadingDeg: number | null = null;
+
+      function applyUserPuckHeading(headingDeg: number | null | undefined) {
+        if (!userMarker) {
+          return;
+        }
+        if (typeof headingDeg !== "number" || !Number.isFinite(headingDeg)) {
+          return;
+        }
+        lastHeadingDeg = ((headingDeg % 360) + 360) % 360;
+        userMarker.setRotationAlignment("map");
+        userMarker.setPitchAlignment("viewport");
+        userMarker.setRotation(lastHeadingDeg);
+      }
+
+      function applyFollowCamera() {
+        if (!followUser || !map || disposed || !userMarker) {
+          return;
+        }
+        const camera: {
+          center: ReturnType<Marker["getLngLat"]>;
+          zoom: number;
+          padding: typeof NAVIGATION_FOLLOW_PADDING;
+          duration: number;
+          essential: boolean;
+          bearing?: number;
+          pitch?: number;
+        } = {
+          center: userMarker.getLngLat(),
+          zoom: NAVIGATION_FOLLOW_ZOOM,
+          padding: NAVIGATION_FOLLOW_PADDING,
+          duration: NAVIGATION_FOLLOW_DURATION_MS,
+          essential: true,
+        };
+        if (lastHeadingDeg != null && Number.isFinite(lastHeadingDeg)) {
+          camera.bearing = lastHeadingDeg;
+          camera.pitch = NAVIGATION_FOLLOW_PITCH;
+        }
+        map.easeTo(camera);
+      }
+
+      function onUserCameraInteraction(event?: { originalEvent?: Event }) {
+        if (event?.originalEvent) {
+          followUser = false;
+        }
+      }
+
+      map.on("dragstart", onUserCameraInteraction);
+      map.on("zoomstart", onUserCameraInteraction);
+      map.on("rotatestart", onUserCameraInteraction);
+      map.on("pitchstart", onUserCameraInteraction);
 
       return {
         destroy() {
@@ -208,7 +272,7 @@ export function createMapLibreEngine(
           if (disposed) {
             return;
           }
-          renderRoute(next, { fitCamera: true });
+          renderRoute(next, { fitCamera: !followUser });
         },
         resize() {
           if (!map || disposed) {
@@ -220,7 +284,7 @@ export function createMapLibreEngine(
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
         },
-        setUserLocation(coordinates) {
+        setUserLocation(coordinates, headingDeg) {
           if (!map || disposed) {
             return;
           }
@@ -231,16 +295,16 @@ export function createMapLibreEngine(
               return;
             }
             if (!userMarker) {
-              const element = document.createElement("div");
-              element.setAttribute("aria-label", "Position actuelle");
-              element.style.width = "16px";
-              element.style.height = "16px";
-              element.style.borderRadius = "999px";
-              element.style.background = "#38bdf8";
-              element.style.border = "2px solid white";
-              userMarker = new Marker({ element, anchor: "center" }).addTo(map);
+              userMarker = new Marker({
+                element: createUserPuckElement(),
+                anchor: "center",
+                rotationAlignment: "map",
+                pitchAlignment: "viewport",
+              }).addTo(map);
             }
             userMarker.setLngLat(coordinatesToPosition(coordinates));
+            applyUserPuckHeading(headingDeg);
+            applyFollowCamera();
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
@@ -255,16 +319,27 @@ export function createMapLibreEngine(
           }
           detachGeolocateControl();
         },
+        setFollowUser(enabled) {
+          if (disposed) {
+            return;
+          }
+          followUser = enabled;
+          if (enabled) {
+            try {
+              applyFollowCamera();
+            } catch {
+              onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+            }
+          }
+        },
         recenter() {
           if (!map || disposed) {
             return;
           }
           try {
+            followUser = true;
             if (userMarker) {
-              map.easeTo({
-                center: userMarker.getLngLat(),
-                duration: 400,
-              });
+              applyFollowCamera();
               return;
             }
             map.fitBounds(camera.bounds, camera.fitBoundsOptions);

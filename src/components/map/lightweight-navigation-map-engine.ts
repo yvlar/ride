@@ -21,6 +21,7 @@ export function createLightweightNavigationMapEngine(): MapEngine {
       let followUser = false;
       let viewModel = initialViewModel;
       let lastUser: Coordinates | null = null;
+      let lastHeadingDeg: number | null = null;
       let userPoint: ProjectedPoint | null = null;
 
       const root = document.createElement("div");
@@ -86,8 +87,14 @@ export function createLightweightNavigationMapEngine(): MapEngine {
         );
       }
 
-      function applyUserLocation(coordinates: Coordinates | null) {
+      function applyUserLocation(
+        coordinates: Coordinates | null,
+        headingDeg?: number | null,
+      ) {
         lastUser = coordinates;
+        if (typeof headingDeg === "number" && Number.isFinite(headingDeg)) {
+          lastHeadingDeg = ((headingDeg % 360) + 360) % 360;
+        }
         userPoint = coordinates ? project(coordinates, viewModel) : null;
         if (!userPoint) {
           userMarker.setAttribute("visibility", "hidden");
@@ -95,9 +102,13 @@ export function createLightweightNavigationMapEngine(): MapEngine {
           return;
         }
         userMarker.setAttribute("visibility", "visible");
+        const heading =
+          lastHeadingDeg != null && Number.isFinite(lastHeadingDeg)
+            ? lastHeadingDeg
+            : 0;
         userMarker.setAttribute(
           "transform",
-          `translate(${userPoint.x} ${userPoint.y})`,
+          `translate(${userPoint.x} ${userPoint.y}) rotate(${heading})`,
         );
         updateFollowView();
       }
@@ -136,17 +147,24 @@ export function createLightweightNavigationMapEngine(): MapEngine {
           }
           applyViewModel(next);
         },
-        setUserLocation(coordinates) {
+        setUserLocation(coordinates, headingDeg) {
           if (disposed) {
             return;
           }
-          applyUserLocation(coordinates);
+          applyUserLocation(coordinates, headingDeg);
+        },
+        setFollowUser(enabled) {
+          if (disposed) {
+            return;
+          }
+          followUser = enabled;
+          updateFollowView();
         },
         recenter() {
           if (disposed) {
             return;
           }
-          followUser = Boolean(userPoint);
+          followUser = true;
           updateFollowView();
         },
         resize() {},

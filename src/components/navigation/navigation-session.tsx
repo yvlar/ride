@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import type { LocationWatch } from "@/domain/location/types";
 import {
   evaluateNavigationProgress,
+  navigationDisplayHeading,
+  navigationDisplayLocation,
 } from "@/domain/navigation/progress";
 import {
   emptyOffRouteTracker,
@@ -49,7 +51,10 @@ export type NavigationSessionProps = {
   now?: () => number;
   mapEngine?: NavigationMapProps["engine"];
   renderMap?: boolean;
-  onUserLocation?: (point: Coordinates | null) => void;
+  onUserLocation?: (
+    point: Coordinates | null,
+    headingDeg?: number | null,
+  ) => void;
   onRecenter?: () => void;
   wakeLock?: ScreenWakeLock;
 };
@@ -92,6 +97,7 @@ export function NavigationSession({
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [headingDeg, setHeadingDeg] = useState<number | null>(null);
 
   const progressRef = useRef<number | null>(null);
   const offRouteRef = useRef(emptyOffRouteTracker());
@@ -381,10 +387,6 @@ export function NavigationSession({
         }
         setGpsError(null);
         setAccuracyMeters(event.fix.accuracyMeters);
-        setUserLocation(event.fix.coordinates);
-        userLocationRef.current = event.fix.coordinates;
-        headingRef.current = event.fix.headingDeg ?? null;
-        onUserLocationRef.current?.(event.fix.coordinates);
 
         const active = routeRef.current;
         const evaluated = evaluateNavigationProgress({
@@ -395,6 +397,21 @@ export function NavigationSession({
           totalDurationMinutes: active.durationMinutes,
           previousProgressKm: progressRef.current,
         });
+        const display = navigationDisplayLocation({
+          fix: event.fix.coordinates,
+          progress: evaluated,
+        });
+        const heading = navigationDisplayHeading({
+          gpsHeadingDeg: event.fix.headingDeg,
+          geometry: active.geometry,
+          segmentIndex: evaluated?.projection.segmentIndex,
+        });
+        setUserLocation(display);
+        userLocationRef.current = display;
+        headingRef.current = heading;
+        setHeadingDeg(heading);
+        onUserLocationRef.current?.(display, heading);
+
         if (!evaluated) {
           return;
         }
@@ -480,6 +497,7 @@ export function NavigationSession({
           <NavigationMap
             route={currentRoute}
             userLocation={userLocation}
+            headingDeg={headingDeg}
             engine={mapEngine}
             onRecenterReady={(recenter) => {
               recenterRef.current = recenter;
