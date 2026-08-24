@@ -1,11 +1,13 @@
 import {
   haversineKm,
+  initialBearingDeg,
   lineStringLengthKm,
   positionToCoordinates,
 } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import {
   LOW_ACCURACY_LIMIT_M,
+  OFF_ROUTE_MIN_THRESHOLD_M,
   PROGRESS_HYSTERESIS_M,
   PROGRESS_MATCH_PENALTY_M_PER_KM,
 } from "./constants";
@@ -208,6 +210,50 @@ export function evaluateNavigationProgress(input: {
     remainingDurationMinutes: remaining.remainingDurationMinutes,
     lowAccuracy,
   };
+}
+
+/**
+ * Map / CarPlay puck: keep the rider on the traced route while GPS is usable
+ * and still on the corridor (FR-024).
+ */
+export function navigationDisplayLocation(input: {
+  fix: Coordinates;
+  progress: NavigationProgress | null;
+}): Coordinates {
+  if (!input.progress || input.progress.lowAccuracy) {
+    return input.fix;
+  }
+  if (input.progress.projection.distanceToRouteM > OFF_ROUTE_MIN_THRESHOLD_M) {
+    return input.fix;
+  }
+  return input.progress.projection.snapped;
+}
+
+/**
+ * Prefer GPS heading, otherwise the bearing of the active route segment so
+ * the camera can follow the trace (FR-024, FR-028).
+ */
+export function navigationDisplayHeading(input: {
+  gpsHeadingDeg: number | null | undefined;
+  geometry: LineString;
+  segmentIndex: number | null | undefined;
+}): number | null {
+  const gps = input.gpsHeadingDeg;
+  if (typeof gps === "number" && Number.isFinite(gps)) {
+    return ((gps % 360) + 360) % 360;
+  }
+  if (input.segmentIndex == null || input.segmentIndex < 0) {
+    return null;
+  }
+  const from = input.geometry.coordinates[input.segmentIndex];
+  const to = input.geometry.coordinates[input.segmentIndex + 1];
+  if (!from || !to) {
+    return null;
+  }
+  return initialBearingDeg(
+    positionToCoordinates(from),
+    positionToCoordinates(to),
+  );
 }
 
 function closestPointOnSegment(

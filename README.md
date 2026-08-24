@@ -244,7 +244,7 @@ Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste
 
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
-La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal `speechSynthesis` et recalcul hors trajet. Elle exige que l’application reste ouverte au premier plan. La localisation en arrière-plan, l’écran verrouillé, la navigation hors ligne, Android Auto, Apple CarPlay et l’export GPX restent hors périmètre.
+La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Sur le web et l’iPhone, elle exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). La localisation en arrière-plan (permission Always), la navigation hors ligne, Android Auto et l’export GPX restent hors périmètre.
 
 La coque iOS Capacitor (`FR-027`) encapsule la même application web. Le domaine et les API Next.js ne changent pas. Ce dépôt fournit le projet Xcode dans `ios/` ; la compilation, le simulateur et TestFlight exigent macOS et Xcode. Cet environnement Linux ne produit pas d’IPA.
 
@@ -273,7 +273,22 @@ Prérequis sur un Mac : Xcode, CocoaPods, un iPhone simulateur ou physique.
 
 `Info.plist` autorise uniquement le réseau local (`NSAllowsLocalNetworking`) pour un `CAPACITOR_SERVER_URL` en `http://` sur le LAN. ATS reste actif pour Internet. Une origine `https://` de production n’a pas besoin de cleartext.
 
-Sans `CAPACITOR_SERVER_URL`, l’app affiche le placeholder `public/index.html`. Android, la publication App Store et une réécriture Swift / React Native restent hors MVP.
+Sans `CAPACITOR_SERVER_URL`, l’app affiche le placeholder `public/index.html`. Android, la publication App Store et une réécriture Swift / React Native de l’app iPhone restent hors MVP.
+
+### Apple CarPlay (FR-028)
+
+Après **Démarrer la navigation**, Ride affiche la session sur CarPlay si un écran véhicule est connecté. Le WebView n’est pas mirroiré : une scène native `CPMapTemplate` dessine le tracé (MapKit) et lit le guidage via une synthèse locale.
+
+Cet environnement Linux ne compile pas Xcode et ne lance pas le simulateur CarPlay.
+
+Sur un Mac, après `npx cap sync ios` et l’ouverture Xcode :
+
+1. Demander l’entitlement Navigation CarPlay (`com.apple.developer.carplay-maps`) via [developer.apple.com/contact/carplay](https://developer.apple.com/contact/carplay/). Sans cette approbation Apple, l’icône n’apparaît pas dans CarPlay.
+2. I/O → External Displays → CarPlay du simulateur iOS, ou un véhicule compatible.
+3. Générer un trajet dans Ride, puis **Démarrer la navigation**.
+4. Vérifier la bannière de manœuvre, le tracé, l’ETA, Muet / Recentrer, et que la session continue si l’iPhone est verrouillé tant que CarPlay reste connecté.
+
+Le guidage iPhone reste `speechSynthesis`. Lorsque CarPlay possède la voix, l’iPhone ne double pas l’annonce.
 
 Le cahier des charges technique est dans `CURSOR.md`.
 

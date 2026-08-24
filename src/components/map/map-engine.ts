@@ -6,12 +6,17 @@ export const MAP_UNAVAILABLE_MESSAGE =
 
 export type MapEngineHandle = {
   destroy: () => void;
-  setUserLocation?: (coordinates: Coordinates | null) => void;
+  setUserLocation?: (
+    coordinates: Coordinates | null,
+    headingDeg?: number | null,
+  ) => void;
   recenter?: () => void;
   setViewModel?: (viewModel: RideMapViewModel) => void;
   resize?: () => void;
   /** Preview GPS (FR-022). False during navigation so only LocationWatch stays (NFR-006). */
   setGeolocateEnabled?: (enabled: boolean) => void;
+  /** Keep the camera on the rider after GeolocateControl is torn down (FR-024). */
+  setFollowUser?: (enabled: boolean) => void;
 };
 
 export type MapEngineHandlers = {

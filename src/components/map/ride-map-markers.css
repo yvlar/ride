@@ -20,6 +20,35 @@
   filter: drop-shadow(0 0 2px #0f172a);
 }
 
+.ride-map-user-puck {
+  width: 22px;
+  height: 28px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.ride-map-user-puck-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px rgb(56 189 248 / 0.4);
+}
+
+.ride-map-user-puck-icon::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 7px solid #38bdf8;
+}
+
 .maplibregl-ctrl-geolocate {
   min-width: 44px;
   min-height: 44px;

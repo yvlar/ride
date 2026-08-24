@@ -38,9 +38,10 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 9. régénérer une variante sensiblement différente;
 10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`);
 11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`);
-12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier.
+12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier;
+13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`).
 
-Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan.
+Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan sur l’iPhone, sauf exception CarPlay (`FR-028`).
 
 ---
 
@@ -325,6 +326,7 @@ Le parcours MVP est le suivant :
 10. Régénérer si le trajet ne convient pas (`FR-012`).
 11. Activer au besoin le suivi GPS de premier plan sur la carte (`FR-022`).
 12. Démarrer une navigation de premier plan si le trajet convient (`FR-023`, `FR-024`, `FR-025`, `FR-026`).
+13. Si un écran CarPlay est connecté, y afficher la session déjà démarrée (`FR-028`).
 
 Le flux de configuration doit pouvoir être accompli avec un minimum de réglages (`NFR-002`) et **avant** de prendre la route (`NFR-004`). La navigation virage par virage, une fois démarrée, reste limitée à des actions simples pendant que la moto roule (`NFR-006`).
 
@@ -474,7 +476,7 @@ Ce pipeline est un détail d’infrastructure. Il ne constitue pas une fonctionn
 
 ## 14. Navigation virage par virage de premier plan
 
-La navigation assistée fait partie du contrat fonctionnel, **uniquement au premier plan**. Elle ne prétend pas fonctionner lorsque l’écran est verrouillé ou que l’application est suspendue.
+La navigation assistée fait partie du contrat fonctionnel. Sur l’iPhone et le web, elle reste **limitée au premier plan** : elle ne prétend pas fonctionner lorsque l’écran est verrouillé ou que l’application est suspendue. L’unique exception est une session CarPlay connectée (`FR-028`).
 
 ### FR-023 — Démarrage et arrêt d’une navigation
 
@@ -485,8 +487,8 @@ Le démarrage :
 - n’a lieu qu’après une action explicite de l’utilisateur;
 - n’active le suivi GPS (`watchPosition`) qu’à ce moment;
 - n’active le guidage vocal qu’après cette action;
-- réutilise **une seule** souscription de localisation pour la carte et la navigation;
-- affiche clairement que l’application doit rester ouverte au premier plan.
+- réutilise **une seule** souscription de localisation pour la carte, la navigation et l’afficheur CarPlay (`FR-028`);
+- affiche clairement que, hors CarPlay, l’application iPhone doit rester ouverte au premier plan.
 
 L’arrêt, le retour à l’écran résultat ou le démontage :
 
@@ -524,7 +526,7 @@ La progression est calculée localement sur la géométrie. Une hystérésis év
 
 ### FR-025 — Guidage vocal
 
-Le guidage vocal utilise uniquement l’API Web Speech `speechSynthesis` du navigateur.
+Le guidage vocal du **web et de l’iPhone** utilise l’API Web Speech `speechSynthesis` du navigateur. L’adaptateur CarPlay (`FR-028`) utilise une synthèse native locale vers les haut-parleurs du véhicule. Les deux chemins prononcent le **même** texte, calculé dans le domaine ; ils ne se superposent pas.
 
 Contraintes :
 
@@ -532,6 +534,7 @@ Contraintes :
 - aucun enregistrement audio;
 - voix préférée `fr-CA`, puis `fr-FR`, puis une autre voix française, puis la voix disponible avec le texte français;
 - si `speechSynthesis` est indisponible, la navigation visuelle continue;
+- si CarPlay possède la voix, `speechSynthesis` reste muet pour cette session;
 - l’utilisateur peut couper et réactiver le son;
 - chaque seuil d’annonce n’est prononcé qu’une fois par manœuvre.
 
@@ -590,25 +593,27 @@ Un recalcul (`FR-026`) conserve le type de trajet, le style (`FR-004`, `FR-005`,
 
 ### NFR-006 — Navigation sécuritaire de premier plan
 
-La navigation est conçue pour un smartphone tenu ou fixé, application ouverte. Elle :
+La navigation iPhone est conçue pour un smartphone tenu ou fixé, application ouverte. Elle :
 
 - utilise des cibles tactiles d’au moins 48 × 48 px;
 - évite toute configuration complexe pendant que la moto roule;
 - n’utilise qu’une seule souscription `watchPosition()` à la fois, avec `enableHighAccuracy` et `maximumAge: 0`;
-- nettoie toujours cette souscription à l’arrêt ou au démontage;
+- nettoie toujours cette souscription à l’arrêt, au démontage, ou lorsque l’app passe en arrière-plan **sans** scène CarPlay connectée;
 - n’envoie une position au serveur que pour un recalcul réellement nécessaire;
 - ne journalise aucune coordonnée;
 - ne sauvegarde aucune position GPS;
 - ne demande aucune permission de localisation en arrière-plan;
-- ne prétend pas fonctionner écran verrouillé ou application suspendue.
+- ne prétend pas fonctionner écran verrouillé ou application suspendue, **sauf** tant qu’une scène CarPlay reste connectée (`FR-028`).
 
 Une erreur de carte, de voix ou de GPS ne doit pas provoquer une boucle de requêtes.
 
+Le mode d’arrière-plan `audio` n’est autorisé que pour le guidage vocal CarPlay. Il ne constitue pas une autorisation de suivi GPS en arrière-plan.
+
 ### NFR-007 — Conteneur natif remplaçable
 
-La coque iOS (`FR-027`) est un **détail d’infrastructure**. Capacitor, WKWebView, les plugins de localisation, de barre de statut ou de verrouillage d’écran ne doivent pas apparaître dans le domaine.
+La coque iOS (`FR-027`) et la scène CarPlay (`FR-028`) sont des **détails d’infrastructure**. Capacitor, WKWebView, CarPlay, MapKit, les plugins de localisation, de barre de statut ou de verrouillage d’écran ne doivent pas apparaître dans le domaine.
 
-Un remplacement du conteneur (autre WebView, autre pont natif) ne doit pas obliger à réécrire les règles métier, le générateur ou le calcul de navigation (`BR-004`, `NFR-003`).
+Un remplacement du conteneur (autre WebView, autre pont natif, autre template véhicule) ne doit pas obliger à réécrire les règles métier, le générateur ou le calcul de navigation (`BR-004`, `NFR-003`).
 
 ### FR-027 — Coque iOS
 
@@ -618,11 +623,33 @@ La coque :
 
 - expose le même flux que le web (`FR-014` à `FR-016`);
 - réutilise la même carte, le même GPS de premier plan et la même navigation (`FR-013`, `FR-022` à `FR-026`);
+- peut exposer cette navigation sur CarPlay via un adaptateur natif (`FR-028`);
 - demande uniquement la localisation **lorsque l’app est utilisée** (`NSLocationWhenInUseUsageDescription`);
 - n’active aucun mode d’arrière-plan de localisation;
-- ne prétend pas fonctionner écran verrouillé, en arrière-plan ou hors ligne.
+- ne prétend pas fonctionner écran verrouillé, en arrière-plan ou hors ligne, hors exception CarPlay (`FR-028`).
 
-Le guidage vocal reste `speechSynthesis` (`FR-025`). Pendant une navigation démarrée (`FR-023`), la coque peut empêcher la mise en veille de l’écran tant que l’app reste au premier plan (`NFR-006`). Safari et l’ordinateur conservent les adaptateurs navigateur existants.
+Le guidage vocal iPhone reste `speechSynthesis` (`FR-025`). Pendant une navigation démarrée (`FR-023`), la coque peut empêcher la mise en veille de l’écran tant que l’app reste au premier plan (`NFR-006`). Safari et l’ordinateur conservent les adaptateurs navigateur existants.
+
+### FR-028 — Navigation CarPlay
+
+Après une action **Démarrer la navigation** (`FR-023`), si un écran Apple CarPlay est connecté, Ride y affiche la session déjà en mémoire. CarPlay n’est pas un second moteur de navigation : c’est un **afficheur et un chemin audio** alimentés par le même calcul de progression, de manœuvre et de hors-trajet (`FR-024`, `FR-026`).
+
+L’écran CarPlay et l’écran iPhone partagent le même chrome, calqué sur une navigation carte type Google Maps, sans reprendre la marque ni le SDK Google (`BR-004`) :
+
+- carte plein écran, pastille de position avec cap, tracé du trajet;
+- bannière de prochaine manœuvre (flèche, distance, nom ou numéro de route);
+- barre d’arrivée (distance restante, durée restante, heure d’arrivée estimée);
+- actions simples uniquement : couper le son, recentrer, arrêter (`NFR-004`, `NFR-006`).
+
+Hors portée de `FR-028` : Street View, trafic, limitations de vitesse, guidage de voies, Siri, recherche d’adresse ou génération de trajet depuis le tableau de bord, Android Auto.
+
+Tant que la scène CarPlay reste connectée :
+
+- le suivi GPS et le guidage vocal de la session en cours peuvent continuer si l’iPhone est verrouillé;
+- aucune permission de localisation en arrière-plan n’est demandée;
+- à la déconnexion, les règles de premier plan iPhone (`NFR-006`, `FR-027`) s’appliquent à nouveau.
+
+Le WebView Capacitor n’est pas affiché sur CarPlay. L’adaptateur natif (template de carte et synthèse vocale locale) reste hors du domaine (`NFR-007`). L’entitlement Apple Navigation (`com.apple.developer.carplay-maps`) et la compilation Xcode / simulateur CarPlay exigent un Mac et une demande Apple ; ce dépôt fournit le code et la configuration, pas l’approbation.
 
 ---
 
@@ -639,15 +666,15 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - automatisation des arrêts carburant;
 - import / export GPX;
 - intégration Garmin, Google Maps ou Apple Maps;
-- localisation en arrière-plan;
-- fonctionnement avec écran verrouillé;
+- localisation en arrière-plan (permission Always / mode `location`);
+- fonctionnement avec écran verrouillé **sans** scène CarPlay connectée;
 - navigation hors ligne;
 - alertes de circulation;
 - limites de vitesse;
 - alertes police ou dangers;
 - données communautaires;
-- Android Auto et Apple CarPlay;
-- réécriture native Swift, SwiftUI, React Native ou Expo;
+- Android Auto;
+- réécriture native Swift, SwiftUI, React Native ou Expo de l’application iPhone;
 - application Android;
 - publication App Store ou TestFlight (le dépôt fournit le projet Xcode);
 - partage de position;
@@ -680,10 +707,11 @@ Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 9. mode « Surprise me »;
 10. comptes, synchronisation et partage;
 11. styles adventure et découverte;
-12. navigation hors ligne, arrière-plan ou écran verrouillé;
+12. navigation hors ligne, arrière-plan ou écran verrouillé hors CarPlay;
 13. application Android;
 14. publication App Store;
-15. réécriture de l’interface en Swift ou React Native.
+15. réécriture de l’interface iPhone en Swift ou React Native;
+16. Android Auto.
 
 Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre à jour cette spécification, puis le code, puis les tests.
 
@@ -722,6 +750,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-025` | Guidage vocal |
 | `FR-026` | Détection hors trajet et recalcul |
 | `FR-027` | Coque iOS |
+| `FR-028` | Navigation CarPlay |
 
 ### Règles métier
 

@@ -11,7 +11,10 @@ import type { RideMapViewModel } from "./ride-map-view-model";
 export type { NavigationBrowserPlatform };
 
 export type NavigationMapHandle = MapEngineHandle & {
-  setUserLocation: (coordinates: Coordinates | null) => void;
+  setUserLocation: (
+    coordinates: Coordinates | null,
+    headingDeg?: number | null,
+  ) => void;
   recenter: () => void;
   setViewModel: (viewModel: RideMapViewModel) => void;
 };
@@ -59,8 +62,8 @@ export function createNavigationMapEngine(
       const handle = base.mount(container, viewModel, handlers);
       return {
         destroy: handle.destroy,
-        setUserLocation(coordinates) {
-          handle.setUserLocation?.(coordinates);
+        setUserLocation(coordinates, headingDeg) {
+          handle.setUserLocation?.(coordinates, headingDeg);
         },
         recenter() {
           handle.recenter?.();
@@ -73,6 +76,9 @@ export function createNavigationMapEngine(
         },
         setGeolocateEnabled(enabled) {
           handle.setGeolocateEnabled?.(enabled);
+        },
+        setFollowUser(enabled) {
+          handle.setFollowUser?.(enabled);
         },
       };
     },

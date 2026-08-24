@@ -30,6 +30,7 @@ function stubEngine() {
   const handle: MapEngineHandle = {
     destroy: vi.fn(),
     setUserLocation: vi.fn(),
+    setFollowUser: vi.fn(),
     recenter: vi.fn(),
     setViewModel: vi.fn(),
   };
@@ -61,13 +62,18 @@ describe("createNavigationMapEngine (FR-023, NFR-006)", () => {
     const handle = engine.mount(document.createElement("div"), viewModel, {
       onError: vi.fn(),
     });
-    handle.setUserLocation({ latitude: 45.4, longitude: -72.7 });
+    handle.setUserLocation({ latitude: 45.4, longitude: -72.7 }, 90);
+    handle.setFollowUser?.(true);
     handle.setViewModel(viewModel);
     handle.recenter();
     handle.destroy();
 
     expect(mapLibre.mount).toHaveBeenCalledTimes(1);
-    expect(mapLibre.handle.setUserLocation).toHaveBeenCalledTimes(1);
+    expect(mapLibre.handle.setUserLocation).toHaveBeenCalledWith(
+      { latitude: 45.4, longitude: -72.7 },
+      90,
+    );
+    expect(mapLibre.handle.setFollowUser).toHaveBeenCalledWith(true);
     expect(mapLibre.handle.setViewModel).toHaveBeenCalledTimes(1);
     expect(mapLibre.handle.recenter).toHaveBeenCalledTimes(1);
     expect(mapLibre.handle.destroy).toHaveBeenCalledTimes(1);

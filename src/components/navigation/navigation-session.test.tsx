@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { LocationWatch, LocationWatchEvent } from "@/domain/location/types";
 import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
+import type { CarPlayDisplay } from "@/infrastructure/carplay/carplay-display";
+import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
 import { NavigationSession } from "./navigation-session";
 
 const route: GeneratedLoopRoute = {
@@ -104,6 +106,29 @@ function stubMapEngine() {
       recenter: vi.fn(),
       setViewModel: vi.fn(),
     })),
+  };
+}
+
+function stubCarPlay() {
+  const listeners = new Set<(event: CarPlayDisplayEvent) => void>();
+  const display: CarPlayDisplay = {
+    start: vi.fn(async () => ({ connected: false, ownsVoice: false })),
+    update: vi.fn(async () => {}),
+    stop: vi.fn(async () => {}),
+    subscribe: vi.fn((listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }),
+  };
+  return {
+    display,
+    emit(event: CarPlayDisplayEvent) {
+      for (const listener of listeners) {
+        listener(event);
+      }
+    },
   };
 }
 
@@ -401,14 +426,59 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       },
     });
     await waitFor(() => {
-      expect(onUserLocation).toHaveBeenCalledWith({
-        latitude: 45.4,
-        longitude: -72.7,
-      });
+      expect(onUserLocation).toHaveBeenCalledWith(
+        {
+          latitude: 45.4,
+          longitude: -72.7,
+        },
+        expect.closeTo(90, 0),
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
     expect(onRecenter).toHaveBeenCalledTimes(1);
+  });
+
+  it("projects the shared map puck onto the route (FR-024)", async () => {
+    const { watch, emit } = createWatch();
+    const onUserLocation = vi.fn();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        mapEngine={{ mount: vi.fn() }}
+        renderMap={false}
+        onUserLocation={onUserLocation}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.40018, longitude: -72.69 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(onUserLocation).toHaveBeenCalled();
+    });
+    const [point, heading] = onUserLocation.mock.calls.at(-1)!;
+    expect(point).toEqual(
+      expect.objectContaining({
+        longitude: expect.closeTo(-72.69, 4),
+        latitude: expect.closeTo(45.4, 4),
+      }),
+    );
+    expect(point).not.toEqual({
+      latitude: 45.40018,
+      longitude: -72.69,
+    });
+    expect(heading).toEqual(expect.closeTo(90, 0));
   });
 
   it("holds the screen awake only while the session is mounted (FR-023, FR-027)", () => {
@@ -427,5 +497,360 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(wakeLock.acquire).toHaveBeenCalledTimes(1);
     unmount();
     expect(wakeLock.release).toHaveBeenCalled();
+  });
+
+  it("starts the CarPlay display and stops it on unmount (FR-028)", async () => {
+    const carPlay = stubCarPlay();
+    const { unmount } = render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={createWatch().watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(carPlay.display.start).toHaveBeenCalledTimes(1);
+    });
+    expect(carPlay.display.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routeId: "loop-1",
+        cancelSpeech: false,
+        coordinates: [
+          { latitude: 45.4, longitude: -72.7 },
+          { latitude: 45.4, longitude: -72.68 },
+        ],
+        muted: false,
+      }),
+    );
+    unmount();
+    expect(carPlay.display.stop).toHaveBeenCalled();
+  });
+
+  it("keeps the GPS watch while hidden if CarPlay is connected (FR-028, NFR-006)", async () => {
+    const helper = createWatch();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+    carPlay.emit({ type: "connection", connected: true });
+    expect(helper.native).toBe(1);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => {
+      expect(screen.getByText("Navigation active sur CarPlay.")).toBeInTheDocument();
+    });
+    expect(helper.native).toBe(1);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+
+  it("lets CarPlay own the voice so speechSynthesis does not double-announce (FR-025, FR-028)", async () => {
+    const { watch, emit } = createWatch();
+    const speech = stubSpeech();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+    carPlay.emit({ type: "connection", connected: true });
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        headingDeg: 90,
+        recordedAtMs: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(carPlay.display.update).toHaveBeenCalled();
+    });
+    expect(speech.speak).not.toHaveBeenCalled();
+    expect(carPlay.display.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headingDeg: 90,
+        userLocation: { latitude: 45.4, longitude: -72.7 },
+        maneuver: expect.objectContaining({
+          maneuverType: "turn",
+          modifier: "right",
+        }),
+      }),
+    );
+  });
+
+  it("replays the current maneuver on CarPlay when the vehicle takes voice (FR-025, FR-028)", async () => {
+    const { watch, emit } = createWatch();
+    const speech = stubSpeech();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.683 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(speech.speak).toHaveBeenCalled();
+    });
+    const spoken = speech.speak.mock.calls[0]?.[0];
+    speech.speak.mockClear();
+    carPlay.emit({ type: "connection", connected: true });
+
+    expect(speech.cancel).toHaveBeenCalled();
+    expect(speech.speak).not.toHaveBeenCalled();
+    expect(carPlay.display.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        speakText: spoken,
+      }),
+    );
+
+    vi.mocked(carPlay.display.update).mockClear();
+    carPlay.emit({ type: "connection", connected: true });
+    expect(
+      vi.mocked(carPlay.display.update).mock.calls.filter(
+        ([snapshot]) => snapshot.speakText,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("subscribes to CarPlay before starting so connection events are not missed (FR-028)", async () => {
+    const order: string[] = [];
+    const carPlay = stubCarPlay();
+    const originalSubscribe = carPlay.display.subscribe;
+    const originalStart = carPlay.display.start;
+    carPlay.display.subscribe = vi.fn((listener) => {
+      order.push("subscribe");
+      return originalSubscribe(listener);
+    });
+    carPlay.display.start = vi.fn(async (snapshot) => {
+      order.push("start");
+      return originalStart(snapshot);
+    });
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={createWatch().watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(order).toEqual(["subscribe", "start"]);
+    });
+  });
+
+  it("applies CarPlay mute to the next GPS snapshot (FR-025, FR-028)", async () => {
+    const { watch, emit } = createWatch();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+    carPlay.emit({ type: "mute", muted: true });
+    await waitFor(() => {
+      expect(carPlay.display.update).toHaveBeenCalledWith(
+        expect.objectContaining({ muted: true }),
+      );
+    });
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(carPlay.display.update).toHaveBeenCalledWith(
+        expect.objectContaining({ muted: true }),
+      );
+    });
+  });
+
+  it("cancels iPhone speech when CarPlay connects (FR-025, FR-028)", async () => {
+    const speech = stubSpeech();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={createWatch().watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+    speech.cancel.mockClear();
+    carPlay.emit({ type: "connection", connected: true });
+    expect(speech.cancel).toHaveBeenCalled();
+  });
+
+  it("stops navigation from CarPlay and ignores later GPS updates (FR-028)", async () => {
+    const { watch, emit } = createWatch();
+    const onStop = vi.fn();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={onStop}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+    carPlay.emit({ type: "stop" });
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(carPlay.display.stop).toHaveBeenCalled();
+    const updatesAfterStop = vi.mocked(carPlay.display.update).mock.calls.length;
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    expect(carPlay.display.update).toHaveBeenCalledTimes(updatesAfterStop);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks CarPlay to cancel speech when a recalculate starts (FR-026, FR-028)", async () => {
+    const { watch, emit } = createWatch();
+    const carPlay = stubCarPlay();
+    let nowMs = 1_000;
+    let finishRecalculate!: (value: { ok: true; route: typeof route }) => void;
+    const recalculate = vi.fn(
+      () =>
+        new Promise<{ ok: true; route: typeof route }>((resolve) => {
+          finishRecalculate = resolve;
+        }),
+    );
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        recalculate={recalculate}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+        now={() => nowMs}
+      />,
+    );
+
+    const offRouteFix = {
+      type: "fix" as const,
+      fix: {
+        coordinates: { latitude: 45.5, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    };
+    emit(offRouteFix);
+    nowMs = 2_000;
+    emit(offRouteFix);
+    nowMs = 3_000;
+    emit(offRouteFix);
+    nowMs = 9_000;
+    emit(offRouteFix);
+
+    await waitFor(() => {
+      expect(recalculate).toHaveBeenCalled();
+    });
+    expect(carPlay.display.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routeId: "loop-1",
+        cancelSpeech: true,
+        speakText: null,
+      }),
+    );
+
+    finishRecalculate({
+      ok: true,
+      route: { ...route, id: "loop-2" },
+    });
+    await waitFor(() => {
+      expect(carPlay.display.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          routeId: "loop-2",
+          cancelSpeech: false,
+        }),
+      );
+    });
   });
 });

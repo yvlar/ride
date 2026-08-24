@@ -34,6 +34,7 @@ describe("NavigationMap (FR-023, FR-026, NFR-006)", () => {
     const mount = vi.fn(() => ({
       destroy,
       setUserLocation: vi.fn(),
+      setFollowUser: vi.fn(),
       recenter: vi.fn(),
       setViewModel,
     }));

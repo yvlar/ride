@@ -15,6 +15,7 @@ export type RideMapProps = {
   route: GeneratedRideRoute;
   engine?: MapEngine;
   userLocation?: Coordinates | null;
+  headingDeg?: number | null;
   expanded?: boolean;
   onRecenterReady?: (recenter: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
@@ -24,6 +25,7 @@ export function RideMap({
   route,
   engine,
   userLocation,
+  headingDeg = null,
   expanded = false,
   onRecenterReady,
   onGeolocateReady,
@@ -34,6 +36,7 @@ export function RideMap({
   const onRecenterReadyRef = useRef(onRecenterReady);
   const onGeolocateReadyRef = useRef(onGeolocateReady);
   const userLocationRef = useRef(userLocation);
+  const headingDegRef = useRef(headingDeg);
   const expandedRef = useRef(expanded);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -60,6 +63,10 @@ export function RideMap({
   useEffect(() => {
     userLocationRef.current = userLocation;
   }, [userLocation]);
+
+  useEffect(() => {
+    headingDegRef.current = headingDeg;
+  }, [headingDeg]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -100,8 +107,12 @@ export function RideMap({
         if (latest !== initial) {
           handle.setViewModel?.(latest);
         }
-        handle.setUserLocation?.(userLocationRef.current ?? null);
+        handle.setUserLocation?.(
+          userLocationRef.current ?? null,
+          headingDegRef.current,
+        );
         handle.setGeolocateEnabled?.(!expandedRef.current);
+        handle.setFollowUser?.(expandedRef.current);
         onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onGeolocateReadyRef.current?.((enabled) => {
           handle?.setGeolocateEnabled?.(enabled);
@@ -134,8 +145,12 @@ export function RideMap({
           if (latest !== initial) {
             handle.setViewModel?.(latest);
           }
-          handle.setUserLocation?.(userLocationRef.current ?? null);
+          handle.setUserLocation?.(
+            userLocationRef.current ?? null,
+            headingDegRef.current,
+          );
           handle.setGeolocateEnabled?.(!expandedRef.current);
+          handle.setFollowUser?.(expandedRef.current);
           onRecenterReadyRef.current?.(() => handle?.recenter?.());
           onGeolocateReadyRef.current?.((enabled) => {
             handle?.setGeolocateEnabled?.(enabled);
@@ -169,11 +184,12 @@ export function RideMap({
   }, [viewModel]);
 
   useEffect(() => {
-    handleRef.current?.setUserLocation?.(userLocation ?? null);
-  }, [userLocation]);
+    handleRef.current?.setUserLocation?.(userLocation ?? null, headingDeg);
+  }, [userLocation, headingDeg]);
 
   useLayoutEffect(() => {
     handleRef.current?.setGeolocateEnabled?.(!expanded);
+    handleRef.current?.setFollowUser?.(expanded);
     const frame = requestAnimationFrame(() => {
       handleRef.current?.resize?.();
     });

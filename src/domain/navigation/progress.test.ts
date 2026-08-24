@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
 import {
   evaluateNavigationProgress,
+  navigationDisplayHeading,
+  navigationDisplayLocation,
   projectOnRoute,
   selectNextStep,
   stabilizeProgressKm,
@@ -159,5 +161,116 @@ describe("evaluateNavigationProgress low accuracy (FR-024)", () => {
       previousProgressKm: first?.projection.progressKm ?? 0.2,
     });
     expect(second?.projection.progressKm).toBeCloseTo(2, 1);
+  });
+});
+
+describe("navigationDisplayLocation (FR-024)", () => {
+  const steps = [step("depart", "depart", 2), step("arrive", "arrive", 0)];
+
+  it("snaps the puck onto the route when GPS is usable and on the corridor", () => {
+    const onRoute = offsetCoordinates(origin, 90, 0.5);
+    const parallel = offsetCoordinates(onRoute, 0, 0.02);
+    const progress = evaluateNavigationProgress({
+      fix: {
+        coordinates: parallel,
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+      geometry,
+      steps,
+      totalDistanceKm: 2,
+      totalDurationMinutes: 4,
+      previousProgressKm: null,
+    });
+
+    const display = navigationDisplayLocation({
+      fix: parallel,
+      progress,
+    });
+    expect(display.latitude).toBeCloseTo(onRoute.latitude, 4);
+    expect(display.longitude).toBeCloseTo(onRoute.longitude, 4);
+    expect(display).not.toEqual(parallel);
+  });
+
+  it("keeps raw GPS when the rider is far off the route", () => {
+    const far = offsetCoordinates(origin, 0, 0.2);
+    const progress = evaluateNavigationProgress({
+      fix: {
+        coordinates: far,
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+      geometry,
+      steps,
+      totalDistanceKm: 2,
+      totalDurationMinutes: 4,
+      previousProgressKm: null,
+    });
+
+    expect(
+      navigationDisplayLocation({
+        fix: far,
+        progress,
+      }),
+    ).toEqual(far);
+  });
+
+  it("keeps raw GPS when accuracy is too low", () => {
+    const parallel = offsetCoordinates(
+      offsetCoordinates(origin, 90, 0.5),
+      0,
+      0.02,
+    );
+    const progress = evaluateNavigationProgress({
+      fix: {
+        coordinates: parallel,
+        accuracyMeters: 180,
+        recordedAtMs: 1,
+      },
+      geometry,
+      steps,
+      totalDistanceKm: 2,
+      totalDurationMinutes: 4,
+      previousProgressKm: 0.2,
+    });
+
+    expect(progress?.lowAccuracy).toBe(true);
+    expect(
+      navigationDisplayLocation({
+        fix: parallel,
+        progress,
+      }),
+    ).toEqual(parallel);
+  });
+});
+
+describe("navigationDisplayHeading (FR-024, FR-028)", () => {
+  it("prefers a finite GPS heading", () => {
+    expect(
+      navigationDisplayHeading({
+        gpsHeadingDeg: 92,
+        geometry,
+        segmentIndex: 0,
+      }),
+    ).toBe(92);
+  });
+
+  it("normalizes a wrapped GPS heading", () => {
+    expect(
+      navigationDisplayHeading({
+        gpsHeadingDeg: -10,
+        geometry,
+        segmentIndex: 0,
+      }),
+    ).toBe(350);
+  });
+
+  it("falls back to the active segment bearing", () => {
+    const heading = navigationDisplayHeading({
+      gpsHeadingDeg: null,
+      geometry,
+      segmentIndex: 0,
+    });
+    expect(heading).toBeCloseTo(90, 0);
   });
 });
