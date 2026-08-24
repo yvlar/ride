@@ -17,6 +17,7 @@ export type CarPlayManeuverSnapshot = {
 };
 
 export type CarPlaySessionSnapshot = {
+  routeId: string;
   coordinates: CarPlayCoordinate[];
   userLocation: CarPlayCoordinate | null;
   headingDeg: number | null;
@@ -24,6 +25,7 @@ export type CarPlaySessionSnapshot = {
   remainingDurationMinutes: number;
   muted: boolean;
   lowAccuracy: boolean;
+  cancelSpeech: boolean;
   maneuver: CarPlayManeuverSnapshot | null;
   speakText: string | null;
 };
@@ -35,4 +37,5 @@ export type CarPlayConnection = {
 
 export type CarPlayDisplayEvent =
   | { type: "connection"; connected: boolean }
-  | { type: "mute"; muted: boolean };
+  | { type: "mute"; muted: boolean }
+  | { type: "stop" };

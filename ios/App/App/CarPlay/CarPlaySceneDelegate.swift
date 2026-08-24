@@ -9,6 +9,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private var navigationSession: CPNavigationSession?
     private var currentTrip: CPTrip?
     private var currentManeuver: CPManeuver?
+    private var currentRouteId: String?
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
@@ -29,7 +30,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     func apply(_ snapshot: RideCarPlaySnapshot) {
         mapViewController?.apply(snapshot)
         refreshButtons(muted: snapshot.muted)
-        if snapshot.muted {
+        if snapshot.muted || snapshot.cancelSpeech {
             RideCarPlaySpeech.shared.cancel()
         } else if let text = snapshot.speakText {
             RideCarPlaySpeech.shared.speak(text)
@@ -46,6 +47,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         navigationSession = nil
         currentTrip = nil
         currentManeuver = nil
+        currentRouteId = nil
         mapViewController?.clear()
         RideCarPlaySpeech.shared.cancel()
     }
@@ -90,6 +92,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         guard let mapTemplate else {
             return
         }
+        let stop = CPBarButton(title: "Arrêter") { _ in
+            RideCarPlaySession.shared.requestStop()
+        }
+        mapTemplate.leadingNavigationBarButtons = [stop]
         let mute = CPBarButton(title: muted ? "Son" : "Muet") { _ in
             RideCarPlaySession.shared.toggleMute()
         }
@@ -105,6 +111,13 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func updateNavigation(_ snapshot: RideCarPlaySnapshot) {
         guard let mapTemplate else {
             return
+        }
+        if currentRouteId != snapshot.routeId {
+            navigationSession?.cancelTrip()
+            navigationSession = nil
+            currentTrip = nil
+            currentManeuver = nil
+            currentRouteId = snapshot.routeId
         }
         let trip = currentTrip ?? makeTrip(from: snapshot)
         currentTrip = trip

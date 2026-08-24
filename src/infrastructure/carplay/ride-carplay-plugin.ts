@@ -9,6 +9,7 @@ export type RideCarPlayPlugin = {
   start(snapshot: CarPlaySessionSnapshot): Promise<CarPlayConnection>;
   update(snapshot: CarPlaySessionSnapshot): Promise<void>;
   stop(): Promise<void>;
+  getConnection(): Promise<{ connected: boolean }>;
   addListener(
     eventName: "connectionChange",
     listener: (event: { connected: boolean }) => void,
@@ -16,6 +17,10 @@ export type RideCarPlayPlugin = {
   addListener(
     eventName: "muteChange",
     listener: (event: { muted: boolean }) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: "stopRequested",
+    listener: () => void,
   ): Promise<PluginListenerHandle>;
 };
 
@@ -27,6 +32,10 @@ class RideCarPlayWeb {
   async update(): Promise<void> {}
 
   async stop(): Promise<void> {}
+
+  async getConnection(): Promise<{ connected: boolean }> {
+    return { connected: false };
+  }
 }
 
 export const RideCarPlay = registerPlugin<RideCarPlayPlugin>("RideCarPlay", {

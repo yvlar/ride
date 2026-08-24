@@ -3,6 +3,7 @@ import { createNoopCarPlayDisplay } from "./noop-carplay-display";
 import type { CarPlaySessionSnapshot } from "./types";
 
 const snapshot: CarPlaySessionSnapshot = {
+  routeId: "loop-1",
   coordinates: [{ latitude: 45.4, longitude: -72.7 }],
   userLocation: null,
   headingDeg: null,
@@ -10,6 +11,7 @@ const snapshot: CarPlaySessionSnapshot = {
   remainingDurationMinutes: 2,
   muted: false,
   lowAccuracy: false,
+  cancelSpeech: false,
   maneuver: null,
   speakText: null,
 };

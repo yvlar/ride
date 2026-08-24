@@ -7,6 +7,7 @@ describe("createCarPlayDisplay (FR-028, NFR-007)", () => {
     const display = createCarPlayDisplay({ isNative: false });
     await expect(
       display.start({
+        routeId: "web",
         coordinates: [],
         userLocation: null,
         headingDeg: null,
@@ -14,6 +15,7 @@ describe("createCarPlayDisplay (FR-028, NFR-007)", () => {
         remainingDurationMinutes: 0,
         muted: false,
         lowAccuracy: false,
+        cancelSpeech: false,
         maneuver: null,
         speakText: null,
       }),
@@ -25,11 +27,13 @@ describe("createCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
       update: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
+      getConnection: vi.fn(async () => ({ connected: true })),
       addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
     };
     const display = createCarPlayDisplay({ isNative: true, plugin });
     await expect(
       display.start({
+        routeId: "native",
         coordinates: [{ latitude: 1, longitude: 2 }],
         userLocation: null,
         headingDeg: null,
@@ -37,6 +41,7 @@ describe("createCarPlayDisplay (FR-028, NFR-007)", () => {
         remainingDurationMinutes: 1,
         muted: false,
         lowAccuracy: false,
+        cancelSpeech: false,
         maneuver: null,
         speakText: null,
       }),

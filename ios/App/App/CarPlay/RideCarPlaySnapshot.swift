@@ -15,6 +15,7 @@ struct RideCarPlayManeuver {
 }
 
 struct RideCarPlaySnapshot {
+    let routeId: String
     let coordinates: [RideCarPlayCoordinate]
     let userLocation: RideCarPlayCoordinate?
     let headingDeg: Double?
@@ -22,12 +23,30 @@ struct RideCarPlaySnapshot {
     let remainingDurationMinutes: Double
     let muted: Bool
     let lowAccuracy: Bool
+    let cancelSpeech: Bool
     let maneuver: RideCarPlayManeuver?
     let speakText: String?
+
+    func withMute(_ muted: Bool) -> RideCarPlaySnapshot {
+        RideCarPlaySnapshot(
+            routeId: routeId,
+            coordinates: coordinates,
+            userLocation: userLocation,
+            headingDeg: headingDeg,
+            remainingDistanceKm: remainingDistanceKm,
+            remainingDurationMinutes: remainingDurationMinutes,
+            muted: muted,
+            lowAccuracy: lowAccuracy,
+            cancelSpeech: muted,
+            maneuver: maneuver,
+            speakText: nil
+        )
+    }
 
     static func from(call: CAPPluginCall) -> RideCarPlaySnapshot {
         let coordinates = (call.getArray("coordinates") ?? []).compactMap(coordinate(from:))
         return RideCarPlaySnapshot(
+            routeId: call.getString("routeId") ?? "",
             coordinates: coordinates,
             userLocation: coordinate(from: call.getObject("userLocation")),
             headingDeg: call.getDouble("headingDeg"),
@@ -35,6 +54,7 @@ struct RideCarPlaySnapshot {
             remainingDurationMinutes: call.getDouble("remainingDurationMinutes") ?? 0,
             muted: call.getBool("muted") ?? false,
             lowAccuracy: call.getBool("lowAccuracy") ?? false,
+            cancelSpeech: call.getBool("cancelSpeech") ?? false,
             maneuver: maneuver(from: call.getObject("maneuver")),
             speakText: call.getString("speakText")
         )

@@ -12,13 +12,14 @@ final class RideCarPlaySession {
     private(set) var isConnected = false
     private(set) var muted = false
     private(set) var latest: RideCarPlaySnapshot?
+    private var stopped = false
 
     private init() {}
 
     func attach(scene: CarPlaySceneDelegate) {
         self.scene = scene
         isConnected = true
-        if let latest {
+        if let latest, !stopped {
             scene.apply(latest)
         }
         plugin?.emitConnection(connected: true)
@@ -31,21 +32,31 @@ final class RideCarPlaySession {
     }
 
     func start(_ snapshot: RideCarPlaySnapshot) {
+        stopped = false
         muted = snapshot.muted
         latest = snapshot
         scene?.apply(snapshot)
     }
 
     func update(_ snapshot: RideCarPlaySnapshot) {
+        guard !stopped else {
+            return
+        }
         muted = snapshot.muted
         latest = snapshot
         scene?.apply(snapshot)
     }
 
     func stop() {
+        stopped = true
         latest = nil
         RideCarPlaySpeech.shared.cancel()
         scene?.endNavigation()
+    }
+
+    func requestStop() {
+        plugin?.emitStop()
+        stop()
     }
 
     func toggleMute() {
@@ -53,20 +64,10 @@ final class RideCarPlaySession {
         if muted {
             RideCarPlaySpeech.shared.cancel()
         }
-        if var latest {
-            latest = RideCarPlaySnapshot(
-                coordinates: latest.coordinates,
-                userLocation: latest.userLocation,
-                headingDeg: latest.headingDeg,
-                remainingDistanceKm: latest.remainingDistanceKm,
-                remainingDurationMinutes: latest.remainingDurationMinutes,
-                muted: muted,
-                lowAccuracy: latest.lowAccuracy,
-                maneuver: latest.maneuver,
-                speakText: nil
-            )
-            self.latest = latest
-            scene?.apply(latest)
+        if let latest {
+            let next = latest.withMute(muted)
+            self.latest = next
+            scene?.apply(next)
         }
         plugin?.emitMute(muted: muted)
     }

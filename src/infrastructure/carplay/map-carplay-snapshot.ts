@@ -4,12 +4,14 @@ import type { NavigationProgress } from "@/domain/navigation/types";
 import type { CarPlayCoordinate, CarPlaySessionSnapshot } from "./types";
 
 export type CarPlaySnapshotInput = {
+  routeId: string;
   geometry: LineString;
   progress: NavigationProgress | null;
   userLocation: Coordinates | null;
   headingDeg?: number | null;
   muted: boolean;
   speakText?: string | null;
+  cancelSpeech?: boolean;
   remainingDistanceKm: number;
   remainingDurationMinutes: number;
 };
@@ -50,6 +52,7 @@ export function toCarPlaySessionSnapshot(
   const step = input.progress?.nextStep ?? null;
   const heading = input.headingDeg;
   return {
+    routeId: input.routeId,
     coordinates: coordinatesFromLineString(input.geometry),
     userLocation: input.userLocation ? toCoordinate(input.userLocation) : null,
     headingDeg:
@@ -59,6 +62,7 @@ export function toCarPlaySessionSnapshot(
       input.progress?.remainingDurationMinutes ?? input.remainingDurationMinutes,
     muted: input.muted,
     lowAccuracy: input.progress?.lowAccuracy ?? false,
+    cancelSpeech: Boolean(input.cancelSpeech),
     maneuver: step
       ? {
           instruction: formatFrenchInstruction(step),

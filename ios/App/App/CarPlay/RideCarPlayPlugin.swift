@@ -9,6 +9,7 @@ public class RideCarPlayPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "update", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getConnection", returnType: CAPPluginReturnPromise),
     ]
 
     override public func load() {
@@ -42,11 +43,23 @@ public class RideCarPlayPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func getConnection(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            call.resolve([
+                "connected": RideCarPlaySession.shared.isConnected,
+            ])
+        }
+    }
+
     func emitConnection(connected: Bool) {
         notifyListeners("connectionChange", data: ["connected": connected])
     }
 
     func emitMute(muted: Bool) {
         notifyListeners("muteChange", data: ["muted": muted])
+    }
+
+    func emitStop() {
+        notifyListeners("stopRequested", data: [:])
     }
 }

@@ -42,6 +42,7 @@ const progress: NavigationProgress = {
 describe("toCarPlaySessionSnapshot (FR-028, BR-004)", () => {
   it("maps domain progress to a provider-agnostic CarPlay DTO", () => {
     const snapshot = toCarPlaySessionSnapshot({
+      routeId: "loop-1",
       geometry,
       progress,
       userLocation: { latitude: 45.401, longitude: -72.699 },
@@ -51,6 +52,9 @@ describe("toCarPlaySessionSnapshot (FR-028, BR-004)", () => {
       remainingDistanceKm: 2,
       remainingDurationMinutes: 3,
     });
+
+    expect(snapshot.routeId).toBe("loop-1");
+    expect(snapshot.cancelSpeech).toBe(false);
 
     expect(snapshot.coordinates).toEqual([
       { latitude: 45.4, longitude: -72.7 },
@@ -77,6 +81,7 @@ describe("toCarPlaySessionSnapshot (FR-028, BR-004)", () => {
 
   it("keeps geometry before the first GPS fix and drops invalid positions", () => {
     const snapshot = toCarPlaySessionSnapshot({
+      routeId: "loop-2",
       geometry: {
         type: "LineString",
         coordinates: [
@@ -88,6 +93,7 @@ describe("toCarPlaySessionSnapshot (FR-028, BR-004)", () => {
       userLocation: null,
       headingDeg: Number.NaN,
       muted: true,
+      cancelSpeech: true,
       remainingDistanceKm: 8,
       remainingDurationMinutes: 14,
     });
@@ -98,6 +104,7 @@ describe("toCarPlaySessionSnapshot (FR-028, BR-004)", () => {
     expect(snapshot.maneuver).toBeNull();
     expect(snapshot.remainingDistanceKm).toBe(8);
     expect(snapshot.muted).toBe(true);
+    expect(snapshot.cancelSpeech).toBe(true);
     expect(snapshot.speakText).toBeNull();
   });
 });

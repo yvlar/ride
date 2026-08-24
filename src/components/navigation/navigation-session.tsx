@@ -109,6 +109,7 @@ export function NavigationSession({
   const progressSnapshotRef = useRef<NavigationProgress | null>(null);
   const remainingDistanceRef = useRef(route.distanceKm);
   const remainingMinutesRef = useRef(route.durationMinutes);
+  const stoppedRef = useRef(false);
   const runRecalculateRef = useRef<
     (
       currentPosition: { latitude: number; longitude: number },
@@ -167,15 +168,20 @@ export function NavigationSession({
   }, [hidden, screenWakeLock]);
 
   const pushCarPlay = useCallback(
-    (speakText: string | null) => {
+    (speakText: string | null, options?: { cancelSpeech?: boolean }) => {
+      if (stoppedRef.current) {
+        return;
+      }
       void carPlayDisplay.update(
         toCarPlaySessionSnapshot({
+          routeId: routeRef.current.id,
           geometry: routeRef.current.geometry,
           progress: progressSnapshotRef.current,
           userLocation: userLocationRef.current,
           headingDeg: headingRef.current,
           muted: mutedRef.current,
           speakText,
+          cancelSpeech: options?.cancelSpeech,
           remainingDistanceKm: remainingDistanceRef.current,
           remainingDurationMinutes: remainingMinutesRef.current,
         }),
@@ -183,6 +189,19 @@ export function NavigationSession({
     },
     [carPlayDisplay],
   );
+
+  const handleStop = useCallback(() => {
+    if (stoppedRef.current) {
+      return;
+    }
+    stoppedRef.current = true;
+    abortRef.current?.abort();
+    speechEngine.cancel();
+    void carPlayDisplay.stop();
+    onStop();
+  }, [carPlayDisplay, onStop, speechEngine]);
+  const handleStopRef = useRef(handleStop);
+  handleStopRef.current = handleStop;
 
   const runRecalculate = useCallback(async (
     currentPosition: { latitude: number; longitude: number },
@@ -204,6 +223,7 @@ export function NavigationSession({
     offRouteRef.current = markRecalculateStarted(offRouteRef.current, now());
     speechEngine.cancel();
     voiceRef.current = resetVoiceMemory();
+    pushCarPlay(null, { cancelSpeech: true });
 
     const result = await recalculate(
       {
@@ -248,9 +268,33 @@ export function NavigationSession({
 
   useEffect(() => {
     let cancelled = false;
+    const unsubscribe = carPlayDisplay.subscribe((event) => {
+      if (cancelled) {
+        return;
+      }
+      if (event.type === "connection") {
+        setCarPlayConnected(event.connected);
+        carPlayConnectedRef.current = event.connected;
+        ownsVoiceRef.current = event.connected;
+        if (event.connected) {
+          speechEngine.cancel();
+        }
+      }
+      if (event.type === "mute") {
+        mutedRef.current = event.muted;
+        setMuted(event.muted);
+        if (event.muted) {
+          speechEngine.cancel();
+        }
+      }
+      if (event.type === "stop") {
+        handleStopRef.current();
+      }
+    });
     void carPlayDisplay
       .start(
         toCarPlaySessionSnapshot({
+          routeId: routeRef.current.id,
           geometry: routeRef.current.geometry,
           progress: null,
           userLocation: null,
@@ -267,23 +311,16 @@ export function NavigationSession({
         setCarPlayConnected(true);
         carPlayConnectedRef.current = true;
         ownsVoiceRef.current = connection.ownsVoice;
+        if (connection.ownsVoice) {
+          speechEngine.cancel();
+        }
       });
-    const unsubscribe = carPlayDisplay.subscribe((event) => {
-      if (event.type === "connection") {
-        setCarPlayConnected(event.connected);
-        carPlayConnectedRef.current = event.connected;
-        ownsVoiceRef.current = event.connected;
-      }
-      if (event.type === "mute") {
-        setMuted(event.muted);
-      }
-    });
     return () => {
       cancelled = true;
       unsubscribe();
       void carPlayDisplay.stop();
     };
-  }, [carPlayDisplay]);
+  }, [carPlayDisplay, speechEngine]);
 
   useEffect(() => {
     function onVisibility() {
@@ -308,6 +345,9 @@ export function NavigationSession({
     const watch = locationWatch ?? createForegroundLocationWatch();
     const unsubscribe = watch.subscribe((event) => {
       try {
+        if (stoppedRef.current) {
+          return;
+        }
         if (event.type === "error") {
           setGpsError(event.error.message);
           return;
@@ -396,13 +436,6 @@ export function NavigationSession({
       speechEngine.cancel();
     };
   }, [carPlayDisplay, locationWatch, now, pushCarPlay, shouldWatch, speechEngine]);
-
-  function handleStop() {
-    abortRef.current?.abort();
-    speechEngine.cancel();
-    void carPlayDisplay.stop();
-    onStop();
-  }
 
   const session = (
     <div

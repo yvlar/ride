@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import type { PluginListenerHandle } from "@capacitor/core";
 import { createCapacitorCarPlayDisplay } from "./capacitor-carplay-display";
 import type { RideCarPlayPlugin } from "./ride-carplay-plugin";
 import type { CarPlaySessionSnapshot } from "./types";
 
 const snapshot: CarPlaySessionSnapshot = {
+  routeId: "loop-1",
   coordinates: [{ latitude: 45.4, longitude: -72.7 }],
   userLocation: { latitude: 45.4, longitude: -72.7 },
   headingDeg: 10,
@@ -11,6 +13,7 @@ const snapshot: CarPlaySessionSnapshot = {
   remainingDurationMinutes: 2,
   muted: false,
   lowAccuracy: false,
+  cancelSpeech: false,
   maneuver: null,
   speakText: "Tournez à droite",
 };
@@ -20,6 +23,7 @@ function mockPlugin(): RideCarPlayPlugin {
     start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
     update: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
+    getConnection: vi.fn(async () => ({ connected: false })),
     addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
   };
 }
@@ -41,14 +45,27 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
     expect(plugin.stop).toHaveBeenCalledTimes(1);
   });
 
-  it("maps native connection and mute events onto the display port", async () => {
-    const listeners = new Map<string, (payload: { connected?: boolean; muted?: boolean }) => void>();
+  it("maps native connection, mute and stop events onto the display port", async () => {
+    const listeners: {
+      connectionChange?: (event: { connected: boolean }) => void;
+      muteChange?: (event: { muted: boolean }) => void;
+      stopRequested?: () => void;
+    } = {};
     const plugin: RideCarPlayPlugin = {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
+      getConnection: vi.fn(async () => ({ connected: false })),
       addListener: vi.fn(async (eventName, listener) => {
-        listeners.set(eventName, listener);
+        if (eventName === "connectionChange") {
+          listeners.connectionChange = listener;
+        }
+        if (eventName === "muteChange") {
+          listeners.muteChange = listener;
+        }
+        if (eventName === "stopRequested") {
+          listeners.stopRequested = listener;
+        }
         return { remove: vi.fn(async () => {}) };
       }),
     };
@@ -59,15 +76,63 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
     });
 
     await vi.waitFor(() => {
-      expect(listeners.size).toBe(2);
+      expect(plugin.getConnection).toHaveBeenCalledTimes(1);
+      expect(listeners.stopRequested).toBeDefined();
     });
-    listeners.get("connectionChange")?.({ connected: true });
-    listeners.get("muteChange")?.({ muted: true });
+    listeners.connectionChange?.({ connected: true });
+    listeners.muteChange?.({ muted: true });
+    listeners.stopRequested?.();
 
     expect(received).toEqual([
+      { type: "connection", connected: false },
       { type: "connection", connected: true },
       { type: "mute", muted: true },
+      { type: "stop" },
     ]);
     unsubscribe();
+  });
+
+  it("attaches listeners before replaying the current connection (FR-028)", async () => {
+    const order: string[] = [];
+    let resolveConnection: ((handle: PluginListenerHandle) => void) | undefined;
+    const plugin: RideCarPlayPlugin = {
+      start: vi.fn(),
+      update: vi.fn(),
+      stop: vi.fn(),
+      getConnection: vi.fn(async () => {
+        order.push("getConnection");
+        return { connected: true };
+      }),
+      addListener: vi.fn(async (eventName) => {
+        order.push(`listen:${eventName}`);
+        if (eventName === "connectionChange") {
+          return new Promise<PluginListenerHandle>((resolve) => {
+            resolveConnection = resolve;
+          });
+        }
+        return { remove: vi.fn(async () => {}) };
+      }),
+    };
+    const display = createCapacitorCarPlayDisplay(plugin);
+    const received: unknown[] = [];
+    display.subscribe((event) => {
+      received.push(event);
+    });
+
+    await Promise.resolve();
+    expect(plugin.getConnection).not.toHaveBeenCalled();
+    expect(order).toEqual(["listen:connectionChange"]);
+
+    resolveConnection?.({ remove: vi.fn(async () => {}) });
+
+    await vi.waitFor(() => {
+      expect(order).toEqual([
+        "listen:connectionChange",
+        "listen:muteChange",
+        "listen:stopRequested",
+        "getConnection",
+      ]);
+      expect(received).toEqual([{ type: "connection", connected: true }]);
+    });
   });
 });
