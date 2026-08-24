@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { CAPACITOR_FOREGROUND_POSITION_OPTIONS } from "./capacitor-geolocation";
 import { createCapacitorLocationWatch } from "./capacitor-location-watch";
-import type { CapacitorGeolocationApi, CapacitorPosition } from "./capacitor-geolocation";
+import type {
+  CapacitorGeolocationApi,
+  CapacitorPosition,
+  CapacitorWatchCallback,
+} from "./capacitor-geolocation";
 
 function fakeCapacitorGeolocation() {
   let nextId = 1;
@@ -23,6 +27,77 @@ function fakeCapacitorGeolocation() {
     getCurrentPosition: vi.fn(),
   };
   return { api, watches };
+}
+
+function deferredCapacitorGeolocation(options?: { deferPermissions?: boolean }) {
+  let nextId = 1;
+  const permissionWaiters: Array<(value: { location: string }) => void> = [];
+  const watchWaiters: Array<(id: string) => void> = [];
+  const watches = new Map<string, CapacitorWatchCallback>();
+  const api: CapacitorGeolocationApi = {
+    requestPermissions: vi.fn(() => {
+      if (options?.deferPermissions) {
+        return new Promise<{ location: string }>((resolve) => {
+          permissionWaiters.push(resolve);
+        });
+      }
+      return Promise.resolve({ location: "granted" });
+    }),
+    watchPosition: vi.fn((_watchOptions, callback) => {
+      return new Promise<string>((resolve) => {
+        watchWaiters.push((id) => {
+          watches.set(id, callback);
+          resolve(id);
+        });
+      });
+    }),
+    clearWatch: vi.fn(async ({ id }) => {
+      watches.delete(id);
+    }),
+    getCurrentPosition: vi.fn(),
+  };
+  return {
+    api,
+    watches,
+    grantPermissions(location = "granted") {
+      for (const resolve of permissionWaiters.splice(0)) {
+        resolve({ location });
+      }
+    },
+    resolveNextWatch() {
+      const id = String(nextId);
+      nextId += 1;
+      watchWaiters.shift()?.(id);
+      return id;
+    },
+    pendingWatchCount() {
+      return watchWaiters.length;
+    },
+    pendingPermissionCount() {
+      return permissionWaiters.length;
+    },
+  };
+}
+
+function testLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+) {
+  // #region agent log
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require("node:fs") as typeof import("node:fs");
+    fs.mkdirSync("/opt/cursor/logs", { recursive: true });
+    fs.appendFileSync(
+      "/opt/cursor/logs/debug.log",
+      `${JSON.stringify({ hypothesisId, location, message, data, timestamp: Date.now() })}\n`,
+    );
+  } catch {
+    // Ignore missing fs.
+  }
+  // #endregion
 }
 
 const granby: CapacitorPosition = {
@@ -131,5 +206,196 @@ describe("createCapacitorLocationWatch (FR-022, FR-023, FR-027, NFR-006)", () =>
         error: expect.objectContaining({ code: "POSITION_UNAVAILABLE" }),
       }),
     );
+  });
+
+  it("keeps the start() plugin watch until a subscriber attaches (FR-023)", async () => {
+    const deferred = deferredCapacitorGeolocation();
+    const watch = createCapacitorLocationWatch(deferred.api);
+    watch.start();
+    await vi.waitFor(() => {
+      expect(deferred.pendingWatchCount()).toBe(1);
+    });
+
+    const id = deferred.resolveNextWatch();
+    await vi.waitFor(() => {
+      expect(watch.activeNativeWatches()).toBe(1);
+    });
+
+    // #region agent log
+    testLog("B", "capacitor-location-watch.test.ts:startWithoutSubscribe", "start() resolved with zero listeners", {
+      id,
+      clearWatchCalls: deferred.api.clearWatch.mock.calls.length,
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      activeNativeWatches: watch.activeNativeWatches(),
+      livePluginWatches: deferred.watches.size,
+      runId: "post-fix",
+    });
+    // #endregion
+
+    expect(deferred.api.clearWatch).not.toHaveBeenCalled();
+    expect(deferred.watches.size).toBe(1);
+    expect(watch.activeNativeWatches()).toBe(1);
+  });
+
+  it("clears the plugin watch when the last subscriber leaves before watchPosition resolves (FR-023, NFR-006)", async () => {
+    const deferred = deferredCapacitorGeolocation();
+    const watch = createCapacitorLocationWatch(deferred.api);
+    const unsubscribe = watch.subscribe(() => {});
+
+    await vi.waitFor(() => {
+      expect(deferred.pendingWatchCount()).toBe(1);
+    });
+    unsubscribe();
+
+    // #region agent log
+    testLog("A", "capacitor-location-watch.test.ts:afterUnsubscribe", "stopped before watchPosition resolved", {
+      clearWatchCalls: deferred.api.clearWatch.mock.calls.length,
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      activeNativeWatches: watch.activeNativeWatches(),
+      pendingWatches: deferred.pendingWatchCount(),
+      runId: "post-fix",
+    });
+    // #endregion
+
+    const id = deferred.resolveNextWatch();
+    await vi.waitFor(() => {
+      expect(deferred.api.clearWatch).toHaveBeenCalledWith({ id });
+    });
+
+    // #region agent log
+    testLog("A", "capacitor-location-watch.test.ts:afterResolve", "watchPosition resolved after stop", {
+      id,
+      clearWatchCalls: deferred.api.clearWatch.mock.calls.length,
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      activeNativeWatches: watch.activeNativeWatches(),
+      livePluginWatches: deferred.watches.size,
+      runId: "post-fix",
+    });
+    // #endregion
+
+    expect(deferred.watches.size).toBe(0);
+    expect(watch.activeNativeWatches()).toBe(0);
+  });
+
+  it("starts a new watch after an in-flight stop (FR-023, NFR-006)", async () => {
+    const deferred = deferredCapacitorGeolocation();
+    const watch = createCapacitorLocationWatch(deferred.api);
+    const unsubscribe = watch.subscribe(() => {});
+    await vi.waitFor(() => {
+      expect(deferred.pendingWatchCount()).toBe(1);
+    });
+    unsubscribe();
+    const staleId = deferred.resolveNextWatch();
+    await vi.waitFor(() => {
+      expect(deferred.api.clearWatch).toHaveBeenCalledWith({ id: staleId });
+    });
+    expect(watch.activeNativeWatches()).toBe(0);
+
+    watch.start();
+    const late = watch.subscribe(() => {});
+    await vi.waitFor(() => {
+      expect(deferred.pendingWatchCount()).toBe(1);
+    });
+
+    // #region agent log
+    testLog("D", "capacitor-location-watch.test.ts:lateStart", "start/subscribe after in-flight stop", {
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      pendingWatches: deferred.pendingWatchCount(),
+      activeNativeWatches: watch.activeNativeWatches(),
+      livePluginWatches: deferred.watches.size,
+      runId: "post-fix",
+    });
+    // #endregion
+
+    expect(deferred.api.watchPosition).toHaveBeenCalledTimes(2);
+    const newId = deferred.resolveNextWatch();
+    await vi.waitFor(() => {
+      expect(watch.activeNativeWatches()).toBe(1);
+    });
+    expect(deferred.watches.has(newId)).toBe(true);
+    expect(deferred.watches.has(staleId)).toBe(false);
+    late();
+  });
+
+  it("does not start a plugin watch when Arrêter happens during the permission prompt (FR-027, NFR-006)", async () => {
+    const deferred = deferredCapacitorGeolocation({ deferPermissions: true });
+    const watch = createCapacitorLocationWatch(deferred.api);
+    watch.start();
+    const unsubscribe = watch.subscribe(() => {});
+
+    await vi.waitFor(() => {
+      expect(deferred.pendingPermissionCount()).toBe(1);
+    });
+    expect(deferred.api.watchPosition).not.toHaveBeenCalled();
+    unsubscribe();
+
+    // #region agent log
+    testLog("E", "capacitor-location-watch.test.ts:stopDuringPrompt", "unsubscribed during requestPermissions", {
+      clearWatchCalls: deferred.api.clearWatch.mock.calls.length,
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      pendingPermissions: deferred.pendingPermissionCount(),
+      activeNativeWatches: watch.activeNativeWatches(),
+      runId: "post-fix",
+    });
+    // #endregion
+
+    deferred.grantPermissions("granted");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // #region agent log
+    testLog("E", "capacitor-location-watch.test.ts:afterPromptGrant", "no watch after stop during prompt", {
+      clearWatchCalls: deferred.api.clearWatch.mock.calls.length,
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      activeNativeWatches: watch.activeNativeWatches(),
+      livePluginWatches: deferred.watches.size,
+      pendingWatches: deferred.pendingWatchCount(),
+      runId: "post-fix",
+    });
+    // #endregion
+
+    expect(deferred.api.watchPosition).not.toHaveBeenCalled();
+    expect(deferred.api.clearWatch).not.toHaveBeenCalled();
+    expect(watch.activeNativeWatches()).toBe(0);
+    expect(deferred.watches.size).toBe(0);
+  });
+
+  it("clears the first in-flight watch when stopNative allows a second start (NFR-006)", async () => {
+    const deferred = deferredCapacitorGeolocation();
+    const watch = createCapacitorLocationWatch(deferred.api);
+    const first = watch.subscribe(() => {});
+    await vi.waitFor(() => {
+      expect(deferred.pendingWatchCount()).toBe(1);
+    });
+    first();
+    const second = watch.subscribe(() => {});
+    await vi.waitFor(() => {
+      expect(deferred.pendingWatchCount()).toBe(2);
+    });
+
+    const firstId = deferred.resolveNextWatch();
+    const secondId = deferred.resolveNextWatch();
+    await vi.waitFor(() => {
+      expect(deferred.api.clearWatch).toHaveBeenCalledWith({ id: firstId });
+      expect(watch.activeNativeWatches()).toBe(1);
+    });
+
+    // #region agent log
+    testLog("C", "capacitor-location-watch.test.ts:doubleStart", "second start after stopNative reset starting", {
+      firstId,
+      secondId,
+      watchPositionCalls: deferred.api.watchPosition.mock.calls.length,
+      clearWatchCalls: deferred.api.clearWatch.mock.calls.length,
+      livePluginWatches: deferred.watches.size,
+      activeNativeWatches: watch.activeNativeWatches(),
+      runId: "post-fix",
+    });
+    // #endregion
+
+    expect(deferred.api.watchPosition).toHaveBeenCalledTimes(2);
+    expect(deferred.watches.size).toBe(1);
+    expect(deferred.watches.has(secondId)).toBe(true);
+    expect(deferred.watches.has(firstId)).toBe(false);
+    second();
   });
 });
