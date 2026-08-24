@@ -89,6 +89,14 @@ describe("sampleCorridorViaPoints (FR-029, FR-001)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("keeps at least one intermediate vertex when spacing would drop them all (FR-029)", () => {
+    const dest = offsetCoordinates(ORIGIN, 90, 6);
+    const mid = offsetCoordinates(ORIGIN, 90, 3);
+    const vias = sampleCorridorViaPoints(lineFrom([ORIGIN, mid, dest]));
+    expect(vias).toHaveLength(1);
+    expect(haversineKm(vias[0] ?? ORIGIN, mid)).toBeLessThan(0.2);
+  });
 });
 
 describe("thinCorridorViaPoints (FR-029)", () => {
@@ -125,5 +133,14 @@ describe("corridorSnapAttempts (FR-029)", () => {
     expect(corridorSnapAttempts([], [])).toEqual([[]]);
     const original = [offsetCoordinates(ORIGIN, 90, 8)];
     expect(corridorSnapAttempts([], original)).toEqual([original]);
+  });
+
+  it("keeps a sampled short corridor constrained even with empty original waypoints", () => {
+    const dest = offsetCoordinates(ORIGIN, 90, 6);
+    const mid = offsetCoordinates(ORIGIN, 90, 3);
+    const sampled = sampleCorridorViaPoints(lineFrom([ORIGIN, mid, dest]));
+    const attempts = corridorSnapAttempts(sampled, []);
+    expect(sampled.length).toBeGreaterThan(0);
+    expect(attempts.every((attempt) => attempt.length > 0)).toBe(true);
   });
 });

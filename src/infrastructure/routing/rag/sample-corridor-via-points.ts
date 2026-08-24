@@ -72,7 +72,16 @@ export function sampleCorridorViaPoints(
     distSinceKept = 0;
   }
 
-  return capViaPoints(selected, maxPoints);
+  if (selected.length > 0) {
+    return capViaPoints(selected, maxPoints);
+  }
+
+  const middleIndex = Math.floor(points.length / 2);
+  if (middleIndex > 0 && middleIndex < points.length - 1) {
+    const middle = points[middleIndex];
+    return middle ? [middle] : [];
+  }
+  return [];
 }
 
 export function thinCorridorViaPoints(
@@ -121,6 +130,8 @@ export function corridorSnapAttempts(
   originalWaypoints: Coordinates[] = [],
 ): Coordinates[][] {
   if (sampled.length === 0) {
+    // Empty samples occur only for two-point chords; sampling keeps at least
+    // one intermediate vertex whenever the corridor has shape.
     return uniqueWaypointAttempts([originalWaypoints]);
   }
 
