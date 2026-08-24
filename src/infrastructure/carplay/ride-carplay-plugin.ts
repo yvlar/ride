@@ -5,11 +5,16 @@ import type {
   CarPlaySessionSnapshot,
 } from "./types";
 
+export type RideCarPlayPluginStatus = {
+  connected: boolean;
+  stopRequested: boolean;
+};
+
 export type RideCarPlayPlugin = {
   start(snapshot: CarPlaySessionSnapshot): Promise<CarPlayConnection>;
   update(snapshot: CarPlaySessionSnapshot): Promise<void>;
   stop(): Promise<void>;
-  getConnection(): Promise<{ connected: boolean }>;
+  getConnection(): Promise<RideCarPlayPluginStatus>;
   addListener(
     eventName: "connectionChange",
     listener: (event: { connected: boolean }) => void,
@@ -33,8 +38,8 @@ class RideCarPlayWeb {
 
   async stop(): Promise<void> {}
 
-  async getConnection(): Promise<{ connected: boolean }> {
-    return { connected: false };
+  async getConnection(): Promise<RideCarPlayPluginStatus> {
+    return { connected: false, stopRequested: false };
   }
 }
 

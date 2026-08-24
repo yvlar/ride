@@ -205,6 +205,23 @@ export function NavigationSession({
     handleStopRef.current = handleStop;
   }, [handleStop]);
 
+  const handOffVoiceToCarPlay = useCallback(() => {
+    speechEngine.cancel();
+    voiceRef.current = resetVoiceMemory();
+    const progress = progressSnapshotRef.current;
+    if (!progress) {
+      return;
+    }
+    const announcement = decideAnnouncement({
+      step: progress.nextStep,
+      distanceToManeuverM: progress.distanceToNextManeuverM,
+      muted: mutedRef.current,
+      memory: voiceRef.current,
+    });
+    voiceRef.current = announcement.memory;
+    pushCarPlay(announcement.speak ?? null);
+  }, [pushCarPlay, speechEngine]);
+
   const runRecalculate = useCallback(async (
     currentPosition: { latitude: number; longitude: number },
     currentProgressKm: number,
@@ -279,7 +296,7 @@ export function NavigationSession({
         carPlayConnectedRef.current = event.connected;
         ownsVoiceRef.current = event.connected;
         if (event.connected) {
-          speechEngine.cancel();
+          handOffVoiceToCarPlay();
         }
       }
       if (event.type === "mute") {
@@ -314,7 +331,7 @@ export function NavigationSession({
         carPlayConnectedRef.current = true;
         ownsVoiceRef.current = connection.ownsVoice;
         if (connection.ownsVoice) {
-          speechEngine.cancel();
+          handOffVoiceToCarPlay();
         }
       });
     return () => {
@@ -322,7 +339,7 @@ export function NavigationSession({
       unsubscribe();
       void carPlayDisplay.stop();
     };
-  }, [carPlayDisplay, speechEngine]);
+  }, [carPlayDisplay, handOffVoiceToCarPlay, speechEngine]);
 
   useEffect(() => {
     function onVisibility() {

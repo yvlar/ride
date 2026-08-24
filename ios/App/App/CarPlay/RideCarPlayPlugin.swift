@@ -47,6 +47,7 @@ public class RideCarPlayPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             call.resolve([
                 "connected": RideCarPlaySession.shared.isConnected,
+                "stopRequested": RideCarPlaySession.shared.consumePendingStop(),
             ])
         }
     }

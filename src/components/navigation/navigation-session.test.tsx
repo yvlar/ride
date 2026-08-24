@@ -569,6 +569,49 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     );
   });
 
+  it("replays the current maneuver on CarPlay when the vehicle takes voice (FR-025, FR-028)", async () => {
+    const { watch, emit } = createWatch();
+    const speech = stubSpeech();
+    const carPlay = stubCarPlay();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+        carPlay={carPlay.display}
+      />,
+    );
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.683 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(speech.speak).toHaveBeenCalled();
+    });
+    const spoken = speech.speak.mock.calls[0]?.[0];
+    speech.speak.mockClear();
+    carPlay.emit({ type: "connection", connected: true });
+
+    expect(speech.cancel).toHaveBeenCalled();
+    expect(speech.speak).not.toHaveBeenCalled();
+    expect(carPlay.display.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        speakText: spoken,
+      }),
+    );
+  });
+
   it("subscribes to CarPlay before starting so connection events are not missed (FR-028)", async () => {
     const order: string[] = [];
     const carPlay = stubCarPlay();

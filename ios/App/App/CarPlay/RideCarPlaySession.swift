@@ -13,6 +13,7 @@ final class RideCarPlaySession {
     private(set) var muted = false
     private(set) var latest: RideCarPlaySnapshot?
     private var stopped = false
+    private var pendingStop = false
 
     private init() {}
 
@@ -48,15 +49,27 @@ final class RideCarPlaySession {
     }
 
     func stop() {
+        pendingStop = false
+        finalizeStop()
+    }
+
+    func requestStop() {
+        pendingStop = true
+        plugin?.emitStop()
+        finalizeStop()
+    }
+
+    func consumePendingStop() -> Bool {
+        let pending = pendingStop
+        pendingStop = false
+        return pending
+    }
+
+    private func finalizeStop() {
         stopped = true
         latest = nil
         RideCarPlaySpeech.shared.cancel()
         scene?.endNavigation()
-    }
-
-    func requestStop() {
-        plugin?.emitStop()
-        stop()
     }
 
     func toggleMute() {

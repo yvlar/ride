@@ -23,7 +23,7 @@ function mockPlugin(): RideCarPlayPlugin {
     start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
     update: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
-    getConnection: vi.fn(async () => ({ connected: false })),
+    getConnection: vi.fn(async () => ({ connected: false, stopRequested: false })),
     addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
   };
 }
@@ -55,7 +55,7 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(),
       update: vi.fn(),
       stop: vi.fn(),
-      getConnection: vi.fn(async () => ({ connected: false })),
+      getConnection: vi.fn(async () => ({ connected: false, stopRequested: false })),
       addListener: vi.fn(async (eventName, listener) => {
         if (eventName === "connectionChange") {
           listeners.connectionChange = listener;
@@ -101,11 +101,11 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
       stop: vi.fn(),
       getConnection: vi.fn(async () => {
         order.push("getConnection");
-        return { connected: true };
+        return { connected: true, stopRequested: false };
       }),
       addListener: vi.fn(async (eventName) => {
         order.push(`listen:${eventName}`);
-        if (eventName === "connectionChange") {
+        if (eventName === "stopRequested") {
           return new Promise<PluginListenerHandle>((resolve) => {
             resolveConnection = resolve;
           });
@@ -121,18 +121,40 @@ describe("createCapacitorCarPlayDisplay (FR-028, NFR-007)", () => {
 
     await Promise.resolve();
     expect(plugin.getConnection).not.toHaveBeenCalled();
-    expect(order).toEqual(["listen:connectionChange"]);
+    expect(order).toEqual(["listen:stopRequested"]);
 
     resolveConnection?.({ remove: vi.fn(async () => {}) });
 
     await vi.waitFor(() => {
       expect(order).toEqual([
-        "listen:connectionChange",
-        "listen:muteChange",
         "listen:stopRequested",
+        "listen:muteChange",
+        "listen:connectionChange",
         "getConnection",
       ]);
       expect(received).toEqual([{ type: "connection", connected: true }]);
+    });
+  });
+
+  it("replays a pending Arrêter if stopRequested arrived before listeners attached (FR-028)", async () => {
+    const plugin: RideCarPlayPlugin = {
+      start: vi.fn(),
+      update: vi.fn(),
+      stop: vi.fn(),
+      getConnection: vi.fn(async () => ({ connected: true, stopRequested: true })),
+      addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
+    };
+    const display = createCapacitorCarPlayDisplay(plugin);
+    const received: unknown[] = [];
+    display.subscribe((event) => {
+      received.push(event);
+    });
+
+    await vi.waitFor(() => {
+      expect(received).toEqual([
+        { type: "connection", connected: true },
+        { type: "stop" },
+      ]);
     });
   });
 });

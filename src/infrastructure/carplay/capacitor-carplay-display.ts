@@ -21,6 +21,24 @@ export function createCapacitorCarPlayDisplay(
       const handles: PluginListenerHandle[] = [];
 
       void (async () => {
+        const stopHandle = await plugin.addListener("stopRequested", () => {
+          listener({ type: "stop" });
+        });
+        if (removed) {
+          await stopHandle.remove();
+          return;
+        }
+        handles.push(stopHandle);
+
+        const muteHandle = await plugin.addListener("muteChange", (event) => {
+          listener({ type: "mute", muted: event.muted });
+        });
+        if (removed) {
+          await muteHandle.remove();
+          return;
+        }
+        handles.push(muteHandle);
+
         const connectionHandle = await plugin.addListener(
           "connectionChange",
           (event) => {
@@ -33,27 +51,13 @@ export function createCapacitorCarPlayDisplay(
         }
         handles.push(connectionHandle);
 
-        const muteHandle = await plugin.addListener("muteChange", (event) => {
-          listener({ type: "mute", muted: event.muted });
-        });
+        const status = await plugin.getConnection();
         if (removed) {
-          await muteHandle.remove();
           return;
         }
-        handles.push(muteHandle);
-
-        const stopHandle = await plugin.addListener("stopRequested", () => {
+        listener({ type: "connection", connected: status.connected });
+        if (status.stopRequested) {
           listener({ type: "stop" });
-        });
-        if (removed) {
-          await stopHandle.remove();
-          return;
-        }
-        handles.push(stopHandle);
-
-        const connection = await plugin.getConnection();
-        if (!removed) {
-          listener({ type: "connection", connected: connection.connected });
         }
       })();
 

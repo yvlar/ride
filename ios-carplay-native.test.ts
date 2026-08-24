@@ -30,7 +30,11 @@ describe("native CarPlay session (FR-028)", () => {
     expect(plugin).toContain("getConnection");
     expect(plugin).toContain("stopRequested");
     expect(plugin).toContain("func emitStop()");
+    expect(plugin).toContain("consumePendingStop()");
     expect(session).toContain("func requestStop()");
+    expect(session).toContain("pendingStop");
+    expect(session).toContain("func consumePendingStop()");
+    expect(session).toContain("func finalizeStop()");
   });
 
   it("offers Arrêter, rebuilds the trip on routeId change, and cancels speech on recalculate", () => {

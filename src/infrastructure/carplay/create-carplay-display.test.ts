@@ -27,7 +27,7 @@ describe("createCarPlayDisplay (FR-028, NFR-007)", () => {
       start: vi.fn(async () => ({ connected: true, ownsVoice: true })),
       update: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
-      getConnection: vi.fn(async () => ({ connected: true })),
+      getConnection: vi.fn(async () => ({ connected: true, stopRequested: false })),
       addListener: vi.fn(async () => ({ remove: vi.fn(async () => {}) })),
     };
     const display = createCarPlayDisplay({ isNative: true, plugin });
