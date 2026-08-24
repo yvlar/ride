@@ -125,8 +125,30 @@ export function rankingProviderError(
   return {
     code: "PROVIDER_ERROR",
     message: error.message,
-    suggestions: rankingKeySuggestions(),
+    suggestions: rankingSuggestionsFor(error.message),
   };
+}
+
+function rankingSuggestionsFor(message: string): string[] {
+  if (/HTTP 429|temporairement limité/.test(message)) {
+    return [
+      "Réessayez dans quelques instants.",
+      "Vérifiez le quota de OPENAI_API_KEY (OpenAI ou crédits Vercel AI Gateway).",
+    ];
+  }
+  if (/HTTP 401|HTTP 403|refusée/.test(message)) {
+    return [
+      "Vérifiez OPENAI_API_KEY sur Vercel (Preview et Production), puis redéployez.",
+      "N’exposez jamais cette clé dans le navigateur.",
+    ];
+  }
+  if (/HTTP 402|limite de crédit/.test(message)) {
+    return [
+      "Ajoutez du crédit à la clé API serveur utilisée pour le classement.",
+      "N’exposez jamais cette clé dans le navigateur.",
+    ];
+  }
+  return rankingKeySuggestions();
 }
 
 function rankingKeySuggestions(): string[] {

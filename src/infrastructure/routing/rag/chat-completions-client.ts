@@ -131,6 +131,9 @@ export class HttpChatCompletionsClient implements ChatCompletionsClient {
 
     const payload = await readJsonPayload(response);
     if (!response.ok) {
+      console.error("[ride] corridor ranking failed", {
+        status: response.status,
+      });
       throw rankingErrorFromHttpStatus(response.status);
     }
 

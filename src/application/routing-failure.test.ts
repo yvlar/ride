@@ -220,6 +220,9 @@ describe("errorFromExhaustedAttempts (FR-021)", () => {
     expect(error.code).toBe("PROVIDER_ERROR");
     expect(error.message).toMatch(/HTTP 401/);
     expect(error.message).not.toMatch(/cartographie/);
+    expect(error.suggestions.some((item) => item.includes("Vercel"))).toBe(
+      true,
+    );
   });
 
   it("keeps the unpaved FR-021 message when one attempt is a generic Error", () => {
@@ -314,6 +317,10 @@ describe("providerConfigurationError (FR-029)", () => {
     expect(error.code).toBe("PROVIDER_ERROR");
     expect(error.message).toMatch(/HTTP 429/);
     expect(error.message).not.toMatch(/cartographie/);
+    expect(error.suggestions.some((item) => item.includes("quota"))).toBe(true);
+    expect(error.suggestions.some((item) => item.includes("redéployez"))).toBe(
+      false,
+    );
   });
 
   it("keeps the generic mapping outage for other setup failures", () => {
