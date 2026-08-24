@@ -1,3 +1,4 @@
+import CarPlay
 import UIKit
 import Capacitor
 
@@ -7,7 +8,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
         return true
     }
 
@@ -36,6 +36,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      configurationForConnecting connectingSceneSession: UISceneSession,
                      options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        if connectingSceneSession.role.rawValue == "CPTemplateApplicationSceneSessionRoleApplication" {
+            let carPlay = UISceneConfiguration(
+                name: "CarPlay Configuration",
+                sessionRole: connectingSceneSession.role
+            )
+            carPlay.delegateClass = CarPlaySceneDelegate.self
+            carPlay.sceneClass = CPTemplateApplicationScene.self
+            return carPlay
+        }
         let config = UISceneConfiguration(name: "Default Configuration",
                                           sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
