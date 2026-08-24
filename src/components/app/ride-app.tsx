@@ -138,6 +138,7 @@ export function RideApp(props: RideRequestFormProps) {
     setFormKey((value) => value + 1);
     setSheet("planner");
     setTab("explore");
+    setNavigating(false);
   }
 
   function remember(place: Place) {
