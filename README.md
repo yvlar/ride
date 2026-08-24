@@ -248,7 +248,7 @@ La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarr
 
 La coque iOS Capacitor (`FR-027`) encapsule la même application web. Le domaine et les API Next.js ne changent pas. Ce dépôt fournit le projet Xcode dans `ios/` ; la compilation, le simulateur et TestFlight exigent macOS et Xcode. Cet environnement Linux ne produit pas d’IPA.
 
-L’aperçu et la navigation partagent une seule carte routière. Démarrer la navigation agrandit cette carte au lieu d’en monter une seconde, ce qui évite le plantage mémoire iOS suivi dans [MapLibre GL JS #7667](https://github.com/maplibre/maplibre-gl-js/issues/7667) tout en gardant le tracé aligné sur les rues (`FR-013`).
+L’aperçu et la navigation partagent une seule carte routière. Démarrer la navigation agrandit cette carte et passe en vue 3D cap-en-haut (`FR-024`) au lieu d’en monter une seconde, ce qui évite le plantage mémoire iOS suivi dans [MapLibre GL JS #7667](https://github.com/maplibre/maplibre-gl-js/issues/7667) tout en gardant le tracé aligné sur les rues (`FR-013`). Le repli raster OSM reste plat ; un `NEXT_PUBLIC_MAP_STYLE_URL` vectoriel avec une couche `building` affiche les volumes.
 
 Commandes utiles :
 

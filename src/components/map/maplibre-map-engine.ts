@@ -1,6 +1,7 @@
 import { GeolocateControl, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { coordinatesToPosition } from "@/domain/geo/distance";
+import type { Coordinates } from "@/domain/geo/types";
 import { FALLBACK_MAP_STYLE } from "./fallback-style";
 import {
   GPS_TRACKING_UNAVAILABLE_MESSAGE,
@@ -13,7 +14,14 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
+import { addRideBuildingExtrusions } from "./map-3d-buildings";
 import { ensureMapLibreWorkerUrl } from "./maplibre-worker-url";
+import {
+  NAVIGATION_FOLLOW_DURATION_MS,
+  NAVIGATION_MAX_PITCH,
+  finiteHeadingDeg,
+  navigationFollowCamera,
+} from "./navigation-follow-camera";
 import {
   createDirectionArrowElement,
   createPlaceMarkerElement,
@@ -22,16 +30,13 @@ import {
 import "./ride-map-markers.css";
 import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
 
-/** Street-map follow camera while GeolocateControl is off (FR-024, FR-028). */
-export const NAVIGATION_FOLLOW_ZOOM = 16;
-export const NAVIGATION_FOLLOW_PITCH = 45;
-export const NAVIGATION_FOLLOW_DURATION_MS = 400;
-export const NAVIGATION_FOLLOW_PADDING = {
-  top: 160,
-  bottom: 200,
-  left: 40,
-  right: 40,
-} as const;
+export {
+  NAVIGATION_FOLLOW_DURATION_MS,
+  NAVIGATION_FOLLOW_PADDING,
+  NAVIGATION_FOLLOW_PITCH,
+  NAVIGATION_FOLLOW_ZOOM,
+  NAVIGATION_MAX_PITCH,
+} from "./navigation-follow-camera";
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -60,7 +65,13 @@ export function createMapLibreEngine(
           style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE,
           attributionControl: { compact: true },
           bounds: camera.bounds,
-          fitBoundsOptions: camera.fitBoundsOptions,
+          fitBoundsOptions: {
+            ...camera.fitBoundsOptions,
+            pitch: 0,
+            bearing: 0,
+          },
+          maxPitch: NAVIGATION_MAX_PITCH,
+          pitch: 0,
           locale: {
             "GeolocateControl.FindMyLocation": MAP_GEOLOCATE_LABEL,
             "GeolocateControl.LocationNotAvailable":
@@ -186,7 +197,7 @@ export function createMapLibreEngine(
           // The constructor already frames the first view. A second fitBounds
           // during load can throw inside MapLibre's camera ease (NFR-006).
           if (options.fitCamera) {
-            map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+            map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
           }
         } catch {
           onWarning?.(MAP_UNAVAILABLE_MESSAGE);
@@ -197,50 +208,45 @@ export function createMapLibreEngine(
         if (disposed || !map) {
           return;
         }
+        try {
+          addRideBuildingExtrusions(map);
+        } catch {
+          // Optional 3D buildings must not take down the street map (NFR-005).
+        }
         renderRoute(currentViewModel);
       });
 
       let userMarker: Marker | undefined;
       let followUser = false;
+      let lastUserCoordinates: Coordinates | null = null;
       let lastHeadingDeg: number | null = null;
 
-      function applyUserPuckHeading(headingDeg: number | null | undefined) {
-        if (!userMarker) {
+      function applyUserPuckHeading(headingDeg: number | null) {
+        if (!userMarker || headingDeg == null) {
           return;
         }
-        if (typeof headingDeg !== "number" || !Number.isFinite(headingDeg)) {
-          return;
-        }
-        lastHeadingDeg = ((headingDeg % 360) + 360) % 360;
         userMarker.setRotationAlignment("map");
         userMarker.setPitchAlignment("viewport");
-        userMarker.setRotation(lastHeadingDeg);
+        userMarker.setRotation(headingDeg);
       }
 
       function applyFollowCamera() {
-        if (!followUser || !map || disposed || !userMarker) {
+        if (!followUser || !map || disposed || !lastUserCoordinates) {
           return;
         }
-        const camera: {
-          center: ReturnType<Marker["getLngLat"]>;
-          zoom: number;
-          padding: typeof NAVIGATION_FOLLOW_PADDING;
-          duration: number;
-          essential: boolean;
-          bearing?: number;
-          pitch?: number;
-        } = {
-          center: userMarker.getLngLat(),
-          zoom: NAVIGATION_FOLLOW_ZOOM,
-          padding: NAVIGATION_FOLLOW_PADDING,
-          duration: NAVIGATION_FOLLOW_DURATION_MS,
-          essential: true,
-        };
-        if (lastHeadingDeg != null && Number.isFinite(lastHeadingDeg)) {
-          camera.bearing = lastHeadingDeg;
-          camera.pitch = NAVIGATION_FOLLOW_PITCH;
+        map.easeTo(
+          navigationFollowCamera(lastUserCoordinates, lastHeadingDeg),
+        );
+      }
+
+      function applyOverviewCamera() {
+        if (!map || disposed) {
+          return;
         }
-        map.easeTo(camera);
+        map.fitBounds(camera.bounds, {
+          ...overviewFitBoundsOptions(camera),
+          duration: NAVIGATION_FOLLOW_DURATION_MS,
+        });
       }
 
       function onUserCameraInteraction(event?: { originalEvent?: Event }) {
@@ -290,10 +296,13 @@ export function createMapLibreEngine(
           }
           try {
             if (!coordinates) {
+              lastUserCoordinates = null;
               userMarker?.remove();
               userMarker = undefined;
               return;
             }
+            lastUserCoordinates = coordinates;
+            lastHeadingDeg = finiteHeadingDeg(headingDeg) ?? lastHeadingDeg;
             const lngLat = coordinatesToPosition(coordinates);
             if (!userMarker) {
               userMarker = new Marker({
@@ -307,7 +316,7 @@ export function createMapLibreEngine(
             } else {
               userMarker.setLngLat(lngLat);
             }
-            applyUserPuckHeading(headingDeg);
+            applyUserPuckHeading(lastHeadingDeg);
             applyFollowCamera();
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
@@ -327,13 +336,18 @@ export function createMapLibreEngine(
           if (disposed) {
             return;
           }
+          const wasFollowing = followUser;
           followUser = enabled;
-          if (enabled) {
-            try {
+          try {
+            if (enabled) {
               applyFollowCamera();
-            } catch {
-              onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+              return;
             }
+            if (wasFollowing) {
+              applyOverviewCamera();
+            }
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
         },
         recenter() {
@@ -342,11 +356,11 @@ export function createMapLibreEngine(
           }
           try {
             followUser = true;
-            if (userMarker) {
+            if (lastUserCoordinates) {
               applyFollowCamera();
               return;
             }
-            map.fitBounds(camera.bounds, camera.fitBoundsOptions);
+            applyOverviewCamera();
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
@@ -390,13 +404,24 @@ function placeMarker(
     .addTo(map);
 }
 
+function overviewFitBoundsOptions(frame: ReturnType<typeof mapCameraFrame>) {
+  return {
+    ...frame.fitBoundsOptions,
+    pitch: 0,
+    bearing: 0,
+  };
+}
+
 function placeArrow(
   map: MapLibreMap,
   arrow: RideMapViewModel["directionArrows"][number],
 ): Marker {
   return new Marker({
-    element: createDirectionArrowElement(arrow.bearingDeg),
+    element: createDirectionArrowElement(0),
     anchor: "center",
+    rotationAlignment: "map",
+    pitchAlignment: "map",
+    rotation: arrow.bearingDeg,
   })
     .setLngLat(coordinatesToPosition(arrow.coordinates))
     .addTo(map);
