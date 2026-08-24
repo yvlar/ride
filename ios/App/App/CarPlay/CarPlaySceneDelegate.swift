@@ -10,6 +10,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private var currentTrip: CPTrip?
     private var currentManeuver: CPManeuver?
     private var currentRouteId: String?
+    private var catalogListTemplate: CPListTemplate?
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
@@ -39,8 +40,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
 
     func applyCatalog(_ catalog: RideCarPlayCatalog) {
-        _ = catalog
         refreshButtons(muted: RideCarPlaySession.shared.muted)
+        catalogListTemplate?.updateSections(makeCatalogSections(catalog))
     }
 
     func recenter() {
@@ -91,6 +92,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         interfaceController = nil
         mapTemplate = nil
         mapViewController = nil
+        catalogListTemplate = nil
     }
 
     private func refreshButtons(muted: Bool) {
@@ -120,8 +122,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         mapTemplate.mapButtons = [recenter, search]
     }
 
-    private func showCatalogList() {
-        let catalog = RideCarPlaySession.shared.catalog
+    private func makeCatalogSections(_ catalog: RideCarPlayCatalog) -> [CPListSection] {
         var sections: [CPListSection] = []
         if let resume = catalog.resumeTitle {
             let item = CPListItem(text: resume, detailText: catalog.resumeSubtitle ?? "Reprendre")
@@ -153,7 +154,13 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             }
             sections.append(CPListSection(items: items, header: "Enregistrés", sectionIndexTitle: nil))
         }
-        let list = CPListTemplate(title: "Trajets", sections: sections)
+        return sections
+    }
+
+    private func showCatalogList() {
+        let catalog = RideCarPlaySession.shared.catalog
+        let list = CPListTemplate(title: "Trajets", sections: makeCatalogSections(catalog))
+        catalogListTemplate = list
         interfaceController?.pushTemplate(list, animated: true)
     }
 
