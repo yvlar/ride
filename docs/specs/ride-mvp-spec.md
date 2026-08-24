@@ -32,7 +32,7 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 3. indiquer une destination lorsque le type l’exige;
 4. indiquer une distance cible et/ou une durée disponible;
 5. choisir un style de trajet;
-6. activer les préférences d’évitement d’autoroutes et de routes non pavées;
+6. activer les préférences d’évitement d’autoroutes, de routes non pavées, et l’option « Canada seulement »;
 7. générer un trajet;
 8. le visualiser sur une carte avec les statistiques essentielles;
 9. régénérer une variante sensiblement différente;
@@ -218,6 +218,24 @@ Les segments dont la surface est inconnue ne doivent pas être présentés comme
 
 Une route connue comme non pavée ne doit pas être proposée lorsque `FR-008` est actif. Si cette contrainte rend la génération impossible, le système l’explique et suggère l’assouplissement le plus utile. Il ne doit pas ignorer silencieusement l’exclusion.
 
+### FR-028 — Canada seulement
+
+L’utilisateur peut demander que le trajet reste **au Canada** et **ne traverse pas aux États-Unis**.
+
+Lorsque l’option est active :
+
+- le départ doit être au Canada;
+- la destination, si le type de trajet en exige une, doit être au Canada;
+- **toute** la géométrie du trajet généré (y compris ponts, boucles et raccourcis) doit rester hors des États-Unis.
+
+La classification Canada / États-Unis est un fait géographique du domaine. Elle ne lit pas le pays renvoyé par un géocodeur et ne dépend d’aucun fournisseur de carte ou de routage nommé (`BR-004`).
+
+L’option est **facultative** et **désactivée par défaut**.
+
+### BR-009 — Pas de relâchement silencieux du passage aux États-Unis
+
+Un segment, un pont ou un corridor qui entre aux États-Unis ne doit pas être proposé lorsque `FR-028` est actif. Si cette contrainte rend la génération impossible — y compris lorsque le départ ou la destination est déjà aux États-Unis — le système l’explique et suggère l’assouplissement le plus utile (désactiver l’option, ou choisir un départ et une destination au Canada). Il ne doit pas ignorer silencieusement le passage de frontière.
+
 ---
 
 ## 8. Génération et régénération
@@ -231,7 +249,7 @@ La génération doit :
 1. valider la demande;
 2. produire un ou plusieurs candidats internes;
 3. normaliser le résultat en un trajet du domaine (géométrie, distance, durée, statistiques);
-4. vérifier les règles métier (`BR-001`, `BR-002`, `BR-003`, `BR-007`);
+4. vérifier les règles métier (`BR-001`, `BR-002`, `BR-003`, `BR-007`, `BR-009`);
 5. retourner un trajet utilisable **ou** une erreur métier explicite.
 
 Le MVP affiche **un trajet principal** à la fois. La comparaison de plusieurs variantes simultanées n’est pas requise dans ce périmètre.
@@ -259,7 +277,7 @@ Le seuil exact de différence peut évoluer. Pour le MVP, une régénération es
 Si aucune route ne respecte l’ensemble des contraintes, le système doit :
 
 - l’expliquer en langage clair;
-- indiquer la ou les contraintes en cause (distance, autoroutes, surface, chevauchement, etc.);
+- indiquer la ou les contraintes en cause (distance, autoroutes, surface, passage aux États-Unis, chevauchement, etc.);
 - suggérer les assouplissements les plus utiles.
 
 Il ne doit pas renvoyer un échec opaque ni un trajet qui viole silencieusement une contrainte stricte.
@@ -319,7 +337,7 @@ Le parcours MVP est le suivant :
 4. Saisir la destination si le type l’exige (`FR-018`).
 5. Indiquer une distance cible (`FR-009`) et/ou une durée disponible (`FR-010`).
 6. Choisir un style (`FR-019`).
-7. Activer au besoin « éviter les autoroutes » (`FR-007`) et « éviter les routes non pavées » (`FR-008`).
+7. Activer au besoin « éviter les autoroutes » (`FR-007`), « éviter les routes non pavées » (`FR-008`) et « Canada seulement » (`FR-028`).
 8. Lancer la génération (`FR-011`).
 9. Consulter le résultat sur la carte et dans le panneau de synthèse (`FR-013`, `FR-015`, `FR-020`).
 10. Régénérer si le trajet ne convient pas (`FR-012`).
@@ -370,7 +388,7 @@ L’écran principal permet de composer la demande de génération. Il contient 
 - la destination, uniquement si le type l’exige;
 - la distance cible et/ou la durée disponible;
 - le style de trajet;
-- les options « éviter les autoroutes » et « éviter les routes non pavées »;
+- les options « éviter les autoroutes », « éviter les routes non pavées » et « Canada seulement »;
 - une action principale unique de génération.
 
 L’écran est conçu pour le pouce sur smartphone. Les choix importants utilisent des contrôles larges plutôt que de longues listes.
@@ -417,6 +435,7 @@ Les règles suivantes gouvernent le comportement du générateur, indépendammen
 | `BR-006` | Une régénération doit viser un corridor sensiblement différent. |
 | `BR-007` | Les routes non pavées connues ne sont pas relâchées silencieusement. |
 | `BR-008` | Un recalcul conserve le style et les préférences d’évitement. |
+| `BR-009` | Un passage aux États-Unis n’est pas relâché silencieusement. |
 
 ### BR-002 — Minimiser les routes répétées
 
@@ -569,7 +588,7 @@ Le recalcul :
 - part de la position GPS actuelle;
 - passe uniquement par `RoutingProvider`;
 - valide strictement la requête;
-- conserve le style, `avoidHighways` et `avoidUnpaved` (`BR-008`);
+- conserve le style, `avoidHighways`, `avoidUnpaved` et `stayInCanada` (`BR-008`);
 - applique les mêmes règles et avertissements que la génération initiale;
 - ignore les réponses obsolètes (identifiant de génération ou `AbortController`);
 - n’efface jamais silencieusement le trajet courant en cas d’échec.
@@ -586,7 +605,7 @@ Si le recalcul échoue, l’ancien trajet reste visible, une erreur compréhensi
 
 ### BR-008 — Préservation des préférences lors du recalcul
 
-Un recalcul (`FR-026`) conserve le type de trajet, le style (`FR-004`, `FR-005`, `FR-006`) et les préférences d’évitement (`FR-007`, `FR-008`). Il ne relâche pas silencieusement une contrainte de surface connue (`BR-007`) et ne change pas le problème en plus court chemin vers le départ.
+Un recalcul (`FR-026`) conserve le type de trajet, le style (`FR-004`, `FR-005`, `FR-006`) et les préférences d’évitement (`FR-007`, `FR-008`, `FR-028`). Il ne relâche pas silencieusement une contrainte de surface connue (`BR-007`) ni un passage aux États-Unis (`BR-009`) et ne change pas le problème en plus court chemin vers le départ.
 
 ### NFR-006 — Navigation sécuritaire de premier plan
 

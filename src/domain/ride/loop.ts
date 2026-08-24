@@ -12,6 +12,12 @@ import {
   MIN_ROAD_NETWORK_POINTS,
 } from "./constants";
 import {
+  excludeUnitedStatesCrossing,
+  routeEntersUnitedStates,
+  stayInCanadaEnabled,
+  waypointSetEntersUnitedStates,
+} from "./canada";
+import {
   distanceToleranceGapKm,
   isWithinDistanceTolerance,
   usesKnownUnpaved,
@@ -49,6 +55,9 @@ type LoopSeedPattern = {
 };
 
 const LOOP_ORIENTATIONS_DEG = [22.5, 112.5, 202.5, 292.5] as const;
+const EXTRA_CANADA_ORIENTATIONS_DEG = [
+  0, 45, 90, 135, 180, 225, 270, 315,
+] as const;
 const LOOP_SEED_PATTERNS: readonly LoopSeedPattern[] = [
   {
     perimeterScale: 0.72,
@@ -71,14 +80,43 @@ const LOOP_SEED_PATTERNS: readonly LoopSeedPattern[] = [
 /**
  * FR-001 — candidate waypoint rings around the start.
  * The geometric ring is only a seed; the routing provider must snap it to roads.
+ * FR-028 — when stayInCanada is on, drop seeds that land in the United States.
  */
 export function createLoopWaypointSets(
   start: Coordinates,
   targetDistanceKm: number,
+  stayInCanada = false,
+): LoopWaypointSet[] {
+  const sets = waypointSetsForOrientations(
+    start,
+    targetDistanceKm,
+    LOOP_ORIENTATIONS_DEG,
+  );
+  if (!stayInCanadaEnabled(stayInCanada)) {
+    return sets;
+  }
+
+  const canadian = sets.filter(
+    (set) => !waypointSetEntersUnitedStates(start, set.waypoints),
+  );
+  if (canadian.length > 0) {
+    return canadian;
+  }
+
+  return waypointSetsForOrientations(
+    start,
+    targetDistanceKm,
+    EXTRA_CANADA_ORIENTATIONS_DEG,
+  ).filter((set) => !waypointSetEntersUnitedStates(start, set.waypoints));
+}
+
+function waypointSetsForOrientations(
+  start: Coordinates,
+  targetDistanceKm: number,
+  orientations: readonly number[],
 ): LoopWaypointSet[] {
   const sets: LoopWaypointSet[] = [];
-
-  for (const bearingDeg of LOOP_ORIENTATIONS_DEG) {
+  for (const bearingDeg of orientations) {
     for (const pattern of LOOP_SEED_PATTERNS) {
       const seed = createAsymmetricWaypoints(
         start,
@@ -89,7 +127,6 @@ export function createLoopWaypointSets(
       sets.push({ bearingDeg, ...seed });
     }
   }
-
   return sets;
 }
 
@@ -240,6 +277,9 @@ export type LoopSelection =
     }
   | {
       status: "known_unpaved_rejected";
+    }
+  | {
+      status: "canada_only_rejected";
     };
 
 export function selectBestLoopCandidate(
@@ -248,6 +288,7 @@ export function selectBestLoopCandidate(
   style?: RideStyle,
   avoidHighways = false,
   avoidUnpaved = false,
+  stayInCanada = false,
 ): LoopSelection {
   const viable = evaluations.filter(isViableLoop);
   if (viable.length === 0) {
@@ -268,11 +309,23 @@ export function selectBestLoopCandidate(
   if (avoidUnpaved && viable.length > 0 && withoutUnpaved.length === 0) {
     return { status: "known_unpaved_rejected" };
   }
-  const inTolerance = withoutUnpaved.filter(
+  const withoutUnitedStates = excludeUnitedStatesCrossing(
+    withoutUnpaved,
+    (evaluation) => routeEntersUnitedStates(evaluation.candidate),
+    stayInCanada,
+  );
+  if (
+    stayInCanada &&
+    withoutUnpaved.length > 0 &&
+    withoutUnitedStates.length === 0
+  ) {
+    return { status: "canada_only_rejected" };
+  }
+  const inTolerance = withoutUnitedStates.filter(
     (evaluation) => evaluation.withinDistanceTolerance,
   );
   const pool = preferAvoidingHighways(
-    inTolerance.length > 0 ? inTolerance : withoutUnpaved,
+    inTolerance.length > 0 ? inTolerance : withoutUnitedStates,
     (evaluation) => usesHighway(evaluation.candidate.segments),
     avoidHighways,
   );

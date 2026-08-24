@@ -15,6 +15,12 @@ import {
   MIN_DESTINATION_ROAD_POINTS,
 } from "./constants";
 import {
+  excludeUnitedStatesCrossing,
+  routeEntersUnitedStates,
+  stayInCanadaEnabled,
+  waypointSetEntersUnitedStates,
+} from "./canada";
+import {
   distanceBoundsKm,
   distanceToleranceGapKm,
   isWithinDistanceTolerance,
@@ -48,6 +54,7 @@ export function createDestinationWaypointSets(
   start: Coordinates,
   destination: Coordinates,
   targetDistanceKm?: number,
+  stayInCanada = false,
 ): DestinationWaypointSet[] {
   const straightKm = haversineKm(start, destination);
   const bearingDeg = initialBearingDeg(start, destination);
@@ -105,7 +112,13 @@ export function createDestinationWaypointSets(
     }
   }
 
-  return sets;
+  if (!stayInCanadaEnabled(stayInCanada)) {
+    return sets;
+  }
+
+  return sets.filter(
+    (set) => !waypointSetEntersUnitedStates(start, set.waypoints),
+  );
 }
 
 function offsetHeightForTarget(straightKm: number, targetKm: number): number {
@@ -251,6 +264,9 @@ export type DestinationSelection =
     }
   | {
       status: "known_unpaved_rejected";
+    }
+  | {
+      status: "canada_only_rejected";
     };
 
 export function selectBestDestinationCandidate(
@@ -259,6 +275,7 @@ export function selectBestDestinationCandidate(
   targetDistanceKm?: number,
   avoidHighways = false,
   avoidUnpaved = false,
+  stayInCanada = false,
 ): DestinationSelection {
   const anchored = evaluations.filter(isAnchoredDestination);
   if (anchored.length === 0) {
@@ -273,11 +290,23 @@ export function selectBestDestinationCandidate(
   if (avoidUnpaved && anchored.length > 0 && withoutUnpaved.length === 0) {
     return { status: "known_unpaved_rejected" };
   }
+  const withoutUnitedStates = excludeUnitedStatesCrossing(
+    withoutUnpaved,
+    (evaluation) => routeEntersUnitedStates(evaluation.candidate),
+    stayInCanada,
+  );
+  if (
+    stayInCanada &&
+    withoutUnpaved.length > 0 &&
+    withoutUnitedStates.length === 0
+  ) {
+    return { status: "canada_only_rejected" };
+  }
 
-  const reasonable = withoutUnpaved.filter(
+  const reasonable = withoutUnitedStates.filter(
     (evaluation) => !evaluation.disproportionateDetour,
   );
-  const pool = reasonable.length > 0 ? reasonable : withoutUnpaved;
+  const pool = reasonable.length > 0 ? reasonable : withoutUnitedStates;
 
   const inTolerance =
     targetDistanceKm === undefined

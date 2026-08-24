@@ -30,7 +30,7 @@ import type {
 } from "@/infrastructure/routing/routing-provider";
 import {
   knowledgeUnavailableError,
-  rejectIfKnownUnpavedAvoided,
+  applyHardRoutePreferences,
 } from "./routing-failure";
 import { isRoutingKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 
@@ -126,7 +126,7 @@ export async function recalculateRoute(
   }
 
   try {
-    const connector = rejectIfKnownUnpavedAvoided(
+    const connector = applyHardRoutePreferences(
       await provider.calculateRoute(
         {
           start: parsed.data.currentPosition,

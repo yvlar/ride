@@ -32,6 +32,7 @@ export const rideStyleSchema = z.enum(["curvy", "scenic", "touring"]);
 const routePreferencesSchema = z.object({
   avoidHighways: z.boolean(),
   avoidUnpaved: z.boolean(),
+  stayInCanada: z.boolean().optional(),
 });
 
 export const loopRideRequestSchema = z

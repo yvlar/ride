@@ -823,7 +823,7 @@ describe("RideRequestForm (FR-014)", () => {
     ).toBeInTheDocument();
   });
 
-  it("toggles route preferences (FR-007, FR-008)", async () => {
+  it("toggles route preferences (FR-007, FR-008, FR-028)", async () => {
     const onRequestComposed = vi.fn();
     renderForm({ onRequestComposed });
 
@@ -833,12 +833,17 @@ describe("RideRequestForm (FR-014)", () => {
     });
     fireEvent.click(screen.getByLabelText("Éviter les autoroutes"));
     fireEvent.click(screen.getByLabelText("Éviter les routes non pavées"));
+    fireEvent.click(screen.getByLabelText("Canada seulement"));
     fireEvent.click(screen.getByRole("button", { name: "Générer ma ride" }));
 
     await waitFor(() => {
       expect(onRequestComposed).toHaveBeenCalledWith(
         expect.objectContaining({
-          preferences: { avoidHighways: true, avoidUnpaved: true },
+          preferences: {
+            avoidHighways: true,
+            avoidUnpaved: true,
+            stayInCanada: true,
+          },
         }),
       );
     });

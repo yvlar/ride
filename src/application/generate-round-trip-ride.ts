@@ -28,12 +28,13 @@ import type {
   RoundTripRideRequest,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
-import { unpavedKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
+import { unpavedKnowledgeError, canadaOnlyKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
+  applyHardRoutePreferences,
   errorFromExhaustedAttempts,
   knowledgeUnavailableError,
-  rejectIfKnownUnpavedAvoided,
+  stayInCanadaEndpointError,
 } from "./routing-failure";
 
 export type GenerateRoundTripRideResult =
@@ -119,6 +120,15 @@ async function generateValidatedRoundTrip(
   routingProvider: RoutingProvider,
   options?: RideGenerationOptions,
 ): Promise<GenerateRoundTripRideResult> {
+  const endpointError = stayInCanadaEndpointError(
+    request.start.coordinates,
+    request.destination.coordinates,
+    request.preferences.stayInCanada,
+  );
+  if (endpointError) {
+    return { ok: false, error: endpointError };
+  }
+
   const targetDistanceKm = resolveTargetDistanceKm(request);
   const perLegTargetKm =
     targetDistanceKm === undefined ? undefined : targetDistanceKm / 2;
@@ -127,11 +137,13 @@ async function generateValidatedRoundTrip(
     request.start.coordinates,
     request.destination.coordinates,
     perLegTargetKm,
+    request.preferences.stayInCanada === true,
   );
   const inboundSets = createReturnWaypointSets(
     request.start.coordinates,
     request.destination.coordinates,
     perLegTargetKm,
+    request.preferences.stayInCanada === true,
   );
 
   const [outboundSettled, inboundSettled] = await Promise.all([
@@ -225,6 +237,7 @@ async function generateValidatedRoundTrip(
     targetDistanceKm,
     request.preferences.avoidHighways,
     request.preferences.avoidUnpaved,
+    request.preferences.stayInCanada === true,
   );
   if (
     lostOnlyToPreviousCorridor(
@@ -235,6 +248,7 @@ async function generateValidatedRoundTrip(
         targetDistanceKm,
         request.preferences.avoidHighways,
         request.preferences.avoidUnpaved,
+        request.preferences.stayInCanada === true,
       ).status,
     )
   ) {
@@ -245,6 +259,13 @@ async function generateValidatedRoundTrip(
     return {
       ok: false,
       error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
+
+  if (selection.status === "canada_only_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
     };
   }
 
@@ -317,7 +338,7 @@ async function fetchLegCandidates(
 ): Promise<PromiseSettledResult<DestinationCandidate>[]> {
   return Promise.allSettled(
     sets.map(async (set) => {
-      const result = rejectIfKnownUnpavedAvoided(
+      const result = applyHardRoutePreferences(
         await routingProvider.calculateRoute({
           start,
           destination,

@@ -134,6 +134,7 @@ export function RideRequestForm({
   const [style, setStyle] = useState<RideStyle>("scenic");
   const [avoidHighways, setAvoidHighways] = useState(false);
   const [avoidUnpaved, setAvoidUnpaved] = useState(false);
+  const [stayInCanada, setStayInCanada] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<RideFormField, string>>>(
     {},
   );
@@ -224,6 +225,7 @@ export function RideRequestForm({
       preferences: {
         avoidHighways,
         avoidUnpaved,
+        stayInCanada,
       },
     });
 
@@ -547,6 +549,25 @@ export function RideRequestForm({
                 checked={avoidUnpaved}
                 onCheckedChange={(checked) => {
                   setAvoidUnpaved(checked);
+                  invalidateInFlightGeneration();
+                }}
+              />
+            </div>
+            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+              <div className="min-w-0">
+                <Label htmlFor="stay-in-canada" className="text-base">
+                  Canada seulement
+                </Label>
+                <p id="stay-in-canada-hint" className="text-sm text-muted-foreground">
+                  Ne pas traverser aux États-Unis
+                </p>
+              </div>
+              <Switch
+                id="stay-in-canada"
+                checked={stayInCanada}
+                aria-describedby="stay-in-canada-hint"
+                onCheckedChange={(checked) => {
+                  setStayInCanada(checked);
                   invalidateInFlightGeneration();
                 }}
               />

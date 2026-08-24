@@ -116,6 +116,45 @@ describe("recalculateRoute (FR-026, BR-008)", () => {
     }
   });
 
+  it("keeps stayInCanada on a destination reroute (FR-028, BR-008)", async () => {
+    const calculateRoute = vi.fn(async (input) => {
+      return new MockRoutingProvider().calculateRoute(input);
+    });
+    const provider: RoutingProvider = { calculateRoute };
+
+    const result = await recalculateRoute(
+      {
+        currentPosition: offsetCoordinates(start.coordinates, 180, 0.4),
+        progressKm: 2,
+        request: {
+          type: "destination",
+          start,
+          destination,
+          style: "curvy",
+          preferences: {
+            avoidHighways: true,
+            avoidUnpaved: true,
+            stayInCanada: true,
+          },
+        },
+        originalRoute: destinationRoute,
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(calculateRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferences: {
+          avoidHighways: true,
+          avoidUnpaved: true,
+          stayInCanada: true,
+        },
+      }),
+      expect.anything(),
+    );
+  });
+
   it("recalculates a destination ride toward the final destination", async () => {
     const result = await recalculateRoute(
       {

@@ -1,18 +1,23 @@
+import { isInUnitedStates } from "@/domain/geo/united-states";
+import type { Coordinates } from "@/domain/geo/types";
 import { usesKnownUnpaved } from "@/domain/ride/constraints";
+import { routeEntersUnitedStates, stayInCanadaEnabled } from "@/domain/ride/canada";
 import type { RideGenerationError, RoutePreferences } from "@/domain/ride/types";
 import {
+  canadaOnlyKnowledgeError,
   isRoutingKnowledgeError,
+  RoutingKnowledgeError,
   unpavedKnowledgeError,
   type KnowledgeMissReason,
-  type RoutingKnowledgeError,
 } from "@/infrastructure/routing/routing-knowledge-error";
 import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
 
 const KNOWLEDGE_REASON_PRIORITY: Record<KnowledgeMissReason, number> = {
-  unpaved: 0,
-  too_far: 1,
-  empty: 2,
-  disconnected: 3,
+  canada_only: 0,
+  unpaved: 1,
+  too_far: 2,
+  empty: 3,
+  disconnected: 4,
 };
 
 /** BR-007 — known unpaved segments are rejected after the provider returns. */
@@ -24,6 +29,65 @@ export function rejectIfKnownUnpavedAvoided(
     throw unpavedKnowledgeError();
   }
   return result;
+}
+
+/** BR-009 — United States geometry is rejected after the provider returns. */
+export function rejectIfLeavesCanada(
+  result: ProviderRouteResult,
+  preferences: RoutePreferences | undefined,
+): ProviderRouteResult {
+  if (
+    stayInCanadaEnabled(preferences?.stayInCanada) &&
+    routeEntersUnitedStates(result)
+  ) {
+    throw canadaOnlyKnowledgeError();
+  }
+  return result;
+}
+
+export function applyHardRoutePreferences(
+  result: ProviderRouteResult,
+  preferences: RoutePreferences | undefined,
+): ProviderRouteResult {
+  return rejectIfLeavesCanada(
+    rejectIfKnownUnpavedAvoided(result, preferences),
+    preferences,
+  );
+}
+
+export function stayInCanadaEndpointError(
+  start: Coordinates,
+  destination: Coordinates | undefined,
+  stayInCanada: boolean | undefined,
+): RideGenerationError | undefined {
+  if (!stayInCanadaEnabled(stayInCanada)) {
+    return undefined;
+  }
+  if (isInUnitedStates(start)) {
+    return knowledgeUnavailableError(
+      new RoutingKnowledgeError(
+        "canada_only",
+        "Le point de départ est aux États-Unis. L’option « Canada seulement » exige un départ au Canada (FR-028, FR-021).",
+        [
+          "Choisissez un point de départ au Canada.",
+          "Désactivez « Canada seulement » si vous partez des États-Unis.",
+        ],
+      ),
+    );
+  }
+  if (destination && isInUnitedStates(destination)) {
+    return knowledgeUnavailableError(
+      new RoutingKnowledgeError(
+        "canada_only",
+        "La destination est aux États-Unis. L’option « Canada seulement » refuse de traverser la frontière (FR-028, FR-021).",
+        [
+          "Choisissez une destination au Canada.",
+          "Désactivez « Canada seulement » pour un trajet vers les États-Unis.",
+        ],
+      ),
+    );
+  }
+  return undefined;
 }
 
 export function errorFromExhaustedAttempts(

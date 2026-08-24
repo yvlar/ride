@@ -252,6 +252,39 @@ describe("RagRoutingProvider", () => {
     ).rejects.toMatchObject({ reason: "unpaved" });
   });
 
+  it("skips United States edges when stayInCanada is on (FR-028)", async () => {
+    const detroitEdge: RouteKnowledgeDocument = {
+      id: "grid:0,0|1,0",
+      text: "detroit motorway paved",
+      roadName: "I-75",
+      roadClass: "motorway",
+      surface: "paved",
+      fromCell: { x: 0, y: 0 },
+      toCell: { x: 1, y: 0 },
+      from: { latitude: 42.3314, longitude: -83.0458 },
+      to: { latitude: 42.34, longitude: -83.03 },
+      midpoint: { latitude: 42.335, longitude: -83.038 },
+    };
+    const retriever: CorridorRetriever = {
+      retrieve: async () => [{ document: detroitEdge, score: 9 }],
+    };
+    const provider = new RagRoutingProvider(retriever);
+    const detroit = { latitude: 42.3314, longitude: -83.0458 };
+    const nearby = { latitude: 42.34, longitude: -83.03 };
+
+    await expect(
+      provider.calculateRoute({
+        start: detroit,
+        destination: nearby,
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      }),
+    ).rejects.toMatchObject({ reason: "canada_only" });
+  });
+
   it("rejects a request whose bbox exceeds the indexable grid (FR-021)", async () => {
     const provider = new RagRoutingProvider();
     const far = offsetCoordinates(GRANBY, 90, 600);

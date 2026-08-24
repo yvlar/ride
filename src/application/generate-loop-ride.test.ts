@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { haversineKm, offsetCoordinates, positionToCoordinates } from "@/domain/geo/distance";
 import {
   createCircleLineString,
@@ -900,5 +900,125 @@ describe("generateLoopRide (FR-001)", () => {
     expect(result.route.segments[0]?.surface).toBe("unknown");
     expect(result.route.segments[0]?.surface).not.toBe("paved");
     expect(result.route.warnings).toContain(UNKNOWN_SURFACE_WARNING);
+  });
+
+  it("selects a Canadian loop when stayInCanada is on (FR-028)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        if ((input.waypoints?.length ?? 0) !== 2) {
+          return {
+            ...routed,
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+                [-83.0458, 42.3314],
+                [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+              ],
+            },
+          };
+        }
+        return routed;
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "touring",
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(
+      result.route.geometry.coordinates.some(
+        (position) => position[0] === -83.0458 && position[1] === 42.3314,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects every United States loop (FR-028, BR-009)", async () => {
+    const mock = new MockRoutingProvider();
+    const provider: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await mock.calculateRoute(input);
+        return {
+          ...routed,
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+              [-83.0458, 42.3314],
+              [GRANBY.coordinates.longitude, GRANBY.coordinates.latitude],
+            ],
+          },
+        };
+      },
+    };
+
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "touring",
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      },
+      provider,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/Canada seulement/);
+    expect(result.error.message).toMatch(/FR-021/);
+  });
+
+  it("fails before routing when the start is in the United States (FR-028, FR-021)", async () => {
+    const calculateRoute = vi.fn();
+    const result = await generateLoopRide(
+      {
+        type: "loop",
+        start: {
+          label: "Detroit",
+          coordinates: { latitude: 42.3314, longitude: -83.0458 },
+        },
+        targetDistanceKm: 80,
+        style: "touring",
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      },
+      { calculateRoute },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/départ est aux États-Unis/);
+    expect(calculateRoute).not.toHaveBeenCalled();
   });
 });

@@ -478,4 +478,72 @@ describe("selectBestRoundTripCandidate (FR-008)", () => {
     );
     expect(selection.evaluation.warnings).toContain(UNKNOWN_SURFACE_WARNING);
   });
+
+  it("selects a Canadian pair when stayInCanada is on (FR-028)", () => {
+    const canadian = evaluatePair(
+      sameRoadOutbound(),
+      differentReturn(),
+      undefined,
+      "touring",
+    );
+    const crossing = evaluatePair(
+      sameRoadOutbound(),
+      differentReturn(),
+      undefined,
+      "touring",
+    );
+    crossing.candidate.geometry = {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [-83.0458, 42.3314],
+        [TREMBLANT.longitude, TREMBLANT.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    };
+
+    const selection = selectBestRoundTripCandidate(
+      [crossing, canadian],
+      undefined,
+      false,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.geometry.coordinates).toEqual(
+      canadian.candidate.geometry.coordinates,
+    );
+  });
+
+  it("rejects rather than silently keeping a United States crossing (FR-028, BR-009)", () => {
+    const crossing = evaluatePair(
+      sameRoadOutbound(),
+      differentReturn(),
+      undefined,
+      "touring",
+    );
+    crossing.candidate.geometry = {
+      type: "LineString",
+      coordinates: [
+        [GRANBY.longitude, GRANBY.latitude],
+        [-83.0458, 42.3314],
+        [TREMBLANT.longitude, TREMBLANT.latitude],
+        [GRANBY.longitude, GRANBY.latitude],
+      ],
+    };
+
+    const selection = selectBestRoundTripCandidate(
+      [crossing],
+      undefined,
+      false,
+      false,
+      true,
+    );
+
+    expect(selection.status).toBe("canada_only_rejected");
+  });
 });
