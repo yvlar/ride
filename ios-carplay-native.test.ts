@@ -38,6 +38,13 @@ describe("native CarPlay session (FR-028)", () => {
     expect(session).toContain("snapshot.withMute(muted)");
   });
 
+  it("uses a 3D heading-up street camera with buildings (FR-024, FR-028)", () => {
+    const map = readCarPlay("RideCarPlayMapViewController.swift");
+    expect(map).toContain("showsBuildings = true");
+    expect(map).toContain("pitch: 60");
+    expect(map).toContain("1_200");
+  });
+
   it("offers Arrêter, rebuilds the trip on routeId change, and cancels speech on recalculate", () => {
     expect(scene).toContain("Arrêter");
     expect(scene).toContain("requestStop()");

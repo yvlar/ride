@@ -5,6 +5,12 @@ import {
   RIDE_GEOLOCATE_CONTROL_OPTIONS,
 } from "./geolocate-control-options";
 import { MAP_UNAVAILABLE_MESSAGE } from "./map-engine";
+import {
+  NAVIGATION_FOLLOW_PITCH,
+  NAVIGATION_FOLLOW_ZOOM,
+  NAVIGATION_MAX_PITCH,
+  navigationFollowCamera,
+} from "./navigation-follow-camera";
 
 const {
   addControl,
@@ -16,6 +22,7 @@ const {
   markerRemove,
   easeTo,
   fitBounds,
+  addLayer,
   mapState,
   createdMarkers,
   routeSource,
@@ -32,8 +39,34 @@ const {
   const markerRemove = vi.fn();
   const easeTo = vi.fn();
   const fitBounds = vi.fn();
-  const mapState = { painterAvailable: true, markerThrows: false };
+  const addLayer = vi.fn();
   const createdMarkers: { element?: HTMLElement }[] = [];
+  const rasterStyle = {
+    version: 8 as const,
+    sources: {
+      osm: { type: "raster", tiles: ["https://example.test/{z}/{x}/{y}.png"] },
+    },
+    layers: [{ id: "osm", type: "raster", source: "osm" }],
+  };
+  const mapState = {
+    painterAvailable: true,
+    markerThrows: false,
+    lastOptions: undefined as Record<string, unknown> | undefined,
+    style: rasterStyle as {
+      version: 8;
+      sources: Record<string, { type: string; tiles?: string[] }>;
+      layers: Array<Record<string, unknown>>;
+    },
+    resetStyle() {
+      this.style = {
+        version: 8,
+        sources: {
+          osm: { type: "raster", tiles: ["https://example.test/{z}/{x}/{y}.png"] },
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }],
+      };
+    },
+  };
 
   class FakeGeolocateControl {
     options: unknown;
@@ -56,11 +89,19 @@ const {
     remove = mapRemove;
     on = mapOn;
     addSource = vi.fn();
-    addLayer = vi.fn();
+    addLayer = addLayer;
     getSource = vi.fn(() => routeSource);
+    getStyle = () => mapState.style;
+    getLayer = (id: string) =>
+      mapState.style.layers.find((layer) => layer.id === id);
     fitBounds = fitBounds;
     easeTo = easeTo;
     isStyleLoaded = () => true;
+
+    constructor(options: Record<string, unknown>) {
+      mapState.lastOptions = options;
+      this.painter = mapState.painterAvailable ? {} : undefined;
+    }
   }
 
   class FakeMarker {
@@ -116,6 +157,7 @@ const {
     markerRemove,
     easeTo,
     fitBounds,
+    addLayer,
     mapState,
     createdMarkers,
     routeSource,
@@ -167,9 +209,12 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     easeTo.mockReset();
     fitBounds.mockReset();
     routeSource.setData.mockReset();
+    addLayer.mockReset();
     createdMarkers.length = 0;
     mapState.painterAvailable = true;
     mapState.markerThrows = false;
+    mapState.lastOptions = undefined;
+    mapState.resetStyle();
   });
 
   it("adds a voluntary high-accuracy GeolocateControl after mount", async () => {
@@ -496,9 +541,28 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     easeTo.mockReset();
     fitBounds.mockReset();
     routeSource.setData.mockReset();
+    addLayer.mockReset();
     createdMarkers.length = 0;
     mapState.painterAvailable = true;
     mapState.markerThrows = false;
+    mapState.lastOptions = undefined;
+    mapState.resetStyle();
+  });
+
+  it("allows a street-level pitch beyond MapLibre's default max (FR-024)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    expect(mapState.lastOptions).toEqual(
+      expect.objectContaining({
+        maxPitch: NAVIGATION_MAX_PITCH,
+        pitch: 0,
+      }),
+    );
   });
 
   it("follows the rider heading-up after GeolocateControl is torn down", async () => {
@@ -516,17 +580,83 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
 
     expect(easeTo).toHaveBeenCalledWith(
       expect.objectContaining({
-        center: { lng: -72.72, lat: 45.41 },
-        zoom: 16,
-        pitch: 45,
-        bearing: 90,
+        ...navigationFollowCamera({ latitude: 45.41, longitude: -72.72 }, 90),
         padding: NAVIGATION_FOLLOW_PADDING,
+        zoom: NAVIGATION_FOLLOW_ZOOM,
+        pitch: NAVIGATION_FOLLOW_PITCH,
+        bearing: 90,
       }),
     );
     const puck = createdMarkers.find((marker) =>
       marker.element?.classList.contains("ride-map-user-puck"),
     );
     expect(puck?.element?.querySelector("svg.ride-map-user-puck-icon")).not.toBeNull();
+  });
+
+  it("pitches the follow camera even without a heading (FR-024)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 });
+
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: { lng: -72.72, lat: 45.41 },
+        pitch: NAVIGATION_FOLLOW_PITCH,
+        zoom: NAVIGATION_FOLLOW_ZOOM,
+      }),
+    );
+    expect(easeTo.mock.calls.at(-1)?.[0]).not.toHaveProperty("bearing");
+  });
+
+  it("returns to a top-down route frame when follow ends (FR-013, FR-023)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+    fitBounds.mockClear();
+
+    handle.setFollowUser?.(false);
+
+    expect(fitBounds).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ pitch: 0, bearing: 0 }),
+    );
+  });
+
+  it("restores the top-down frame after a pan then stop (FR-013, FR-023)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+
+    const dragstart = mapOn.mock.calls.find((call) => call[0] === "dragstart")?.[1] as
+      | ((event: { originalEvent?: Event }) => void)
+      | undefined;
+    dragstart?.({ originalEvent: new Event("mousedown") });
+    fitBounds.mockClear();
+
+    handle.setFollowUser?.(false);
+
+    expect(fitBounds).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ pitch: 0, bearing: 0 }),
+    );
   });
 
   it("stops following after a user pan and resumes on Recentrer", async () => {
@@ -551,10 +681,9 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
 
     handle.recenter?.();
     expect(easeTo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        center: { lng: -72.71, lat: 45.42 },
-        bearing: 95,
-      }),
+      expect.objectContaining(
+        navigationFollowCamera({ latitude: 45.42, longitude: -72.71 }, 95),
+      ),
     );
   });
 
@@ -588,5 +717,61 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     expect(routeSource.setData).toHaveBeenCalled();
     expect(fitBounds).not.toHaveBeenCalled();
     handle.destroy();
+  });
+
+  it("does not add 3D buildings on the raster fallback (FR-024, NFR-005)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    expect(addLayer).not.toHaveBeenCalled();
+  });
+
+  it("extrudes vector building layers during navigation follow (FR-024)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { RIDE_3D_BUILDINGS_LAYER_ID } = await import("./map-3d-buildings");
+    mapState.style = {
+      version: 8,
+      sources: {
+        openmaptiles: {
+          type: "vector",
+          tiles: ["https://example.test/{z}/{x}/{y}.pbf"],
+        },
+      },
+      layers: [
+        {
+          id: "building",
+          type: "fill",
+          source: "openmaptiles",
+          "source-layer": "building",
+        },
+      ],
+    };
+
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    expect(addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: RIDE_3D_BUILDINGS_LAYER_ID,
+        type: "fill-extrusion",
+        source: "openmaptiles",
+        "source-layer": "building",
+      }),
+    );
   });
 });

@@ -299,6 +299,8 @@ La carte du MVP doit :
 - permettre d’identifier le sens général du trajet;
 - rester lisible sur un smartphone (`NFR-001`).
 
+L’écran résultat cadre le trajet en **vue de dessus**. La vue 3D cap-en-haut n’est activée que pendant une navigation suivie (`FR-024`).
+
 La carte est un moyen d’affichage. Le composant cartographique, les tuiles et le SDK utilisés sont des détails d’infrastructure (`BR-004`, `NFR-005`). Une indisponibilité de la carte ou du suivi GPS ne doit pas faire disparaître les informations textuelles du résultat (distance, durée, avertissements).
 
 La modification interactive avancée du tracé (ajout, déplacement ou suppression d’étapes) n’est pas requise dans le MVP.
@@ -539,7 +541,9 @@ Sur smartphone, ces informations sont présentées en overlay sur une carte plei
 - un carteau inférieur compact avec l’heure d’arrivée estimée, la durée restante, la distance restante, l’état GPS et l’arrêt;
 - des actions flottantes pour couper le son et recentrer la carte (`NFR-006`).
 
-Cette présentation n’ajoute aucune capacité hors contrat. Elle ne constitue pas une intégration Google Maps (`BR-004`).
+Pendant le suivi caméra de la navigation, la carte est présentée en **vue 3D cap-en-haut** : inclinaison, pastille dans le tiers inférieur, et plus de route visible devant le motard. Un geste (déplacer, zoomer, incliner) suspend ce suivi. Recentrer le rétablit. À l’arrêt (`FR-023`), la carte revient à la vue de dessus du trajet (`FR-013`). Les bâtiments en volume s’affichent seulement lorsque le style de carte les fournit ; le repli raster reste utilisable sans eux (`NFR-005`).
+
+Cette présentation n’ajoute aucune capacité hors contrat. Elle n’est pas une intégration Street View ni Google Maps (`BR-004`).
 
 Les types de manœuvre du domaine sont indépendants de tout fournisseur (`BR-004`) : départ, arrivée, continuer, tourner, demi-tour, bifurcation, fusion, entrée et sortie d’autoroute, fin de route, rond-point (avec numéro de sortie), changement de nom de route, et manœuvre inconnue avec repli sécuritaire.
 
@@ -660,11 +664,12 @@ Après une action **Démarrer la navigation** (`FR-023`), si un écran Apple Car
 L’écran CarPlay et l’écran iPhone partagent le même chrome, calqué sur une navigation carte type Google Maps, sans reprendre la marque ni le SDK Google (`BR-004`) :
 
 - carte plein écran, pastille de position avec cap, tracé du trajet;
+- vue 3D cap-en-haut pendant le suivi, alignée sur l’iPhone (`FR-024`), y compris les bâtiments 3D du fournisseur de carte lorsqu’ils sont disponibles;
 - bannière de prochaine manœuvre (flèche, distance, nom ou numéro de route);
 - barre d’arrivée (distance restante, durée restante, heure d’arrivée estimée);
 - actions simples uniquement : couper le son, recentrer, arrêter (`NFR-004`, `NFR-006`).
 
-Hors portée de `FR-028` : Street View, trafic, limitations de vitesse, guidage de voies, Siri, recherche d’adresse ou génération de trajet depuis le tableau de bord, Android Auto.
+Hors portée de `FR-028` : Street View photographique, trafic, limitations de vitesse, guidage de voies, Siri, recherche d’adresse ou génération de trajet depuis le tableau de bord, Android Auto. La vue 3D de navigation n’est pas du Street View.
 
 Tant que la scène CarPlay reste connectée :
 

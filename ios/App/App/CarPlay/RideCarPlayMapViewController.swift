@@ -12,6 +12,7 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
         mapView.delegate = self
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = true
+        mapView.showsBuildings = true
         mapView.showsCompass = false
         mapView.pointOfInterestFilter = .excludingAll
         view.addSubview(mapView)
@@ -157,7 +158,8 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
                 longitude: user.longitude
             ),
             fromDistance: cameraDistance(snapshot),
-            pitch: 45,
+            // Keep in sync with NAVIGATION_FOLLOW_PITCH (FR-024).
+            pitch: 60,
             heading: finiteHeading(snapshot.headingDeg) ?? 0
         )
         mapView.setCamera(camera, animated: true)
@@ -165,7 +167,7 @@ final class RideCarPlayMapViewController: UIViewController, MKMapViewDelegate {
 
     private func cameraDistance(_ snapshot: RideCarPlaySnapshot) -> CLLocationDistance {
         let meters = snapshot.maneuver?.distanceToManeuverM ?? 400
-        return min(max(meters * 3, 250), 1_800)
+        return min(max(meters * 2.5, 180), 1_200)
     }
 }
 
