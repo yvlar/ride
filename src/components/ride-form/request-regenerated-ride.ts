@@ -37,7 +37,10 @@ export async function requestRegeneratedRide(
       options?.useKnowledgeRouting === true
         ? { ...request, useKnowledgeRouting: true }
         : request,
-    previousRoute: { geometry: previousRoute.geometry },
+    previousRoute: {
+      type: previousRoute.type,
+      geometry: previousRoute.geometry,
+    },
   };
 
   let response: Response;
