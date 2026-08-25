@@ -489,6 +489,9 @@ export function NavigationSession({
 
     setRecalcError(null);
     const latest = gpxRuntimeRef.current ?? runtime;
+    if (latest.phase === "following_gpx" || latest.phase === "gpx_completed") {
+      return;
+    }
     const next = attachGpxConnector(
       latest,
       connectorFromProvider(result.route),
@@ -752,6 +755,10 @@ export function NavigationSession({
 
       const onTrace = enterFollowingIfOnTrace({ runtime, fix });
       if (onTrace) {
+        if (runtime.phase === "joining_gpx") {
+          generationRef.current += 1;
+          abortRef.current?.abort();
+        }
         runtime = onTrace;
         gpxRuntimeRef.current = runtime;
         progressRef.current = 0;
