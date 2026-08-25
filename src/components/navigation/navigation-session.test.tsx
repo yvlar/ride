@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { Position } from "@/domain/geo/types";
 import type { LocationWatch, LocationWatchEvent } from "@/domain/location/types";
 import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
@@ -909,6 +910,7 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     name: "Trace Est",
     start: { label: "Trace Est", coordinates: origin },
     destination: { label: "Arrivée GPX", coordinates: east },
+    style: "touring",
     geometry: {
       type: "LineString",
       coordinates: [
@@ -992,15 +994,16 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
   };
 
   function connectorResult(start: { latitude: number; longitude: number }, dest: { latitude: number; longitude: number }) {
+    const coordinates: Position[] = [
+      [start.longitude, start.latitude],
+      [dest.longitude, dest.latitude],
+    ];
     return {
       ok: true as const,
       route: {
         geometry: {
           type: "LineString" as const,
-          coordinates: [
-            [start.longitude, start.latitude],
-            [dest.longitude, dest.latitude],
-          ],
+          coordinates,
         },
         segments: [],
         steps: [
@@ -1013,10 +1016,7 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
             durationMinutes: 2,
             geometry: {
               type: "LineString" as const,
-              coordinates: [
-                [start.longitude, start.latitude],
-                [dest.longitude, dest.latitude],
-              ],
+              coordinates,
             },
           },
         ],

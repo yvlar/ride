@@ -1,10 +1,9 @@
 import {
   haversineKm,
   initialBearingDeg,
-  lineStringLengthKm,
+  coordinatesToPosition,
   positionToCoordinates,
 } from "@/domain/geo/distance";
-import { coordinatesToPosition } from "@/domain/geo/distance";
 import type { LineString } from "@/domain/geo/types";
 import { normalizeNavigationStep } from "@/domain/navigation/normalize";
 import type {

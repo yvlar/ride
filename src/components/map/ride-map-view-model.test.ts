@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Place } from "@/domain/geo/types";
+import type { GeneratedGpxRoute } from "@/domain/gpx/types";
 import type {
   GeneratedDestinationRoute,
   GeneratedLoopRoute,
@@ -134,15 +135,16 @@ describe("toRideMapViewModel (FR-013)", () => {
   });
 
   it("draws GPX parts, a distinct connector and an entry marker (FR-039)", () => {
-    const gpx = {
+    const gpx: GeneratedGpxRoute = {
       id: "gpx-1",
-      type: "gpx" as const,
-      source: "gpx" as const,
+      type: "gpx",
+      source: "gpx",
       name: "Cantons",
       start: granby,
       destination: tremblant,
+      style: "touring",
       geometry: {
-        type: "LineString" as const,
+        type: "LineString",
         coordinates: [
           [-72.7342, 45.4001],
           [-74.5962, 46.1185],
@@ -150,14 +152,14 @@ describe("toRideMapViewModel (FR-013)", () => {
       },
       parts: [
         {
-          type: "LineString" as const,
+          type: "LineString",
           coordinates: [
             [-72.7342, 45.4001],
             [-73.0, 45.6],
           ],
         },
         {
-          type: "LineString" as const,
+          type: "LineString",
           coordinates: [
             [-74.0, 46.0],
             [-74.5962, 46.1185],
@@ -170,9 +172,9 @@ describe("toRideMapViewModel (FR-013)", () => {
       durationMinutes: 110,
       warnings: [],
       isClosedLoop: false,
-      trackKind: "track" as const,
+      trackKind: "track",
       originalGeometry: {
-        type: "LineString" as const,
+        type: "LineString",
         coordinates: [
           [-72.7342, 45.4001],
           [-74.5962, 46.1185],

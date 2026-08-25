@@ -47,6 +47,7 @@ describe("ride library helpers (FR-035)", () => {
         name: "Cantons",
         start: granby,
         destination: granby,
+        style: "touring",
         geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
         parts: [{ type: "LineString", coordinates: [[0, 0], [1, 1]] }],
         gapBeforeVertex: [],

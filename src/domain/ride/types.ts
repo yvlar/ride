@@ -55,11 +55,12 @@ export type RoundTripRideRequest = {
   preferences: RoutePreferences;
 };
 
-export type GenerateRideRequest =
+export type ComposerRideRequest =
   | LoopRideRequest
   | DestinationRideRequest
-  | RoundTripRideRequest
-  | GpxRideRequest;
+  | RoundTripRideRequest;
+
+export type GenerateRideRequest = ComposerRideRequest | GpxRideRequest;
 
 export type { GeneratedGpxRoute, GpxRideRequest };
 

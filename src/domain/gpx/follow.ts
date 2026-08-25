@@ -264,6 +264,7 @@ export function remainingNavigableGeometry(
     name: "",
     start: { label: "", coordinates: nearest.point },
     destination: { label: "", coordinates: nearest.point },
+    style: "touring",
     geometry,
     parts: [geometry],
     gapBeforeVertex: [...gapBeforeVertex],

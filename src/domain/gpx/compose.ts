@@ -114,6 +114,7 @@ export function composeGpxRoute(input: {
     name,
     start: placeFromPoint(startPoint, name),
     destination: placeFromPoint(endPoint, closed ? name : "Arrivée GPX"),
+    style: "touring",
     geometry,
     parts,
     gapBeforeVertex,
@@ -155,7 +156,7 @@ export function gpxRideRequestFromRoute(
     start: route.start,
     destination: route.destination,
     name: route.name,
-    style: "touring",
+    style: route.style,
     preferences: { avoidHighways: false, avoidUnpaved: false },
   };
 }

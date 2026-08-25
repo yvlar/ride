@@ -1,6 +1,6 @@
 import type { Coordinates, LineString, Place } from "@/domain/geo/types";
 import type { NavigationStep } from "@/domain/navigation/types";
-import type { RouteSegment } from "@/domain/ride/types";
+import type { RideStyle, RouteSegment } from "@/domain/ride/types";
 
 export type GpxTrackKind = "track" | "route";
 
@@ -67,6 +67,7 @@ export type GeneratedGpxRoute = {
   name: string;
   start: Place;
   destination: Place;
+  style: RideStyle;
   geometry: LineString;
   parts: LineString[];
   /** Vertex indices whose inbound segment is a gap between trkseg parts. */

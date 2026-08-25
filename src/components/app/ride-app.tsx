@@ -334,6 +334,9 @@ export function RideApp(props: RideRequestFormProps) {
         openRide(item.request, item.route);
       }
     });
+    /* Catalog handlers close over the latest openRide; resubscribing on each
+     * render would drop CarPlay events (FR-028). */
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribe once per display
   }, [carPlay]);
 
   const planner = (

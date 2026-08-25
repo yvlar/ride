@@ -52,7 +52,11 @@ import {
   principalRoadNames,
   routeShareSummary,
 } from "@/domain/ride/route-share";
-import { generatedRouteTypeLabel, RIDE_STYLE_LABELS } from "@/domain/ride/summarize-request";
+import {
+  generatedRouteTypeLabel,
+  plannerRideType,
+  RIDE_STYLE_LABELS,
+} from "@/domain/ride/summarize-request";
 import type { NaturalLanguageRideDraft } from "@/domain/ride/parse-natural-language";
 
 const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
@@ -199,10 +203,10 @@ export function RideRequestForm({
       : initialDestination,
   );
   const [type, setType] = useState<RideType>(
-    seed?.request.type ?? initialDraft?.type ?? initialType,
+    plannerRideType(seed?.request.type ?? initialDraft?.type ?? initialType),
   );
   const [targetDistanceKm, setTargetDistanceKm] = useState(
-    seed?.request.targetDistanceKm
+    seed && seed.request.type !== "gpx" && seed.request.targetDistanceKm
       ? String(seed.request.targetDistanceKm)
       : initialDraft?.targetDistanceKm
         ? String(initialDraft.targetDistanceKm)

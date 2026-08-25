@@ -131,7 +131,9 @@ export function NavigationSession({
   const [progressKm, setProgressKm] = useState(0);
   const [instruction, setInstruction] = useState("Recherche de la position…");
   const [statusLabel, setStatusLabel] = useState<string | null>(null);
-  const [gpxOverlay, setGpxOverlay] = useState<GpxMapOverlay | null>(null);
+  const [gpxOverlay, setGpxOverlay] = useState<GpxMapOverlay | null>(() =>
+    isGpxRoute(route) ? gpxMapOverlay(liveRuntimeFromOriginal(route)) : null,
+  );
   const [arrow, setArrow] = useState("↑");
   const [nextRoad, setNextRoad] = useState<string | undefined>();
   const [distanceToManeuverKm, setDistanceToManeuverKm] = useState(0);
@@ -236,6 +238,20 @@ export function NavigationSession({
   useEffect(() => {
     onGpxOverlayChangeRef.current = onGpxOverlayChange;
   }, [onGpxOverlayChange]);
+
+  useEffect(() => {
+    if (!isGpxRoute(route)) {
+      return;
+    }
+    onGpxOverlayChangeRef.current?.(
+      gpxMapOverlay(gpxRuntimeRef.current ?? liveRuntimeFromOriginal(route)),
+    );
+    return () => {
+      if (!stoppedRef.current) {
+        onGpxOverlayChangeRef.current?.(null);
+      }
+    };
+  }, [route]);
 
   useEffect(() => {
     speechEngine.setMuted(muted);
@@ -493,20 +509,6 @@ export function NavigationSession({
   useEffect(() => {
     fetchGpxJoinRef.current = fetchGpxJoin;
   }, [fetchGpxJoin]);
-
-  useEffect(() => {
-    if (!isGpxRoute(route)) {
-      return;
-    }
-    const runtime = liveRuntimeFromOriginal(route);
-    gpxRuntimeRef.current = runtime;
-    publishGpxOverlay(runtime);
-    return () => {
-      if (!stoppedRef.current) {
-        publishGpxOverlay(null);
-      }
-    };
-  }, [publishGpxOverlay, route]);
 
   useEffect(() => {
     let cancelled = false;
@@ -806,10 +808,11 @@ export function NavigationSession({
         });
         offRouteRef.current = off.tracker;
         if (off.decision.shouldRecalculate && runtime.entry) {
+          const entry = runtime.entry;
           runtime = { ...runtime, offRoute: true };
           gpxRuntimeRef.current = runtime;
           publishGpxOverlay(runtime);
-          void fetchGpxJoinRef.current(fix.coordinates, runtime.entry.point);
+          void fetchGpxJoinRef.current(fix.coordinates, entry.point);
         }
         return;
       }

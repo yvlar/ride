@@ -5,13 +5,13 @@ import {
   parseTargetDistanceKm,
 } from "@/domain/ride/target-distance";
 import type {
-  GenerateRideRequest,
+  ComposerRideRequest,
   RideFormError,
   RideFormInput,
 } from "@/domain/ride/types";
 
 export type ComposeRideRequestResult =
-  | { ok: true; request: GenerateRideRequest }
+  | { ok: true; request: ComposerRideRequest }
   | { ok: false; errors: RideFormError[] };
 
 export function composeRideRequest(
