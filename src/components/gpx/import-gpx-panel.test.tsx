@@ -195,7 +195,7 @@ describe("ImportGpxPanel (FR-039)", () => {
           coordinates: [
             [-72.73, 45.4],
             [-72.6, 45.41],
-          ],
+          ] as [number, number][],
         },
         segments: [],
         distanceKm: 10,
