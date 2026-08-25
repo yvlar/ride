@@ -200,12 +200,33 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
   });
 
-  it("parses a natural-language loop without inventing geometry (FR-034)", async () => {
+  it("parses a natural-language loop without inventing geometry and generates in place (FR-034, FR-011)", async () => {
+    const setViewModel = vi.fn();
+    const mount = vi.fn(() => ({
+      destroy: vi.fn(),
+      setViewModel,
+      setFollowUser: vi.fn(),
+      setGeolocateEnabled: vi.fn(),
+    }));
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    const searchPlaces = vi.fn(async (query: string): Promise<Place[]> =>
+      query.toLowerCase().includes("granby") ? [granby] : [],
+    );
+
     render(
       <AppearanceProvider>
-        <RideApp mapEngine={stubMapEngine()} />
+        <RideApp
+          mapEngine={{ mount }}
+          searchPlaces={searchPlaces}
+          debounceMs={0}
+          generateRide={generateRide}
+        />
       </AppearanceProvider>,
     );
+
     fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
     fireEvent.change(screen.getByLabelText("Votre demande"), {
       target: {
@@ -216,19 +237,213 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       screen.getByText(/ces critères seront calculés par le moteur de routage/i),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
-    await waitFor(() => {
-      expect(screen.getByLabelText(/Distance cible \(km\)/)).toHaveValue("250");
-    });
-    expect(screen.getByRole("combobox", { name: "Point de départ" })).toHaveValue(
-      "Granby",
-    );
     expect(screen.getByRole("radio", { name: "Routes sinueuses" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Régénérer" })).toBeEnabled();
+    expect(
+      screen.queryByRole("heading", { name: "Composer le trajet" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Décrire mon trajet" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "loop",
+          start: granby,
+          targetDistanceKm: 250,
+          style: "curvy",
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(setViewModel).toHaveBeenCalled();
+    });
+  });
+
+  it("starts guided navigation on the same map without generating again (FR-023, FR-034)", async () => {
+    const listeners = new Set<(event: { type: string }) => void>();
+    const locationWatch = {
+      start: vi.fn(),
+      subscribe: vi.fn((listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      }),
+      activeNativeWatches: () => listeners.size,
+    };
+    const speech = {
+      available: true,
+      speak: vi.fn(),
+      cancel: vi.fn(),
+      setMuted: vi.fn(),
+      unlock: vi.fn(),
+    };
+    const destroy = vi.fn();
+    const setFollowUser = vi.fn();
+    const setGeolocateEnabled = vi.fn();
+    const mount = vi.fn(() => ({
+      destroy,
+      setViewModel: vi.fn(),
+      setFollowUser,
+      setGeolocateEnabled,
+      setUserLocation: vi.fn(),
+      recenter: vi.fn(),
+      resize: vi.fn(),
+    }));
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={{ mount }}
+          searchPlaces={async () => [granby]}
+          debounceMs={0}
+          generateRide={generateRide}
+          navigation={{ locationWatch, speech }}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    fireEvent.change(screen.getByLabelText("Votre demande"), {
+      target: {
+        value: "Crée une boucle de 250 km au départ de Granby.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    const start = await screen.findByRole("button", {
+      name: "Démarrer la navigation",
+    });
+    const generateCalls = generateRide.mock.calls.length;
+    fireEvent.click(start);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Navigation" }),
+    ).toBeInTheDocument();
+    expect(locationWatch.start).toHaveBeenCalledTimes(1);
+    expect(speech.unlock).toHaveBeenCalledTimes(1);
+    expect(generateRide).toHaveBeenCalledTimes(generateCalls);
+    expect(destroy).not.toHaveBeenCalled();
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("heading", { name: "Composer le trajet" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("regenerates from the same describe criteria without leaving the view (FR-012, FR-034)", async () => {
+    const variant: GeneratedLoopRoute = { ...loop, id: "saved-2", distanceKm: 82 };
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    const regenerateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: variant,
+    }));
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          searchPlaces={async () => [granby]}
+          debounceMs={0}
+          generateRide={generateRide}
+          regenerateRide={regenerateRide}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    fireEvent.change(screen.getByLabelText("Votre demande"), {
+      target: {
+        value: "Crée une boucle de 80 km au départ de Granby, routes sinueuses.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Régénérer" }));
+
+    await waitFor(() => {
+      expect(regenerateRide).toHaveBeenCalledTimes(1);
+    });
+    const [regeneratedRequest, previousRoute] = regenerateRide.mock.calls[0] as [
+      GenerateRideRequest,
+      GeneratedLoopRoute,
+    ];
+    expect(regeneratedRequest).toMatchObject({
+      type: "loop",
+      start: granby,
+      style: "curvy",
+    });
+    expect(previousRoute.id).toBe(loop.id);
+    expect(
+      screen.queryByRole("heading", { name: "Composer le trajet" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a GPS permission message during describe navigation (FR-023, FR-033)", async () => {
+    const listeners = new Set<(event: { type: string; error?: { message: string } }) => void>();
+    const locationWatch = {
+      start: vi.fn(),
+      subscribe: vi.fn((listener: (event: { type: string; error?: { message: string } }) => void) => {
+        listeners.add(listener);
+        listener({
+          type: "error",
+          error: { message: "L’autorisation de localisation a été refusée." },
+        });
+        return () => {
+          listeners.delete(listener);
+        };
+      }),
+      activeNativeWatches: () => 0,
+    };
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          searchPlaces={async () => [granby]}
+          debounceMs={0}
+          generateRide={async () => ({ ok: true, route: loop })}
+          navigation={{
+            locationWatch,
+            speech: {
+              available: true,
+              speak: vi.fn(),
+              cancel: vi.fn(),
+              setMuted: vi.fn(),
+              unlock: vi.fn(),
+            },
+          }}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    fireEvent.change(screen.getByLabelText("Votre demande"), {
+      target: {
+        value: "Crée une boucle de 80 km au départ de Granby.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    );
+
+    expect(
+      await screen.findByText("L’autorisation de localisation a été refusée."),
+    ).toBeInTheDocument();
   });
 });
 
