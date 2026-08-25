@@ -178,7 +178,19 @@ describe("ImportGpxPanel (FR-039)", () => {
         durationMinutes: 12,
       },
     };
-    const snapWaypoints = vi.fn(async () => snapped);
+    const snapWaypoints = vi.fn(
+      async (): Promise<
+        | typeof snapped
+        | {
+            ok: false;
+            error: {
+              code: "PROVIDER_ERROR";
+              message: string;
+              suggestions: string[];
+            };
+          }
+      > => snapped,
+    );
     render(
       <ImportGpxPanel
         snapWaypoints={snapWaypoints}
