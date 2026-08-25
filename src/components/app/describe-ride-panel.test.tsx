@@ -221,6 +221,79 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(onGeneratedRouteChange).toHaveBeenLastCalledWith(variant);
   });
 
+  it("refreshes GPS before generate and regenerate (FR-034)", async () => {
+    const moved = {
+      coordinates: { latitude: 45.51, longitude: -72.81 },
+      accuracyMeters: 5,
+    };
+    let current = located;
+    const requestPosition = vi.fn(async () => current);
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    const regenerateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: variant,
+    }));
+
+    renderPanel({ generateRide, regenerateRide, requestPosition });
+    await screen.findByText("Position détectée");
+    expect(requestPosition).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await screen.findByRole("button", { name: "Régénérer" });
+    expect(requestPosition).toHaveBeenCalledTimes(2);
+    expect(generateRide).toHaveBeenCalledWith(
+      expect.objectContaining({ start: granby }),
+      expect.objectContaining({ originAccuracyMeters: 8 }),
+    );
+
+    current = moved;
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+    await waitFor(() => {
+      expect(regenerateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start: {
+            label: "Position actuelle",
+            coordinates: moved.coordinates,
+          },
+        }),
+        loop,
+        expect.objectContaining({ originAccuracyMeters: 5 }),
+      );
+    });
+    expect(requestPosition).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not regenerate with a stale start when location fails (FR-034)", async () => {
+    let fail = false;
+    const requestPosition = vi.fn(async () => {
+      if (fail) {
+        throw new CurrentPositionError("position_unavailable");
+      }
+      return located;
+    });
+    const regenerateRide = vi.fn();
+
+    renderPanel({
+      generateRide: async () => ({ ok: true, route: loop }),
+      regenerateRide,
+      requestPosition,
+    });
+    await screen.findByText("Position détectée");
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await screen.findByRole("button", { name: "Régénérer" });
+    fail = true;
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+
+    expect(
+      await screen.findByText("La position actuelle est indisponible."),
+    ).toBeInTheDocument();
+    expect(regenerateRide).not.toHaveBeenCalled();
+    expect(screen.getByText(/98\.2 km/)).toBeInTheDocument();
+  });
+
   it("keeps the previous route when regeneration fails (FR-012, FR-021)", async () => {
     const onGeneratedRouteChange = vi.fn();
     const regenerateRide = vi.fn(async (): Promise<GenerateRideResult> => ({

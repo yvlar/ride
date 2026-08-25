@@ -171,16 +171,10 @@ export function DescribeRidePanel({
     }
   }
 
-  async function ensureStart(): Promise<{
+  async function refreshStart(): Promise<{
     start: Place;
     accuracyMeters: number | null;
   } | null> {
-    if (startRef.current) {
-      return {
-        start: startRef.current,
-        accuracyMeters: accuracyRef.current,
-      };
-    }
     const located = await locate();
     if (!located || !startRef.current) {
       return null;
@@ -201,7 +195,7 @@ export function DescribeRidePanel({
     setGenerating(true);
     setGenerationError(null);
     try {
-      const located = await ensureStart();
+      const located = await refreshStart();
       if (generationId.current !== requestId) {
         return;
       }
@@ -262,21 +256,23 @@ export function DescribeRidePanel({
     setRegenerating(true);
     setGenerationError(null);
     try {
-      const located = await ensureStart();
+      const located = await refreshStart();
       if (generationId.current !== requestId) {
         return;
       }
-      const request = located
-        ? {
-            ...composedRequest,
-            start: located.start,
-            targetDistanceKm: distanceKm,
-            preferences,
-          }
-        : composedRequest;
+      if (!located) {
+        retryActionRef.current = "regenerate";
+        return;
+      }
+      const request = {
+        ...composedRequest,
+        start: located.start,
+        targetDistanceKm: distanceKm,
+        preferences,
+      };
       const generated = await regenerateRide(request, activeRoute, {
         useAiWebGeneration: true,
-        originAccuracyMeters: located?.accuracyMeters ?? accuracyRef.current,
+        originAccuracyMeters: located.accuracyMeters,
         previousRouteSignature: previousRideSignature({
           id: activeRoute.id,
           geometry: activeRoute.geometry,
