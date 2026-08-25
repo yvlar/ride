@@ -977,6 +977,52 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(result.error.message).toMatch(/non pavées|contraintes/);
   });
 
+  it("does not discard a valid route when another waypoint order hits known unpaved (FR-008, FR-034)", async () => {
+    let calls = 0;
+    const geodesic = new GeodesicRoutingProvider();
+    const mixed: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        calls += 1;
+        const leakThisOrder = calls === 1;
+        const routed = await geodesic.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        if (!leakThisOrder) {
+          return routed;
+        }
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      mixed,
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(calls).toBeGreaterThan(1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(`${result.error.code}: ${result.error.message}`);
+    }
+    expect(result.route.distanceKm).toBeGreaterThan(72);
+    expect(result.route.distanceKm).toBeLessThan(88);
+  });
+
   it("does not fall back to geometric loop seeds when AI is required", async () => {
     const geometric = createLoopWaypointSets(GRANBY.coordinates, 80);
     const routing = new GeodesicRoutingProvider();

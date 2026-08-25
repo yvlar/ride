@@ -532,17 +532,17 @@ async function evaluatePlanCandidates(
   const routed = settled.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
+  if (routed.length > 0) {
+    return { routed };
+  }
   const knowledge = knowledgeErrorFromSettled(settled);
   if (knowledge) {
     return { routed, knowledgeError: knowledge };
   }
-  if (routed.length === 0) {
-    return {
-      routed,
-      routingError: describedRoutingExhausted(settled),
-    };
-  }
-  return { routed };
+  return {
+    routed,
+    routingError: describedRoutingExhausted(settled),
+  };
 }
 
 function oneWayOrders(
@@ -797,6 +797,12 @@ function describedRoutingExhausted(
 function knowledgeErrorFromSettled(
   settled: PromiseSettledResult<unknown>[],
 ): RideGenerationError | undefined {
+  const everyAttemptFailed =
+    settled.length > 0 &&
+    settled.every((result) => result.status === "rejected");
+  if (!everyAttemptFailed) {
+    return undefined;
+  }
   const messages = settled.flatMap((result) =>
     result.status === "rejected" && result.reason instanceof Error
       ? [result.reason.message]
