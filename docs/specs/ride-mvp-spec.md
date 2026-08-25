@@ -129,7 +129,11 @@ distance_min_km = distance_demandée_km × 0,90
 distance_max_km = distance_demandée_km × 1,10
 ```
 
-Un trajet est conforme à cette règle s’il se situe dans cet intervalle, **sauf** si aucun trajet techniquement valide ne peut raisonnablement le satisfaire. Dans ce cas, le système ne doit pas élargir silencieusement la tolérance : il doit expliquer l’écart et, si possible, proposer le meilleur candidat hors intervalle avec sa distance réelle.
+Un trajet est conforme à cette règle s’il se situe dans cet intervalle.
+
+Pour le flux **Décrire mon trajet** (`FR-034`), ±10 % est une contrainte **dure** : un trajet hors intervalle n’est jamais retourné comme succès (`ok: true`), y compris au dernier essai. Si aucun candidat n’entre dans l’intervalle, le système explique l’écart dans une erreur structurée et peut y joindre le meilleur candidat (distance réelle, violations), sans élargir la tolérance.
+
+Pour les autres générateurs du MVP, si aucun trajet techniquement valide ne peut raisonnablement satisfaire l’intervalle, le système ne doit pas élargir silencieusement la tolérance : il doit expliquer l’écart et, si possible, proposer le meilleur candidat hors intervalle avec sa distance réelle.
 
 ### FR-010 — Durée disponible
 
@@ -454,7 +458,7 @@ Les règles suivantes gouvernent le comportement du générateur, indépendammen
 
 | ID | Règle |
 | --- | --- |
-| `BR-001` | La distance générée vise ±10 % de la distance demandée ou estimée, sauf impossibilité expliquée. |
+| `BR-001` | La distance générée vise ±10 % de la distance demandée ou estimée. Pour `FR-034`, l’intervalle est dur : hors tolérance n’est jamais un succès. |
 | `BR-002` | Minimiser les routes répétées. |
 | `BR-003` | Le style demandé prime sur la route la plus rapide. |
 | `BR-004` | Le domaine reste indépendant de tout fournisseur de carte ou de routage. |
@@ -463,6 +467,8 @@ Les règles suivantes gouvernent le comportement du générateur, indépendammen
 | `BR-007` | Les routes non pavées connues ne sont pas relâchées silencieusement. |
 | `BR-008` | Un recalcul conserve le style et les préférences d’évitement. |
 | `BR-009` | Un passage aux États-Unis n’est pas relâché silencieusement. |
+| `BR-010` | Une boucle IA doit s’éloigner d’au moins 20 % de la distance cible (géométrie routière réelle). |
+| `BR-011` | Une boucle IA ne doit pas emprunter matériellement le même chemin, hors court connecteur d’origine. |
 
 ### BR-002 — Minimiser les routes répétées
 
@@ -478,6 +484,27 @@ Le seuil exact de chevauchement acceptable peut évoluer. Le MVP n’impose pas 
 - avertir si un chevauchement important est inévitable.
 
 La comparaison doit reconnaître une même chaussée même si elle est parcourue dans le sens inverse. Cette mesure appartient au domaine, pas à un fournisseur particulier.
+
+### BR-010 — Dispersion minimale d’une boucle IA
+
+Pour une boucle générée par `FR-034`, la géométrie routière réelle (le `LineString` retourné par le moteur de routage, pas seulement les points proposés par l’IA) doit atteindre :
+
+```text
+minimumMaxDistanceFromOriginKm = targetDistanceKm × 0,20
+```
+
+Exemples : 100 km → au moins 20 km du départ ; 200 km → 40 km ; 300 km → 60 km. Un échec `insufficient_spread` n’est pas un succès. Le JSON renvoyé au planificateur contient l’éloignement obtenu et l’éloignement exigé.
+
+### BR-011 — Chemins répétés d’une boucle IA
+
+Pour une boucle générée par `FR-034`, l’absence de chemin matériellement répété est un critère de sélection **dur**, mesuré sur les segments géométriques réellement parcourus, y compris en sens inverse, et non sur les seuls noms de routes.
+
+Tolérance uniquement :
+
+- un court connecteur inévitable dans un rayon maximal de **1 km** autour du départ;
+- une marge technique maximale de **2 %** hors de cette zone, pour le snapping et la quantification — cette marge ne permet pas un véritable aller-retour sur la même route.
+
+Un échec `repeated_road` n’est pas un succès. Le JSON renvoyé au planificateur contient le pourcentage répété, le maximum autorisé et une instruction de correction.
 
 ---
 
@@ -783,22 +810,40 @@ Si le navigateur exige une interaction, la permission est demandée automatiquem
 
 Avant de proposer un itinéraire, l’IA consulte automatiquement le Web, autour de la position, pour des routes panoramiques, des routes sinueuses, des points d’intérêt, des guides ou communautés moto, des fermetures ou restrictions, et des routes incompatibles avec les préférences. Cette recherche et le raisonnement restent **invisibles** : le client ne reçoit ni requêtes, ni sources, ni réponses brutes du modèle, ni clés API.
 
-Une recherche Web exécutée correctement mais sans résultat exploitable ne bloque pas la génération : l’IA propose tout de même des points plausibles, puis le moteur de routage les valide sur le réseau. Seule une véritable indisponibilité du service de recherche produit l’erreur « Recherche Web indisponible ».
+Si une recherche Web aboutit sans résultat exploitable, le serveur relance une requête **différente** (rayon élargi, autre corridor) plutôt que de répéter la même recherche. Les propositions doivent citer des routes ou lieux nommés issus des résultats lorsqu’il y en a. Seule une véritable indisponibilité du service de recherche produit l’erreur « Recherche Web indisponible ».
 
 Pendant l’opération, l’interface affiche uniquement un état simple : « L’IA prépare votre trajet moto… ».
 
-L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corridors, points d’intérêt ou points de passage structurés. Le moteur de routage configuré (détail d’infrastructure, p. ex. un adaptateur de réseau routier) :
+L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corridors, points d’intérêt ou points de passage structurés. Le flux serveur est une boucle agentique bornée, entièrement en JSON :
 
-- valide, déduplique et ordonne les points de passage en un corridor cohérent avant le calcul, afin d’éviter les zigzags, croisements et demi-tours issus d’une réponse désordonnée;
-- calcule un trajet qui suit le réseau;
-- produit géométrie, manœuvres et instructions;
-- vise la distance demandée selon `BR-001` (±10 %);
-- si **Boucle** est activée, retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`);
+```text
+Recherche Web
+    → propositions de corridors
+    → coordonnées JSON
+    → calcul routier
+    → métriques de qualité
+    → retour JSON à l’IA
+    → correction
+    → nouvelle validation
+    → sélection du meilleur trajet valide
+```
+
+Le moteur de routage configuré (détail d’infrastructure, p. ex. un adaptateur de réseau routier) :
+
+- calcule un trajet qui suit le réseau à partir des coordonnées proposées, sans inventer de géométrie;
+- produit géométrie GeoJSON `LineString` (`[longitude, latitude]`), manœuvres et instructions;
+- évalue **au moins** l’ordre de conduite fourni par l’IA, l’ordre inverse, et éventuellement un ordre optimisé comme candidat supplémentaire — sans remplacer systématiquement l’ordre IA par la chaîne géométrique la plus courte;
+- vise la distance demandée selon `BR-001` (±10 %), contrainte **dure** pour ce flux : un trajet hors intervalle n’est jamais retourné avec succès, même au dernier essai;
+- si **Boucle** est activée, retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`), suffisamment éloignée du départ (`BR-010`) et sans chemin matériellement répété (`BR-011`);
 - si **Boucle** est désactivée, retourne un aller qui commence près de la position actuelle et s’arrête à l’arrivée choisie, sans refermer la boucle.
+
+La recherche Web n’est pas décorative. Chaque proposition de boucle doit s’appuyer sur au moins deux routes, villages ou points d’intérêt **nommés** issus des résultats Web. Les coordonnées du modèle ne sont jamais acceptées sans validation sur le réseau routier public. Si les résultats ne permettent pas de construire un trajet, le serveur relance une recherche **différente** (rayon élargi, autre corridor, motif d’échec, distance réelle du meilleur candidat, routes déjà essayées). Il ne répète pas trois fois la même requête.
+
+La boucle serveur est bornée par l’échéance de la requête (`maxDuration` 60 s, arrêt légèrement avant) : jusqu’à trois rondes de planification, trois à quatre candidats distincts par ronde, évalués en parallèle lorsque c’est sûr. Le nombre d’essais n’autorise jamais un trajet invalide.
 
 Si l’IA, la recherche Web ou le moteur de routage est indisponible, le système affiche une erreur claire et **Réessayer**. Il ne bascule pas silencieusement vers un générateur non-IA, ni vers `createLoopWaypointSets`.
 
-Lorsque ces services répondent, le système **doit produire un trajet utilisable**. Si le premier plan IA ne se traduit pas en tracé réseau (points de passage inutilisables, accroche impossible, boucle géométrique, écart à `BR-001`), le serveur relance le planificateur IA avec la raison de l’échec, sans inventer de géométrie. Après ces tentatives, s’il existe un trajet sur le réseau qui ne respecte pas ±10 %, il est tout de même proposé, avec un avertissement qui affiche la distance réelle (`BR-001`) : la tolérance n’est jamais élargie en silence. « Aucun trajet valide » n’apparaît que s’il n’existe aucun tracé réseau, si un service est indisponible, ou si une contrainte dure l’interdit (`FR-008` surface connue, `FR-030`, corridor de régénération `FR-012`).
+Lorsque ces services répondent, le serveur relance le planificateur avec un JSON de correction (distance réelle, éloignement, pourcentage de chemin répété, instruction) tant qu’il reste du temps. `NO_ROUTE_FOUND` n’est retourné qu’après plusieurs recherches distinctes, plusieurs corridors, plusieurs calculs routiers, et des tentatives de correction. Un candidat invalide n’est jamais présenté comme un succès. L’erreur structurée peut inclure le meilleur candidat (distance, éloignement, répétition, violations) pour expliquer l’échec. Les contraintes dures `FR-008`, `FR-030` et le corridor de régénération `FR-012` restent bloquantes.
 
 #### Résultat, navigation et régénération
 
@@ -951,6 +996,9 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `BR-006` | Différence minimale à la régénération |
 | `BR-007` | Pas de relâchement silencieux des contraintes de surface connues |
 | `BR-008` | Préservation des préférences lors du recalcul |
+| `BR-009` | Pas de relâchement silencieux du passage aux États-Unis |
+| `BR-010` | Dispersion minimale d’une boucle IA (20 % de la distance cible) |
+| `BR-011` | Chemin non répété pour une boucle IA (connecteur 1 km, marge 2 %) |
 
 ### Exigences non fonctionnelles
 
