@@ -132,34 +132,34 @@ describe("GPX navigation helpers (FR-039)", () => {
     const south = offsetCoordinates(origin, 180, 0.4);
     const west = offsetCoordinates(origin, 270, 0.4);
     const trip: ParsedGpxTrip = {
-      id: "eight",
+      id: "cross",
       kind: "track",
-      name: "Huit",
+      name: "Croisement",
       parts: [
         {
-          points: [north, east, south, west, north, west, south, east, north].map(
-            (coordinates) => ({ coordinates }),
-          ),
+          points: [north, south, east, west].map((coordinates) => ({
+            coordinates,
+          })),
         },
       ],
     };
-    const original = composeGpxRoute({ trip, fileName: "huit.gpx" });
+    const original = composeGpxRoute({ trip, fileName: "cross.gpx" });
     const started = beginGpxFromFix(original, {
-      coordinates: offsetCoordinates(north, 90, 0.05),
+      coordinates: north,
       accuracyMeters: 5,
-      headingDeg: 90,
+      headingDeg: 180,
       recordedAtMs: 1,
     });
     const atCrossing = enterFollowingIfOnTrace({
       runtime: {
         ...started.runtime,
         phase: "following_gpx",
-        progressKm: 0.8,
+        progressKm: 0.4,
       },
       fix: {
         coordinates: origin,
         accuracyMeters: 5,
-        headingDeg: 180,
+        headingDeg: 270,
         recordedAtMs: 2,
       },
     });
