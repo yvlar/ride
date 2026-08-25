@@ -12,6 +12,7 @@ import { AiRidePlannerError } from "@/infrastructure/ai/ai-ride-planner-error";
 import type { WebSearchProvider } from "@/infrastructure/search/web-search-provider";
 import { WebSearchError } from "@/infrastructure/search/web-search-error";
 import { offsetCoordinates } from "@/domain/geo/distance";
+import { createCircleLineString } from "@/domain/geo/geometry";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import { RoutingKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import {
@@ -1134,6 +1135,148 @@ describe("generateDescribedRide (FR-034)", () => {
 
     expect(round).toBeGreaterThan(1);
     expect(result.ok).toBe(true);
+  });
+
+  it("retries after a geometric loop instead of treating it as routing unavailable (FR-001, FR-034)", async () => {
+    const origin = GRANBY.coordinates;
+    const circle = createCircleLineString(
+      offsetCoordinates(origin, 90, 12),
+      12,
+      36,
+      270,
+    );
+    let round = 0;
+    const planner: AiRidePlanner = {
+      async planLoop(input) {
+        round += 1;
+        if (round === 1) {
+          return { candidates: [elongatedLoopCandidate(origin, 80)] };
+        }
+        expect(input.previousPlanningFailure?.reason).toBe(
+          "geometric_loop_rejected",
+        );
+        return {
+          candidates: [elongatedLoopCandidate(origin, input.targetDistanceKm)],
+        };
+      },
+    };
+    const routing: RoutingProvider = {
+      async calculateRoute(input) {
+        if (round === 1) {
+          return {
+            geometry: circle,
+            segments: [
+              {
+                id: "circle",
+                geometry: circle,
+                distanceKm: 75,
+                durationMinutes: 75,
+                surface: "paved",
+                roadClass: "secondary",
+              },
+            ],
+            steps: [],
+            distanceKm: 75,
+            durationMinutes: 75,
+          };
+        }
+        return new GeodesicRoutingProvider().calculateRoute(input);
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(round).toBeGreaterThan(1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      expect(result.error.code).not.toBe("ROUTING_UNAVAILABLE");
+    }
+  });
+
+  it("keeps the best candidate when a later round is a knowledge rejection (FR-034)", async () => {
+    const origin = GRANBY.coordinates;
+    const short = densify(
+      line([
+        origin,
+        offsetCoordinates(origin, 0, 6),
+        offsetCoordinates(origin, 90, 10),
+        origin,
+      ]),
+    );
+    let round = 0;
+    const geodesic = new GeodesicRoutingProvider();
+    const planner: AiRidePlanner = {
+      async planLoop() {
+        round += 1;
+        return { candidates: [elongatedLoopCandidate(origin, 300)] };
+      },
+    };
+    const routing: RoutingProvider = {
+      async calculateRoute(input) {
+        if (round === 1) {
+          return {
+            geometry: short,
+            segments: [
+              {
+                id: "short",
+                geometry: short,
+                distanceKm: 32,
+                durationMinutes: 32,
+                surface: "paved",
+                roadClass: "secondary",
+              },
+            ],
+            steps: [],
+            distanceKm: 32,
+            durationMinutes: 32,
+          };
+        }
+        const routed = await geodesic.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 300,
+        useAiWebGeneration: true,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      routing,
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.bestCandidate?.distanceKm).toBe(32);
+    expect(result.error.bestCandidate?.violations).toContain(
+      "distance_too_short",
+    );
   });
 
   it("does not fall back to geometric loop seeds when AI is required", async () => {

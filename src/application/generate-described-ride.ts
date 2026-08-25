@@ -371,12 +371,16 @@ export async function generateDescribedRide(
     };
   }
 
-  return (
-    lastFailure ?? {
+  if (lastFailure && !lastFailure.ok) {
+    return {
       ok: false,
-      error: noValidDescribedRideError(bestAttempt?.evaluation),
-    }
-  );
+      error: withBestCandidate(lastFailure.error, bestAttempt),
+    };
+  }
+  return {
+    ok: false,
+    error: noValidDescribedRideError(bestAttempt?.evaluation),
+  };
 }
 
 function parseDescribedRideRequest(
@@ -559,6 +563,16 @@ async function evaluatePlanCandidates(
   if (knowledge) {
     return { routed, knowledgeError: knowledge };
   }
+  if (isAllGeometricLoopRejected(settled)) {
+    return {
+      routed,
+      planningFailure: {
+        reason: "geometric_loop_rejected",
+        instruction:
+          "Replace the circular sketch with named public-road anchors that follow the road network.",
+      },
+    };
+  }
   return {
     routed,
     routingError: describedRoutingExhausted(settled),
@@ -668,6 +682,44 @@ function isBetterAttempt(
       current.evaluation.distanceKm - current.evaluation.targetDistanceKm,
     )
   );
+}
+
+function isAllGeometricLoopRejected(
+  settled: PromiseSettledResult<unknown>[],
+): boolean {
+  return (
+    settled.length > 0 &&
+    settled.every(
+      (result) =>
+        result.status === "rejected" && isGeometricLoopRejection(result.reason),
+    )
+  );
+}
+
+function isGeometricLoopRejection(reason: unknown): boolean {
+  return (
+    typeof reason === "object" &&
+    reason !== null &&
+    (reason as { name?: unknown }).name === "GeometricLoopRejected"
+  );
+}
+
+function withBestCandidate(
+  error: RideGenerationError,
+  attempt?: RoutedDescribedAttempt,
+): RideGenerationError {
+  if (error.bestCandidate || !attempt) {
+    return error;
+  }
+  return {
+    ...error,
+    bestCandidate: {
+      distanceKm: attempt.evaluation.distanceKm,
+      repeatedRoadPercent: attempt.evaluation.repeatedRoadPercent,
+      maxDistanceFromOriginKm: attempt.evaluation.maxDistanceFromOriginKm,
+      violations: attempt.evaluation.violations,
+    },
+  };
 }
 
 function emptyPlanFailure(
