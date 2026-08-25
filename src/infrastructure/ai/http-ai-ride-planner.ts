@@ -58,7 +58,8 @@ const LOOP_SYSTEM_PROMPT =
   "Do not retrace the outbound roads on the return except a short connector " +
   "within 1 km of the origin. " +
   "Do not emit a route geometry, GeoJSON, or encoded polyline. " +
-  "Honor avoid-highway, paved-only, and stay-in-Canada preferences. " +
+  "Paved-only and stay-in-Canada are hard constraints. Prefer avoiding " +
+  "motorways; numbered trunk roads may be used when needed to close a valid loop. " +
   "Skip private, closed, or inaccessible roads. " +
   "If previousPlanningFailure is set, correct that JSON failure. " +
   "If previous roads were tried, pick unused named roads.";
@@ -76,7 +77,8 @@ const ONE_WAY_SYSTEM_PROMPT =
   "Return viaPoints already in riding order. " +
   "Avoid zigzags that recross the same corridor. " +
   "Do not emit a route geometry, GeoJSON, or encoded polyline. " +
-  "Honor avoid-highway, paved-only, and stay-in-Canada preferences. " +
+  "Paved-only and stay-in-Canada are hard constraints. Prefer avoiding " +
+  "motorways; numbered trunk roads may be used when needed to close a valid loop. " +
   "If previousPlanningFailure is set, correct that JSON failure.";
 
 export const RIDE_CANDIDATES_JSON_SCHEMA = {

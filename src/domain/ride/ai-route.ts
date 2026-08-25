@@ -9,7 +9,6 @@ import {
   MIN_ROAD_NETWORK_POINTS,
 } from "./constants";
 import { distanceBoundsKm, usesKnownUnpaved } from "./constraints";
-import { usesHighway } from "./highways";
 import { isClosedLoop, isGeometricCircle } from "./loop";
 import { measureRepeatedRoadPercentBeyondOrigin } from "./overlap";
 import type { LoopCandidate, RoutePreferences, RouteSegment } from "./types";
@@ -133,12 +132,8 @@ export function evaluateDescribedRoute(
   ) {
     violations.push("unpaved_rejected");
   }
-  if (
-    input.preferences?.avoidHighways === true &&
-    usesHighway(input.segments)
-  ) {
-    violations.push("highway_rejected");
-  }
+  // FR-007 is a warning on the selected ride, not a validity-breaking
+  // violation. Quebec numbered roads are often classified as trunk.
   if (
     input.preferences?.stayInCanada === true &&
     routeEntersUnitedStates({

@@ -164,6 +164,33 @@ describe("evaluateDescribedRoute (FR-034, BR-001, BR-010, BR-011)", () => {
     expect(evaluation.maxDistanceKm).toBe(330);
   });
 
+  it("does not reject an otherwise valid loop that uses trunk when avoidHighways is on (FR-007)", () => {
+    const geometry = rectangleLoop(45, 55);
+    const evaluation = evaluateDescribedRoute({
+      candidateId: "trunk",
+      origin: ORIGIN,
+      targetDistanceKm: 200,
+      geometry,
+      distanceKm: 200,
+      segments: [
+        {
+          id: "seg",
+          geometry,
+          distanceKm: 200,
+          durationMinutes: 200,
+          surface: "paved",
+          roadClass: "trunk",
+        },
+      ],
+      preferences: { avoidHighways: true, avoidUnpaved: true },
+      returnToStart: true,
+    });
+
+    expect(evaluation.valid).toBe(true);
+    expect(evaluation.violations).not.toContain("highway_rejected");
+    expect(evaluation.violations).toEqual([]);
+  });
+
   it("builds distance_too_short JSON feedback for the planner", () => {
     const geometry = rectangleLoop(6, 10);
     const evaluation = evaluateDescribedRoute({

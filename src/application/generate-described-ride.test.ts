@@ -14,6 +14,7 @@ import { WebSearchError } from "@/infrastructure/search/web-search-error";
 import { offsetCoordinates } from "@/domain/geo/distance";
 import { createCircleLineString } from "@/domain/geo/geometry";
 import type { Coordinates, LineString } from "@/domain/geo/types";
+import { HIGHWAY_AVOIDANCE_WARNING } from "@/domain/ride/highways";
 import { RoutingKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
 import {
   elongatedLoopCandidate,
@@ -1277,6 +1278,142 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(result.error.bestCandidate?.violations).toContain(
       "distance_too_short",
     );
+  });
+
+  it("returns an otherwise valid trunk loop with an autoroute warning (FR-007, FR-034)", async () => {
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "scenic",
+        preferences: { avoidHighways: true, avoidUnpaved: true },
+        useAiWebGeneration: true,
+      },
+      new GeodesicRoutingProvider({ roadClass: "trunk" }),
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.warnings).toContain(HIGHWAY_AVOIDANCE_WARNING);
+    expect(result.route.distanceKm).toBeGreaterThan(72);
+    expect(result.route.distanceKm).toBeLessThan(88);
+  });
+
+  it("prefers a highway-free valid loop when avoidHighways is on (FR-007)", async () => {
+    const geodesic = new GeodesicRoutingProvider();
+    const trunkVias = elongatedLoopVias(GRANBY.coordinates, 80, 0);
+    const routing: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await geodesic.calculateRoute(input);
+        const first = input.waypoints?.[0];
+        const trunkOrigin = trunkVias[0];
+        const usesTrunk =
+          first !== undefined &&
+          trunkOrigin !== undefined &&
+          Math.abs(first.latitude - trunkOrigin.latitude) < 1e-6 &&
+          Math.abs(first.longitude - trunkOrigin.longitude) < 1e-6;
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            roadClass: usesTrunk ? "trunk" : "secondary",
+          })),
+        };
+      },
+    };
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        preferences: { avoidHighways: true, avoidUnpaved: true },
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      {
+        webSearch: fakeSearch(),
+        planner: {
+          async planLoop() {
+            return {
+              candidates: [
+                elongatedLoopCandidate(GRANBY.coordinates, 80, 0),
+                elongatedLoopCandidate(GRANBY.coordinates, 80, 90),
+              ],
+            };
+          },
+        },
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.warnings).toEqual([]);
+  });
+
+  it("does not route extra waypoint orders when the AI order is already valid (FR-034)", async () => {
+    const routing = new GeodesicRoutingProvider();
+    const routeSpy = vi.spyOn(routing, "calculateRoute");
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(routeSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not start another planning round when remaining time is too low (FR-034)", async () => {
+    let currentMs = 0;
+    const planner: AiRidePlanner = {
+      async planLoop(input) {
+        currentMs = 50_000;
+        return {
+          candidates: [elongatedLoopCandidate(input.origin, 20)],
+        };
+      },
+    };
+    const planSpy = vi.spyOn(planner, "planLoop");
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      new GeodesicRoutingProvider(),
+      undefined,
+      {
+        webSearch: fakeSearch(),
+        planner,
+        now: () => currentMs,
+        deadlineMs: 55_000,
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(planSpy).toHaveBeenCalledTimes(1);
   });
 
   it("does not fall back to geometric loop seeds when AI is required", async () => {

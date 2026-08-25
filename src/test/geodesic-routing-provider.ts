@@ -12,6 +12,7 @@ import type {
   ProviderRouteRequest,
   ProviderRouteResult,
   RoutingProvider,
+  RoutingProviderOptions,
 } from "@/infrastructure/routing/routing-provider";
 
 const POINTS_PER_LEG = 12;
@@ -22,8 +23,11 @@ const SPEED_KMH = 60;
  * onto a Manhattan grid through the origin. Used by FR-034 tests.
  */
 export class GeodesicRoutingProvider implements RoutingProvider {
+  constructor(private readonly options: { roadClass?: string } = {}) {}
+
   async calculateRoute(
     input: ProviderRouteRequest,
+    _options?: RoutingProviderOptions,
   ): Promise<ProviderRouteResult> {
     const stops = [input.start, ...(input.waypoints ?? []), input.destination];
     const coordinates: Position[] = [];
@@ -51,7 +55,7 @@ export class GeodesicRoutingProvider implements RoutingProvider {
         durationMinutes: (distanceKm / SPEED_KMH) * 60,
         roadName: `Corridor ${index + 1}`,
         surface: "paved",
-        roadClass: "secondary",
+        roadClass: this.options.roadClass ?? "secondary",
       });
     }
 
@@ -69,7 +73,7 @@ export class GeodesicRoutingProvider implements RoutingProvider {
                 distanceKm,
                 durationMinutes: (distanceKm / SPEED_KMH) * 60,
                 surface: "paved",
-                roadClass: "secondary",
+                roadClass: this.options.roadClass ?? "secondary",
               },
             ],
       steps: stepsFromPath(geometry, segments),

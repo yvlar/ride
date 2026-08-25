@@ -43,7 +43,11 @@ import {
   DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
   isDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
-import { withHighwayAvoidanceSignal } from "@/domain/ride/highways";
+import {
+  preferAvoidingHighways,
+  usesHighway,
+  withHighwayAvoidanceSignal,
+} from "@/domain/ride/highways";
 import {
   excludeSimilarToPrevious,
   lostOnlyToPreviousCorridor,
@@ -71,6 +75,7 @@ import {
 import type {
   ProviderRouteResult,
   RoutingProvider,
+  RoutingProviderOptions,
 } from "@/infrastructure/routing/routing-provider";
 import {
   readOriginAccuracyMeters,
@@ -94,6 +99,9 @@ const MIN_AI_VIA_POINT_SEPARATION_KM = 0.25;
 const DESCRIBED_PLAN_ROUNDS = 3;
 const DESCRIBED_CANDIDATES_PER_ROUND = 4;
 const DESCRIBED_REQUEST_BUDGET_MS = 55_000;
+const MIN_ROUND_BUDGET_MS = 12_000;
+const EXTRA_ORDER_BUDGET_MS = 18_000;
+const MAX_ROUTING_CALL_MS = 7_000;
 const CORRIDOR_HINTS = ["north-east", "south-west", "north-west"] as const;
 
 export type ViaFilterMode = "strict" | "wide" | "planned";
@@ -203,7 +211,11 @@ export async function generateDescribedRide(
   let lastHits: WebSearchHit[] = [];
 
   for (let round = 0; round < DESCRIBED_PLAN_ROUNDS; round += 1) {
-    if (now() >= deadline) {
+    const remainingMs = deadline - now();
+    if (remainingMs <= 0) {
+      break;
+    }
+    if (round > 0 && remainingMs < MIN_ROUND_BUDGET_MS) {
       break;
     }
 
@@ -246,6 +258,10 @@ export async function generateDescribedRide(
     }
 
     let plan: AiRidePlan;
+    const candidateCount =
+      deadline - now() < EXTRA_ORDER_BUDGET_MS
+        ? Math.min(3, DESCRIBED_CANDIDATES_PER_ROUND)
+        : DESCRIBED_CANDIDATES_PER_ROUND;
     try {
       plan = await planner.planLoop({
         origin: request.start.coordinates,
@@ -264,7 +280,7 @@ export async function generateDescribedRide(
         triedRoads,
         searchRadiusKm: searchInput.searchRadiusKm,
         corridorHint: searchInput.corridorHint,
-        candidateCount: DESCRIBED_CANDIDATES_PER_ROUND,
+        candidateCount,
       });
     } catch (error) {
       lastFailure = { ok: false, error: describedAiError(error) };
@@ -279,9 +295,10 @@ export async function generateDescribedRide(
     const attempts = await evaluatePlanCandidates(
       request,
       provider,
-      plan.candidates.slice(0, DESCRIBED_CANDIDATES_PER_ROUND),
+      plan.candidates.slice(0, candidateCount),
       lastHits,
       returnToStart,
+      { now, deadlineMs: deadline },
     );
     if (attempts.knowledgeError) {
       lastFailure = { ok: false, error: attempts.knowledgeError };
@@ -340,7 +357,10 @@ export async function generateDescribedRide(
     }
 
     const valid = selectable.filter((attempt) => attempt.evaluation.valid);
-    const chosen = pickBestValid(valid);
+    const chosen = pickBestValid(
+      valid,
+      request.preferences?.avoidHighways === true,
+    );
     if (chosen) {
       return {
         ok: true,
@@ -447,12 +467,25 @@ function parseDescribedRideRequest(
   return { ok: true, request: parsed.data };
 }
 
+type DescribedRouteJob = {
+  candidate: AiRouteCandidate;
+  candidateId: string;
+  waypoints: Coordinates[];
+};
+
+type PreparedDescribedCandidate = {
+  candidate: AiRouteCandidate;
+  index: number;
+  orders: Coordinates[][];
+};
+
 async function evaluatePlanCandidates(
   request: DescribedRoutingRequest,
   routingProvider: RoutingProvider,
   candidates: AiRouteCandidate[],
   hits: WebSearchHit[],
   returnToStart: boolean,
+  budget: { now: () => number; deadlineMs: number },
 ): Promise<{
   routed: RoutedDescribedAttempt[];
   routingError?: RideGenerationError;
@@ -470,11 +503,12 @@ async function evaluatePlanCandidates(
   }));
   const minViaCount = returnToStart ? 2 : 1;
   let groundedCount = 0;
-  const jobs = candidates.flatMap((candidate, index) => {
+  const prepared: PreparedDescribedCandidate[] = [];
+  candidates.forEach((candidate, index) => {
     const grounded =
       notes.length === 0 || hasRequiredWebGrounding(candidate, notes);
     if (!grounded) {
-      return [];
+      return;
     }
     groundedCount += 1;
     const rawPoints = candidate.viaPoints.map(aiWaypointToCoordinates);
@@ -485,77 +519,162 @@ async function evaluatePlanCandidates(
       { returnToStart },
     );
     if (viaPoints.length < minViaCount) {
-      return [];
+      return;
     }
     const orders = returnToStart
       ? describedLoopWaypointOrders(request.start.coordinates, viaPoints)
       : oneWayOrders(request.start.coordinates, viaPoints);
-    return orders.map((waypoints, orderIndex) => ({
-      candidate,
-      candidateId: `${candidate.candidateName}:${index}:${orderIndex}`,
-      waypoints,
-    }));
+    if (orders.length === 0) {
+      return;
+    }
+    prepared.push({ candidate, index, orders });
   });
 
-  if (jobs.length === 0) {
+  if (prepared.length === 0) {
     return {
       routed: [],
       planningFailure: emptyPlanFailure(candidates.length, groundedCount),
     };
   }
 
-  const settled = await Promise.allSettled(
-    jobs.map(async (job) => {
-      const routed = applyHardRoutePreferences(
-        await routingProvider.calculateRoute({
-          start: request.start.coordinates,
-          destination: returnToStart
-            ? request.start.coordinates
-            : job.waypoints[job.waypoints.length - 1],
-          waypoints: returnToStart
-            ? job.waypoints
-            : job.waypoints.slice(0, -1),
-          style: request.style,
-          preferences: request.preferences,
-        }),
-        request.preferences,
-      );
-      if (
-        returnToStart &&
-        isGeometricDescribedLoop({
-          geometry: routed.geometry,
-          segments: routed.segments,
-          distanceKm: routed.distanceKm,
-          durationMinutes: routed.durationMinutes,
-          waypoints: job.waypoints,
-        })
-      ) {
-        throw Object.assign(new Error("geometric_loop_rejected"), {
-          name: "GeometricLoopRejected",
-        });
+  const jobsForOrder = (orderIndex: number): DescribedRouteJob[] =>
+    prepared.flatMap((item) => {
+      const waypoints = item.orders[orderIndex];
+      if (!waypoints) {
+        return [];
       }
-      const evaluation = evaluateDescribedRoute({
-        candidateId: job.candidateId,
-        origin: request.start.coordinates,
-        targetDistanceKm,
-        geometry: routed.geometry,
-        distanceKm: routed.distanceKm,
-        segments: routed.segments,
-        preferences: request.preferences,
-        returnToStart,
-      });
-      return {
-        candidate: job.candidate,
-        waypoints: job.waypoints,
-        routed,
-        evaluation,
-      } satisfies RoutedDescribedAttempt;
-    }),
-  );
+      return [
+        {
+          candidate: item.candidate,
+          candidateId: `${item.candidate.candidateName}:${item.index}:${orderIndex}`,
+          waypoints,
+        },
+      ];
+    });
 
-  const routed = settled.flatMap((result) =>
+  const routeJobs = (jobs: DescribedRouteJob[]) =>
+    Promise.allSettled(
+      jobs.map((job) =>
+        routeDescribedJob(
+          request,
+          routingProvider,
+          job,
+          returnToStart,
+          targetDistanceKm,
+          routingCallOptions(budget.deadlineMs, budget.now),
+        ),
+      ),
+    );
+
+  const firstJobs = jobsForOrder(0);
+  if (firstJobs.length === 0) {
+    return {
+      routed: [],
+      planningFailure: emptyPlanFailure(candidates.length, groundedCount),
+    };
+  }
+
+  const firstSettled = await routeJobs(firstJobs);
+  const firstRouted = fulfilledDescribedAttempts(firstSettled);
+  if (firstRouted.some((attempt) => attempt.evaluation.valid)) {
+    return { routed: firstRouted };
+  }
+
+  const extraJobs = [1, 2].flatMap((orderIndex) => jobsForOrder(orderIndex));
+  const remainingMs = budget.deadlineMs - budget.now();
+  if (extraJobs.length === 0 || remainingMs < EXTRA_ORDER_BUDGET_MS) {
+    return settleDescribedAttempts(firstSettled, firstRouted);
+  }
+
+  const extraSettled = await routeJobs(extraJobs);
+  const settled = [...firstSettled, ...extraSettled];
+  const routed = [
+    ...firstRouted,
+    ...fulfilledDescribedAttempts(extraSettled),
+  ];
+  return settleDescribedAttempts(settled, routed);
+}
+
+async function routeDescribedJob(
+  request: DescribedRoutingRequest,
+  routingProvider: RoutingProvider,
+  job: DescribedRouteJob,
+  returnToStart: boolean,
+  targetDistanceKm: number,
+  options: RoutingProviderOptions,
+): Promise<RoutedDescribedAttempt> {
+  const destination = returnToStart
+    ? request.start.coordinates
+    : job.waypoints[job.waypoints.length - 1];
+  if (!destination) {
+    throw Object.assign(new Error("unusable_via_points"), {
+      name: "UnusableViaPoints",
+    });
+  }
+  const routed = applyHardRoutePreferences(
+    await routingProvider.calculateRoute(
+      {
+        start: request.start.coordinates,
+        destination,
+        waypoints: returnToStart
+          ? job.waypoints
+          : job.waypoints.slice(0, -1),
+        style: request.style,
+        preferences: request.preferences,
+      },
+      options,
+    ),
+    request.preferences,
+  );
+  if (
+    returnToStart &&
+    isGeometricDescribedLoop({
+      geometry: routed.geometry,
+      segments: routed.segments,
+      distanceKm: routed.distanceKm,
+      durationMinutes: routed.durationMinutes,
+      waypoints: job.waypoints,
+    })
+  ) {
+    throw Object.assign(new Error("geometric_loop_rejected"), {
+      name: "GeometricLoopRejected",
+    });
+  }
+  const evaluation = evaluateDescribedRoute({
+    candidateId: job.candidateId,
+    origin: request.start.coordinates,
+    targetDistanceKm,
+    geometry: routed.geometry,
+    distanceKm: routed.distanceKm,
+    segments: routed.segments,
+    preferences: request.preferences,
+    returnToStart,
+  });
+  return {
+    candidate: job.candidate,
+    waypoints: job.waypoints,
+    routed,
+    evaluation,
+  };
+}
+
+function fulfilledDescribedAttempts(
+  settled: PromiseSettledResult<RoutedDescribedAttempt>[],
+): RoutedDescribedAttempt[] {
+  return settled.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
+}
+
+function settleDescribedAttempts(
+  settled: PromiseSettledResult<RoutedDescribedAttempt>[],
+  routed: RoutedDescribedAttempt[],
+): {
+  routed: RoutedDescribedAttempt[];
+  routingError?: RideGenerationError;
+  knowledgeError?: RideGenerationError;
+  planningFailure?: DescribedPlanningFailure;
+} {
   if (routed.length > 0) {
     return { routed };
   }
@@ -576,6 +695,21 @@ async function evaluatePlanCandidates(
   return {
     routed,
     routingError: describedRoutingExhausted(settled),
+  };
+}
+
+function routingCallOptions(
+  deadlineMs: number,
+  now: () => number,
+): RoutingProviderOptions {
+  const remainingMs = deadlineMs - now();
+  if (remainingMs <= 0) {
+    return { signal: AbortSignal.abort() };
+  }
+  return {
+    signal: AbortSignal.timeout(
+      Math.max(1_000, Math.min(MAX_ROUTING_CALL_MS, remainingMs - 250)),
+    ),
   };
 }
 
@@ -622,8 +756,14 @@ function refinedSearchInput(
 
 function pickBestValid(
   attempts: RoutedDescribedAttempt[],
+  avoidHighways: boolean,
 ): RoutedDescribedAttempt | undefined {
-  return [...attempts].sort((left, right) => {
+  const preferred = preferAvoidingHighways(
+    attempts,
+    (attempt) => usesHighway(attempt.routed.segments),
+    avoidHighways,
+  );
+  return [...preferred].sort((left, right) => {
     const repeatDelta =
       left.evaluation.repeatedRoadPercent -
       right.evaluation.repeatedRoadPercent;
