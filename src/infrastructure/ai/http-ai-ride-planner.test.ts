@@ -93,4 +93,30 @@ describe("HttpAiRidePlanner (FR-034)", () => {
       searchHits: [],
     })).toMatch(/"returnToStart":false/);
   });
+
+  it("asks the model to correct a previous planning failure (FR-034)", async () => {
+    const complete = vi.fn<ChatCompletionsClient["complete"]>(async () =>
+      JSON.stringify({
+        viaPoints: [
+          { latitude: 45.48, longitude: -72.73 },
+          { latitude: 45.4, longitude: -72.6 },
+          { latitude: 45.32, longitude: -72.73 },
+        ],
+      }),
+    );
+    const planner = new HttpAiRidePlanner({ client: { complete } });
+    await planner.planLoop({
+      origin: ORIGIN,
+      accuracyMeters: 8,
+      targetDistanceKm: 80,
+      searchHits: [],
+      previousPlanningFailure: {
+        reason: "unusable_via_points",
+      },
+    });
+    const request = complete.mock.calls[0]?.[0];
+    expect(request?.temperature).toBe(0.8);
+    expect(request?.messages[1]?.content).toMatch(/unusable_via_points/);
+    expect(request?.messages[0]?.content).toMatch(/previousPlanningFailure/);
+  });
 });

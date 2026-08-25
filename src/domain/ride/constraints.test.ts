@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   distanceBoundsKm,
+  distanceToleranceExplanationKm,
   isWithinDistanceTolerance,
   usesKnownUnpaved,
 } from "./constraints";
@@ -19,6 +20,13 @@ describe("distanceBoundsKm (BR-001)", () => {
     expect(isWithinDistanceTolerance(110, 100)).toBe(true);
     expect(isWithinDistanceTolerance(89.9, 100)).toBe(false);
     expect(isWithinDistanceTolerance(110.1, 100)).toBe(false);
+  });
+
+  it("explains the real distance instead of silently widening the window", () => {
+    expect(distanceToleranceExplanationKm(100, 100)).toBeNull();
+    expect(distanceToleranceExplanationKm(140, 80)).toBe(
+      "La distance réelle est de 140.0 km pour une demande de 80 km (±10 % non atteint).",
+    );
   });
 });
 

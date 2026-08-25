@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { filterViaPoints, generateDescribedRide } from "./generate-described-ride";
 import { generateRide } from "./generate-ride";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import type {
+  ProviderRouteRequest,
+  RoutingProvider,
+} from "@/infrastructure/routing/routing-provider";
 import { createLoopWaypointSets } from "@/domain/ride/loop";
 import type { AiRidePlanner } from "@/infrastructure/ai/ai-ride-planner";
 import { AiRidePlannerError } from "@/infrastructure/ai/ai-ride-planner-error";
@@ -142,9 +146,19 @@ describe("generateDescribedRide (FR-034)", () => {
 
   it("does not promote an intermediate via when the planned arrival is out of range (FR-034, BR-001)", async () => {
     const midpoint = offsetCoordinates(GRANBY.coordinates, 90, 40);
-    const tooFar = offsetCoordinates(GRANBY.coordinates, 90, 120);
+    const tooFar = offsetCoordinates(GRANBY.coordinates, 90, 200);
     const routing = new MockRoutingProvider();
     const routeSpy = vi.spyOn(routing, "calculateRoute");
+    const planner: AiRidePlanner = {
+      async planLoop() {
+        return {
+          viaPoints: [midpoint, tooFar],
+          roads: [],
+          pointsOfInterest: [],
+        };
+      },
+    };
+    const planSpy = vi.spyOn(planner, "planLoop");
 
     const result = await generateDescribedRide(
       {
@@ -158,24 +172,25 @@ describe("generateDescribedRide (FR-034)", () => {
       undefined,
       {
         webSearch: fakeSearch(),
-        planner: {
-          async planLoop() {
-            return {
-              viaPoints: [midpoint, tooFar],
-              roads: [],
-              pointsOfInterest: [],
-            };
-          },
-        },
+        planner,
       },
     );
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
+    if (!result.ok) {
+      throw new Error(`${result.error.code}: ${result.error.message}`);
     }
-    expect(result.error.code).toBe("NO_ROUTE_FOUND");
-    expect(routeSpy).not.toHaveBeenCalled();
+    expect(planSpy).toHaveBeenCalledTimes(3);
+    expect(planSpy.mock.calls[1]?.[0].previousPlanningFailure?.reason).toBe(
+      "unusable_via_points",
+    );
+    expect(routeSpy).toHaveBeenCalled();
+    expect(routeSpy.mock.calls.at(-1)?.[0].destination).toEqual(tooFar);
+    expect(routeSpy.mock.calls.at(-1)?.[0].destination).not.toEqual(midpoint);
+    expect(result.route.type).toBe("destination");
+    expect(result.route.distanceKm).toBeGreaterThan(88);
+    expect(result.route.warnings.some((warning) => warning.includes("80 km"))).toBe(
+      true,
+    );
   });
 
   it("regenerates a destination request through the AI one-way pipeline (FR-012, FR-034)", async () => {
@@ -260,6 +275,174 @@ describe("generateDescribedRide (FR-034)", () => {
       throw new Error(result.error.message);
     }
     expect(result.route.type).toBe("destination");
+  });
+
+  it("retries the AI planner when the first via-points cannot be used (FR-034)", async () => {
+    const planner: AiRidePlanner = {
+      async planLoop(input) {
+        if (!input.previousPlanningFailure) {
+          return {
+            viaPoints: [
+              offsetCoordinates(GRANBY.coordinates, 0, 0.3),
+              offsetCoordinates(GRANBY.coordinates, 90, 0.4),
+            ],
+            roads: [],
+            pointsOfInterest: [],
+          };
+        }
+        return {
+          viaPoints: viaPointsFor(input.targetDistanceKm),
+          roads: ["Chemin des crêtes"],
+          pointsOfInterest: [],
+        };
+      },
+    };
+    const planSpy = vi.spyOn(planner, "planLoop");
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      new MockRoutingProvider(),
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(planSpy).toHaveBeenCalledTimes(2);
+    expect(planSpy.mock.calls[1]?.[0].previousPlanningFailure).toEqual({
+      reason: "unusable_via_points",
+    });
+    expect(result.route.geometry.coordinates.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("returns a road-network loop with a BR-001 warning when only an out-of-range candidate exists (FR-034)", async () => {
+    const farVias = [0, 90, 180, 270].map((bearing) =>
+      offsetCoordinates(GRANBY.coordinates, bearing, 70),
+    );
+    const planner: AiRidePlanner = {
+      async planLoop() {
+        return { viaPoints: farVias, roads: [], pointsOfInterest: [] };
+      },
+    };
+    const planSpy = vi.spyOn(planner, "planLoop");
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      new MockRoutingProvider(),
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(planSpy).toHaveBeenCalledTimes(3);
+    expect(result.route.type).toBe("loop");
+    expect(result.route.distanceKm).toBeGreaterThan(88);
+    expect(
+      result.route.warnings.some((warning) =>
+        warning.includes("±10 % non atteint"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not return an unclosed path as a described loop (FR-001, FR-034)", async () => {
+    const openGeometry = {
+      type: "LineString" as const,
+      coordinates: Array.from({ length: 12 }, (_, index) => [
+        GRANBY.coordinates.longitude + index * 0.01,
+        GRANBY.coordinates.latitude,
+      ] as [number, number]),
+    };
+    const routing: RoutingProvider = {
+      async calculateRoute() {
+        return {
+          geometry: openGeometry,
+          segments: [
+            {
+              id: "open",
+              geometry: openGeometry,
+              distanceKm: 80,
+              durationMinutes: 80,
+              surface: "paved",
+            },
+          ],
+          steps: [],
+          distanceKm: 80,
+          durationMinutes: 80,
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+  });
+
+  it("rejects a leaked known unpaved described ride when avoidance is on (FR-008, FR-034)", async () => {
+    const mock = new MockRoutingProvider();
+    const leaky: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        const routed = await mock.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      leaky,
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
   });
 
   it("does not fall back to geometric loop seeds when AI is required", async () => {
@@ -353,7 +536,7 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(routeSpy).not.toHaveBeenCalled();
   });
 
-  it("does not let the AI invent waypoints when Web search found nothing", async () => {
+  it("still generates when a successful Web search returns no hits", async () => {
     const planner = fakePlanner();
     const planSpy = vi.spyOn(planner, "planLoop");
     const routing = new MockRoutingProvider();
@@ -378,13 +561,14 @@ describe("generateDescribedRide (FR-034)", () => {
       },
     );
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(`${result.error.code}: ${result.error.message}`);
     }
-    expect(result.error.code).toBe("NO_ROUTE_FOUND");
-    expect(planSpy).not.toHaveBeenCalled();
-    expect(routeSpy).not.toHaveBeenCalled();
+    expect(result.route.type).toBe("loop");
+    expect(planSpy).toHaveBeenCalledTimes(1);
+    expect(planSpy.mock.calls[0]?.[0].searchHits).toEqual([]);
+    expect(routeSpy).toHaveBeenCalled();
   });
 
   it("returns AI_UNAVAILABLE when the model fails after a successful search", async () => {
@@ -553,6 +737,12 @@ describe("filterViaPoints (FR-034)", () => {
         returnToStart: false,
       }),
     ).toEqual([midpoint, arrival]);
+    expect(
+      filterViaPoints(GRANBY.coordinates, 80, [midpoint, tooFar], {
+        returnToStart: false,
+        mode: "planned",
+      }),
+    ).toEqual([midpoint, tooFar]);
   });
 
   it("removes duplicate loop points that would cause a U-turn", () => {

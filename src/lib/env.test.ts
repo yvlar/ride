@@ -43,7 +43,7 @@ describe("parseEnv", () => {
     expect(env.OPENAI_MODEL).toBe("gpt-4o-mini");
   });
 
-  it("accepts a Tavily or Brave web search provider (FR-034)", () => {
+  it("accepts a Tavily, Brave or OpenAI web search provider (FR-034)", () => {
     expect(
       parseEnv({
         WEB_SEARCH_PROVIDER: "brave",
@@ -56,6 +56,12 @@ describe("parseEnv", () => {
         WEB_SEARCH_API_KEY: "test-web-search-key",
       }).WEB_SEARCH_PROVIDER,
     ).toBe("tavily");
+    expect(
+      parseEnv({
+        WEB_SEARCH_PROVIDER: "openai",
+        OPENAI_API_KEY: "test-openai-key",
+      }).WEB_SEARCH_PROVIDER,
+    ).toBe("openai");
   });
 
   it("treats blank strings as unset values", () => {

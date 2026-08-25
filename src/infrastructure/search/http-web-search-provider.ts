@@ -211,7 +211,7 @@ function defaultBaseUrl(provider: "tavily" | "brave"): string {
     : DEFAULT_TAVILY_API_BASE_URL;
 }
 
-function uniqueHits(hits: WebSearchHit[]): WebSearchHit[] {
+export function uniqueHits(hits: WebSearchHit[]): WebSearchHit[] {
   const seen = new Set<string>();
   const unique: WebSearchHit[] = [];
   for (const hit of hits) {

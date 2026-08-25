@@ -144,7 +144,7 @@ export function installChatCompletionsTestStub(): void {
   const originalFetch = globalThis.fetch.bind(globalThis);
   const stubbed = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const response =
-      stubWebSearchResponse(input) ?? stubChatCompletionsResponse(input, init);
+      stubWebSearchResponse(input, init) ?? stubChatCompletionsResponse(input, init);
     if (response) {
       return response;
     }

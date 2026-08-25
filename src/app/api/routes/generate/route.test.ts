@@ -272,4 +272,46 @@ describe("POST /api/routes/generate", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it("uses OPENAI_API_KEY for web search when WEB_SEARCH_API_KEY is absent (FR-034)", async () => {
+    const previousKey = process.env.WEB_SEARCH_API_KEY;
+    const previousProvider = process.env.WEB_SEARCH_PROVIDER;
+    delete process.env.WEB_SEARCH_API_KEY;
+    delete process.env.WEB_SEARCH_PROVIDER;
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const response = await POST(
+        new Request("http://localhost/api/routes/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "loop",
+            start: GRANBY,
+            targetDistanceKm: 80,
+            style: "scenic",
+            useAiWebGeneration: true,
+            originAccuracyMeters: 8,
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const urls = fetchSpy.mock.calls.map(([input]) => fetchUrl(input));
+      expect(urls.some((url) => url.includes("/responses"))).toBe(true);
+      expect(urls.some((url) => url.includes("api.tavily.com"))).toBe(false);
+      expect(urls.some((url) => url.includes("/chat/completions"))).toBe(true);
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.WEB_SEARCH_API_KEY;
+      } else {
+        process.env.WEB_SEARCH_API_KEY = previousKey;
+      }
+      if (previousProvider === undefined) {
+        delete process.env.WEB_SEARCH_PROVIDER;
+      } else {
+        process.env.WEB_SEARCH_PROVIDER = previousProvider;
+      }
+      fetchSpy.mockRestore();
+    }
+  });
 });
