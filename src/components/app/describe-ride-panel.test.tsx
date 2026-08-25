@@ -582,6 +582,125 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(generateRide).toHaveBeenCalled();
   });
 
+  it("does not let a stale mount GPS overwrite the generate fix (FR-034)", async () => {
+    const moved = {
+      coordinates: { latitude: 45.51, longitude: -72.81 },
+      accuracyMeters: 5,
+    };
+    const resolvers: Array<(value: typeof located) => void> = [];
+    const requestPosition = vi.fn(
+      () =>
+        new Promise<typeof located>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    const generateRide = vi.fn(
+      async (request: GenerateRideRequest): Promise<GenerateRideResult> => ({
+        ok: true,
+        route: { ...loop, start: request.start },
+      }),
+    );
+    const onRequestComposed = vi.fn();
+
+    renderPanel({ requestPosition, generateRide, onRequestComposed });
+    await waitFor(() => expect(requestPosition).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Recherche de la position…")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await waitFor(() => expect(requestPosition).toHaveBeenCalledTimes(2));
+
+    resolvers[1]?.(moved);
+
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start: {
+            label: "Position actuelle",
+            coordinates: moved.coordinates,
+          },
+        }),
+        expect.objectContaining({ originAccuracyMeters: 5 }),
+      );
+    });
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+
+    resolvers[0]?.(located);
+
+    await waitFor(() => {
+      const status = screen.getByText("Position détectée");
+      expect(status).toHaveAttribute(
+        "data-start-latitude",
+        String(moved.coordinates.latitude),
+      );
+      expect(status).toHaveAttribute(
+        "data-start-longitude",
+        String(moved.coordinates.longitude),
+      );
+    });
+    expect(onRequestComposed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        start: expect.objectContaining({ coordinates: moved.coordinates }),
+      }),
+    );
+    expect(generateRide).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not apply a stale mount locate error after generate already has a fix (FR-034)", async () => {
+    const moved = {
+      coordinates: { latitude: 45.51, longitude: -72.81 },
+      accuracyMeters: 5,
+    };
+    let rejectMount: ((reason: unknown) => void) | undefined;
+    let resolveGenerateLocate: ((value: typeof located) => void) | undefined;
+    const requestPosition = vi.fn(
+      () =>
+        new Promise<typeof located>((resolve, reject) => {
+          if (rejectMount === undefined) {
+            rejectMount = reject;
+            return;
+          }
+          resolveGenerateLocate = resolve;
+        }),
+    );
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+
+    renderPanel({ requestPosition, generateRide });
+    await waitFor(() => expect(requestPosition).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await waitFor(() => expect(requestPosition).toHaveBeenCalledTimes(2));
+
+    resolveGenerateLocate?.(moved);
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(generateRide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        start: {
+          label: "Position actuelle",
+          coordinates: moved.coordinates,
+        },
+      }),
+      expect.objectContaining({ originAccuracyMeters: 5 }),
+    );
+
+    rejectMount?.(new CurrentPositionError("permission_denied"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Position détectée")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("L’autorisation de localisation a été refusée."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Réessayer la localisation" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("restores the last chosen distance from storage", async () => {
     window.localStorage.setItem(DESCRIBE_DISTANCE_STORAGE_KEY, "180");
     render(

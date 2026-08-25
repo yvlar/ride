@@ -130,6 +130,9 @@ export function DescribeRidePanel({
     useState<RideGenerationError | null>(null);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const generationId = useRef(0);
+  // Ignore overlapping one-shot GPS results (FR-034): a slower mount locate
+  // must not overwrite a newer generate/regenerate/retry fix.
+  const locateGeneration = useRef(0);
   const inFlightRef = useRef(false);
   const retryActionRef = useRef<"generate" | "regenerate">("generate");
   const startRef = useRef(start);
@@ -166,9 +169,14 @@ export function DescribeRidePanel({
   }
 
   async function locate(): Promise<LocatedPosition | null> {
+    const requestId = locateGeneration.current + 1;
+    locateGeneration.current = requestId;
     setLocationStatus("locating");
     try {
       const located = await requestPosition();
+      if (locateGeneration.current !== requestId) {
+        return null;
+      }
       const place = describedStartPlace(located.coordinates);
       startRef.current = place;
       accuracyRef.current = located.accuracyMeters;
@@ -177,6 +185,9 @@ export function DescribeRidePanel({
       setLocationStatus("detected");
       return located;
     } catch (error) {
+      if (locateGeneration.current !== requestId) {
+        return null;
+      }
       const reason =
         error instanceof CurrentPositionError ? error.reason : "unknown";
       setLocationStatus(locationStatusFromReason(reason));
@@ -364,7 +375,16 @@ export function DescribeRidePanel({
 
   return (
     <div aria-busy={busy}>
-      <p role="status" className="text-sm text-muted-foreground">
+      <p
+        role="status"
+        className="text-sm text-muted-foreground"
+        data-start-latitude={
+          start ? String(start.coordinates.latitude) : undefined
+        }
+        data-start-longitude={
+          start ? String(start.coordinates.longitude) : undefined
+        }
+      >
         {locationStatusMessage(locationStatus)}
       </p>
       {locationStatus === "permission_denied" ||
