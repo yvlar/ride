@@ -783,10 +783,13 @@ Si le navigateur exige une interaction, la permission est demandée automatiquem
 
 Avant de proposer un itinéraire, l’IA consulte automatiquement le Web, autour de la position, pour des routes panoramiques, des routes sinueuses, des points d’intérêt, des guides ou communautés moto, des fermetures ou restrictions, et des routes incompatibles avec les préférences. Cette recherche et le raisonnement restent **invisibles** : le client ne reçoit ni requêtes, ni sources, ni réponses brutes du modèle, ni clés API.
 
+Une recherche Web exécutée correctement mais sans résultat exploitable ne bloque pas la génération : l’IA propose tout de même des points plausibles, puis le moteur de routage les valide sur le réseau. Seule une véritable indisponibilité du service de recherche produit l’erreur « Recherche Web indisponible ».
+
 Pendant l’opération, l’interface affiche uniquement un état simple : « L’IA prépare votre trajet moto… ».
 
 L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corridors, points d’intérêt ou points de passage structurés. Le moteur de routage configuré (détail d’infrastructure, p. ex. un adaptateur de réseau routier) :
 
+- valide, déduplique et ordonne les points de passage en un corridor cohérent avant le calcul, afin d’éviter les zigzags, croisements et demi-tours issus d’une réponse désordonnée;
 - calcule un trajet qui suit le réseau;
 - produit géométrie, manœuvres et instructions;
 - vise la distance demandée selon `BR-001` (±10 %);

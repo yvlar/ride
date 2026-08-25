@@ -177,15 +177,31 @@ export const WEB_SEARCH_INVALID_MESSAGE =
 export function motorcycleSearchQueries(
   input: MotorcycleWebSearchInput,
 ): string[] {
-  const point = `${input.origin.latitude.toFixed(4)},${input.origin.longitude.toFixed(4)}`;
+  const point = `latitude ${input.origin.latitude.toFixed(4)} longitude ${input.origin.longitude.toFixed(4)}`;
   const style = input.style ?? "scenic";
-  const highway = input.preferences?.avoidHighways
-    ? " avoid highway freeway"
-    : "";
+  const returnToStart = input.returnToStart !== false;
+  const searchRadiusKm = Math.max(
+    10,
+    Math.round(
+      input.targetDistanceKm * (returnToStart ? 0.55 : 1.1),
+    ),
+  );
+  const rideKind = returnToStart
+    ? `${input.targetDistanceKm} km loop`
+    : `${input.targetDistanceKm} km one-way ride`;
+  const preferences = [
+    input.preferences?.avoidHighways ? "avoid highways and freeways" : "",
+    input.preferences?.avoidUnpaved ? "paved roads only" : "",
+    input.preferences?.stayInCanada
+      ? "stay in Canada and do not cross into the United States"
+      : "",
+  ].filter(Boolean);
+  const preferenceQuery =
+    preferences.length > 0 ? ` ${preferences.join(" ")}` : "";
   return [
-    `motorcycle scenic twisty roads near ${point} ${input.targetDistanceKm} km loop`,
-    `best ${style} motorcycle routes around ${point}${highway}`,
-    `motorcycle road closures detours private roads near ${point}`,
+    `best ${style} scenic twisty motorcycle roads for a ${rideKind} starting near ${point} within ${searchRadiusKm} km${preferenceQuery}`,
+    `motorcycle route guides named roads viewpoints and towns near ${point} within ${searchRadiusKm} km for a ${rideKind}${preferenceQuery}`,
+    `current motorcycle road closures construction detours seasonal private and unpaved roads near ${point} within ${searchRadiusKm} km${preferenceQuery}`,
   ];
 }
 

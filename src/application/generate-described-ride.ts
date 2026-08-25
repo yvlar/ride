@@ -23,7 +23,15 @@ import {
   routeEntersUnitedStates,
 } from "@/domain/ride/canada";
 import { previousRideSignature } from "@/domain/ride/route-signature";
-import { distanceToleranceExplanationKm, distanceToleranceGapKm, usesKnownUnpaved } from "@/domain/ride/constraints";
+import {
+  distanceToleranceExplanationKm,
+  distanceToleranceGapKm,
+  usesKnownUnpaved,
+} from "@/domain/ride/constraints";
+import {
+  orderLoopWaypoints,
+  orderOneWayWaypoints,
+} from "@/domain/ride/waypoint-order";
 import {
   DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
   isDescribeDistanceKm,
@@ -44,7 +52,10 @@ import {
   lostOnlyToPreviousCorridor,
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
-import { withUnknownSurfaceSignal, excludeKnownUnpaved } from "@/domain/ride/surfaces";
+import {
+  excludeKnownUnpaved,
+  withUnknownSurfaceSignal,
+} from "@/domain/ride/surfaces";
 import {
   describedOneWayRideRequestSchema,
   loopRideRequestSchema,
@@ -61,7 +72,10 @@ import type {
   RoutePreferences,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
-import { unpavedKnowledgeError, canadaOnlyKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
+import {
+  canadaOnlyKnowledgeError,
+  unpavedKnowledgeError,
+} from "@/infrastructure/routing/routing-knowledge-error";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import {
   readOriginAccuracyMeters,
@@ -83,6 +97,7 @@ export const WEB_SEARCH_UNAVAILABLE_USER_MESSAGE =
   "La recherche Web est indisponible.";
 export const NO_VALID_DESCRIBED_RIDE_MESSAGE =
   "Aucun trajet valide n’a pu être trouvé.";
+const MIN_AI_VIA_POINT_SEPARATION_KM = 0.25;
 
 const DESCRIBED_PLAN_ATTEMPTS = 3;
 const VIA_FILTER_MODES = ["strict", "wide", "planned"] as const;
@@ -161,6 +176,9 @@ export async function generateDescribedRide(
     return { ok: false, error: endpointError };
   }
 
+  const returnToStart =
+    request.type === "destination" ? false : readReturnToStart(input);
+
   let webSearch: WebSearchProvider;
   try {
     webSearch = deps.webSearch ?? createWebSearchProvider();
@@ -183,13 +201,11 @@ export async function generateDescribedRide(
       targetDistanceKm: request.targetDistanceKm,
       style: request.style,
       preferences: request.preferences,
+      returnToStart,
     });
   } catch (error) {
     return { ok: false, error: describedWebSearchError(error) };
   }
-
-  const returnToStart =
-    request.type === "destination" ? false : readReturnToStart(input);
   const minViaCount = returnToStart ? 2 : 1;
   const planInput = {
     origin: request.start.coordinates,
@@ -341,7 +357,11 @@ async function routeDescribedLoop(
     };
   }
 
-  const waypointSets = [viaPoints, [...viaPoints].reverse()];
+  const orderedViaPoints = orderLoopWaypoints(
+    request.start.coordinates,
+    viaPoints,
+  );
+  const waypointSets = [orderedViaPoints, [...orderedViaPoints].reverse()];
   const settled = await Promise.allSettled(
     waypointSets.map(async (waypoints) => {
       const result = applyHardRoutePreferences(
@@ -510,8 +530,12 @@ async function routeDescribedOneWay(
   if (!destination) {
     return { ok: false, error: noValidDescribedRideError() };
   }
-  const inbound = viaPoints.slice(0, -1);
-  const waypointSets = [inbound, [...inbound].reverse()];
+  const inbound = orderOneWayWaypoints(
+    request.start.coordinates,
+    destination,
+    viaPoints.slice(0, -1),
+  );
+  const waypointSets = [inbound];
   const style = request.style ?? "scenic";
   const settled = await Promise.allSettled(
     waypointSets.map(async (waypoints) => {
@@ -708,16 +732,23 @@ export function filterViaPoints(
     ) {
       return [];
     }
-    const inbound = points
-      .slice(0, -1)
-      .filter((point) =>
-        isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
-      );
+    const inbound = distinctViaPoints(
+      points
+        .slice(0, -1)
+        .filter((point) =>
+          isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+        ),
+    ).filter(
+      (point) =>
+        haversineKm(point, arrival) >= MIN_AI_VIA_POINT_SEPARATION_KM,
+    );
     return [...inbound, arrival];
   }
 
-  return points.filter((point) =>
-    isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+  return distinctViaPoints(
+    points.filter((point) =>
+      isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+    ),
   );
 }
 
@@ -746,6 +777,21 @@ function viaRadiusKm(
       ? targetDistanceKm * 0.55
       : targetDistanceKm * 1.1,
   };
+}
+
+function distinctViaPoints(points: Coordinates[]): Coordinates[] {
+  const distinct: Coordinates[] = [];
+  for (const point of points) {
+    if (
+      distinct.every(
+        (candidate) =>
+          haversineKm(candidate, point) >= MIN_AI_VIA_POINT_SEPARATION_KM,
+      )
+    ) {
+      distinct.push(point);
+    }
+  }
+  return distinct;
 }
 
 function isUsableViaPoint(

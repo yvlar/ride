@@ -36,6 +36,11 @@ const LOOP_SYSTEM_PROMPT =
   "router can close a loop near the requested distance. " +
   "Place via-points about targetDistanceKm/8 to targetDistanceKm/4 from the origin: " +
   "never almost on the origin, never farther than half the requested distance. " +
+  "Prefer named public roads or places supported by the web notes. If the search " +
+  "returns no useful notes, still choose plausible public-road points from your " +
+  "geographic knowledge; the road-network router will validate them. Return viaPoints already " +
+  "in riding order around one coherent corridor. Avoid zigzags across the origin, " +
+  "self-crossings, U-turns, duplicate points, and out-and-back legs. " +
   "Do not emit a route geometry, GeoJSON, or encoded polyline. " +
   "Prefer scenic or twisty public roads. Honor avoid-highway and paved-only " +
   "preferences. Skip private, closed, or inaccessible roads mentioned in the notes. " +
@@ -50,6 +55,11 @@ const ONE_WAY_SYSTEM_PROMPT =
   "one-way ride near the requested distance. The last via-point is the arrival. " +
   "Place the arrival so a road path is near the requested distance " +
   "(typically 0.6× to 1.0× the target as a straight-line distance). " +
+  "Prefer named public roads or places supported by the web notes. If the search " +
+  "returns no useful notes, still choose plausible public-road points from your " +
+  "geographic knowledge; the road-network router will validate them. Return viaPoints already " +
+  "in riding order from the origin to the arrival. Avoid zigzags, self-crossings, " +
+  "U-turns, duplicate points, and backtracking. " +
   "Do not return to the origin. Do not emit a route geometry, GeoJSON, or encoded polyline. " +
   "Prefer scenic or twisty public roads. Honor avoid-highway and paved-only " +
   "preferences. Skip private, closed, or inaccessible roads mentioned in the notes. " +
@@ -74,7 +84,10 @@ export class HttpAiRidePlanner implements AiRidePlanner {
       const content = await this.client.complete({
         model: this.model,
         messages: [
-          { role: "system", content: systemPromptFor(input.returnToStart !== false) },
+          {
+            role: "system",
+            content: systemPromptFor(input.returnToStart !== false),
+          },
           { role: "user", content: buildAiRidePlanUserMessage(input) },
         ],
         temperature: input.previousPlanningFailure ? 0.8 : 0.4,
@@ -91,6 +104,12 @@ export class HttpAiRidePlanner implements AiRidePlanner {
 }
 
 export function buildAiRidePlanUserMessage(input: AiRidePlanInput): string {
+  const returnToStart = input.returnToStart !== false;
+  const maximumWaypointRadiusKm = Number(
+    (
+      input.targetDistanceKm * (returnToStart ? 0.55 : 1.1)
+    ).toFixed(1),
+  );
   return `${AI_RIDE_PLAN_QUERY_HEADER}\n${JSON.stringify({
     origin: {
       latitude: input.origin.latitude,
@@ -104,8 +123,13 @@ export function buildAiRidePlanUserMessage(input: AiRidePlanInput): string {
       avoidUnpaved: true,
     },
     previousRouteSignature: input.previousRouteSignature ?? null,
-    returnToStart: input.returnToStart !== false,
+    returnToStart,
     previousPlanningFailure: input.previousPlanningFailure ?? null,
+    planningBounds: {
+      maximumWaypointRadiusKm,
+      orderedTravelSequenceRequired: true,
+      avoidCrossingsAndBacktracking: true,
+    },
     searchHits: input.searchHits,
   })}`;
 }
