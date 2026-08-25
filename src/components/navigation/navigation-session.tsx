@@ -69,30 +69,6 @@ import {
 } from "@/domain/gpx/navigation";
 import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
 
-function agentDebugLog(
-  hypothesisId: string,
-  location: string,
-  message: string,
-  data: Record<string, unknown>,
-) {
-  // #region agent log
-  try {
-    require("fs").appendFileSync(
-      "/opt/cursor/logs/debug.log",
-      JSON.stringify({
-        hypothesisId,
-        location,
-        message,
-        data,
-        timestamp: Date.now(),
-      }) + "\n",
-    );
-  } catch {
-    /* ignore when fs is unavailable (browser bundle) */
-  }
-  // #endregion
-}
-
 export type NavigationSessionProps = {
   route: GeneratedRideRoute;
   request: GenerateRideRequest;
@@ -522,18 +498,6 @@ export function NavigationSession({
       connectorFromProvider(result.route),
       to,
     );
-    // #region agent log
-    agentDebugLog("H2", "navigation-session.tsx:fetchGpxJoin:attach", "attached GPX connector", {
-      phase: next.phase,
-      offRoute: next.offRoute,
-      progressKm: next.progressKm,
-      followRouteDistanceKm: next.followRoute.distanceKm,
-      followRouteDurationMinutes: next.followRoute.durationMinutes,
-      connectorDistanceKm: next.connector?.distanceKm ?? null,
-      connectorDurationMinutes: next.connector?.durationMinutes ?? null,
-      joinKind: next.offRoute && next.progressKm > 0 ? "rejoin" : "initial_join",
-    });
-    // #endregion
     gpxRuntimeRef.current = next;
     progressRef.current = 0;
     progressSnapshotRef.current = null;
@@ -831,33 +795,6 @@ export function NavigationSession({
         const remainingMin =
           evaluated.remainingDurationMinutes +
           followRemaining.remainingDurationMinutes;
-        // #region agent log
-        agentDebugLog("H2", "navigation-session.tsx:applyGpxFix:joiningRemaining", "joining remaining uses full followRoute", {
-          phase: runtime.phase,
-          offRoute: runtime.offRoute,
-          progressKm: runtime.progressKm,
-          followRouteDistanceKm: runtime.followRoute.distanceKm,
-          followRouteDurationMinutes: runtime.followRoute.durationMinutes,
-          connectorRemainingKm: evaluated.remainingDistanceKm,
-          connectorRemainingMin: evaluated.remainingDurationMinutes,
-          combinedRemainingKm: remainingKm,
-          combinedRemainingMin: remainingMin,
-          followAheadKm: Math.max(0, runtime.followRoute.distanceKm - runtime.progressKm),
-          joinKind: runtime.offRoute && runtime.progressKm > 0 ? "rejoin" : "initial_join",
-        });
-        // #endregion
-        // #region agent log
-        agentDebugLog("H2", "navigation-session.tsx:applyGpxFix:joiningRemainingFixed", "joining remaining uses GPX still ahead of progressKm", {
-          runId: "post-fix",
-          phase: runtime.phase,
-          progressKm: runtime.progressKm,
-          followAheadKm: followRemaining.remainingDistanceKm,
-          followAheadMin: followRemaining.remainingDurationMinutes,
-          combinedRemainingKm: remainingKm,
-          combinedRemainingMin: remainingMin,
-          joinKind: runtime.offRoute && runtime.progressKm > 0 ? "rejoin" : "initial_join",
-        });
-        // #endregion
         applyEvaluatedProgress(
           {
             ...evaluated,
@@ -914,17 +851,6 @@ export function NavigationSession({
         progressKm: evaluated.projection.progressKm,
       };
       gpxRuntimeRef.current = runtime;
-      // #region agent log
-      agentDebugLog("H1", "navigation-session.tsx:applyGpxFix:followingProgress", "following_gpx progress vs unsliced followRoute", {
-        phase: runtime.phase,
-        progressKm: runtime.progressKm,
-        followRouteDistanceKm: runtime.followRoute.distanceKm,
-        followRouteDurationMinutes: runtime.followRoute.durationMinutes,
-        remainingDistanceKm: evaluated.remainingDistanceKm,
-        remainingDurationMinutes: evaluated.remainingDurationMinutes,
-        sliceStale: runtime.progressKm > 0 && runtime.followRoute.distanceKm > evaluated.remainingDistanceKm + 0.05,
-      });
-      // #endregion
       applyEvaluatedProgress(
         evaluated,
         fix,
@@ -981,19 +907,6 @@ export function NavigationSession({
               distanceM: evaluated.projection.distanceToRouteM,
             },
           };
-          // #region agent log
-          agentDebugLog("H2", "navigation-session.tsx:applyGpxFix:offRouteRejoin", "switching to joining_gpx after confirmed departure", {
-            phase: runtime.phase,
-            offRoute: runtime.offRoute,
-            progressKm: runtime.progressKm,
-            followRouteDistanceKm: runtime.followRoute.distanceKm,
-            followRouteDurationMinutes: runtime.followRoute.durationMinutes,
-            evaluatedRemainingKm: evaluated.remainingDistanceKm,
-            evaluatedRemainingMin: evaluated.remainingDurationMinutes,
-            entryProgressKm: runtime.entry?.progressKm ?? null,
-            joinKind: "rejoin",
-          });
-          // #endregion
           gpxRuntimeRef.current = runtime;
           publishGpxOverlay(runtime);
           setStatusLabel(gpxStatusLabel("joining_gpx", true));
