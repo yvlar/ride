@@ -1,97 +1,198 @@
-import type { Place } from "@/domain/geo/types";
+import { composeRideRequest } from "@/domain/ride/compose-request";
+import type { ComposeRideRequestResult } from "@/domain/ride/compose-request";
 import {
-  composeRideRequest,
-  type ComposeRideRequestResult,
-} from "@/domain/ride/compose-request";
-import { hoursToMinutes } from "@/domain/ride/duration";
-import type { NaturalLanguageRideDraft } from "@/domain/ride/parse-natural-language";
+  DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
+  isDescribeDistanceKm,
+  snapDescribeDistanceKm,
+} from "@/domain/ride/describe-distance";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
+import type { Place } from "@/domain/geo/types";
+import type {
+  GenerateRideRequest,
+  GeneratedRideRoute,
+  RideStyle,
+  RoutePreferences,
+} from "@/domain/ride/types";
+
+export const DESCRIBE_START_LABEL = "Position actuelle";
+export const DESCRIBE_ARRIVAL_LABEL = "Arrivée proposée";
+
+export const DESCRIBE_DEFAULT_PREFERENCES = DEFAULT_ROUTE_PREFERENCES;
 
 export type ComposeDescribedRideInput = {
-  draft: NaturalLanguageRideDraft;
   start: Place | null;
-  destination: Place | null;
-  fallbackStart: Place | null;
-  searchPlaces: (query: string, signal?: AbortSignal) => Promise<Place[]>;
-  signal?: AbortSignal;
+  targetDistanceKm: number;
+  style?: RideStyle;
+  preferences?: RoutePreferences;
 };
 
 /**
- * FR-034 — turn structured describe criteria into a validated ride request.
- * Resolves place queries via the geocoding adapter; never invents coordinates.
+ * FR-034 — GPS origin + slider distance become a loop request.
+ * Duration and manual origin are not part of this flow.
  */
-export async function composeDescribedRide(
+export function composeDescribedRide(
   input: ComposeDescribedRideInput,
-): Promise<ComposeRideRequestResult> {
-  const resolvedStart =
-    input.start ??
-    (await resolvePlace(
-      input.draft.startQuery,
-      input.searchPlaces,
-      input.signal,
-    ));
-
-  if (!resolvedStart && input.draft.startQuery) {
+): ComposeRideRequestResult {
+  if (!input.start) {
     return {
       ok: false,
       errors: [
         {
           field: "start",
-          message: `Lieu de départ introuvable pour « ${input.draft.startQuery} ». Précisez le nom ou utilisez Ma position.`,
+          message: "La position actuelle est requise pour générer le trajet.",
         },
       ],
     };
   }
 
-  const start = resolvedStart ?? input.fallbackStart;
-
-  const needsDestination = input.draft.type !== "loop";
-  let destination = needsDestination ? input.destination : null;
-  if (needsDestination && !destination && input.draft.destinationQuery) {
-    destination = await resolvePlace(
-      input.draft.destinationQuery,
-      input.searchPlaces,
-      input.signal,
-    );
-    if (!destination) {
-      return {
-        ok: false,
-        errors: [
-          {
-            field: "destination",
-            message: `Destination introuvable pour « ${input.draft.destinationQuery} ». Précisez le nom du lieu.`,
-          },
-        ],
-      };
-    }
+  if (!isDescribeDistanceKm(input.targetDistanceKm)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "targetDistanceKm",
+          message: DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
+        },
+      ],
+    };
   }
 
-  return composeRideRequest({
-    start,
-    type: input.draft.type,
-    destination,
-    targetDistanceKm: input.draft.targetDistanceKm,
-    availableDurationMinutes:
-      input.draft.availableDurationHours === null
-        ? null
-        : hoursToMinutes(input.draft.availableDurationHours),
-    style: input.draft.style,
-    preferences: input.draft.preferences,
+  const composed = composeRideRequest({
+    start: input.start,
+    type: "loop",
+    destination: null,
+    targetDistanceKm: snapDescribeDistanceKm(input.targetDistanceKm),
+    availableDurationMinutes: null,
+    style: input.style ?? "scenic",
+    preferences: input.preferences ?? DESCRIBE_DEFAULT_PREFERENCES,
   });
+  if (!composed.ok) {
+    return composed;
+  }
+  const request = { ...composed.request };
+  delete request.availableDurationMinutes;
+  return { ok: true, request };
 }
 
-async function resolvePlace(
-  query: string | null,
-  searchPlaces: (query: string, signal?: AbortSignal) => Promise<Place[]>,
-  signal?: AbortSignal,
-): Promise<Place | null> {
-  const trimmed = query?.trim();
-  if (!trimmed) {
-    return null;
+export function describedStartPlace(coordinates: Place["coordinates"]): Place {
+  return {
+    label: DESCRIBE_START_LABEL,
+    coordinates,
+  };
+}
+
+export function describedArrivalPlace(coordinates: Place["coordinates"]): Place {
+  return {
+    label: DESCRIBE_ARRIVAL_LABEL,
+    coordinates,
+  };
+}
+
+/**
+ * FR-034 — persist the request that matches the generated geometry:
+ * a loop, or a one-way whose arrival was chosen by the planner.
+ */
+export function describedRequestFromGeneratedRoute(
+  route: GeneratedRideRoute,
+  preferences: RoutePreferences,
+): GenerateRideRequest | null {
+  if (route.type === "loop") {
+    return {
+      type: "loop",
+      start: route.start,
+      targetDistanceKm: route.targetDistanceKm,
+      style: route.style,
+      preferences,
+    };
   }
-  try {
-    const places = await searchPlaces(trimmed, signal);
-    return places[0] ?? null;
-  } catch {
-    return null;
+  if (route.type === "destination") {
+    return {
+      type: "destination",
+      start: route.start,
+      destination: route.destination,
+      targetDistanceKm: route.targetDistanceKm,
+      style: route.style,
+      preferences,
+    };
   }
+  return null;
+}
+
+export function describedRouteMatchesReturnToStart(
+  route: Pick<GeneratedRideRoute, "type">,
+  returnToStart: boolean,
+): boolean {
+  return returnToStart === (route.type === "loop");
+}
+
+/**
+ * FR-012 / FR-034 — rebuild the described request that matches the current
+ * route type, with a fresh GPS origin and the slider distance.
+ */
+export function composeDescribedRegenerateRequest(input: {
+  start: Place;
+  targetDistanceKm: number;
+  preferences?: RoutePreferences;
+  previousRoute: GeneratedRideRoute;
+}): ComposeRideRequestResult {
+  if (input.previousRoute.type === "loop") {
+    return composeDescribedRide({
+      start: input.start,
+      targetDistanceKm: input.targetDistanceKm,
+      style: input.previousRoute.style,
+      preferences: input.preferences,
+    });
+  }
+
+  if (input.previousRoute.type !== "destination") {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "type",
+          message:
+            "Ce type de trajet ne peut pas être régénéré depuis Décrire mon trajet.",
+        },
+      ],
+    };
+  }
+
+  if (!isDescribeDistanceKm(input.targetDistanceKm)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "targetDistanceKm",
+          message: DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
+        },
+      ],
+    };
+  }
+
+  const preferences = input.preferences ?? DESCRIBE_DEFAULT_PREFERENCES;
+  const fromRoute = describedRequestFromGeneratedRoute(
+    input.previousRoute,
+    preferences,
+  );
+  if (!fromRoute || fromRoute.type !== "destination") {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "destination",
+          message: "L’arrivée proposée est requise pour régénérer cet aller.",
+        },
+      ],
+    };
+  }
+
+  return {
+    ok: true,
+    request: {
+      ...fromRoute,
+      start: input.start,
+      targetDistanceKm: snapDescribeDistanceKm(input.targetDistanceKm),
+      preferences,
+    },
+  };
 }

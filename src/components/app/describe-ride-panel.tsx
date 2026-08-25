@@ -1,92 +1,96 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { composeDescribedRide } from "@/application/compose-described-ride";
+import {
+  composeDescribedRegenerateRequest,
+  composeDescribedRide,
+  describedRequestFromGeneratedRoute,
+  describedRouteMatchesReturnToStart,
+  describedStartPlace,
+} from "@/application/compose-described-ride";
+import { DescribeDistanceSlider } from "@/components/app/describe-distance-slider";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  LocateButton,
-  PlaceSearchField,
-} from "@/components/ride-form/place-search-field";
-import { searchPlacesFromApi } from "@/components/ride-form/search-places";
 import {
   requestGeneratedRide,
   type GenerateRideClientOptions,
 } from "@/components/ride-form/request-generated-ride";
 import { requestRegeneratedRide } from "@/components/ride-form/request-regenerated-ride";
 import {
+  CurrentPositionError,
+  type GeolocationFailureReason,
+} from "@/components/ride-form/browser-geolocation";
+import {
   formatDistanceLabel,
   formatDurationLabel,
 } from "@/components/navigation/format-navigation";
-import type { Coordinates, Place } from "@/domain/geo/types";
+import { requestDevicePosition } from "@/infrastructure/location/request-device-coordinates";
+import type { LocatedPosition } from "@/domain/location/types";
 import {
-  parseNaturalLanguageRide,
-  type NaturalLanguageRideDraft,
-} from "@/domain/ride/parse-natural-language";
-import { RIDE_STYLE_OPTIONS } from "@/domain/ride/style-catalog";
+  readStoredDescribeDistanceKm,
+  snapDescribeDistanceKm,
+  writeStoredDescribeDistanceKm,
+} from "@/domain/ride/describe-distance";
+import {
+  readStoredDescribeLoop,
+  writeStoredDescribeLoop,
+} from "@/domain/ride/describe-loop";
+import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
+import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
   principalRoadNames,
   routeShareSummary,
 } from "@/domain/ride/route-share";
-import {
-  RIDE_STYLE_LABELS,
-  RIDE_TYPE_LABELS,
-  summarizeRideRequest,
-} from "@/domain/ride/summarize-request";
+import { RIDE_STYLE_LABELS, RIDE_TYPE_LABELS } from "@/domain/ride/summarize-request";
+import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
   GeneratedRideRoute,
-  RideFormError,
-  RideFormField,
   RideGenerationError,
-  RideStyle,
-  RideType,
 } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
-
-const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
-  { value: "loop", label: "Boucle", description: "Revenir au départ" },
-  { value: "destination", label: "Destination", description: "Aller simple" },
-  { value: "round_trip", label: "Aller-retour", description: "Retour différent" },
-];
-
-const RIDE_STYLES = RIDE_STYLE_OPTIONS.filter(
-  (option): option is typeof option & { style: RideStyle; supported: true } =>
-    option.supported && option.style !== undefined,
-);
 
 const GENERATION_UNAVAILABLE: RideGenerationError = {
   code: "PROVIDER_ERROR",
   message:
     "Le service de cartographie ne répond pas. Réessayez dans quelques instants.",
-  suggestions: ["Réessayez dans quelques instants."],
+  suggestions: ["Réessayez."],
 };
 
-function errorMap(
-  errors: RideFormError[],
-): Partial<Record<RideFormField, string>> {
-  const mapped: Partial<Record<RideFormField, string>> = {};
-  for (const error of errors) {
-    mapped[error.field] ??= error.message;
+type LocationStatus =
+  | "locating"
+  | "detected"
+  | "permission_denied"
+  | "unavailable";
+
+function locationStatusFromReason(
+  reason: GeolocationFailureReason,
+): Exclude<LocationStatus, "locating" | "detected"> {
+  return reason === "permission_denied" ? "permission_denied" : "unavailable";
+}
+
+function locationStatusMessage(status: LocationStatus): string {
+  if (status === "locating") {
+    return "Recherche de la position…";
   }
-  return mapped;
+  if (status === "detected") {
+    return "Position détectée";
+  }
+  if (status === "permission_denied") {
+    return "L’autorisation de localisation a été refusée.";
+  }
+  return "La position actuelle est indisponible.";
 }
 
 export type DescribeRidePanelProps = {
-  searchPlaces?: (query: string, signal?: AbortSignal) => Promise<Place[]>;
-  debounceMs?: number;
   generateRide?: (
     request: GenerateRideRequest,
     options?: GenerateRideClientOptions,
   ) => Promise<GenerateRideResult>;
   regenerateRide?: typeof requestRegeneratedRide;
-  requestCoordinates?: () => Promise<Coordinates>;
-  reversePlace?: (coordinates: Coordinates) => Promise<Place>;
-  gpsPlace?: Place | null;
+  requestPosition?: () => Promise<LocatedPosition>;
   onRequestComposed: (request: GenerateRideRequest) => void;
   onGeneratedRouteChange: (route: GeneratedRideRoute) => void;
   onStartNavigation: (options?: { muted?: boolean }) => void;
@@ -94,67 +98,121 @@ export type DescribeRidePanelProps = {
 };
 
 export function DescribeRidePanel({
-  searchPlaces = searchPlacesFromApi,
-  debounceMs = 250,
   generateRide = requestGeneratedRide,
   regenerateRide = requestRegeneratedRide,
-  requestCoordinates,
-  reversePlace,
-  gpsPlace = null,
+  requestPosition = requestDevicePosition,
   onRequestComposed,
   onGeneratedRouteChange,
   onStartNavigation,
   onBack,
 }: DescribeRidePanelProps) {
-  const [describeText, setDescribeText] = useState("");
-  const [draft, setDraft] = useState<NaturalLanguageRideDraft>(() =>
-    parseNaturalLanguageRide(""),
+  const [distanceKm, setDistanceKm] = useState(() =>
+    readStoredDescribeDistanceKm(
+      typeof window === "undefined" ? null : window.localStorage,
+    ),
   );
-  const [startQuery, setStartQuery] = useState(gpsPlace?.label ?? "");
-  const [start, setStart] = useState<Place | null>(gpsPlace);
-  const [destinationQuery, setDestinationQuery] = useState("");
-  const [destination, setDestination] = useState<Place | null>(null);
+  const [returnToStart, setReturnToStart] = useState(() =>
+    readStoredDescribeLoop(
+      typeof window === "undefined" ? null : window.localStorage,
+    ),
+  );
+  const [start, setStart] = useState<Place | null>(null);
+  const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null);
+  const [locationStatus, setLocationStatus] =
+    useState<LocationStatus>("locating");
   const [composedRequest, setComposedRequest] =
     useState<GenerateRideRequest | null>(null);
   const [displayedRoute, setDisplayedRoute] =
     useState<GeneratedRideRoute | null>(null);
-  const [editing, setEditing] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<
-    Partial<Record<RideFormField, string>>
-  >({});
   const [generationError, setGenerationError] =
     useState<RideGenerationError | null>(null);
-  const [startWarning, setStartWarning] = useState<string | null>(null);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const generationId = useRef(0);
+  // Ignore overlapping one-shot GPS results (FR-034): a slower mount locate
+  // must not overwrite a newer generate/regenerate/retry fix.
+  const locateGeneration = useRef(0);
   const inFlightRef = useRef(false);
-  const retryActionRef = useRef<"continue" | "regenerate">("continue");
+  const retryActionRef = useRef<"generate" | "regenerate">("generate");
   const startRef = useRef(start);
+  const accuracyRef = useRef(accuracyMeters);
   const busy = generating || regenerating;
+  const activeRoute = displayedRoute;
 
   useEffect(() => {
     startRef.current = start;
-  }, [start]);
+    accuracyRef.current = accuracyMeters;
+  }, [start, accuracyMeters]);
 
-  const needsDestination = draft.type !== "loop";
-  const activeRoute = displayedRoute;
-  const showComposer = editing || !activeRoute;
+  useEffect(() => {
+    void locate();
+    // One-shot precise fix when the describe flow opens (FR-034).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only locate
+  }, []);
 
-  function applyParsedDraft(next: NaturalLanguageRideDraft) {
-    if (next.startQuery !== draft.startQuery) {
-      setStartQuery(next.startQuery ?? "");
-      setStart(null);
-    }
-    if (next.destinationQuery !== draft.destinationQuery) {
-      setDestinationQuery(next.destinationQuery ?? "");
-      setDestination(null);
-    }
-    setDraft(next);
+  function persistDistance(next: number) {
+    const snapped = snapDescribeDistanceKm(next);
+    setDistanceKm(snapped);
+    writeStoredDescribeDistanceKm(
+      typeof window === "undefined" ? null : window.localStorage,
+      snapped,
+    );
   }
 
-  async function handleContinue() {
+  function persistLoop(next: boolean) {
+    setReturnToStart(next);
+    writeStoredDescribeLoop(
+      typeof window === "undefined" ? null : window.localStorage,
+      next,
+    );
+  }
+
+  async function locate(): Promise<LocatedPosition | null> {
+    const requestId = locateGeneration.current + 1;
+    locateGeneration.current = requestId;
+    setLocationStatus("locating");
+    try {
+      const located = await requestPosition();
+      if (locateGeneration.current !== requestId) {
+        return null;
+      }
+      const place = describedStartPlace(located.coordinates);
+      startRef.current = place;
+      accuracyRef.current = located.accuracyMeters;
+      setStart(place);
+      setAccuracyMeters(located.accuracyMeters);
+      setLocationStatus("detected");
+      return located;
+    } catch (error) {
+      if (locateGeneration.current !== requestId) {
+        return null;
+      }
+      const reason =
+        error instanceof CurrentPositionError ? error.reason : "unknown";
+      setLocationStatus(locationStatusFromReason(reason));
+      if (!startRef.current) {
+        setStart(null);
+      }
+      return null;
+    }
+  }
+
+  async function refreshStart(): Promise<{
+    start: Place;
+    accuracyMeters: number | null;
+  } | null> {
+    const located = await locate();
+    if (!located || !startRef.current) {
+      return null;
+    }
+    return {
+      start: startRef.current,
+      accuracyMeters: located.accuracyMeters,
+    };
+  }
+
+  async function handleGenerate() {
     if (inFlightRef.current) {
       return;
     }
@@ -163,49 +221,60 @@ export function DescribeRidePanel({
     generationId.current = requestId;
     setGenerating(true);
     setGenerationError(null);
-    setFieldErrors({});
     try {
-      const composed = await composeDescribedRide({
-        draft,
-        start,
-        destination,
-        fallbackStart: gpsPlace,
-        searchPlaces,
+      const located = await refreshStart();
+      if (generationId.current !== requestId) {
+        return;
+      }
+      if (!located) {
+        retryActionRef.current = "generate";
+        return;
+      }
+      const preferences = readStoredRoutePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+      );
+      const composed = composeDescribedRide({
+        start: located.start,
+        targetDistanceKm: distanceKm,
+        preferences,
+      });
+      if (!composed.ok) {
+        setGenerationError({
+          code: "VALIDATION_ERROR",
+          message: composed.errors[0]?.message ?? "La demande est invalide.",
+          suggestions: ["Réessayez."],
+        });
+        return;
+      }
+      const generated = await generateRide(composed.request, {
+        useAiWebGeneration: true,
+        originAccuracyMeters: located.accuracyMeters,
+        returnToStart,
       });
       if (generationId.current !== requestId) {
         return;
       }
-      if (!composed.ok) {
-        setFieldErrors(errorMap(composed.errors));
-        return;
-      }
-      if (composed.request.start) {
-        setStart(composed.request.start);
-        setStartQuery(composed.request.start.label);
-      }
-      if (composed.request.type !== "loop") {
-        setDestination(composed.request.destination);
-        setDestinationQuery(composed.request.destination.label);
-      }
-      const generated = await generateRide(composed.request);
-      if (generationId.current !== requestId) {
-        return;
-      }
       if (generated.ok) {
-        setComposedRequest(composed.request);
-        onRequestComposed(composed.request);
+        const persisted =
+          generated.route.type === "destination"
+            ? describedRequestFromGeneratedRoute(
+                generated.route,
+                composed.request.preferences ?? preferences,
+              ) ?? composed.request
+            : composed.request;
+        setComposedRequest(persisted);
+        onRequestComposed(persisted);
         setDisplayedRoute(generated.route);
         onGeneratedRouteChange(generated.route);
-        setEditing(false);
         return;
       }
-      retryActionRef.current = "continue";
+      retryActionRef.current = "generate";
       setGenerationError(generated.error);
     } catch {
       if (generationId.current !== requestId) {
         return;
       }
-      retryActionRef.current = "continue";
+      retryActionRef.current = "generate";
       setGenerationError(GENERATION_UNAVAILABLE);
     } finally {
       if (generationId.current === requestId) {
@@ -219,17 +288,63 @@ export function DescribeRidePanel({
     if (!composedRequest || !activeRoute || inFlightRef.current) {
       return;
     }
+    if (!describedRouteMatchesReturnToStart(activeRoute, returnToStart)) {
+      await handleGenerate();
+      return;
+    }
     inFlightRef.current = true;
     const requestId = generationId.current + 1;
     generationId.current = requestId;
     setRegenerating(true);
     setGenerationError(null);
     try {
-      const generated = await regenerateRide(composedRequest, activeRoute);
+      const located = await refreshStart();
+      if (generationId.current !== requestId) {
+        return;
+      }
+      if (!located) {
+        retryActionRef.current = "regenerate";
+        return;
+      }
+      const preferences = readStoredRoutePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+      );
+      const composed = composeDescribedRegenerateRequest({
+        start: located.start,
+        targetDistanceKm: distanceKm,
+        preferences,
+        previousRoute: activeRoute,
+      });
+      if (!composed.ok) {
+        setGenerationError({
+          code: "VALIDATION_ERROR",
+          message: composed.errors[0]?.message ?? "La demande est invalide.",
+          suggestions: ["Réessayez."],
+        });
+        return;
+      }
+      const generated = await regenerateRide(composed.request, activeRoute, {
+        useAiWebGeneration: true,
+        originAccuracyMeters: located.accuracyMeters,
+        returnToStart,
+        previousRouteSignature: previousRideSignature({
+          id: activeRoute.id,
+          geometry: activeRoute.geometry,
+        }),
+      });
       if (generationId.current !== requestId) {
         return;
       }
       if (generated.ok) {
+        const persisted =
+          generated.route.type === "destination"
+            ? describedRequestFromGeneratedRoute(
+                generated.route,
+                composed.request.preferences ?? preferences,
+              ) ?? composed.request
+            : composed.request;
+        setComposedRequest(persisted);
+        onRequestComposed(persisted);
         setDisplayedRoute(generated.route);
         onGeneratedRouteChange(generated.route);
         return;
@@ -255,417 +370,75 @@ export function DescribeRidePanel({
       void handleRegenerate();
       return;
     }
-    void handleContinue();
+    void handleGenerate();
   }
 
   return (
     <div aria-busy={busy}>
-      {showComposer ? (
-        <>
-          <Label htmlFor="describe-ride">Votre demande</Label>
-          <Textarea
-            id="describe-ride"
-            className="mt-2 min-h-28 text-base"
-            placeholder="Crée une boucle de 250 km au départ de Granby, avec des routes sinueuses, sans autoroute et uniquement asphaltées."
-            value={describeText}
-            disabled={busy}
-            onChange={(event) => {
-              const value = event.target.value;
-              setDescribeText(value);
-              applyParsedDraft(parseNaturalLanguageRide(value));
-            }}
-          />
-          <p className="mt-2 text-sm text-muted-foreground">
-            L’IA ne trace pas la route : ces critères seront calculés par le
-            moteur de routage.
-          </p>
-          {draft.unsupported.map((warning) => (
-            <p key={warning} className="mt-1 text-sm text-muted-foreground">
-              {warning}
-            </p>
-          ))}
-
-          <fieldset className="mt-4 space-y-2">
-            <legend className="text-sm font-medium">Type de trajet</legend>
-            <div
-              role="radiogroup"
-              aria-label="Type de trajet"
-              className="grid grid-cols-1 gap-2"
-            >
-              {RIDE_TYPES.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={draft.type === option.value}
-                  disabled={busy}
-                  className={cn(
-                    "flex min-h-12 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left",
-                    draft.type === option.value
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background",
-                  )}
-                  onClick={() =>
-                    setDraft((current) => ({ ...current, type: option.value }))
-                  }
-                >
-                  <span className="text-base font-medium">{option.label}</span>
-                  <span
-                    className={cn(
-                      "text-sm",
-                      draft.type === option.value
-                        ? "text-primary-foreground/80"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {option.description}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="mt-4">
-            <PlaceSearchField
-              id="describe-start"
-              label="Point de départ"
-              query={startQuery}
-              selectedPlace={start}
-              error={fieldErrors.start}
-              placeholder="Rechercher un lieu"
-              debounceMs={debounceMs}
-              searchPlaces={searchPlaces}
-              onQueryChange={(query) => {
-                setStartQuery(query);
-                setStart((current) =>
-                  current && current.label === query ? current : null,
-                );
-                setFieldErrors((current) => ({ ...current, start: undefined }));
-                setStartWarning(null);
-                setDraft((current) => ({
-                  ...current,
-                  startQuery: query.trim() || null,
-                }));
-              }}
-              onPlaceSelected={(place) => {
-                setStart(place);
-                setStartQuery(place.label);
-                setFieldErrors((current) => ({ ...current, start: undefined }));
-                setStartWarning(null);
-                setDraft((current) => ({
-                  ...current,
-                  startQuery: place.label,
-                }));
-              }}
-              action={
-                <LocateButton
-                  requestCoordinates={requestCoordinates}
-                  reversePlace={reversePlace}
-                  onLocated={(place, warning) => {
-                    setStart(place);
-                    setStartQuery(place.label);
-                    setFieldErrors((current) => ({
-                      ...current,
-                      start: undefined,
-                    }));
-                    setStartWarning(warning ?? null);
-                    setDraft((current) => ({
-                      ...current,
-                      startQuery: place.label,
-                    }));
-                  }}
-                  onError={(message) => {
-                    if (startRef.current) {
-                      setStartWarning(message);
-                      setFieldErrors((current) => ({
-                        ...current,
-                        start: undefined,
-                      }));
-                      return;
-                    }
-                    setFieldErrors((current) => ({
-                      ...current,
-                      start: message,
-                    }));
-                    setStartWarning(null);
-                  }}
-                />
-              }
-            />
-            {startWarning ? (
-              <p role="status" className="mt-2 text-sm text-muted-foreground">
-                {startWarning}
-              </p>
-            ) : null}
-          </div>
-
-          {needsDestination ? (
-            <div className="mt-4">
-              <PlaceSearchField
-                id="describe-destination"
-                label="Destination"
-                query={destinationQuery}
-                selectedPlace={destination}
-                error={fieldErrors.destination}
-                placeholder="Rechercher une destination"
-                debounceMs={debounceMs}
-                searchPlaces={searchPlaces}
-                onQueryChange={(query) => {
-                  setDestinationQuery(query);
-                  setDestination((current) =>
-                    current && current.label === query ? current : null,
-                  );
-                  setFieldErrors((current) => ({
-                    ...current,
-                    destination: undefined,
-                  }));
-                  setDraft((current) => ({
-                    ...current,
-                    destinationQuery: query.trim() || null,
-                  }));
-                }}
-                onPlaceSelected={(place) => {
-                  setDestination(place);
-                  setDestinationQuery(place.label);
-                  setFieldErrors((current) => ({
-                    ...current,
-                    destination: undefined,
-                  }));
-                  setDraft((current) => ({
-                    ...current,
-                    destinationQuery: place.label,
-                  }));
-                }}
-              />
-            </div>
-          ) : null}
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="describe-distance">Distance cible (km)</Label>
-              <Input
-                id="describe-distance"
-                inputMode="decimal"
-                className="h-12 text-base"
-                value={
-                  draft.targetDistanceKm === null
-                    ? ""
-                    : String(draft.targetDistanceKm)
-                }
-                aria-invalid={fieldErrors.targetDistanceKm ? true : undefined}
-                disabled={busy}
-                onChange={(event) => {
-                  const raw = event.target.value.trim().replace(",", ".");
-                  const value = raw === "" ? null : Number(raw);
-                  setDraft((current) => ({
-                    ...current,
-                    targetDistanceKm:
-                      value !== null && Number.isFinite(value) ? value : null,
-                  }));
-                  setFieldErrors((current) => ({
-                    ...current,
-                    targetDistanceKm: undefined,
-                  }));
-                }}
-              />
-              {fieldErrors.targetDistanceKm ? (
-                <p className="text-sm text-destructive">
-                  {fieldErrors.targetDistanceKm}
-                </p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="describe-duration">Durée disponible (h)</Label>
-              <Input
-                id="describe-duration"
-                inputMode="decimal"
-                className="h-12 text-base"
-                value={
-                  draft.availableDurationHours === null
-                    ? ""
-                    : String(draft.availableDurationHours)
-                }
-                disabled={busy}
-                onChange={(event) => {
-                  const raw = event.target.value.trim().replace(",", ".");
-                  const value = raw === "" ? null : Number(raw);
-                  setDraft((current) => ({
-                    ...current,
-                    availableDurationHours:
-                      value !== null && Number.isFinite(value) ? value : null,
-                  }));
-                }}
-              />
-            </div>
-          </div>
-
-          <fieldset className="mt-4 space-y-2">
-            <legend className="text-sm font-medium">Style de trajet</legend>
-            <div
-              role="radiogroup"
-              aria-label="Style de trajet"
-              className="grid grid-cols-1 gap-2 sm:grid-cols-3"
-            >
-              {RIDE_STYLES.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={draft.style === option.style}
-                  disabled={busy}
-                  className={cn(
-                    "flex min-h-12 items-center justify-center rounded-lg border px-2 text-sm font-medium sm:text-base",
-                    draft.style === option.style
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background",
-                  )}
-                  onClick={() =>
-                    setDraft((current) => ({ ...current, style: option.style }))
-                  }
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="mt-4 space-y-2">
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-              <Label htmlFor="describe-avoid-highways" className="text-base">
-                Éviter les autoroutes
-              </Label>
-              <Switch
-                id="describe-avoid-highways"
-                checked={draft.preferences.avoidHighways}
-                disabled={busy}
-                onCheckedChange={(checked) =>
-                  setDraft((current) => ({
-                    ...current,
-                    preferences: {
-                      ...current.preferences,
-                      avoidHighways: checked,
-                    },
-                  }))
-                }
-              />
-            </div>
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-              <Label htmlFor="describe-avoid-unpaved" className="text-base">
-                Éviter les routes non pavées
-              </Label>
-              <Switch
-                id="describe-avoid-unpaved"
-                checked={draft.preferences.avoidUnpaved}
-                disabled={busy}
-                onCheckedChange={(checked) =>
-                  setDraft((current) => ({
-                    ...current,
-                    preferences: {
-                      ...current.preferences,
-                      avoidUnpaved: checked,
-                    },
-                  }))
-                }
-              />
-            </div>
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-              <Label htmlFor="describe-stay-in-canada" className="text-base">
-                Canada seulement
-              </Label>
-              <Switch
-                id="describe-stay-in-canada"
-                checked={Boolean(draft.preferences.stayInCanada)}
-                disabled={busy}
-                onCheckedChange={(checked) =>
-                  setDraft((current) => ({
-                    ...current,
-                    preferences: {
-                      ...current.preferences,
-                      stayInCanada: checked,
-                    },
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            size="lg"
-            className="mt-4 min-h-12 w-full text-base"
-            disabled={busy}
-            aria-busy={generating}
-            onClick={() => void handleContinue()}
-          >
-            {generating ? "Génération…" : "Continuer avec ces critères"}
-          </Button>
-        </>
-      ) : (
+      <p
+        role="status"
+        className="text-sm text-muted-foreground"
+        data-start-latitude={
+          start ? String(start.coordinates.latitude) : undefined
+        }
+        data-start-longitude={
+          start ? String(start.coordinates.longitude) : undefined
+        }
+      >
+        {locationStatusMessage(locationStatus)}
+      </p>
+      {locationStatus === "permission_denied" ||
+      locationStatus === "unavailable" ? (
         <Button
           type="button"
-          variant="ghost"
-          className="min-h-12 w-full text-base"
+          variant="outline"
+          className="mt-2 min-h-12 w-full text-base"
           disabled={busy}
-          onClick={() => setEditing(true)}
+          onClick={() => void locate()}
         >
-          Modifier les critères
+          Réessayer la localisation
         </Button>
-      )}
-
-      {composedRequest ? (
-        <p role="status" className="mt-3 text-sm leading-6 text-muted-foreground">
-          {summarizeRideRequest(composedRequest)}
-        </p>
       ) : null}
 
-      {busy ? (
-        <p role="status" className="mt-3 text-sm text-muted-foreground">
+      <div className="mt-4">
+        <DescribeDistanceSlider
+          value={distanceKm}
+          disabled={busy}
+          onChange={persistDistance}
+        />
+      </div>
+
+      <div className="mt-3 flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+        <div>
+          <Label htmlFor="describe-loop" className="text-base">
+            Boucle
+          </Label>
+          <p className="text-sm text-muted-foreground">Revenir au départ</p>
+        </div>
+        <Switch
+          id="describe-loop"
+          checked={returnToStart}
+          disabled={busy}
+          onCheckedChange={persistLoop}
+        />
+      </div>
+
+      {busy && (regenerating || locationStatus === "detected") ? (
+        <p role="status" className="mt-4 text-sm text-muted-foreground">
           {regenerating
-            ? "Régénération du trajet…"
-            : "Génération du trajet…"}
+            ? "Régénération en cours…"
+            : "L’IA prépare votre trajet moto…"}
         </p>
       ) : null}
 
       {activeRoute ? (
         <section aria-label="Trajet généré" className="mt-4 space-y-3">
-          <h2 className="text-base font-medium">Avant le départ</h2>
-          <p className="text-sm leading-6">
-            {activeRoute.type === "loop"
-              ? activeRoute.start.label
-              : activeRoute.destination.label}
-          </p>
-          <p className="text-sm leading-6">
+          <p className="text-base leading-6">
             {formatDistanceLabel(activeRoute.distanceKm)} ·{" "}
             {formatDurationLabel(activeRoute.durationMinutes)} ·{" "}
             {RIDE_TYPE_LABELS[activeRoute.type]} ·{" "}
-            {RIDE_STYLE_LABELS[activeRoute.style ?? draft.style]}
+            {RIDE_STYLE_LABELS[activeRoute.style ?? "scenic"]}
           </p>
-          <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 text-sm leading-6">
-              GPS :{" "}
-              {start
-                ? `position définie (${start.label}).`
-                : "non confirmé — utilisez Ma position."}
-            </p>
-            <LocateButton
-              requestCoordinates={requestCoordinates}
-              reversePlace={reversePlace}
-              onLocated={(place, warning) => {
-                setStart(place);
-                setStartQuery(place.label);
-                setStartWarning(warning ?? null);
-                setFieldErrors((current) => ({ ...current, start: undefined }));
-              }}
-              onError={(message) => {
-                setStartWarning(message);
-              }}
-            />
-          </div>
-          {startWarning ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {startWarning}
-            </p>
-          ) : null}
           <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
             <Label htmlFor="describe-voice" className="text-base">
               Guidage vocal {voiceMuted ? "(désactivé)" : "(activé)"}
@@ -735,7 +508,7 @@ export function DescribeRidePanel({
       <div
         className={cn(
           "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card/95 px-4 pt-3",
-          activeRoute ? "pb-[max(0.25rem,env(safe-area-inset-bottom))]" : "border-t-0",
+          "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
         )}
         role={activeRoute ? "group" : undefined}
         aria-label={activeRoute ? "Actions du trajet" : undefined}
@@ -761,10 +534,20 @@ export function DescribeRidePanel({
               aria-busy={regenerating}
               onClick={() => void handleRegenerate()}
             >
-              {regenerating ? "Régénération…" : "Régénérer"}
+              {regenerating ? "Régénération en cours…" : "Régénérer"}
             </Button>
           </>
         ) : null}
+        <Button
+          type="button"
+          size="lg"
+          className="min-h-12 w-full text-base"
+          disabled={busy || (Boolean(activeRoute) && generating)}
+          aria-busy={generating}
+          onClick={() => void handleGenerate()}
+        >
+          {generating ? "Génération…" : "Générer mon trajet"}
+        </Button>
         <Button
           type="button"
           variant="ghost"

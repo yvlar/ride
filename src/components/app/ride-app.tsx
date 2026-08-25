@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RideMap } from "@/components/map/ride-map";
 import { DescribeRidePanel } from "@/components/app/describe-ride-panel";
+import { RoutePreferenceSettings } from "@/components/app/route-preference-settings";
 import {
   RideRequestForm,
   type RideRequestFormProps,
@@ -35,6 +36,11 @@ import { createLocalRideLibrary } from "@/infrastructure/persistence/local-ride-
 import { createRideSessionStore } from "@/infrastructure/persistence/ride-session-store";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
+import {
+  readStoredRoutePreferences,
+  writeStoredRoutePreferences,
+} from "@/domain/ride/stored-route-preferences";
+import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
 
 type ExplorerSheet = "home" | "search" | "describe" | "planner";
@@ -178,6 +184,11 @@ export function RideApp(props: RideRequestFormProps) {
       },
       ...current.filter((item) => item.id !== next.id),
     ]);
+    if (!navigatingRef.current) {
+      queueMicrotask(() => {
+        mapOverviewRef.current();
+      });
+    }
   }
 
   function startDescribeNavigation(options?: { muted?: boolean }) {
@@ -195,6 +206,11 @@ export function RideApp(props: RideRequestFormProps) {
       speechEngine.unlock();
     } catch {
       // Visual navigation continues if speech cannot unlock (FR-025).
+    }
+    try {
+      mapRecenterRef.current();
+    } catch {
+      // Follow-user camera still starts with the overlay (FR-023).
     }
     setDescribeMuted(Boolean(options?.muted));
     setNavigating(true);
@@ -448,15 +464,6 @@ export function RideApp(props: RideRequestFormProps) {
                     variant="outline"
                     size="lg"
                     className="min-h-12 w-full text-base"
-                    onClick={() => openPlanner({ type: "loop" })}
-                  >
-                    Créer une boucle moto
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
                     onClick={() => setSheet("describe")}
                   >
                     Décrire mon trajet
@@ -557,20 +564,20 @@ export function RideApp(props: RideRequestFormProps) {
                 className={route ? "max-h-[58dvh]" : undefined}
               >
                 <DescribeRidePanel
-                  searchPlaces={props.searchPlaces}
-                  debounceMs={props.debounceMs}
                   generateRide={props.generateRide}
                   regenerateRide={props.regenerateRide}
-                  requestCoordinates={props.requestCoordinates}
-                  reversePlace={props.reversePlace}
-                  gpsPlace={gpsPlace}
+                  requestPosition={
+                    props.requestPosition ??
+                    (props.requestCoordinates
+                      ? async () => ({
+                          coordinates: await props.requestCoordinates!(),
+                          accuracyMeters: null,
+                        })
+                      : undefined)
+                  }
                   onRequestComposed={(composed) => {
                     requestRef.current = composed;
                     setRequest(composed);
-                    remember(composed.start);
-                    if (composed.type !== "loop") {
-                      remember(composed.destination);
-                    }
                     props.onRequestComposed?.(composed);
                   }}
                   onGeneratedRouteChange={(next) => {
@@ -701,6 +708,21 @@ function SettingsPanel({
   gpsLabel: string;
   onGpsLabel: (label: string) => void;
 }) {
+  const [routePreferences, setRoutePreferences] = useState<RoutePreferences>(
+    () =>
+      readStoredRoutePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+      ),
+  );
+
+  function persistRoutePreferences(next: RoutePreferences) {
+    setRoutePreferences(next);
+    writeStoredRoutePreferences(
+      typeof window === "undefined" ? null : window.localStorage,
+      next,
+    );
+  }
+
   return (
     <div className="absolute inset-0 z-10 overflow-y-auto bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
       <h1 className="text-2xl font-semibold tracking-tight">Réglages</h1>
@@ -726,6 +748,12 @@ function SettingsPanel({
           </button>
         ))}
       </fieldset>
+      <div className="mt-6">
+        <RoutePreferenceSettings
+          value={routePreferences}
+          onChange={persistRoutePreferences}
+        />
+      </div>
       <p className="mt-6 text-sm text-muted-foreground">
         Ride est une application web dans une coque iOS. Apple CarPlay n’est pas
         une page web : il s’agit d’un afficheur natif. Voir la documentation

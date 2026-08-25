@@ -24,16 +24,44 @@ type GenerateErrorBody = {
 
 export type GenerateRideClientOptions = {
   useKnowledgeRouting?: boolean;
+  useAiWebGeneration?: boolean;
+  originAccuracyMeters?: number | null;
+  previousRouteSignature?: string;
+  returnToStart?: boolean;
+  signal?: AbortSignal;
 };
+
+export function withGenerateRideTransport(
+  request: GenerateRideRequest,
+  options?: GenerateRideClientOptions,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = { ...request };
+  if (options?.useKnowledgeRouting === true) {
+    payload.useKnowledgeRouting = true;
+  }
+  if (options?.useAiWebGeneration === true) {
+    payload.useAiWebGeneration = true;
+  }
+  if (
+    typeof options?.originAccuracyMeters === "number" &&
+    Number.isFinite(options.originAccuracyMeters)
+  ) {
+    payload.originAccuracyMeters = options.originAccuracyMeters;
+  }
+  if (options?.previousRouteSignature) {
+    payload.previousRouteSignature = options.previousRouteSignature;
+  }
+  if (typeof options?.returnToStart === "boolean") {
+    payload.returnToStart = options.returnToStart;
+  }
+  return payload;
+}
 
 export async function requestGeneratedRide(
   request: GenerateRideRequest,
   options?: GenerateRideClientOptions,
 ): Promise<GenerateRideResult> {
-  const payload =
-    options?.useKnowledgeRouting === true
-      ? { ...request, useKnowledgeRouting: true }
-      : request;
+  const payload = withGenerateRideTransport(request, options);
 
   let response: Response;
   try {

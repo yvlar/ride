@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describedOneWayRideRequestSchema,
   parseDestinationRideRequest,
   parseLoopRideRequest,
   parseRoundTripRideRequest,
@@ -119,6 +120,17 @@ describe("parseDestinationRideRequest (FR-002)", () => {
         style: "touring",
       }),
     ).toThrow(/trop proches/);
+  });
+
+  it("accepts a described one-way whose leftover arrival is near the start (FR-034)", () => {
+    const parsed = describedOneWayRideRequestSchema.safeParse({
+      type: "destination",
+      start,
+      destination: start,
+      targetDistanceKm: 80,
+      style: "scenic",
+    });
+    expect(parsed.success).toBe(true);
   });
 
   it("rejects a destination request without a style", () => {

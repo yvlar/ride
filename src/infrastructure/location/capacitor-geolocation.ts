@@ -1,4 +1,7 @@
-import { FOREGROUND_LOCATION_WATCH_OPTIONS } from "@/domain/location/types";
+import {
+  FOREGROUND_LOCATION_WATCH_OPTIONS,
+  type LocatedPosition,
+} from "@/domain/location/types";
 import type { Coordinates } from "@/domain/geo/types";
 import {
   CurrentPositionError,
@@ -89,9 +92,9 @@ export function coordinatesFromCapacitorPosition(
   };
 }
 
-export async function requestCapacitorCurrentCoordinates(
+export async function requestCapacitorCurrentPosition(
   api: CapacitorGeolocationApi,
-): Promise<Coordinates> {
+): Promise<LocatedPosition> {
   try {
     const permission = await api.requestPermissions?.();
     if (permission?.location === "denied") {
@@ -100,7 +103,14 @@ export async function requestCapacitorCurrentCoordinates(
     const position = await api.getCurrentPosition(
       CAPACITOR_FOREGROUND_POSITION_OPTIONS,
     );
-    return coordinatesFromCapacitorPosition(position);
+    const accuracy = position.coords.accuracy;
+    return {
+      coordinates: coordinatesFromCapacitorPosition(position),
+      accuracyMeters:
+        typeof accuracy === "number" && Number.isFinite(accuracy)
+          ? accuracy
+          : null,
+    };
   } catch (error) {
     if (error instanceof CurrentPositionError) {
       throw error;
@@ -111,4 +121,11 @@ export async function requestCapacitorCurrentCoordinates(
       ),
     );
   }
+}
+
+export async function requestCapacitorCurrentCoordinates(
+  api: CapacitorGeolocationApi,
+): Promise<Coordinates> {
+  const located = await requestCapacitorCurrentPosition(api);
+  return located.coordinates;
 }

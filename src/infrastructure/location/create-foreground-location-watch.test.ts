@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createForegroundLocationWatch } from "./create-foreground-location-watch";
-import { requestDeviceCoordinates } from "./request-device-coordinates";
+import { requestDeviceCoordinates, requestDevicePosition } from "./request-device-coordinates";
 import type { CapacitorGeolocationApi } from "./capacitor-geolocation";
 
 describe("createForegroundLocationWatch (FR-027, NFR-007)", () => {
@@ -44,6 +44,19 @@ describe("requestDeviceCoordinates (FR-017, FR-027)", () => {
     await expect(
       requestDeviceCoordinates({ isNative: false, requestBrowserCoordinates }),
     ).resolves.toEqual({ latitude: 1, longitude: 2 });
+  });
+
+  it("returns accuracy from a one-shot position (FR-034)", async () => {
+    const requestBrowserPosition = vi.fn(async () => ({
+      coordinates: { latitude: 1, longitude: 2 },
+      accuracyMeters: 6,
+    }));
+    await expect(
+      requestDevicePosition({ isNative: false, requestBrowserPosition }),
+    ).resolves.toEqual({
+      coordinates: { latitude: 1, longitude: 2 },
+      accuracyMeters: 6,
+    });
   });
 
   it("delegates to Capacitor on the iOS shell", async () => {

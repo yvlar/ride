@@ -1,5 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
+
+function fetchUrl(input: unknown): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.href;
+  }
+  if (typeof input === "object" && input !== null && "url" in input) {
+    return String((input as { url: unknown }).url);
+  }
+  return String(input);
+}
 
 const GRANBY = {
   label: "Granby",
@@ -219,5 +232,44 @@ describe("POST /api/routes/generate", () => {
         (segment) => segment.roadName && !segment.roadName.startsWith("Grid "),
       ),
     ).toBe(true);
+  });
+
+  it("generates a described loop through AI and web search (FR-034)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const response = await POST(
+        new Request("http://localhost/api/routes/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "loop",
+            start: GRANBY,
+            targetDistanceKm: 80,
+            style: "scenic",
+            useAiWebGeneration: true,
+            originAccuracyMeters: 8,
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as {
+        data: { route: { type: string; geometry: { coordinates: unknown[] } } };
+      };
+      expect(payload.data.route.type).toBe("loop");
+      expect(
+        payload.data.route.geometry.coordinates.length,
+      ).toBeGreaterThanOrEqual(8);
+      const serialized = JSON.stringify(payload);
+      expect(serialized).not.toMatch(/DESCRIBE_LOOP_PLAN/);
+      expect(serialized).not.toMatch(/searchHits/);
+      expect(serialized).not.toMatch(/test-web-search-key/);
+      expect(serialized).not.toMatch(/motorcycle scenic twisty/);
+      const urls = fetchSpy.mock.calls.map(([input]) => fetchUrl(input));
+      expect(urls.some((url) => url.includes("api.tavily.com"))).toBe(true);
+      expect(urls.some((url) => url.includes("/chat/completions"))).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

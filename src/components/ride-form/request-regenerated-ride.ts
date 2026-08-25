@@ -4,6 +4,10 @@ import type {
   GeneratedRideRoute,
   RideGenerationError,
 } from "@/domain/ride/types";
+import {
+  withGenerateRideTransport,
+  type GenerateRideClientOptions,
+} from "./request-generated-ride";
 
 const PROVIDER_UNAVAILABLE: RideGenerationError = {
   code: "PROVIDER_ERROR",
@@ -22,10 +26,7 @@ type GenerateErrorBody = {
   error: RideGenerationError;
 };
 
-export type GenerateRideClientOptions = {
-  useKnowledgeRouting?: boolean;
-  signal?: AbortSignal;
-};
+export type { GenerateRideClientOptions };
 
 export async function requestRegeneratedRide(
   request: GenerateRideRequest,
@@ -33,10 +34,7 @@ export async function requestRegeneratedRide(
   options?: GenerateRideClientOptions,
 ): Promise<GenerateRideResult> {
   const payload = {
-    request:
-      options?.useKnowledgeRouting === true
-        ? { ...request, useKnowledgeRouting: true }
-        : request,
+    request: withGenerateRideTransport(request, options),
     previousRoute: {
       type: previousRoute.type,
       geometry: previousRoute.geometry,

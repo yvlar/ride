@@ -14,6 +14,7 @@ import {
   targetDistanceHint,
 } from "@/domain/ride/target-distance";
 import type { Coordinates, Place } from "@/domain/geo/types";
+import type { LocatedPosition } from "@/domain/location/types";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
@@ -119,6 +120,7 @@ export type RideRequestFormProps = {
   ) => Promise<GenerateRideResult>;
   mapEngine?: MapEngine;
   requestCoordinates?: () => Promise<Coordinates>;
+  requestPosition?: () => Promise<LocatedPosition>;
   reversePlace?: (coordinates: Coordinates) => Promise<Place>;
   navigation?: Partial<
     Pick<

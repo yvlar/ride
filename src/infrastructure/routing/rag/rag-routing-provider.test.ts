@@ -591,6 +591,17 @@ describe("createRoutingProvider", () => {
       createRoutingProvider({ ROUTING_PROVIDER: "graphhopper" }),
     ).toThrow(/ai-rag/);
   });
+
+  it("uses a road adapter, not RAG, for described rides when ai-rag is configured (FR-034)", () => {
+    const provider = createRoutingProvider(
+      {
+        ROUTING_PROVIDER: "ai-rag",
+        OPENAI_API_KEY: "test-openai-key",
+      },
+      { roadNetworkOnly: true },
+    );
+    expect(provider).toBeInstanceOf(MockRoutingProvider);
+  });
 });
 
 describe("RAG generation through application services", () => {

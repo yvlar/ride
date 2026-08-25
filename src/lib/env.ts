@@ -31,6 +31,12 @@ export const envSchema = z.object({
   OPENAI_API_KEY: optionalSecret,
   OPENAI_API_BASE_URL: optionalUrl,
   OPENAI_MODEL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  WEB_SEARCH_PROVIDER: z.preprocess(
+    emptyToUndefined,
+    z.enum(["tavily", "brave"]).optional(),
+  ),
+  WEB_SEARCH_API_KEY: optionalSecret,
+  WEB_SEARCH_API_BASE_URL: optionalUrl,
   NEXT_PUBLIC_MAP_STYLE_URL: optionalUrl,
 });
 
@@ -51,6 +57,9 @@ export function serverProcessEnv(): Record<string, string | undefined> {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_API_BASE_URL: process.env.OPENAI_API_BASE_URL,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
+    WEB_SEARCH_PROVIDER: process.env.WEB_SEARCH_PROVIDER,
+    WEB_SEARCH_API_KEY: process.env.WEB_SEARCH_API_KEY,
+    WEB_SEARCH_API_BASE_URL: process.env.WEB_SEARCH_API_BASE_URL,
     NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
   };
 }
@@ -68,6 +77,9 @@ export function parseEnv(
     OPENAI_API_KEY: source.OPENAI_API_KEY,
     OPENAI_API_BASE_URL: source.OPENAI_API_BASE_URL,
     OPENAI_MODEL: source.OPENAI_MODEL,
+    WEB_SEARCH_PROVIDER: source.WEB_SEARCH_PROVIDER,
+    WEB_SEARCH_API_KEY: source.WEB_SEARCH_API_KEY,
+    WEB_SEARCH_API_BASE_URL: source.WEB_SEARCH_API_BASE_URL,
     NEXT_PUBLIC_MAP_STYLE_URL: source.NEXT_PUBLIC_MAP_STYLE_URL,
   });
 }

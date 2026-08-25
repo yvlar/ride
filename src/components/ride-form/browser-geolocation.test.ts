@@ -5,6 +5,7 @@ import {
   GEOLOCATION_ERROR_MESSAGES,
   classifyGeolocationError,
   requestCurrentCoordinates,
+  requestCurrentPosition,
 } from "./browser-geolocation";
 
 describe("requestCurrentCoordinates (FR-017)", () => {
@@ -53,7 +54,7 @@ describe("requestCurrentCoordinates (FR-017)", () => {
     const geolocation = {
       getCurrentPosition: vi.fn((success) => {
         success?.({
-          coords: { latitude: 45.4, longitude: -72.73 },
+          coords: { latitude: 45.4, longitude: -72.73, accuracy: 7 },
         });
       }),
     };
@@ -61,6 +62,12 @@ describe("requestCurrentCoordinates (FR-017)", () => {
     await expect(
       requestCurrentCoordinates(geolocation as unknown as Geolocation),
     ).resolves.toEqual({ latitude: 45.4, longitude: -72.73 });
+    await expect(
+      requestCurrentPosition(geolocation as unknown as Geolocation),
+    ).resolves.toEqual({
+      coordinates: { latitude: 45.4, longitude: -72.73 },
+      accuracyMeters: 7,
+    });
     expect(geolocation.getCurrentPosition).toHaveBeenCalledWith(
       expect.any(Function),
       expect.any(Function),

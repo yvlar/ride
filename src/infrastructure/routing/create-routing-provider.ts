@@ -18,6 +18,8 @@ export const MISSING_CHAT_API_KEY_MESSAGE =
 export type CreateRoutingProviderOptions = {
   /** FR-029 — per-request override to the knowledge/RAG adapter. */
   knowledgeRouting?: boolean;
+  /** FR-034 — described rides snap via-points onto the road-network adapter only. */
+  roadNetworkOnly?: boolean;
 };
 
 export function createRoutingProvider(
@@ -25,6 +27,10 @@ export function createRoutingProvider(
   options?: CreateRoutingProviderOptions,
 ): RoutingProvider {
   const env = parseEnv(source ?? serverProcessEnv());
+
+  if (options?.roadNetworkOnly) {
+    return createRoadNetworkProvider(env);
+  }
 
   if (options?.knowledgeRouting || env.ROUTING_PROVIDER === "ai-rag") {
     return createChatGptRagRoutingProvider(env);
@@ -67,12 +73,13 @@ function createChatGptRagRoutingProvider(env: AppEnv): RagRoutingProvider {
 }
 
 function createRoadNetworkProvider(env: AppEnv): RoutingProvider {
-  if (env.ROUTING_PROVIDER === "mock") {
-    return new MockRoutingProvider();
-  }
-
   if (env.ROUTING_PROVIDER === "osrm") {
     return createOsrmRoutingProvider(env);
+  }
+
+  // FR-034 — described rides never use RAG. ai-rag still needs a road adapter.
+  if (env.ROUTING_PROVIDER === "mock" || env.ROUTING_PROVIDER === "ai-rag") {
+    return new MockRoutingProvider();
   }
 
   throw new Error(

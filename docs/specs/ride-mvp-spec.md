@@ -341,7 +341,7 @@ Le suivi GPS :
 - ne constitue **pas** à lui seul une navigation virage par virage (`FR-023`);
 - ne demande aucune permission de localisation en arrière-plan.
 
-La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position » ou le contrôle GPS de la carte. Aucune position n’est demandée automatiquement au chargement de la page.
+La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position », le contrôle GPS de la carte, ou l’ouverture du flux **Décrire mon trajet** (`FR-034`). Aucune position n’est demandée automatiquement au chargement de la page d’accueil.
 
 Le géocodage inverse de « Ma position » n’est exécuté **qu’une fois** à la sélection. Les mises à jour du suivi GPS sur la carte ne sont pas géocodées et ne remplacent pas le point de départ.
 
@@ -713,12 +713,14 @@ L’interface téléphone est **carte d’abord**. La navigation principale comp
 L’explorateur montre d’abord :
 
 - « Où veux-tu rouler ? »;
-- l’état de la position (sans demander le GPS tout seul, `FR-017`);
-- Rechercher une destination, Créer une boucle moto, Décrire mon trajet;
+- l’état de la position (sans demander le GPS tout seul sur l’accueil, `FR-017`);
+- Rechercher une destination, Décrire mon trajet;
 - Reprendre la navigation, s’il existe un trajet en mémoire;
 - les destinations récentes et les trajets favoris (`FR-035`).
 
-**Décrire mon trajet** reste dans cette vue carte (`FR-034`) : la confirmation des critères génère le tracé sur la carte actuelle, sans ouvrir l’écran de composition.
+**Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Le flux **Décrire mon trajet** (`FR-034`) les lit à la génération et ne les affiche pas dans son panneau.
+
+**Décrire mon trajet** reste dans cette vue carte (`FR-034`) : l’utilisateur choisit une distance et active ou non **Boucle**, le système obtient la position actuelle, puis l’IA génère le tracé sur la carte déjà visible, sans ouvrir l’écran de composition (`FR-014`). Il n’y a plus d’action explorateur distincte « Créer une boucle moto ».
 
 Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive dans un panneau inférieur. Les zones tactiles visent au moins 44 × 44 pt (`NFR-001`, `NFR-006`). La langue d’interface du MVP est le français canadien ; les chaînes restent extractibles pour une localisation anglaise future.
 
@@ -732,24 +734,81 @@ Une recherche plus récente **annule** la précédente. Un résultat obsolète n
 
 Avant **Démarrer** (`FR-023`), l’utilisateur voit au minimum : destination ou nom de boucle, distance et durée, état GPS, disponibilité du trajet, guidage vocal activé ou non, avertissements pertinents. Si une permission manque, le message décrit le problème et offre une action directe (par ex. « Ma position »). **Démarrer** lance la navigation **dans Ride** : pas d’URL externe, pas de page blanche.
 
-### FR-034 — Saisie en langage naturel (critères structurés)
+### FR-034 — Génération IA depuis la position (Décrire mon trajet)
 
-L’utilisateur peut décrire un trajet en français, par exemple : « Crée une boucle de 250 km au départ de Granby, avec des routes sinueuses, sans autoroute et uniquement asphaltées. »
+Le flux **Décrire mon trajet** produit un trajet moto à partir de la position actuelle et d’une distance choisie. L’utilisateur active ou non **Boucle** :
 
-Le parseur (éventuellement assisté par un modèle) ne produit que des **critères structurés** : type, requêtes de lieux, distance ou durée, style du domaine (`FR-004` à `FR-006`), préférences d’évitement. Il **n’invente pas** la géométrie. Le tracé final est toujours calculé et validé par le moteur de routage (`FR-011`, `BR-004`). Les styles ou préférences non offerts sont expliqués, pas simulés.
+- **Boucle activée** (défaut) : le tracé revient au départ (`FR-001`);
+- **Boucle désactivée** : trajet aller de la distance demandée, sans retour au départ ; l’IA choisit l’arrivée (ce n’est pas une destination saisie par l’utilisateur, `FR-018`).
 
-L’utilisateur peut ajuster les critères structurés dans le même panneau avant de confirmer. **Continuer avec ces critères** :
+Il ne s’agit pas d’une recommandation de sorties hors demande : chaque génération calcule un trajet à la demande (`FR-011`), distinct de l’option facultative `FR-029` du formulaire de composition. L’état de **Boucle** est conservé sur l’appareil.
 
-1. conserve les critères en mémoire;
-2. génère immédiatement le trajet (`FR-011`) dans la vue explorateur actuelle;
-3. affiche le tracé sur la carte déjà visible (`FR-013`), sans changer de page ni ouvrir le formulaire de composition (`FR-014`);
-4. présente ensuite l’écran avant le départ (`FR-015`, `FR-033`) avec **Démarrer la navigation** (`FR-023`) et **Régénérer** (`FR-012`).
+Ce flux ne propose **pas** :
 
-**Démarrer la navigation** réutilise le trajet affiché, active le guidage sur la même carte et dans la même fenêtre, et n’émet pas une nouvelle génération. Le suivi GPS, les manœuvres et le guidage vocal existants s’appliquent. Si la localisation n’est pas autorisée, un message explicatif ou une action directe (par ex. « Ma position ») est affiché (`FR-017`, `FR-033`).
+- de champ d’adresse d’origine, ni de saisie manuelle du départ;
+- de bouton « Ma position »;
+- de sélection par durée (`FR-010`) : aucune durée souhaitée n’est envoyée;
+- de génération aléatoire ou non assistée par l’IA (pas de repli silencieux vers `createLoopWaypointSets` ni vers un fournisseur sans IA);
+- des interrupteurs « Éviter les autoroutes », « Éviter les routes non pavées » ou « Canada seulement » : ces options se règlent dans **Réglages** (`FR-031`) et sont lues à la génération;
+- d’une action explorateur séparée « Créer une boucle moto ».
 
-**Régénérer** reprend le même départ, la même destination et les mêmes paramètres, vise un corridor différent (`BR-006`) et ne remplace le tracé que si la nouvelle génération réussit.
+#### Distance
 
-Pendant une génération ou une régénération, un indicateur de chargement s’affiche, les actions sont désactivées et les doubles requêtes sont ignorées. Une erreur affiche un message compréhensible avec une option pour réessayer, conserve le dernier trajet valide et ne fait pas planter la vue (`FR-021`).
+L’utilisateur sélectionne uniquement la distance avec un gradateur tactile :
+
+- minimum **20 km**, maximum **500 km**, pas recommandé **10 km**;
+- la valeur choisie reste affichée en permanence (ex. « 180 km »);
+- la dernière valeur est conservée sur l’appareil; **100 km** si aucune valeur n’existe;
+- accessibilité : `aria-valuemin`, `aria-valuemax`, `aria-valuenow` et un libellé explicite;
+- zone tactile suffisante pour un usage téléphone, y compris avec des gants.
+
+#### Position de départ automatique
+
+À l’ouverture du flux, le système demande une **localisation précise ponctuelle**. Le suivi GPS continu (`watchPosition`) ne commence qu’au **Démarrer la navigation** (`FR-023`).
+
+Affichage : un petit état non interactif, par exemple « Position détectée » ou « Recherche de la position… ». Pas de section d’origine complète.
+
+Si le navigateur exige une interaction, la permission est demandée automatiquement sur **Générer mon trajet**. Si la permission est refusée ou si la localisation échoue : explication claire et bouton **Réessayer la localisation**. Jamais de champ d’adresse.
+
+#### Génération obligatoire par l’IA et recherche Web
+
+**Générer mon trajet** (bouton principal pleine largeur) et **Régénérer** passent toujours par le service d’IA côté serveur. L’IA reçoit au minimum :
+
+- latitude et longitude actuelles;
+- précision de la localisation, lorsqu’elle est connue;
+- distance demandée;
+- si le trajet doit revenir au départ (**Boucle**) ou non;
+- préférences moto encore applicables (`FR-007`, `FR-008`, `FR-030`, style du domaine s’il est encore fourni);
+- lors d’une régénération, l’identifiant ou la signature du trajet précédent (`BR-006`).
+
+Avant de proposer un itinéraire, l’IA consulte automatiquement le Web, autour de la position, pour des routes panoramiques, des routes sinueuses, des points d’intérêt, des guides ou communautés moto, des fermetures ou restrictions, et des routes incompatibles avec les préférences. Cette recherche et le raisonnement restent **invisibles** : le client ne reçoit ni requêtes, ni sources, ni réponses brutes du modèle, ni clés API.
+
+Pendant l’opération, l’interface affiche uniquement un état simple : « L’IA prépare votre trajet moto… ».
+
+L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corridors, points d’intérêt ou points de passage structurés. Le moteur de routage configuré (détail d’infrastructure, p. ex. un adaptateur de réseau routier) :
+
+- calcule un trajet qui suit le réseau;
+- produit géométrie, manœuvres et instructions;
+- vise la distance demandée selon `BR-001` (±10 %);
+- si **Boucle** est activée, retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`);
+- si **Boucle** est désactivée, retourne un aller qui commence près de la position actuelle et s’arrête à l’arrivée choisie, sans refermer la boucle.
+
+Si l’IA, la recherche Web ou le moteur de routage est indisponible, le système affiche une erreur claire et **Réessayer**. Il ne bascule pas silencieusement vers un générateur non-IA.
+
+#### Résultat, navigation et régénération
+
+Après une génération réussie, le flux **reste dans la même fenêtre** :
+
+- le tracé s’affiche sur la carte déjà visible, cadrée sur l’ensemble du parcours (`FR-013`);
+- la distance réelle et la durée estimée sont affichées (`FR-020`);
+- **Démarrer la navigation** réutilise le trajet affiché, sans nouvelle génération (`FR-023` à `FR-026`, guidage vocal en français);
+- **Régénérer** conserve distance et préférences, utilise la position actuelle, demande un corridor différent (`BR-006`), garde l’ancien tracé jusqu’à succès, et ne l’efface jamais en cas d’erreur.
+- Si **Boucle** est désactivée, la régénération conserve le type destination (`FR-012`) ; l’arrivée n’est pas une saisie utilisateur (`FR-018`), donc l’IA peut proposer une nouvelle arrivée de la distance demandée. La séparation départ/arrivée de `FR-002` ne s’applique pas à cette arrivée proposée.
+- Un changement de **Boucle** après génération change le type de trajet : le système génère un nouveau trajet au lieu d’une régénération `FR-012`.
+
+Pendant une requête : désactiver Générer, Régénérer et Démarrer la navigation au besoin, ignorer les doubles requêtes, afficher un indicateur de progression, permettre une nouvelle tentative après erreur, préserver le dernier trajet valide (`FR-021`).
+
+États à prévoir : recherche de la position; permission refusée; position indisponible; génération IA en cours; recherche Web indisponible; moteur de routage indisponible; aucun trajet valide; nouvelle tentative; régénération en cours.
 
 ### FR-035 — Destinations récentes et trajets enregistrés locaux
 
@@ -775,7 +834,7 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - sorties de groupe;
 - suivi de motocyclistes;
 - météo;
-- recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029` et de l’adaptateur de routage RAG qui calcule un chemin à la demande);
+- recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029`, de l’adaptateur de routage RAG, et de la génération à la demande du flux `FR-034`);
 - profils de motos;
 - automatisation des arrêts carburant;
 - import / export GPX;
@@ -870,7 +929,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-031` | Architecture d’information mobile |
 | `FR-032` | Recherche de lieu (états et annulation) |
 | `FR-033` | Écran avant le départ |
-| `FR-034` | Saisie en langage naturel (critères structurés) |
+| `FR-034` | Génération IA depuis la position (Décrire mon trajet) |
 | `FR-035` | Destinations récentes et trajets enregistrés locaux |
 | `FR-036` | Machine d’état de navigation |
 | `FR-037` | Modes clair, sombre et navigation nocturne |

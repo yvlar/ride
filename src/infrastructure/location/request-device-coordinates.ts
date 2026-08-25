@@ -1,7 +1,11 @@
 import type { Coordinates } from "@/domain/geo/types";
-import { requestCurrentCoordinates } from "@/components/ride-form/browser-geolocation";
+import type { LocatedPosition } from "@/domain/location/types";
+import { requestCurrentPosition } from "@/components/ride-form/browser-geolocation";
 import { isNativeCapacitorPlatform } from "@/infrastructure/native/platform";
-import { requestCapacitorCurrentCoordinates } from "./capacitor-geolocation";
+import {
+  requestCapacitorCurrentCoordinates,
+  requestCapacitorCurrentPosition,
+} from "./capacitor-geolocation";
 import {
   defaultCapacitorGeolocationApi,
   type ForegroundLocationWatchDeps,
@@ -12,7 +16,29 @@ export type RequestDeviceCoordinatesDeps = Pick<
   "isNative" | "capacitor"
 > & {
   requestBrowserCoordinates?: () => Promise<Coordinates>;
+  requestBrowserPosition?: () => Promise<LocatedPosition>;
 };
+
+export async function requestDevicePosition(
+  deps: RequestDeviceCoordinatesDeps = {},
+): Promise<LocatedPosition> {
+  const native = deps.isNative ?? isNativeCapacitorPlatform();
+  if (native) {
+    return requestCapacitorCurrentPosition(
+      deps.capacitor ?? defaultCapacitorGeolocationApi(),
+    );
+  }
+  if (deps.requestBrowserPosition) {
+    return deps.requestBrowserPosition();
+  }
+  if (deps.requestBrowserCoordinates) {
+    return {
+      coordinates: await deps.requestBrowserCoordinates(),
+      accuracyMeters: null,
+    };
+  }
+  return requestCurrentPosition();
+}
 
 export async function requestDeviceCoordinates(
   deps: RequestDeviceCoordinatesDeps = {},
@@ -23,5 +49,9 @@ export async function requestDeviceCoordinates(
       deps.capacitor ?? defaultCapacitorGeolocationApi(),
     );
   }
-  return (deps.requestBrowserCoordinates ?? requestCurrentCoordinates)();
+  if (deps.requestBrowserCoordinates) {
+    return deps.requestBrowserCoordinates();
+  }
+  const located = await requestDevicePosition(deps);
+  return located.coordinates;
 }

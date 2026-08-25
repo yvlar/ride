@@ -118,7 +118,7 @@ Créer des adaptateurs interchangeables pour :
 - la recherche de points d’intérêt;
 - les tuiles cartographiques.
 
-Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag` ou option « Corridors RAG ») indexe le même type de graphe sous forme de documents, récupère les arêtes proches, classe les corridors via ChatGPT (`OPENAI_API_KEY`, serveur uniquement), puis en déduit des points de passage. Il n’affine pas de courbe géométrique et n’invente pas de coordonnées. Le tracé affiché et navigable est produit par l’adaptateur de réseau routier configuré (`ROUTING_PROVIDER=osrm` lorsqu’il est branché ; sinon la géométrie simulée du graphe local). L’écran principal peut demander ce pipeline à la requête (`FR-029`) sans changer `ROUTING_PROVIDER`.
+Le fournisseur de routage par défaut sans configuration reste `MockRoutingProvider` (`ROUTING_PROVIDER=mock`) : un graphe local déterministe, sans clé externe. Un adaptateur RAG optionnel (`ROUTING_PROVIDER=ai-rag` ou option « Corridors RAG ») indexe le même type de graphe sous forme de documents, récupère les arêtes proches, classe les corridors via ChatGPT (`OPENAI_API_KEY`, serveur uniquement), puis en déduit des points de passage. Il n’affine pas de courbe géométrique et n’invente pas de coordonnées. Le tracé affiché et navigable est produit par l’adaptateur de réseau routier configuré (`ROUTING_PROVIDER=osrm` lorsqu’il est branché ; sinon la géométrie simulée du graphe local). L’écran principal peut demander ce pipeline à la requête (`FR-029`) sans changer `ROUTING_PROVIDER`. Le flux **Décrire mon trajet** (`FR-034`) exige à chaque génération un appel serveur à l’IA et à la recherche Web (`WEB_SEARCH_API_KEY`), puis le même adaptateur de réseau pour le tracé ; il ne replie pas silencieusement vers des graines géométriques.
 
 `OsrmRoutingProvider` (`ROUTING_PROVIDER=osrm`) appelle un service OSRM configuré par `ROUTING_API_BASE_URL` et retourne une géométrie GeoJSON suivant les routes OpenStreetMap. `GraphHopper` et `Valhalla` restent des options remplaçables, non branchées. Les tests automatisés n’appellent pas de fournisseur externe.
 
@@ -919,6 +919,9 @@ GEOCODING_API_KEY=
 OPENAI_API_KEY=
 OPENAI_API_BASE_URL=
 OPENAI_MODEL=
+WEB_SEARCH_PROVIDER=
+WEB_SEARCH_API_KEY=
+WEB_SEARCH_API_BASE_URL=
 NEXT_PUBLIC_MAP_STYLE_URL=
 ```
 

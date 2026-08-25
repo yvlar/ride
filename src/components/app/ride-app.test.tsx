@@ -80,6 +80,20 @@ afterEach(() => {
 });
 
 describe("RideApp mobile shell (FR-031, FR-035)", () => {
+  it("does not expose a dedicated loop action on the explorer (FR-031, FR-034)", () => {
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} />
+      </AppearanceProvider>,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Créer une boucle moto" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Décrire mon trajet" }),
+    ).toBeEnabled();
+  });
+
   it("starts a saved ride in three interactions", async () => {
     window.localStorage.setItem(
       "ride.library.v1",
@@ -289,7 +303,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
   });
 
-  it("parses a natural-language loop without inventing geometry and generates in place (FR-034, FR-011)", async () => {
+  it("generates an AI loop in place from the distance slider (FR-034, FR-011)", async () => {
     const setViewModel = vi.fn();
     const mount = vi.fn(() => ({
       destroy: vi.fn(),
@@ -301,38 +315,36 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       ok: true,
       route: loop,
     }));
-    const searchPlaces = vi.fn(async (query: string): Promise<Place[]> =>
-      query.toLowerCase().includes("granby") ? [granby] : [],
-    );
+    const requestPosition = vi.fn(async () => ({
+      coordinates: granby.coordinates,
+      accuracyMeters: 8,
+    }));
 
     render(
       <AppearanceProvider>
         <RideApp
           mapEngine={{ mount }}
-          searchPlaces={searchPlaces}
-          debounceMs={0}
           generateRide={generateRide}
+          requestPosition={requestPosition}
         />
       </AppearanceProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
-    fireEvent.change(screen.getByLabelText("Votre demande"), {
-      target: {
-        value:
-          "Crée une boucle de 250 km au départ de Granby, avec des routes sinueuses, sans autoroute et uniquement asphaltées.",
-      },
-    });
     expect(
-      screen.getByText(/ces critères seront calculés par le moteur de routage/i),
+      await screen.findByRole("slider", {
+        name: "Distance du trajet en kilomètres",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Routes sinueuses" })).toHaveAttribute(
-      "aria-checked",
-      "true",
+    expect(screen.queryByLabelText("Votre demande")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Durée disponible/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Point de départ")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Boucle")).toBeChecked();
+    fireEvent.change(
+      screen.getByRole("slider", { name: "Distance du trajet en kilomètres" }),
+      { target: { value: "80" } },
     );
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
-    expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
-    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
 
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
@@ -346,9 +358,12 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       expect(generateRide).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "loop",
-          start: granby,
-          targetDistanceKm: 250,
-          style: "curvy",
+          targetDistanceKm: 80,
+        }),
+        expect.objectContaining({
+          useAiWebGeneration: true,
+          originAccuracyMeters: 8,
+          returnToStart: true,
         }),
       );
     });
@@ -377,6 +392,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       unlock: vi.fn(),
     };
     const destroy = vi.fn();
+    const recenter = vi.fn();
     const setFollowUser = vi.fn();
     const setGeolocateEnabled = vi.fn();
     const mount = vi.fn(() => ({
@@ -385,7 +401,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       setFollowUser,
       setGeolocateEnabled,
       setUserLocation: vi.fn(),
-      recenter: vi.fn(),
+      recenter,
       resize: vi.fn(),
     }));
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
@@ -397,21 +413,18 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       <AppearanceProvider>
         <RideApp
           mapEngine={{ mount }}
-          searchPlaces={async () => [granby]}
-          debounceMs={0}
           generateRide={generateRide}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
           navigation={{ locationWatch, speech }}
         />
       </AppearanceProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
-    fireEvent.change(screen.getByLabelText("Votre demande"), {
-      target: {
-        value: "Crée une boucle de 250 km au départ de Granby.",
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Générer mon trajet" }));
     const start = await screen.findByRole("button", {
       name: "Démarrer la navigation",
     });
@@ -423,6 +436,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     ).toBeInTheDocument();
     expect(locationWatch.start).toHaveBeenCalledTimes(1);
     expect(speech.unlock).toHaveBeenCalledTimes(1);
+    expect(recenter).toHaveBeenCalled();
     expect(generateRide).toHaveBeenCalledTimes(generateCalls);
     expect(destroy).not.toHaveBeenCalled();
     expect(mount).toHaveBeenCalledTimes(1);
@@ -454,21 +468,18 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       <AppearanceProvider>
         <RideApp
           mapEngine={stubMapEngine()}
-          searchPlaces={async () => [granby]}
-          debounceMs={0}
           generateRide={generateRide}
           regenerateRide={regenerateRide}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
         />
       </AppearanceProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
-    fireEvent.change(screen.getByLabelText("Votre demande"), {
-      target: {
-        value: "Crée une boucle de 80 km au départ de Granby, routes sinueuses.",
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Générer mon trajet" }));
     fireEvent.click(await screen.findByRole("button", { name: "Régénérer" }));
 
     await waitFor(() => {
@@ -477,10 +488,9 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(regenerateRide).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "loop",
-        start: granby,
-        style: "curvy",
       }),
       expect.objectContaining({ id: loop.id }),
+      expect.objectContaining({ useAiWebGeneration: true }),
     );
     expect(
       screen.queryByRole("heading", { name: "Composer le trajet" }),
@@ -507,9 +517,11 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       <AppearanceProvider>
         <RideApp
           mapEngine={stubMapEngine()}
-          searchPlaces={async () => [granby]}
-          debounceMs={0}
           generateRide={async () => ({ ok: true, route: loop })}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
           navigation={{
             locationWatch,
             speech: {
@@ -525,12 +537,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
-    fireEvent.change(screen.getByLabelText("Votre demande"), {
-      target: {
-        value: "Crée une boucle de 80 km au départ de Granby.",
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Générer mon trajet" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     );
@@ -555,5 +562,61 @@ describe("RideApp appearance (FR-037)", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     fireEvent.click(screen.getByRole("radio", { name: "Navigation nocturne" }));
     expect(document.documentElement.classList.contains("night")).toBe(true);
+  });
+});
+
+describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
+  it("stores Réglages switches and applies them to Décrire mon trajet", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          generateRide={generateRide}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+    expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText("Canada seulement"));
+    fireEvent.click(screen.getByLabelText("Éviter les autoroutes"));
+    expect(screen.getByLabelText("Canada seulement")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    expect(screen.getByLabelText("Canada seulement")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
+    expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    expect(screen.queryByLabelText("Éviter les autoroutes")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Canada seulement")).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Générer mon trajet" }));
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preferences: {
+            avoidHighways: false,
+            avoidUnpaved: true,
+            stayInCanada: true,
+          },
+        }),
+        expect.objectContaining({ useAiWebGeneration: true }),
+      );
+    });
   });
 });
