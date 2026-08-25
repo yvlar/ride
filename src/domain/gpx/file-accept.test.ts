@@ -33,8 +33,12 @@ describe("GPX file picker (FR-039)", () => {
   it("exposes the iOS-compatible accept attribute", () => {
     expect(gpxFileInputAccept()).toBe(GPX_FILE_ACCEPT);
     expect(gpxFileInputAccept()).toContain(".gpx");
+    expect(gpxFileInputAccept()).toContain("application/octet-stream");
     expect(gpxFileInputAccept()).toContain("application/gpx+xml");
     expect(gpxFileInputAccept()).toContain("application/xml");
     expect(gpxFileInputAccept()).toContain("text/xml");
+    expect(gpxFileInputAccept().startsWith("application/octet-stream")).toBe(
+      true,
+    );
   });
 });

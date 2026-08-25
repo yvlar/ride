@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppearanceProvider } from "@/components/theme/appearance-provider";
 import { RideApp } from "./ride-app";
 import type { Place } from "@/domain/geo/types";
+import { gpxFileInputAccept } from "@/domain/gpx/file-accept";
 import type { GenerateRideRequest, GenerateRideResult, GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { MapEngine } from "@/components/map/map-engine";
 import type { LocationWatch } from "@/domain/location/types";
@@ -756,7 +757,7 @@ describe("RideApp GPX import (FR-039)", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("gpx-file-input")).toHaveAttribute(
       "accept",
-      ".gpx,application/gpx+xml,application/xml,text/xml",
+      gpxFileInputAccept(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
     expect(

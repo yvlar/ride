@@ -908,7 +908,7 @@ Après importation, l’application prévisualise le trajet sur la carte déjà 
 
 #### Fichier et analyse
 
-Le sélecteur de fichiers accepte notamment `.gpx`, `application/gpx+xml`, `application/xml` et `text/xml`, y compris sur iPhone / PWA (type MIME vide ou `application/octet-stream` si le nom se termine par `.gpx`).
+Le sélecteur de fichiers accepte notamment `.gpx`, `application/gpx+xml`, `application/xml`, `text/xml` et `application/octet-stream`, y compris sur iPhone / PWA. iOS ne reconnaît pas l’UTI de l’extension `.gpx` : sans `application/octet-stream` dans le filtre natif (`accept`), les fichiers restent grisés et incliquables dans Fichiers. Un type MIME vide ou `application/octet-stream` est valide si le nom se termine par `.gpx`. Le contenu est ensuite validé localement.
 
 L’analyse est **locale**. Les entités XML externes et les déclarations `DOCTYPE` / `ENTITY` sont rejetées. Un fichier vide, corrompu, trop volumineux, sans coordonnées valides ou ne contenant que des waypoints `<wpt>` produit une erreur compréhensible.
 
