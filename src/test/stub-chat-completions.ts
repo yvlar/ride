@@ -103,13 +103,26 @@ function planFromDescribePrompt(userContent: string): {
     origin?: { latitude?: number; longitude?: number };
     targetDistanceKm?: number;
     previousRouteSignature?: string | null;
+    returnToStart?: boolean;
   };
   const origin = {
     latitude: payload.origin?.latitude ?? 45.4,
     longitude: payload.origin?.longitude ?? -72.73,
   };
-  const radiusKm = Math.max(8, (payload.targetDistanceKm ?? 100) / 8);
   const offset = payload.previousRouteSignature ? 40 : 0;
+  if (payload.returnToStart === false) {
+    const targetKm = payload.targetDistanceKm ?? 100;
+    const bearing = payload.previousRouteSignature ? 270 : 90;
+    return {
+      viaPoints: [
+        offsetCoordinates(origin, bearing, targetKm * 0.5),
+        offsetCoordinates(origin, bearing, targetKm * 0.975),
+      ],
+      roads: ["Chemin des crêtes"],
+      pointsOfInterest: ["Belvédère"],
+    };
+  }
+  const radiusKm = Math.max(8, (payload.targetDistanceKm ?? 100) / 8);
   return {
     viaPoints: [0, 90, 180, 270].map((bearing) =>
       offsetCoordinates(origin, bearing + offset, radiusKm),

@@ -803,6 +803,8 @@ Après une génération réussie, le flux **reste dans la même fenêtre** :
 - la distance réelle et la durée estimée sont affichées (`FR-020`);
 - **Démarrer la navigation** réutilise le trajet affiché, sans nouvelle génération (`FR-023` à `FR-026`, guidage vocal en français);
 - **Régénérer** conserve distance et préférences, utilise la position actuelle, demande un corridor différent (`BR-006`), garde l’ancien tracé jusqu’à succès, et ne l’efface jamais en cas d’erreur.
+- Si **Boucle** est désactivée, la régénération conserve le type destination (`FR-012`) ; l’arrivée n’est pas une saisie utilisateur (`FR-018`), donc l’IA peut proposer une nouvelle arrivée de la distance demandée.
+- Un changement de **Boucle** après génération change le type de trajet : le système génère un nouveau trajet au lieu d’une régénération `FR-012`.
 
 Pendant une requête : désactiver Générer, Régénérer et Démarrer la navigation au besoin, ignorer les doubles requêtes, afficher un indicateur de progression, permettre une nouvelle tentative après erreur, préserver le dernier trajet valide (`FR-021`).
 

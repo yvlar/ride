@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  composeDescribedRegenerateRequest,
   composeDescribedRide,
   describedRequestFromGeneratedRoute,
+  describedRouteMatchesReturnToStart,
   describedStartPlace,
 } from "@/application/compose-described-ride";
 import { DescribeDistanceSlider } from "@/components/app/describe-distance-slider";
@@ -275,6 +277,10 @@ export function DescribeRidePanel({
     if (!composedRequest || !activeRoute || inFlightRef.current) {
       return;
     }
+    if (!describedRouteMatchesReturnToStart(activeRoute, returnToStart)) {
+      await handleGenerate();
+      return;
+    }
     inFlightRef.current = true;
     const requestId = generationId.current + 1;
     generationId.current = requestId;
@@ -292,10 +298,11 @@ export function DescribeRidePanel({
       const preferences = readStoredRoutePreferences(
         typeof window === "undefined" ? null : window.localStorage,
       );
-      const composed = composeDescribedRide({
+      const composed = composeDescribedRegenerateRequest({
         start: located.start,
         targetDistanceKm: distanceKm,
         preferences,
+        previousRoute: activeRoute,
       });
       if (!composed.ok) {
         setGenerationError({

@@ -117,3 +117,82 @@ export function describedRequestFromGeneratedRoute(
   }
   return null;
 }
+
+export function describedRouteMatchesReturnToStart(
+  route: Pick<GeneratedRideRoute, "type">,
+  returnToStart: boolean,
+): boolean {
+  return returnToStart === (route.type === "loop");
+}
+
+/**
+ * FR-012 / FR-034 — rebuild the described request that matches the current
+ * route type, with a fresh GPS origin and the slider distance.
+ */
+export function composeDescribedRegenerateRequest(input: {
+  start: Place;
+  targetDistanceKm: number;
+  preferences?: RoutePreferences;
+  previousRoute: GeneratedRideRoute;
+}): ComposeRideRequestResult {
+  if (input.previousRoute.type === "loop") {
+    return composeDescribedRide({
+      start: input.start,
+      targetDistanceKm: input.targetDistanceKm,
+      style: input.previousRoute.style,
+      preferences: input.preferences,
+    });
+  }
+
+  if (input.previousRoute.type !== "destination") {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "type",
+          message:
+            "Ce type de trajet ne peut pas être régénéré depuis Décrire mon trajet.",
+        },
+      ],
+    };
+  }
+
+  if (!isDescribeDistanceKm(input.targetDistanceKm)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "targetDistanceKm",
+          message: DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
+        },
+      ],
+    };
+  }
+
+  const preferences = input.preferences ?? DESCRIBE_DEFAULT_PREFERENCES;
+  const fromRoute = describedRequestFromGeneratedRoute(
+    input.previousRoute,
+    preferences,
+  );
+  if (!fromRoute || fromRoute.type !== "destination") {
+    return {
+      ok: false,
+      errors: [
+        {
+          field: "destination",
+          message: "L’arrivée proposée est requise pour régénérer cet aller.",
+        },
+      ],
+    };
+  }
+
+  return {
+    ok: true,
+    request: {
+      ...fromRoute,
+      start: input.start,
+      targetDistanceKm: snapDescribeDistanceKm(input.targetDistanceKm),
+      preferences,
+    },
+  };
+}

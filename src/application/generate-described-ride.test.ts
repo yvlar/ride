@@ -137,6 +137,54 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(result.route.destination.label).toBe("Arrivée proposée");
   });
 
+  it("regenerates a destination request through the AI one-way pipeline (FR-012, FR-034)", async () => {
+    const search = fakeSearch();
+    const arrival = offsetCoordinates(GRANBY.coordinates, 0, 78);
+    const vias = [
+      offsetCoordinates(GRANBY.coordinates, 90, 40),
+      offsetCoordinates(GRANBY.coordinates, 90, 78),
+    ];
+    const planner: AiRidePlanner = {
+      async planLoop() {
+        return { viaPoints: vias, roads: [], pointsOfInterest: [] };
+      },
+    };
+    const planSpy = vi.spyOn(planner, "planLoop");
+    const routing = new MockRoutingProvider();
+    const routeSpy = vi.spyOn(routing, "calculateRoute");
+
+    const result = await generateDescribedRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: {
+          label: "Arrivée proposée",
+          coordinates: arrival,
+        },
+        targetDistanceKm: 80,
+        style: "scenic",
+        preferences: { avoidHighways: true, avoidUnpaved: true },
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      { webSearch: search, planner },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.type).toBe("destination");
+    expect(planSpy.mock.calls[0]?.[0].returnToStart).toBe(false);
+    expect(routeSpy.mock.calls[0]?.[0].destination).toEqual(vias[1]);
+    expect(routeSpy.mock.calls[0]?.[0].destination).not.toEqual(arrival);
+    if (result.route.type !== "destination") {
+      throw new Error("expected a destination route");
+    }
+    expect(result.route.destination.label).toBe("Arrivée proposée");
+  });
+
   it("does not fall back to geometric loop seeds when AI is required", async () => {
     const geometric = createLoopWaypointSets(GRANBY.coordinates, 80);
     const routing = new MockRoutingProvider();
@@ -302,6 +350,26 @@ describe("generateRide described flag (FR-034)", () => {
     }
     expect(result.route.type).toBe("loop");
     expect(result.route.geometry.coordinates.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("uses the AI one-way pipeline for a destination describe regenerate (FR-012, FR-034)", async () => {
+    const result = await generateRide({
+      type: "destination",
+      start: GRANBY,
+      destination: {
+        label: "Arrivée proposée",
+        coordinates: offsetCoordinates(GRANBY.coordinates, 90, 80),
+      },
+      targetDistanceKm: 80,
+      style: "scenic",
+      useAiWebGeneration: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.type).toBe("destination");
   });
 
   it("keeps the non-AI loop generator when the flag is absent", async () => {

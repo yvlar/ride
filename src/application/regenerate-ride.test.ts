@@ -504,4 +504,49 @@ describe("regenerateRide described AI loop (FR-034, FR-012)", () => {
       8,
     );
   });
+
+  it("regenerates a described one-way through AI without a type mismatch (FR-012, FR-034)", async () => {
+    const request = {
+      type: "loop" as const,
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic" as const,
+      useAiWebGeneration: true,
+      originAccuracyMeters: 8,
+      returnToStart: false,
+    };
+    const first = await generateRide(request);
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error(first.error.message);
+    }
+    expect(first.route.type).toBe("destination");
+    if (first.route.type !== "destination") {
+      return;
+    }
+
+    const regenerated = await regenerateRide({
+      request: {
+        type: "destination",
+        start: GRANBY,
+        destination: first.route.destination,
+        targetDistanceKm: 80,
+        style: "scenic",
+        useAiWebGeneration: true,
+        originAccuracyMeters: 8,
+        returnToStart: false,
+        previousRouteSignature: first.route.id,
+      },
+      previousRoute: {
+        type: "destination",
+        geometry: first.route.geometry,
+      },
+    });
+
+    expect(regenerated.ok).toBe(true);
+    if (!regenerated.ok) {
+      throw new Error(regenerated.error.message);
+    }
+    expect(regenerated.route.type).toBe("destination");
+  });
 });

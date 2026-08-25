@@ -34,17 +34,21 @@ import {
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
 import {
+  destinationRideRequestSchema,
   loopRideRequestSchema,
   unsupportedRideTypeMessage,
 } from "@/domain/ride/schemas";
 import type {
   DestinationCandidate,
+  DestinationRideRequest,
   GeneratedDestinationRoute,
   GeneratedLoopRoute,
   LoopCandidate,
   LoopRideRequest,
   RideGenerationError,
   RideGenerationOptions,
+  RideStyle,
+  RoutePreferences,
 } from "@/domain/ride/types";
 import { createRoutingProvider } from "@/infrastructure/routing/create-routing-provider";
 import { unpavedKnowledgeError, canadaOnlyKnowledgeError } from "@/infrastructure/routing/routing-knowledge-error";
@@ -79,6 +83,13 @@ export type GenerateDescribedRideResult =
   | { ok: true; route: GeneratedLoopRoute | GeneratedDestinationRoute }
   | { ok: false; error: RideGenerationError };
 
+type DescribedRoutingRequest = {
+  start: LoopRideRequest["start"];
+  targetDistanceKm?: number;
+  style?: RideStyle;
+  preferences?: RoutePreferences;
+};
+
 /**
  * FR-034 — AI + web search must both run. The road-network adapter then
  * snaps structured via-points. Never fall back to geometric loop seeds.
@@ -102,32 +113,11 @@ export async function generateDescribedRide(
     typeof input === "object" && input !== null && "type" in input
       ? (input as { type: unknown }).type
       : undefined;
-  if (type !== "loop") {
-    return {
-      ok: false,
-      error: {
-        code: "UNSUPPORTED_RIDE_TYPE",
-        message: unsupportedRideTypeMessage(type),
-        suggestions: ['Utilisez type: "loop" avec une distance cible.'],
-      },
-    };
+  const parsed = parseDescribedRideRequest(input, type);
+  if (!parsed.ok) {
+    return parsed;
   }
-
-  const parsed = loopRideRequestSchema.safeParse(input);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: parsed.error.issues.map((issue) => issue.message).join(" "),
-        suggestions: [
-          "Indiquez un point de départ et une distance entre 20 km et 500 km.",
-        ],
-      },
-    };
-  }
-
-  const request = parsed.data;
+  const request = parsed.request;
   if (!isDescribeDistanceKm(request.targetDistanceKm)) {
     return {
       ok: false,
@@ -175,7 +165,8 @@ export async function generateDescribedRide(
     return { ok: false, error: describedWebSearchError(error) };
   }
 
-  const returnToStart = readReturnToStart(input);
+  const returnToStart =
+    request.type === "destination" ? false : readReturnToStart(input);
 
   let plan;
   try {
@@ -220,8 +211,69 @@ export async function generateDescribedRide(
   return routeDescribedLoop(request, provider, viaPoints, options);
 }
 
+function parseDescribedRideRequest(
+  input: unknown,
+  type: unknown,
+):
+  | { ok: true; request: LoopRideRequest | DestinationRideRequest }
+  | { ok: false; error: RideGenerationError } {
+  if (type !== "loop" && type !== "destination") {
+    return {
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_RIDE_TYPE",
+        message: unsupportedRideTypeMessage(type),
+        suggestions: [
+          'Utilisez type: "loop" ou type: "destination" avec une distance cible.',
+        ],
+      },
+    };
+  }
+
+  if (type === "destination") {
+    const parsed = destinationRideRequestSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.issues.map((issue) => issue.message).join(" "),
+          suggestions: [
+            "Indiquez un point de départ, une arrivée et une distance entre 20 km et 500 km.",
+          ],
+        },
+      };
+    }
+    return {
+      ok: true,
+      request: {
+        ...parsed.data,
+        preferences: parsed.data.preferences ?? {
+          avoidHighways: false,
+          avoidUnpaved: false,
+        },
+      },
+    };
+  }
+
+  const parsed = loopRideRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues.map((issue) => issue.message).join(" "),
+        suggestions: [
+          "Indiquez un point de départ et une distance entre 20 km et 500 km.",
+        ],
+      },
+    };
+  }
+  return { ok: true, request: parsed.data };
+}
+
 async function routeDescribedLoop(
-  request: LoopRideRequest,
+  request: DescribedRoutingRequest,
   routingProvider: RoutingProvider,
   viaPoints: Coordinates[],
   options?: RideGenerationOptions,
@@ -386,7 +438,7 @@ async function routeDescribedLoop(
 }
 
 async function routeDescribedOneWay(
-  request: LoopRideRequest,
+  request: DescribedRoutingRequest,
   routingProvider: RoutingProvider,
   viaPoints: Coordinates[],
   options?: RideGenerationOptions,

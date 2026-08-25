@@ -15,6 +15,7 @@ import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
+  GeneratedDestinationRoute,
   GeneratedLoopRoute,
 } from "@/domain/ride/types";
 
@@ -47,6 +48,41 @@ const variant: GeneratedLoopRoute = {
   ...loop,
   id: "route-2",
   distanceKm: 102.4,
+};
+
+const arrival: Place = {
+  label: "Arrivée proposée",
+  coordinates: { latitude: 45.52, longitude: -72.51 },
+};
+
+const oneWay: GeneratedDestinationRoute = {
+  id: "route-one-way",
+  type: "destination",
+  start: granby,
+  destination: arrival,
+  style: "scenic",
+  targetDistanceKm: 100,
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.7342, 45.4001],
+      [-72.51, 45.52],
+    ],
+  },
+  segments: [],
+  distanceKm: 97.4,
+  durationMinutes: 88,
+  warnings: [],
+};
+
+const oneWayVariant: GeneratedDestinationRoute = {
+  ...oneWay,
+  id: "route-one-way-2",
+  destination: {
+    label: "Arrivée proposée",
+    coordinates: { latitude: 45.48, longitude: -72.9 },
+  },
+  distanceKm: 101.1,
 };
 
 const located = {
@@ -289,6 +325,82 @@ describe("DescribeRidePanel (FR-034)", () => {
       );
     });
     expect(onGeneratedRouteChange).toHaveBeenLastCalledWith(variant);
+  });
+
+  it("regenerates a one-way with a matching destination envelope (FR-012, FR-034)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: oneWay,
+    }));
+    const regenerateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: oneWayVariant,
+    }));
+    const onGeneratedRouteChange = vi.fn();
+    const onRequestComposed = vi.fn();
+
+    renderPanel({
+      generateRide,
+      regenerateRide,
+      onGeneratedRouteChange,
+      onRequestComposed,
+    });
+
+    await screen.findByText("Position détectée");
+    fireEvent.click(screen.getByLabelText("Boucle"));
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await screen.findByRole("button", { name: "Régénérer" });
+    const composed = onRequestComposed.mock.calls[0]?.[0] as GenerateRideRequest;
+    expect(composed).toMatchObject({
+      type: "destination",
+      destination: arrival,
+      targetDistanceKm: 100,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+    await waitFor(() => {
+      expect(regenerateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "destination",
+          destination: arrival,
+          targetDistanceKm: 100,
+        }),
+        oneWay,
+        expect.objectContaining({
+          useAiWebGeneration: true,
+          returnToStart: false,
+          previousRouteSignature: expect.any(String),
+        }),
+      );
+    });
+    expect(onGeneratedRouteChange).toHaveBeenLastCalledWith(oneWayVariant);
+  });
+
+  it("starts a new generate when Boucle no longer matches the current route (FR-034)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    const regenerateRide = vi.fn();
+
+    renderPanel({ generateRide, regenerateRide });
+    await screen.findByText("Position détectée");
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await screen.findByRole("button", { name: "Régénérer" });
+    fireEvent.click(screen.getByLabelText("Boucle"));
+    generateRide.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "loop" }),
+        expect.objectContaining({
+          useAiWebGeneration: true,
+          returnToStart: false,
+        }),
+      );
+    });
+    expect(regenerateRide).not.toHaveBeenCalled();
   });
 
   it("refreshes GPS before generate and regenerate (FR-034)", async () => {
