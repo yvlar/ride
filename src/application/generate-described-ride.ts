@@ -390,7 +390,10 @@ export async function generateDescribedRide(
       bestAttempt = bestThisRound;
     }
     triedRoads.push(
-      ...selectable.flatMap((attempt) => attempt.candidate.roads),
+      ...selectable.flatMap((attempt) => [
+        ...attempt.candidate.roads,
+        ...routedRoadNames(attempt),
+      ]),
     );
     previousPlanningFailure = planningFailureFromAttempt(
       bestThisRound,
@@ -639,7 +642,7 @@ async function routeDescribedJob(
           ? job.waypoints
           : job.waypoints.slice(0, -1),
         style: request.style,
-        preferences: request.preferences,
+        preferences: describedRoutingPreferences(request.preferences),
       },
       options,
     ),
@@ -967,13 +970,54 @@ function planningFailureFromAttempt(
     };
   }
   const correction = describedCorrectionFromEvaluation(attempt.evaluation);
+  const roads = uniqueNonEmptyStrings([
+    ...triedRoads,
+    ...attempt.candidate.roads,
+    ...routedRoadNames(attempt),
+  ]);
+  const instruction =
+    correction.reason === "repeated_road" && roads.length > 0
+      ? `${correction.instruction} Do not reuse: ${roads.join(", ")}.`
+      : correction.instruction;
   return {
     ...correction,
+    instruction,
     lastDistanceKm: attempt.evaluation.distanceKm,
-    triedRoads,
+    triedRoads: roads,
     searchRadiusKm: searchInput.searchRadiusKm,
     corridorHint: searchInput.corridorHint,
   };
+}
+
+function describedRoutingPreferences(
+  preferences: RoutePreferences | undefined,
+): RoutePreferences | undefined {
+  if (!preferences) {
+    return preferences;
+  }
+  // FR-007 is a warning for described rides. Excluding motorways at the
+  // provider funnels sparse rural networks onto one numbered road both ways.
+  return { ...preferences, avoidHighways: false };
+}
+
+function routedRoadNames(attempt: RoutedDescribedAttempt): string[] {
+  return uniqueNonEmptyStrings(
+    attempt.routed.segments.map((segment) => segment.roadName),
+  );
+}
+
+function uniqueNonEmptyStrings(values: Array<string | undefined>): string[] {
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    unique.push(trimmed);
+  }
+  return unique;
 }
 
 export function filterViaPoints(

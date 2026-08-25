@@ -53,6 +53,8 @@ const LOOP_SYSTEM_PROMPT =
   "Return viaPoints already in riding order around one elongated corridor so " +
   "the farthest road-network point is at least 20% of targetDistanceKm from " +
   "the origin and the routed loop is within ±10%. " +
+  "Place at least three via-points in distinct compass directions from the origin " +
+  "so the return cannot reuse the outbound numbered road. " +
   "Avoid zigzags that recross the same corridor. " +
   "Do not keep the ride concentrated near the origin. " +
   "Do not retrace the outbound roads on the return except a short connector " +

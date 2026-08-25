@@ -163,6 +163,10 @@ describe("generateDescribedRide (FR-034)", () => {
       targetDistanceKm: 80,
     });
     expect(routeSpy).toHaveBeenCalled();
+    expect(routeSpy.mock.calls[0]?.[0].preferences).toMatchObject({
+      avoidHighways: false,
+      avoidUnpaved: true,
+    });
     expect(result.route.geometry.coordinates.length).toBeGreaterThanOrEqual(8);
     expect(result.route.distanceKm).toBeGreaterThan(72);
     expect(result.route.distanceKm).toBeLessThan(88);
@@ -723,6 +727,8 @@ describe("generateDescribedRide (FR-034)", () => {
           input.previousPlanningFailure?.repeatedRoadPercent,
         ).toBeGreaterThan(2);
         expect(input.previousPlanningFailure?.instruction).toMatch(/unused roads/i);
+        expect(input.previousPlanningFailure?.instruction).toMatch(/Route 137/);
+        expect(input.previousPlanningFailure?.triedRoads).toContain("Route 137");
         return {
           candidates: [elongatedLoopCandidate(origin, 80, 20)],
         };
@@ -741,6 +747,7 @@ describe("generateDescribedRide (FR-034)", () => {
                 durationMinutes: 80,
                 surface: "paved",
                 roadClass: "secondary",
+                roadName: "Route 137",
               },
             ],
             steps: [],
