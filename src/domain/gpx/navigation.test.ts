@@ -60,6 +60,29 @@ describe("GPX navigation helpers (FR-039)", () => {
     expect(following?.connector).toBeNull();
   });
 
+  it("does not re-slice remaining GPX once following_gpx has started (FR-039)", () => {
+    const original = lineRoute();
+    const started = beginGpxFromFix(original, {
+      coordinates: origin,
+      accuracyMeters: 5,
+      recordedAtMs: 1,
+    });
+    expect(started.runtime.phase).toBe("following_gpx");
+    const remainingBefore = started.runtime.followRoute.distanceKm;
+    const along = offsetCoordinates(origin, 90, 1.2);
+    const next = enterFollowingIfOnTrace({
+      runtime: { ...started.runtime, progressKm: 1.2 },
+      fix: {
+        coordinates: along,
+        accuracyMeters: 6,
+        headingDeg: 90,
+        recordedAtMs: 2,
+      },
+    });
+    expect(next).toBeNull();
+    expect(started.runtime.followRoute.distanceKm).toBe(remainingBefore);
+  });
+
   it("does not rewind GPX progress on GPS noise behind the rider", () => {
     const original = lineRoute();
     const along = offsetCoordinates(origin, 90, 1.2);
@@ -91,5 +114,46 @@ describe("GPX navigation helpers (FR-039)", () => {
     expect(next?.projection.progressKm).toBeGreaterThanOrEqual(
       evaluated?.projection.progressKm ?? 0,
     );
+  });
+
+  it("does not re-slice remaining GPX at a self-crossing once following (FR-039)", () => {
+    const north = offsetCoordinates(origin, 0, 0.4);
+    const east = offsetCoordinates(origin, 90, 0.4);
+    const south = offsetCoordinates(origin, 180, 0.4);
+    const west = offsetCoordinates(origin, 270, 0.4);
+    const trip: ParsedGpxTrip = {
+      id: "cross",
+      kind: "track",
+      name: "Croisement",
+      parts: [
+        {
+          points: [north, south, east, west].map((coordinates) => ({
+            coordinates,
+          })),
+        },
+      ],
+    };
+    const original = composeGpxRoute({ trip, fileName: "cross.gpx" });
+    const started = beginGpxFromFix(original, {
+      coordinates: north,
+      accuracyMeters: 5,
+      headingDeg: 180,
+      recordedAtMs: 1,
+    });
+    const atCrossing = enterFollowingIfOnTrace({
+      runtime: {
+        ...started.runtime,
+        phase: "following_gpx",
+        progressKm: 0.4,
+      },
+      fix: {
+        coordinates: origin,
+        accuracyMeters: 5,
+        headingDeg: 270,
+        recordedAtMs: 2,
+      },
+    });
+    expect(started.runtime.followRoute.distanceKm).toBeGreaterThan(2);
+    expect(atCrossing).toBeNull();
   });
 });

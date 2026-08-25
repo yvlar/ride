@@ -121,12 +121,17 @@ export function beginGpxFromFix(
 /**
  * If the rider is on the remaining GPX (join complete or cut onto the
  * trace), switch to FOLLOWING_GPX without asking OSRM to replace it.
+ * Once following_gpx has started, keep that slice: later GPS fixes
+ * advance progress instead of re-slicing (FR-039 monotone follow).
  */
 export function enterFollowingIfOnTrace(input: {
   runtime: LiveGpxRuntime;
   fix: LocationFix;
 }): LiveGpxRuntime | null {
   if (input.runtime.phase === "gpx_completed") {
+    return null;
+  }
+  if (input.runtime.phase === "following_gpx") {
     return null;
   }
   const remaining: GeneratedGpxRoute = {
