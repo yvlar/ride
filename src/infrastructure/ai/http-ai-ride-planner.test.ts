@@ -41,6 +41,9 @@ describe("HttpAiRidePlanner (FR-034)", () => {
     expect(request?.messages[1]?.content).toContain("45.4");
     expect(request?.messages[1]?.content).not.toMatch(/"type":"LineString"/);
     expect(request?.messages[0]?.content).toMatch(/Do not emit a route geometry/);
+    expect(request?.messages[0]?.content).toMatch(/supported by the web notes/);
+    expect(request?.messages[0]?.content).toMatch(/already in riding order/);
+    expect(request?.messages[0]?.content).toMatch(/Avoid zigzags/);
   });
 
   it("rejects a model reply that is not structured via-points", () => {
@@ -58,6 +61,8 @@ describe("HttpAiRidePlanner (FR-034)", () => {
     expect(message).toMatch(/180/);
     expect(message).toMatch(/12/);
     expect(message).toMatch(/route-1:3:abc/);
+    expect(message).toMatch(/"maximumWaypointRadiusKm":99/);
+    expect(message).toMatch(/"orderedTravelSequenceRequired":true/);
   });
 
   it("asks for a one-way arrival when returnToStart is false (FR-034)", async () => {
