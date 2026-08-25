@@ -502,7 +502,7 @@ Pour une boucle générée par `FR-034`, l’absence de chemin matériellement r
 Tolérance uniquement :
 
 - un court connecteur inévitable dans un rayon maximal de **1 km** autour du départ;
-- une marge technique maximale de **2 %** hors de cette zone, pour le snapping et la quantification — cette marge ne permet pas un véritable aller-retour sur la même route.
+- une marge maximale de **15 %** hors de cette zone. Elle couvre le snapping, les connecteurs de village et un partage ponctuel de route numérotée. Un véritable aller-retour (répétition autour de 50 % ou plus) reste rejeté.
 
 Un échec `repeated_road` n’est pas un succès. Le JSON renvoyé au planificateur contient le pourcentage répété, le maximum autorisé et une instruction de correction.
 
@@ -998,7 +998,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `BR-008` | Préservation des préférences lors du recalcul |
 | `BR-009` | Pas de relâchement silencieux du passage aux États-Unis |
 | `BR-010` | Dispersion minimale d’une boucle IA (20 % de la distance cible) |
-| `BR-011` | Chemin non répété pour une boucle IA (connecteur 1 km, marge 2 %) |
+| `BR-011` | Chemin non répété pour une boucle IA (connecteur 1 km, marge 15 %) |
 
 ### Exigences non fonctionnelles
 
