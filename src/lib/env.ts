@@ -33,7 +33,7 @@ export const envSchema = z.object({
   OPENAI_MODEL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   WEB_SEARCH_PROVIDER: z.preprocess(
     emptyToUndefined,
-    z.enum(["tavily", "brave"]).optional(),
+    z.enum(["tavily", "brave", "openai"]).optional(),
   ),
   WEB_SEARCH_API_KEY: optionalSecret,
   WEB_SEARCH_API_BASE_URL: optionalUrl,
