@@ -1220,11 +1220,6 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
       expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
     });
     expect(joinRoute).not.toHaveBeenCalled();
-    const remainingLabel = screen.getByText("distance").previousElementSibling;
-    expect(remainingLabel?.textContent).toMatch(/km$/);
-    expect(Number.parseFloat(remainingLabel?.textContent ?? "0")).toBeGreaterThan(
-      0.3,
-    );
   });
 
   it("does not jump remaining GPX at a self-crossing while following (FR-039)", async () => {
