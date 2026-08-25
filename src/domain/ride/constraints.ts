@@ -38,6 +38,17 @@ export function distanceToleranceGapKm(
   return 0;
 }
 
+/** BR-001 — explain a real distance instead of silently widening ±10 %. */
+export function distanceToleranceExplanationKm(
+  distanceKm: number,
+  targetDistanceKm: number,
+): string | null {
+  if (isWithinDistanceTolerance(distanceKm, targetDistanceKm)) {
+    return null;
+  }
+  return `La distance réelle est de ${distanceKm.toFixed(1)} km pour une demande de ${targetDistanceKm.toFixed(0)} km (±10 % non atteint).`;
+}
+
 /** BR-007 — a known unpaved surface, not an unknown one. */
 export function usesKnownUnpaved(segments: RouteSegment[]): boolean {
   return segments.some((segment) => segment.surface === "unpaved");

@@ -793,7 +793,9 @@ L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corrido
 - si **Boucle** est activée, retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`);
 - si **Boucle** est désactivée, retourne un aller qui commence près de la position actuelle et s’arrête à l’arrivée choisie, sans refermer la boucle.
 
-Si l’IA, la recherche Web ou le moteur de routage est indisponible, le système affiche une erreur claire et **Réessayer**. Il ne bascule pas silencieusement vers un générateur non-IA.
+Si l’IA, la recherche Web ou le moteur de routage est indisponible, le système affiche une erreur claire et **Réessayer**. Il ne bascule pas silencieusement vers un générateur non-IA, ni vers `createLoopWaypointSets`.
+
+Lorsque ces services répondent, le système **doit produire un trajet utilisable**. Si le premier plan IA ne se traduit pas en tracé réseau (points de passage inutilisables, accroche impossible, boucle géométrique, écart à `BR-001`), le serveur relance le planificateur IA avec la raison de l’échec, sans inventer de géométrie. Après ces tentatives, s’il existe un trajet sur le réseau qui ne respecte pas ±10 %, il est tout de même proposé, avec un avertissement qui affiche la distance réelle (`BR-001`) : la tolérance n’est jamais élargie en silence. « Aucun trajet valide » n’apparaît que s’il n’existe aucun tracé réseau, si un service est indisponible, ou si une contrainte dure l’interdit (`FR-008` surface connue, `FR-030`, corridor de régénération `FR-012`).
 
 #### Résultat, navigation et régénération
 
