@@ -1388,4 +1388,114 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
       expect(screen.getAllByText("Hors trajet").length).toBeGreaterThan(0);
     });
   });
+
+  it("reads remaining after mid-trace progress then off-route rejoin (FR-039)", async () => {
+    const { watch, emit } = createWatch();
+    let nowMs = 1_000_000;
+    const joinRoute = vi.fn(async (input: { start: { latitude: number; longitude: number }; destination: { latitude: number; longitude: number } }) =>
+      connectorResult(input.start, input.destination),
+    );
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        now={() => nowMs}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: origin,
+        accuracyMeters: 5,
+        headingDeg: 90,
+        recordedAtMs: nowMs,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+
+    const mid = offsetCoordinates(origin, 90, 1);
+    nowMs += 2_000;
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: mid,
+        accuracyMeters: 5,
+        headingDeg: 90,
+        recordedAtMs: nowMs,
+      },
+    });
+
+    let followingRemainingKm = Number.NaN;
+    let followingRemainingMin = Number.NaN;
+    await waitFor(() => {
+      followingRemainingKm = Number.parseFloat(
+        screen.getByText("distance").previousElementSibling?.textContent ?? "",
+      );
+      followingRemainingMin = Number.parseFloat(
+        screen.getByText("restant").previousElementSibling?.textContent ?? "",
+      );
+      expect(followingRemainingKm).toBeGreaterThan(0.4);
+      expect(followingRemainingKm).toBeLessThan(1.6);
+    });
+
+    joinRoute.mockClear();
+    const farNorth = { latitude: 45.42, longitude: -72.69 };
+    for (let index = 0; index < 4; index += 1) {
+      nowMs += 4_000;
+      emit({
+        type: "fix",
+        fix: {
+          coordinates: farNorth,
+          accuracyMeters: 8,
+          recordedAtMs: nowMs,
+        },
+      });
+    }
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Hors trajet").length).toBeGreaterThan(0);
+    });
+    const pendingJoin = joinRoute.mock.results.at(-1)?.value as Promise<unknown>;
+    await act(async () => {
+      await pendingJoin;
+    });
+
+    nowMs += 1_000;
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: farNorth,
+        accuracyMeters: 8,
+        recordedAtMs: nowMs,
+      },
+    });
+
+    await waitFor(() => {
+      const joiningRemainingKm = Number.parseFloat(
+        screen.getByText("distance").previousElementSibling?.textContent ?? "",
+      );
+      const joiningRemainingMin = Number.parseFloat(
+        screen.getByText("restant").previousElementSibling?.textContent ?? "",
+      );
+      const connectorKm = 1;
+      const connectorMin = 2;
+      expect(joiningRemainingKm).toBeGreaterThan(connectorKm);
+      expect(joiningRemainingMin).toBeGreaterThan(connectorMin);
+      // Connector + GPX still ahead after mid-trace, not connector + full follow (~3 km / 6 min).
+      expect(joiningRemainingKm).toBeLessThan(gpxRoute.distanceKm + connectorKm - 0.2);
+      expect(joiningRemainingMin).toBeLessThan(gpxRoute.durationMinutes + connectorMin - 0.5);
+      expect(joiningRemainingKm).toBeCloseTo(followingRemainingKm + connectorKm, 0);
+      expect(joiningRemainingMin).toBeCloseTo(followingRemainingMin + connectorMin, 0);
+    });
+  });
 });

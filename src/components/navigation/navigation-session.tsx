@@ -64,6 +64,7 @@ import {
   gpxStatusLabel,
   liveRuntimeFromOriginal,
   markGpxCompleted,
+  remainingFollowFromProgress,
   type LiveGpxRuntime,
 } from "@/domain/gpx/navigation";
 import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
@@ -783,12 +784,17 @@ export function NavigationSession({
         if (!evaluated) {
           return;
         }
+        const followRemaining = remainingFollowFromProgress(
+          runtime.followRoute,
+          runtime.progressKm,
+        );
         const remainingKm = combinedRemainingKm(
           evaluated.remainingDistanceKm,
-          runtime.followRoute.distanceKm,
+          followRemaining.remainingDistanceKm,
         );
         const remainingMin =
-          evaluated.remainingDurationMinutes + runtime.followRoute.durationMinutes;
+          evaluated.remainingDurationMinutes +
+          followRemaining.remainingDurationMinutes;
         applyEvaluatedProgress(
           {
             ...evaluated,
