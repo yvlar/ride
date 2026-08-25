@@ -28,7 +28,6 @@ import { isGpxRoute } from "@/domain/gpx/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import { plannerRideType } from "@/domain/ride/summarize-request";
 import { ImportGpxPanel } from "@/components/gpx/import-gpx-panel";
-import { agentDebugLog } from "@/domain/gpx/_agent-debug-log";
 import { NavigationSession } from "@/components/navigation/navigation-session";
 import { createCarPlayDisplay } from "@/infrastructure/carplay/create-carplay-display";
 import {
@@ -700,21 +699,6 @@ export function RideApp(props: RideRequestFormProps) {
                   key={gpxSession}
                   initialRoute={route && isGpxRoute(route) ? route : null}
                   onPreview={(next, composed) => {
-                    // #region agent log
-                    agentDebugLog({
-                      hypothesisId: "H1",
-                      location: "ride-app.tsx:onPreview",
-                      message: "parent GPX onPreview",
-                      data: {
-                        hasNext: Boolean(next),
-                        routeName: next && "name" in next ? next.name : null,
-                        routeId: next?.id ?? null,
-                        requestType: composed?.type ?? null,
-                        gpxSession,
-                        sheet,
-                      },
-                    });
-                    // #endregion
                     if (!next || !composed) {
                       discardActiveGpxRide();
                       return;

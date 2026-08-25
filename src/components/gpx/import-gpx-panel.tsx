@@ -22,9 +22,6 @@ import type { RideGenerationError } from "@/domain/ride/types";
 import {
   requestSnapGpxWaypoints,
 } from "@/components/gpx/request-snap-gpx-waypoints";
-import { agentDebugLog } from "@/domain/gpx/_agent-debug-log";
-
-let debugPanelSeq = 0;
 
 export type ImportGpxPanelProps = {
   snapWaypoints?: typeof requestSnapGpxWaypoints;
@@ -51,8 +48,6 @@ export function ImportGpxPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
-  const mountedRef = useRef(true);
-  const instanceIdRef = useRef(++debugPanelSeq);
   const [fileName, setFileName] = useState<string | null>(null);
   const [trips, setTrips] = useState<ParsedGpxTrip[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -62,55 +57,13 @@ export function ImportGpxPanel({
   const [busy, setBusy] = useState(false);
 
   const abortInFlight = useCallback(() => {
-    const previousGeneration = generationRef.current;
     abortRef.current?.abort();
     abortRef.current = null;
     generationRef.current += 1;
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H3",
-      location: "import-gpx-panel.tsx:abortInFlight",
-      message: "abortInFlight bumped generation",
-      data: {
-        instanceId: instanceIdRef.current,
-        previousGeneration,
-        generation: generationRef.current,
-        mounted: mountedRef.current,
-      },
-    });
-    // #endregion
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H2",
-      location: "import-gpx-panel.tsx:mount",
-      message: "ImportGpxPanel mounted",
-      data: {
-        instanceId: instanceIdRef.current,
-        generation: generationRef.current,
-        mounted: mountedRef.current,
-      },
-    });
-    // #endregion
     return () => {
-      mountedRef.current = false;
-      // #region agent log
-      agentDebugLog({
-        hypothesisId: "H1",
-        location: "import-gpx-panel.tsx:unmount",
-        message: "ImportGpxPanel unmount without abortInFlight",
-        data: {
-          instanceId: instanceIdRef.current,
-          generation: generationRef.current,
-          aborted: abortRef.current?.signal.aborted ?? false,
-          hasAbortController: Boolean(abortRef.current),
-          mounted: mountedRef.current,
-        },
-      });
-      // #endregion
       abortInFlight();
     };
   }, [abortInFlight]);
@@ -167,58 +120,8 @@ export function ImportGpxPanel({
     const waypoints = trip.parts.flatMap((part) =>
       part.points.map((point) => point.coordinates),
     );
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H1",
-      location: "import-gpx-panel.tsx:applyTrip:snap-start",
-      message: "applyTrip awaiting snap",
-      data: {
-        instanceId: instanceIdRef.current,
-        generation,
-        currentGeneration: generationRef.current,
-        aborted: controller.signal.aborted,
-        mounted: mountedRef.current,
-        fileName: name,
-        tripName: trip.name,
-        waypointCount: waypoints.length,
-      },
-    });
-    // #endregion
     const snapped = await snap({ waypoints, preferences }, controller.signal);
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H1",
-      location: "import-gpx-panel.tsx:applyTrip:snap-resolve",
-      message: "applyTrip snap resolved",
-      data: {
-        instanceId: instanceIdRef.current,
-        generation,
-        currentGeneration: generationRef.current,
-        generationMismatch: generation !== generationRef.current,
-        aborted: controller.signal.aborted,
-        mounted: mountedRef.current,
-        fileName: name,
-        tripName: trip.name,
-        snapOk: snapped.ok,
-      },
-    });
-    // #endregion
     if (generation !== generationRef.current || controller.signal.aborted) {
-      // #region agent log
-      agentDebugLog({
-        hypothesisId: "H3",
-        location: "import-gpx-panel.tsx:applyTrip:skip-stale",
-        message: "applyTrip skipped stale snap",
-        data: {
-          instanceId: instanceIdRef.current,
-          generation,
-          currentGeneration: generationRef.current,
-          aborted: controller.signal.aborted,
-          mounted: mountedRef.current,
-          fileName: name,
-        },
-      });
-      // #endregion
       return false;
     }
     if (!snapped.ok) {
@@ -235,23 +138,6 @@ export function ImportGpxPanel({
     setRoute(composed);
     setError(null);
     setBusy(false);
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H1",
-      location: "import-gpx-panel.tsx:applyTrip:onPreview",
-      message: "applyTrip calling onPreview after snap",
-      data: {
-        instanceId: instanceIdRef.current,
-        generation,
-        currentGeneration: generationRef.current,
-        aborted: controller.signal.aborted,
-        mounted: mountedRef.current,
-        fileName: name,
-        routeName: composed.name,
-        routeId: composed.id,
-      },
-    });
-    // #endregion
     onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
     return true;
   }
