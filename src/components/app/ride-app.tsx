@@ -584,7 +584,9 @@ export function RideApp(props: RideRequestFormProps) {
                     requestRef.current = composed;
                     setRequest(composed);
                     remember(composed.start);
-                    remember(composed.destination);
+                    if (composed.type !== "loop") {
+                      remember(composed.destination);
+                    }
                     props.onRequestComposed?.(composed);
                   }}
                   onGeneratedRouteChange={(next) => {
