@@ -727,7 +727,7 @@ L’explorateur montre d’abord :
 
 **Rechercher une destination** ouvre le volet **Trouver une destination** (`FR-038`) : position actuelle automatique, champ unique de destination, génération et prévisualisation, puis navigation. Ce n’est pas le formulaire de composition (`FR-014`).
 
-**Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Les flux **Décrire mon trajet** (`FR-034`) et **Trouver une destination** (`FR-038`) les lisent à la génération et ne les affichent pas dans leur panneau.
+**Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Les flux **Décrire mon trajet** (`FR-034`), **Trouver une destination** (`FR-038`) et **Importer un fichier GPX** (`FR-039`, raccordement, retour hors trajet, et accroche `<rte>`) les lisent à la génération et ne les affichent pas dans leur panneau. La géométrie d’une trace `<trk>` reste autoritaire (`BR-010`) : les préférences ne la remplacent pas.
 
 **Importer un fichier GPX** ouvre le flux `FR-039` dans la même vue carte, sans perturber **Trouver une destination**.
 
@@ -934,7 +934,7 @@ Phases :
 3. `following_gpx` — suivi de la géométrie GPX à partir du point d’entrée, message **Trajet GPX**, ordre original des points, sans recalcul OSRM de toute la trace;
 4. `gpx_completed` — arrivée.
 
-La géométrie GPX importée n’est **jamais** remplacée par un itinéraire plus rapide du fournisseur de routage (`BR-010`). Le routage ne sert qu’au raccordement, au retour après une sortie, et à l’accroche d’une route `<rte>`.
+La géométrie GPX importée n’est **jamais** remplacée par un itinéraire plus rapide du fournisseur de routage (`BR-010`). Le routage ne sert qu’au raccordement, au retour après une sortie, et à l’accroche d’une route `<rte>`. Ces appels de routage lisent les préférences enregistrées dans Réglages (`FR-007`, `FR-008`, `FR-030`, `FR-031`).
 
 Sens : jamais d’inversion automatique. Trace ouverte : du point d’entrée jusqu’au dernier point. Boucle fermée : du point d’entrée jusqu’à la fin, reprise au début, fin après une boucle complète de retour au point d’entrée.
 

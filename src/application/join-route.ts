@@ -1,5 +1,6 @@
 import type { Coordinates } from "@/domain/geo/types";
-import type { RideStyle, RoutePreferences } from "@/domain/ride/types";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
+import type { RideGenerationError, RideStyle, RoutePreferences } from "@/domain/ride/types";
 import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import type {
   ProviderRouteResult,
@@ -10,7 +11,6 @@ import {
   applyHardRoutePreferences,
   stayInCanadaEndpointError,
 } from "./routing-failure";
-import type { RideGenerationError } from "@/domain/ride/types";
 
 export type JoinRouteInput = {
   start: Coordinates;
@@ -31,10 +31,8 @@ export async function joinRoute(
   routingProvider?: RoutingProvider,
   options?: RoutingProviderOptions,
 ): Promise<JoinRouteResult> {
-  const preferences: RoutePreferences = input.preferences ?? {
-    avoidHighways: false,
-    avoidUnpaved: false,
-  };
+  const preferences: RoutePreferences =
+    input.preferences ?? DEFAULT_ROUTE_PREFERENCES;
   const endpointError = stayInCanadaEndpointError(
     input.start,
     input.destination,

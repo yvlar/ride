@@ -1,5 +1,6 @@
 import type { Coordinates } from "@/domain/geo/types";
-import type { RideStyle, RoutePreferences } from "@/domain/ride/types";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
+import type { RideGenerationError, RideStyle, RoutePreferences } from "@/domain/ride/types";
 import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import type {
   ProviderRouteResult,
@@ -7,7 +8,6 @@ import type {
   RoutingProviderOptions,
 } from "@/infrastructure/routing/routing-provider";
 import { applyHardRoutePreferences } from "./routing-failure";
-import type { RideGenerationError } from "@/domain/ride/types";
 
 export const MAX_GPX_ROUTE_WAYPOINTS = 200;
 
@@ -55,10 +55,8 @@ export async function snapGpxWaypoints(
   const start = waypoints[0]!;
   const destination = waypoints[waypoints.length - 1]!;
   const via = waypoints.slice(1, -1);
-  const preferences: RoutePreferences = input.preferences ?? {
-    avoidHighways: false,
-    avoidUnpaved: false,
-  };
+  const preferences: RoutePreferences =
+    input.preferences ?? DEFAULT_ROUTE_PREFERENCES;
 
   let provider: RoutingProvider;
   try {

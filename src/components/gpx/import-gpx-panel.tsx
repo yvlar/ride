@@ -17,6 +17,7 @@ import type {
   GpxRideRequest,
   ParsedGpxTrip,
 } from "@/domain/gpx/types";
+import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
 import type { RideGenerationError } from "@/domain/ride/types";
 import {
   requestSnapGpxWaypoints,
@@ -88,6 +89,10 @@ export function ImportGpxPanel({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const preferences = readStoredRoutePreferences(
+      typeof window === "undefined" ? null : window.localStorage,
+    );
+
     if (!tripNeedsRoutingSnap(trip)) {
       const composed = composeGpxRoute({
         trip,
@@ -100,7 +105,7 @@ export function ImportGpxPanel({
       setRoute(composed);
       setError(null);
       setBusy(false);
-      onPreview(composed, gpxRideRequestFromRoute(composed));
+      onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
       return;
     }
 
@@ -110,7 +115,7 @@ export function ImportGpxPanel({
     const waypoints = trip.parts.flatMap((part) =>
       part.points.map((point) => point.coordinates),
     );
-    const snapped = await snap({ waypoints }, controller.signal);
+    const snapped = await snap({ waypoints, preferences }, controller.signal);
     if (generation !== generationRef.current || controller.signal.aborted) {
       return;
     }
@@ -128,7 +133,7 @@ export function ImportGpxPanel({
     setRoute(composed);
     setError(null);
     setBusy(false);
-    onPreview(composed, gpxRideRequestFromRoute(composed));
+    onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
   }
 
   async function handleFile(file: File) {

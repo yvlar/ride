@@ -7,6 +7,7 @@ import {
   parseRoundTripRideRequest,
   unsupportedRideTypeMessage,
 } from "./schemas";
+import { DEFAULT_ROUTE_PREFERENCES } from "./stored-route-preferences";
 
 const start = {
   label: "Granby",
@@ -216,6 +217,6 @@ describe("parseGpxRideRequest (FR-039)", () => {
     });
     expect(request.type).toBe("gpx");
     expect(request.name).toBe("Cantons");
-    expect(request.preferences?.avoidHighways).toBe(false);
+    expect(request.preferences).toEqual(DEFAULT_ROUTE_PREFERENCES);
   });
 });

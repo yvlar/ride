@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { haversineKm, lineStringLengthKm } from "@/domain/geo/distance";
 import { MIN_DESTINATION_SEPARATION_KM } from "./constants";
+import { DEFAULT_ROUTE_PREFERENCES } from "./stored-route-preferences";
 import {
   isTargetDistanceRequired,
   parseTargetDistanceKm,
@@ -182,10 +183,7 @@ export function parseGpxRideRequest(
   const parsed = gpxRideRequestSchema.parse(input);
   return {
     ...parsed,
-    preferences: parsed.preferences ?? {
-      avoidHighways: false,
-      avoidUnpaved: false,
-    },
+    preferences: parsed.preferences ?? { ...DEFAULT_ROUTE_PREFERENCES },
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
-import { composeGpxRoute, orderedRouteWaypoints } from "./compose";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
+import { composeGpxRoute, gpxRideRequestFromRoute, orderedRouteWaypoints } from "./compose";
 import { parseGpxDocument } from "./parse";
 
 describe("composeGpxRoute (FR-039)", () => {
@@ -46,5 +47,36 @@ describe("composeGpxRoute (FR-039)", () => {
       return;
     }
     expect(orderedRouteWaypoints(parsed.trips[0]!)).toEqual([a, b, c]);
+  });
+
+  it("copies stored route preferences onto the GPX ride request (FR-007, FR-008, FR-030, FR-039)", () => {
+    const parsed = parseGpxDocument(
+      `<?xml version="1.0"?><gpx version="1.1">
+        <trk><name>Cantons</name><trkseg>
+          <trkpt lat="45.40" lon="-72.73"/>
+          <trkpt lat="45.41" lon="-72.72"/>
+        </trkseg></trk>
+      </gpx>`,
+      "cantons.gpx",
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) {
+      return;
+    }
+    const route = composeGpxRoute({ trip: parsed.trips[0]!, fileName: "cantons.gpx" });
+    expect(gpxRideRequestFromRoute(route).preferences).toEqual(
+      DEFAULT_ROUTE_PREFERENCES,
+    );
+    expect(
+      gpxRideRequestFromRoute(route, {
+        avoidHighways: false,
+        avoidUnpaved: false,
+        stayInCanada: true,
+      }).preferences,
+    ).toEqual({
+      avoidHighways: false,
+      avoidUnpaved: false,
+      stayInCanada: true,
+    });
   });
 });

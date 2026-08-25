@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { ImportGpxPanel } from "./import-gpx-panel";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gpxFileInputAccept } from "@/domain/gpx/file-accept";
+import {
+  DEFAULT_ROUTE_PREFERENCES,
+  ROUTE_PREFERENCES_STORAGE_KEY,
+  writeStoredRoutePreferences,
+} from "@/domain/ride/stored-route-preferences";
+import { ImportGpxPanel } from "./import-gpx-panel";
 
 const TRACK = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
@@ -48,6 +53,10 @@ function upload(xml: string, name = "sortie.gpx", type = "application/gpx+xml") 
 }
 
 describe("ImportGpxPanel (FR-039)", () => {
+  beforeEach(() => {
+    window.localStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
+  });
+
   it("uses an iPhone-compatible hidden file input", () => {
     render(
       <ImportGpxPanel
@@ -80,6 +89,9 @@ describe("ImportGpxPanel (FR-039)", () => {
     expect(screen.getByText(/Arrivée/)).toBeInTheDocument();
     expect(onPreview).toHaveBeenCalled();
     expect(onPreview.mock.calls.at(-1)?.[0]?.source).toBe("gpx");
+    expect(onPreview.mock.calls.at(-1)?.[1]?.preferences).toEqual(
+      DEFAULT_ROUTE_PREFERENCES,
+    );
   });
 
   it("lets the user pick among multiple trips", async () => {
@@ -166,5 +178,56 @@ describe("ImportGpxPanel (FR-039)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
     expect(onBack).toHaveBeenCalled();
     expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it("forwards Réglages preferences into the GPX request and <rte> snap (FR-007, FR-008, FR-030, FR-039)", async () => {
+    writeStoredRoutePreferences(window.localStorage, {
+      avoidHighways: false,
+      avoidUnpaved: false,
+      stayInCanada: true,
+    });
+    const onPreview = vi.fn();
+    const snapWaypoints = vi.fn(async () => ({
+      ok: true as const,
+      route: {
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [-72.73, 45.4],
+            [-72.6, 45.41],
+          ],
+        },
+        segments: [],
+        distanceKm: 10,
+        durationMinutes: 12,
+      },
+    }));
+    render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE);
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalled();
+    });
+    expect(snapWaypoints).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferences: {
+          avoidHighways: false,
+          avoidUnpaved: false,
+          stayInCanada: true,
+        },
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(onPreview.mock.calls.at(-1)?.[1]?.preferences).toEqual({
+      avoidHighways: false,
+      avoidUnpaved: false,
+      stayInCanada: true,
+    });
   });
 });

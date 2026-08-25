@@ -1054,6 +1054,12 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     await waitFor(() => {
       expect(joinRoute).toHaveBeenCalled();
     });
+    expect(joinRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferences: gpxRequest.preferences,
+      }),
+      expect.any(AbortSignal),
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Rejoindre le trajet GPX").length).toBeGreaterThan(0);
     });

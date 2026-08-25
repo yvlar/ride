@@ -7,7 +7,8 @@ import {
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import { LOOP_CLOSURE_TOLERANCE_KM } from "@/domain/ride/constants";
 import { AVERAGE_SPEED_KMH } from "@/domain/ride/duration";
-import type { RouteSegment } from "@/domain/ride/types";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
+import type { RoutePreferences, RouteSegment } from "@/domain/ride/types";
 import { stepsFromGpxPath } from "./steps";
 import type { GeneratedGpxRoute, ParsedGpxTrip } from "./types";
 
@@ -150,6 +151,7 @@ export function navigableLengthKm(
 
 export function gpxRideRequestFromRoute(
   route: GeneratedGpxRoute,
+  preferences: RoutePreferences = DEFAULT_ROUTE_PREFERENCES,
 ): import("./types").GpxRideRequest {
   return {
     type: "gpx",
@@ -157,7 +159,11 @@ export function gpxRideRequestFromRoute(
     destination: route.destination,
     name: route.name,
     style: route.style,
-    preferences: { avoidHighways: false, avoidUnpaved: false },
+    preferences: {
+      avoidHighways: preferences.avoidHighways,
+      avoidUnpaved: preferences.avoidUnpaved,
+      stayInCanada: preferences.stayInCanada,
+    },
   };
 }
 

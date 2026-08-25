@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { MAX_GPX_ROUTE_WAYPOINTS, snapGpxWaypoints } from "./snap-gpx-waypoints";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import { MAX_GPX_ROUTE_WAYPOINTS, snapGpxWaypoints } from "./snap-gpx-waypoints";
 
 const a = { latitude: 45.4, longitude: -72.73 };
 const b = { latitude: 45.41, longitude: -72.6 };
@@ -15,6 +16,23 @@ describe("snapGpxWaypoints (FR-039, BR-010)", () => {
     expect(spy.mock.calls[0]?.[0].start).toEqual(a);
     expect(spy.mock.calls[0]?.[0].destination).toEqual(c);
     expect(spy.mock.calls[0]?.[0].waypoints).toEqual([b]);
+    expect(spy.mock.calls[0]?.[0].preferences).toEqual(DEFAULT_ROUTE_PREFERENCES);
+  });
+
+  it("forwards stored route preferences when snapping a <rte> (FR-007, FR-008, FR-030, FR-039)", async () => {
+    const provider = new MockRoutingProvider();
+    const spy = vi.spyOn(provider, "calculateRoute");
+    const preferences = {
+      avoidHighways: false,
+      avoidUnpaved: false,
+      stayInCanada: true,
+    };
+    const result = await snapGpxWaypoints(
+      { waypoints: [a, b, c], preferences },
+      provider,
+    );
+    expect(result.ok).toBe(true);
+    expect(spy.mock.calls[0]?.[0].preferences).toEqual(preferences);
   });
 
   it("rejects a route with too few points", async () => {
