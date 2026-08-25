@@ -176,13 +176,13 @@ export function ImportGpxPanel({
     if (!first) {
       return;
     }
+    setFileName(file.name);
+    setTrips(parsed.trips);
+    setWarnings(parsed.warnings);
     const applied = await applyTrip(first, file.name, parsed.warnings, snapWaypoints);
     if (!applied) {
       return;
     }
-    setFileName(file.name);
-    setTrips(parsed.trips);
-    setWarnings(parsed.warnings);
     setSelectedId(first.id);
   }
 
@@ -239,8 +239,16 @@ export function ImportGpxPanel({
               )}
               disabled={busy}
               onClick={() => {
-                setSelectedId(trip.id);
-                void applyTrip(trip, fileName ?? "trajet.gpx", warnings, snapWaypoints);
+                void applyTrip(
+                  trip,
+                  fileName ?? "trajet.gpx",
+                  warnings,
+                  snapWaypoints,
+                ).then((applied) => {
+                  if (applied) {
+                    setSelectedId(trip.id);
+                  }
+                });
               }}
             >
               {trip.name}

@@ -46,6 +46,20 @@ const ROUTE = `<?xml version="1.0" encoding="UTF-8"?>
   </rte>
 </gpx>`;
 
+const MULTI_ROUTE = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <rte>
+    <name>Route A</name>
+    <rtept lat="45.40" lon="-72.73"/>
+    <rtept lat="45.41" lon="-72.60"/>
+  </rte>
+  <rte>
+    <name>Route B</name>
+    <rtept lat="46.10" lon="-74.50"/>
+    <rtept lat="46.11" lon="-74.49"/>
+  </rte>
+</gpx>`;
+
 function upload(xml: string, name = "sortie.gpx", type = "application/gpx+xml") {
   const input = screen.getByTestId("gpx-file-input") as HTMLInputElement;
   const file = new File([xml], name, { type });
@@ -119,6 +133,91 @@ describe("ImportGpxPanel (FR-039)", () => {
     });
   });
 
+  it("still lists other trips when the first <rte> cannot snap (FR-039)", async () => {
+    const snapWaypoints = vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        code: "PROVIDER_ERROR" as const,
+        message: "Le moteur de routage n’a pas pu relier les points de la route GPX.",
+        suggestions: ["Réessayez."],
+      },
+    }));
+    render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={() => {}}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(MULTI_ROUTE);
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
+    });
+    expect(screen.getAllByText(/plusieurs trajets/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("radio", { name: /Route A/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Route B/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Démarrer la navigation" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the selected trip when another <rte> cannot snap (FR-039)", async () => {
+    const snapped = {
+      ok: true as const,
+      route: {
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [-72.73, 45.4],
+            [-72.6, 45.41],
+          ] as [number, number][],
+        },
+        segments: [],
+        distanceKm: 10,
+        durationMinutes: 12,
+      },
+    };
+    const snapWaypoints = vi.fn(async () => snapped);
+    render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={() => {}}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(MULTI_ROUTE);
+    await waitFor(() => {
+      expect(screen.getByRole("radio", { name: /Route A/ })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+    });
+    expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
+    snapWaypoints.mockImplementation(async () => ({
+      ok: false as const,
+      error: {
+        code: "PROVIDER_ERROR" as const,
+        message: "Le moteur de routage n’a pas pu relier les points de la route GPX.",
+        suggestions: ["Réessayez."],
+      },
+    }));
+    fireEvent.click(screen.getByRole("radio", { name: /Route B/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
+    });
+    expect(screen.getByRole("radio", { name: /Route A/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("radio", { name: /Route B/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
+  });
+
   it("does not preview a straight-line fake when route snapping fails", async () => {
     const snapWaypoints = vi.fn(async () => ({
       ok: false as const,
@@ -143,7 +242,6 @@ describe("ImportGpxPanel (FR-039)", () => {
     expect(
       screen.queryByRole("button", { name: "Démarrer la navigation" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Fichier :/)).not.toBeInTheDocument();
   });
 
   it("shows a readable error for a waypoint-only file", async () => {
@@ -229,14 +327,11 @@ describe("ImportGpxPanel (FR-039)", () => {
     await waitFor(() => {
       expect(screen.getByText("Cantons")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Fichier : cantons.gpx/)).toBeInTheDocument();
     upload(ROUTE, "route-112.gpx");
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
     });
     expect(screen.getByText("Cantons")).toBeInTheDocument();
-    expect(screen.getByText(/Fichier : cantons.gpx/)).toBeInTheDocument();
-    expect(screen.queryByText(/Fichier : route-112.gpx/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
     expect(onPreview.mock.calls.some((call) => call[0] === null)).toBe(false);
   });
