@@ -284,7 +284,11 @@ export async function generateDescribedRide(
       returnToStart,
     );
     if (attempts.knowledgeError) {
-      return { ok: false, error: attempts.knowledgeError };
+      lastFailure = { ok: false, error: attempts.knowledgeError };
+      previousPlanningFailure = planningFailureFromError(
+        attempts.knowledgeError,
+      );
+      continue;
     }
     if (attempts.routingError && attempts.routed.length === 0) {
       if (attempts.routingError.code === "ROUTING_UNAVAILABLE") {
@@ -295,6 +299,16 @@ export async function generateDescribedRide(
         reason: "routing_failed",
         instruction:
           "Replace unroutable coordinates with named public-road anchors from the web results.",
+      };
+      continue;
+    }
+    if (attempts.planningFailure && attempts.routed.length === 0) {
+      lastFailure = { ok: false, error: noValidDescribedRideError() };
+      previousPlanningFailure = {
+        ...attempts.planningFailure,
+        triedRoads,
+        searchRadiusKm: searchInput.searchRadiusKm,
+        corridorHint: searchInput.corridorHint,
       };
       continue;
     }
@@ -439,6 +453,7 @@ async function evaluatePlanCandidates(
   routed: RoutedDescribedAttempt[];
   routingError?: RideGenerationError;
   knowledgeError?: RideGenerationError;
+  planningFailure?: DescribedPlanningFailure;
 }> {
   const targetDistanceKm = request.targetDistanceKm;
   if (targetDistanceKm === undefined) {
@@ -450,12 +465,14 @@ async function evaluatePlanCandidates(
     snippet: hit.snippet,
   }));
   const minViaCount = returnToStart ? 2 : 1;
+  let groundedCount = 0;
   const jobs = candidates.flatMap((candidate, index) => {
     const grounded =
       notes.length === 0 || hasRequiredWebGrounding(candidate, notes);
     if (!grounded) {
       return [];
     }
+    groundedCount += 1;
     const rawPoints = candidate.viaPoints.map(aiWaypointToCoordinates);
     const viaPoints = filterViaPoints(
       request.start.coordinates,
@@ -477,7 +494,10 @@ async function evaluatePlanCandidates(
   });
 
   if (jobs.length === 0) {
-    return { routed: [] };
+    return {
+      routed: [],
+      planningFailure: emptyPlanFailure(candidates.length, groundedCount),
+    };
   }
 
   const settled = await Promise.allSettled(
@@ -648,6 +668,46 @@ function isBetterAttempt(
       current.evaluation.distanceKm - current.evaluation.targetDistanceKm,
     )
   );
+}
+
+function emptyPlanFailure(
+  candidateCount: number,
+  groundedCount: number,
+): DescribedPlanningFailure {
+  if (candidateCount > 0 && groundedCount === 0) {
+    return {
+      reason: "insufficient_web_grounding",
+      instruction:
+        "Ground every candidate in at least two named roads, villages, or points of interest from the web results.",
+    };
+  }
+  return {
+    reason: "unusable_via_points",
+    instruction:
+      "Replace unroutable coordinates with named public-road anchors from the web results.",
+  };
+}
+
+function planningFailureFromError(
+  error: RideGenerationError,
+): DescribedPlanningFailure {
+  if (error.message === unpavedKnowledgeError().message) {
+    return {
+      reason: "unpaved_rejected",
+      instruction: "Use paved public roads only.",
+    };
+  }
+  if (error.message === canadaOnlyKnowledgeError().message) {
+    return {
+      reason: "canada_only_rejected",
+      instruction: "Keep the entire corridor in Canada.",
+    };
+  }
+  return {
+    reason: "no_route_found",
+    instruction:
+      "Propose a different named corridor that satisfies every constraint.",
+  };
 }
 
 function planningFailureFromAttempt(

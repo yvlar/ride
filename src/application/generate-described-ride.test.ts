@@ -1023,6 +1023,119 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(result.route.distanceKm).toBeLessThan(88);
   });
 
+  it("retries the planner with unpaved_rejected instead of aborting the loop (FR-008, FR-034)", async () => {
+    const origin = GRANBY.coordinates;
+    let round = 0;
+    const geodesic = new GeodesicRoutingProvider();
+    const planner: AiRidePlanner = {
+      async planLoop(input) {
+        round += 1;
+        if (round === 1) {
+          return { candidates: [elongatedLoopCandidate(origin, 80)] };
+        }
+        expect(input.previousPlanningFailure?.reason).toBe("unpaved_rejected");
+        expect(input.previousPlanningFailure?.instruction).toMatch(/paved/i);
+        return { candidates: [elongatedLoopCandidate(origin, 80, 20)] };
+      },
+    };
+    const routing: RoutingProvider = {
+      async calculateRoute(input) {
+        const routed = await geodesic.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        if (round === 1) {
+          return {
+            ...routed,
+            segments: routed.segments.map((segment) => ({
+              ...segment,
+              surface: "unpaved" as const,
+            })),
+          };
+        }
+        return routed;
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      routing,
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(round).toBeGreaterThan(1);
+    expect(result.ok).toBe(true);
+  });
+
+  it("tells the planner when candidates are not grounded in web results (FR-034)", async () => {
+    const origin = GRANBY.coordinates;
+    let round = 0;
+    const planner: AiRidePlanner = {
+      async planLoop(input) {
+        round += 1;
+        if (round === 1) {
+          return {
+            candidates: [
+              {
+                candidateName: "ungrounded",
+                viaPoints: [
+                  {
+                    label: "Random field",
+                    latitude: offsetCoordinates(origin, 0, 18).latitude,
+                    longitude: offsetCoordinates(origin, 0, 18).longitude,
+                    sourceResultIds: [],
+                  },
+                  {
+                    label: "Another field",
+                    latitude: offsetCoordinates(origin, 90, 22).latitude,
+                    longitude: offsetCoordinates(origin, 90, 22).longitude,
+                    sourceResultIds: [],
+                  },
+                  {
+                    label: "Third field",
+                    latitude: offsetCoordinates(origin, 45, 20).latitude,
+                    longitude: offsetCoordinates(origin, 45, 20).longitude,
+                    sourceResultIds: [],
+                  },
+                ],
+                roads: ["Invented corridor"],
+                pointsOfInterest: ["Made-up lookout"],
+              },
+            ],
+          };
+        }
+        expect(input.previousPlanningFailure?.reason).toBe(
+          "insufficient_web_grounding",
+        );
+        return {
+          candidates: [elongatedLoopCandidate(origin, input.targetDistanceKm)],
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      new GeodesicRoutingProvider(),
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(round).toBeGreaterThan(1);
+    expect(result.ok).toBe(true);
+  });
+
   it("does not fall back to geometric loop seeds when AI is required", async () => {
     const geometric = createLoopWaypointSets(GRANBY.coordinates, 80);
     const routing = new GeodesicRoutingProvider();
