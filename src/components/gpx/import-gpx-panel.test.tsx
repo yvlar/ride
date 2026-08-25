@@ -180,6 +180,63 @@ describe("ImportGpxPanel (FR-039)", () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
+  it("keeps the current preview if a later import fails (FR-039)", async () => {
+    const onPreview = vi.fn();
+    render(
+      <ImportGpxPanel
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(TRACK);
+    await waitFor(() => {
+      expect(screen.getByText("Cantons")).toBeInTheDocument();
+    });
+    const previewed = onPreview.mock.calls.at(-1);
+    upload(
+      `<?xml version="1.0"?><gpx version="1.1"><wpt lat="45.4" lon="-72.73"/></gpx>`,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/points de passage/i);
+    });
+    expect(screen.getByText("Cantons")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
+    expect(onPreview.mock.calls.at(-1)).toEqual(previewed);
+    expect(onPreview.mock.calls.some((call) => call[0] === null)).toBe(false);
+  });
+
+  it("keeps the current preview if a replacement <rte> cannot snap (FR-039)", async () => {
+    const onPreview = vi.fn();
+    const snapWaypoints = vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        code: "PROVIDER_ERROR" as const,
+        message: "Le moteur de routage n’a pas pu relier les points de la route GPX.",
+        suggestions: ["Réessayez."],
+      },
+    }));
+    render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(TRACK);
+    await waitFor(() => {
+      expect(screen.getByText("Cantons")).toBeInTheDocument();
+    });
+    upload(ROUTE);
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
+    });
+    expect(screen.getByText("Cantons")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
+    expect(onPreview.mock.calls.some((call) => call[0] === null)).toBe(false);
+  });
+
   it("forwards Réglages preferences into the GPX request and <rte> snap (FR-007, FR-008, FR-030, FR-039)", async () => {
     writeStoredRoutePreferences(window.localStorage, {
       avoidHighways: false,

@@ -56,25 +56,25 @@ export function ImportGpxPanel({
   const [error, setError] = useState<RideGenerationError | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function resetPreview() {
+  function abortInFlight() {
     abortRef.current?.abort();
     abortRef.current = null;
     generationRef.current += 1;
+  }
+
+  function discardPreview() {
+    abortInFlight();
     setTrips([]);
     setSelectedId(null);
     setWarnings([]);
     setRoute(null);
     setError(null);
     setBusy(false);
-    onPreview(null, null);
-  }
-
-  function clearAll() {
-    resetPreview();
     setFileName(null);
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+    onPreview(null, null);
   }
 
   async function applyTrip(
@@ -110,8 +110,7 @@ export function ImportGpxPanel({
     }
 
     setBusy(true);
-    setRoute(null);
-    onPreview(null, null);
+    setError(null);
     const waypoints = trip.parts.flatMap((part) =>
       part.points.map((point) => point.coordinates),
     );
@@ -137,8 +136,9 @@ export function ImportGpxPanel({
   }
 
   async function handleFile(file: File) {
-    resetPreview();
-    setFileName(file.name);
+    abortInFlight();
+    setError(null);
+    setBusy(false);
     if (file.size > GPX_MAX_FILE_BYTES) {
       setError({
         code: "GPX_INVALID",
@@ -165,6 +165,7 @@ export function ImportGpxPanel({
       });
       return;
     }
+    setFileName(file.name);
     setTrips(parsed.trips);
     setWarnings(parsed.warnings);
     const first = parsed.trips[0];
@@ -310,7 +311,9 @@ export function ImportGpxPanel({
               className="min-h-12 w-full text-base"
               disabled={busy}
               onClick={() => {
-                clearAll();
+                if (inputRef.current) {
+                  inputRef.current.value = "";
+                }
                 inputRef.current?.click();
               }}
             >
@@ -322,7 +325,7 @@ export function ImportGpxPanel({
               className="min-h-12 w-full"
               disabled={busy}
               onClick={() => {
-                clearAll();
+                discardPreview();
                 onBack();
               }}
             >
@@ -346,7 +349,7 @@ export function ImportGpxPanel({
               className="min-h-12 w-full"
               disabled={busy}
               onClick={() => {
-                clearAll();
+                discardPreview();
                 onBack();
               }}
             >
