@@ -33,7 +33,7 @@ import type { LocatedPosition } from "@/domain/location/types";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import { principalRoadNames, routeShareSummary } from "@/domain/ride/route-share";
 import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
-import { RIDE_STYLE_LABELS, RIDE_TYPE_LABELS } from "@/domain/ride/summarize-request";
+import { generatedRouteTypeLabel, RIDE_STYLE_LABELS } from "@/domain/ride/summarize-request";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
@@ -434,7 +434,7 @@ export function FindDestinationPanel({
           <p className="text-base leading-6">
             {formatDistanceLabel(preview.distanceKm)} ·{" "}
             {formatDurationLabel(preview.durationMinutes)} ·{" "}
-            {RIDE_TYPE_LABELS[preview.type]} ·{" "}
+            {generatedRouteTypeLabel(preview.type)} ·{" "}
             {RIDE_STYLE_LABELS[preview.style ?? "scenic"]}
           </p>
           {(() => {

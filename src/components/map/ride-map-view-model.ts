@@ -5,10 +5,12 @@ import {
   positionToCoordinates,
 } from "@/domain/geo/distance";
 import type { BoundingBox, Coordinates, LineString } from "@/domain/geo/types";
+import type { GpxMapOverlay } from "@/domain/gpx/types";
+import { isGpxRoute } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 
 export type RideMapMarker = {
-  kind: "start" | "destination";
+  kind: "start" | "destination" | "entry";
   label: string;
   placeLabel: string;
   coordinates: Coordinates;
@@ -21,9 +23,13 @@ export type RideMapArrow = {
 
 export type RideMapViewModel = {
   geometry: LineString;
+  parts?: LineString[];
+  connectorGeometry?: LineString;
+  entryPoint?: Coordinates;
   bounds: BoundingBox;
   start: RideMapMarker;
   destination?: RideMapMarker;
+  entry?: RideMapMarker;
   directionLabel: string;
   directionArrows: RideMapArrow[];
   idle?: boolean;
@@ -47,6 +53,7 @@ export function mapCameraFrame(bounds: BoundingBox): MapCameraFrame {
 
 export function toRideMapViewModel(
   route: GeneratedRideRoute,
+  overlay?: GpxMapOverlay | null,
 ): RideMapViewModel | null {
   if (route.geometry.coordinates.length < 2) {
     return null;
@@ -56,8 +63,27 @@ export function toRideMapViewModel(
   if (route.type !== "loop") {
     extra.push(route.destination.coordinates);
   }
+  if (overlay?.entryPoint) {
+    extra.push(overlay.entryPoint);
+  }
 
-  const bounds = boundingBox(route.geometry, extra);
+  const parts = isGpxRoute(route) ? route.parts : undefined;
+  const geometryForBounds = parts && parts.length > 0 ? parts[0]! : route.geometry;
+  const partExtras: Coordinates[] = [];
+  if (parts) {
+    for (const part of parts) {
+      for (const position of part.coordinates) {
+        partExtras.push({ longitude: position[0], latitude: position[1] });
+      }
+    }
+  }
+  if (overlay?.connectorGeometry) {
+    for (const position of overlay.connectorGeometry.coordinates) {
+      partExtras.push({ longitude: position[0], latitude: position[1] });
+    }
+  }
+
+  const bounds = boundingBox(geometryForBounds, [...extra, ...partExtras]);
   if (!bounds) {
     return null;
   }
@@ -79,13 +105,30 @@ export function toRideMapViewModel(
           coordinates: route.destination.coordinates,
         };
 
+  const entry: RideMapMarker | undefined = overlay?.entryPoint
+    ? {
+        kind: "entry",
+        label: "Entrée GPX",
+        placeLabel: "Point d’entrée",
+        coordinates: overlay.entryPoint,
+      }
+    : undefined;
+
   return {
     geometry: route.geometry,
+    parts,
+    connectorGeometry: overlay?.connectorGeometry ?? undefined,
+    entryPoint: overlay?.entryPoint ?? undefined,
     bounds,
     start,
     destination,
+    entry,
     directionLabel: directionLabel(route),
-    directionArrows: sampleDirectionArrows(route.geometry),
+    directionArrows: sampleDirectionArrows(
+      parts && parts.length > 0
+        ? { type: "LineString", coordinates: parts.flatMap((part) => part.coordinates) }
+        : route.geometry,
+    ),
   };
 }
 
@@ -126,6 +169,9 @@ export function idleMapViewModel(
 }
 
 function directionLabel(route: GeneratedRideRoute): string {
+  if (route.type === "gpx") {
+    return `Sens GPX : ${route.name}`;
+  }
   if (route.type === "loop") {
     return `Sens : boucle depuis ${route.start.label}`;
   }
@@ -195,5 +241,32 @@ function interpolateAlongLine(
   return {
     coordinates: last,
     bearingDeg: initialBearingDeg(previous, last),
+  };
+}
+
+export function rideRouteFeatureCollection(
+  viewModel: RideMapViewModel,
+): {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties: Record<string, never>;
+    geometry: LineString;
+  }>;
+} {
+  if (viewModel.idle) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  const lines =
+    viewModel.parts && viewModel.parts.length > 0
+      ? viewModel.parts
+      : [viewModel.geometry];
+  return {
+    type: "FeatureCollection",
+    features: lines.map((geometry) => ({
+      type: "Feature" as const,
+      properties: {},
+      geometry,
+    })),
   };
 }

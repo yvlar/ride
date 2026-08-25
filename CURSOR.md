@@ -31,8 +31,8 @@ Le MVP doit permettre de :
 - mesurer la répétition des segments d’un itinéraire;
 - demander une autre route sensiblement différente;
 - démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet;
-- sauvegarder localement une ride;
-- exporter un trajet en GPX.
+- importer un fichier GPX et suivre sa trace (raccordement puis guidage, sans remplacer la géométrie importée);
+- sauvegarder localement une ride.
 
 ## 3. Hors périmètre du MVP
 
@@ -45,6 +45,7 @@ Ne pas implémenter dans la première version :
 - les profils de plusieurs motos;
 - les pauses automatiques et la gestion complète de l’autonomie;
 - le partage public de trajets;
+- l’export GPX;
 - une réécriture native Swift, SwiftUI, React Native ou Expo;
 - une application Android;
 - la publication App Store ou TestFlight;
@@ -679,7 +680,7 @@ Chaque variante doit avoir une couleur accessible et un libellé, sans dépendre
 - distance et durée;
 - statistiques;
 - avertissements;
-- actions de sauvegarde et export GPX.
+- actions de sauvegarde. L’export GPX reste hors MVP.
 
 ## 17. États d’interface obligatoires
 
@@ -866,7 +867,7 @@ Tester au minimum :
 - élimination des variantes similaires;
 - validation de chaque type de demande;
 - transformation de la réponse du fournisseur;
-- génération GPX et échappement XML;
+- import GPX (parseur, projection, phases de navigation);
 - lecture et migration du stockage local.
 
 ### Tests de contrats
@@ -899,7 +900,7 @@ Scénarios critiques :
 3. générer un aller-retour différent;
 4. demander une autre route;
 5. sauvegarder et rouvrir une ride;
-6. exporter un GPX;
+6. importer un GPX et démarrer la navigation;
 7. gérer une absence de résultat;
 8. gérer un fournisseur indisponible.
 

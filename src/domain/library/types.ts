@@ -45,6 +45,9 @@ export function upsertSavedRide(
 }
 
 export function savedRideName(route: GeneratedRideRoute): string {
+  if (route.type === "gpx") {
+    return route.name;
+  }
   if (route.type === "loop") {
     return `Boucle · ${route.start.label}`;
   }

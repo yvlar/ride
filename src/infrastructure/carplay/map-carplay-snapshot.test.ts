@@ -30,6 +30,7 @@ const progress: NavigationProgress = {
     remainingDistanceKm: 1.9,
     remainingDurationMinutes: 2.8,
     segmentIndex: 0,
+    segmentFraction: 0,
   },
   currentStepIndex: 0,
   nextStep: step,

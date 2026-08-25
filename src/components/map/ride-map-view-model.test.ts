@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Place } from "@/domain/geo/types";
+import type { GeneratedGpxRoute } from "@/domain/gpx/types";
 import type {
   GeneratedDestinationRoute,
   GeneratedLoopRoute,
   GeneratedRoundTripRoute,
 } from "@/domain/ride/types";
-import { mapCameraFrame, toRideMapViewModel } from "./ride-map-view-model";
+import { idleMapViewModel, mapCameraFrame, rideRouteFeatureCollection, toRideMapViewModel } from "./ride-map-view-model";
 
 const granby: Place = {
   label: "Granby, QC",
@@ -131,6 +132,77 @@ describe("toRideMapViewModel (FR-013)", () => {
       [model!.bounds.east, model!.bounds.north],
     ]);
     expect(camera.fitBoundsOptions.duration).toBe(0);
+  });
+
+  it("draws GPX parts, a distinct connector and an entry marker (FR-039)", () => {
+    const gpx: GeneratedGpxRoute = {
+      id: "gpx-1",
+      type: "gpx",
+      source: "gpx",
+      name: "Cantons",
+      start: granby,
+      destination: tremblant,
+      style: "touring",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-74.5962, 46.1185],
+        ],
+      },
+      parts: [
+        {
+          type: "LineString",
+          coordinates: [
+            [-72.7342, 45.4001],
+            [-73.0, 45.6],
+          ],
+        },
+        {
+          type: "LineString",
+          coordinates: [
+            [-74.0, 46.0],
+            [-74.5962, 46.1185],
+          ],
+        },
+      ],
+      gapBeforeVertex: [2],
+      segments: [],
+      distanceKm: 140,
+      durationMinutes: 110,
+      warnings: [],
+      isClosedLoop: false,
+      trackKind: "track",
+      originalGeometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-74.5962, 46.1185],
+        ],
+      },
+      originalParts: [],
+    };
+    const model = toRideMapViewModel(gpx, {
+      phase: "joining_gpx",
+      connectorGeometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.8, 45.3],
+          [-72.7342, 45.4001],
+        ],
+      },
+      entryPoint: granby.coordinates,
+    });
+    expect(model!.parts).toHaveLength(2);
+    expect(model!.connectorGeometry?.coordinates).toHaveLength(2);
+    expect(model!.entry?.kind).toBe("entry");
+    expect(model!.directionLabel).toBe("Sens GPX : Cantons");
+  });
+
+  it("removes GPX geometry from the map when idle after cancel (FR-039)", () => {
+    expect(rideRouteFeatureCollection(idleMapViewModel()).features).toHaveLength(
+      0,
+    );
   });
 
   it("returns null when the route has no drawable geometry", () => {

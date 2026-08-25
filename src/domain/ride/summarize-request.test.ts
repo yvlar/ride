@@ -18,4 +18,22 @@ describe("summarizeRideRequest", () => {
       "Demande prête : boucle d’environ 200 km au départ de Granby, QC, style panoramique.",
     );
   });
+
+  it("describes an imported GPX ride (FR-039)", () => {
+    const summary = summarizeRideRequest({
+      type: "gpx",
+      start: {
+        label: "Granby, QC",
+        coordinates: { latitude: 45.4, longitude: -72.73 },
+      },
+      destination: {
+        label: "Arrivée GPX",
+        coordinates: { latitude: 45.5, longitude: -72.6 },
+      },
+      name: "Cantons",
+    });
+    expect(summary).toBe(
+      "Trajet GPX : Cantons au départ de Granby, QC.",
+    );
+  });
 });

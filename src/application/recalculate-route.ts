@@ -11,6 +11,7 @@ import {
 import type { NavigationStep } from "@/domain/navigation/types";
 import {
   parseDestinationRideRequest,
+  parseGpxRideRequest,
   parseLoopRideRequest,
   parseRoundTripRideRequest,
   recalculateRideEnvelopeSchema,
@@ -243,6 +244,9 @@ function parseRecalculateRequest(
     if (type === "round_trip") {
       return { ok: true, value: parseRoundTripRideRequest(input) };
     }
+    if (type === "gpx") {
+      return { ok: true, value: parseGpxRideRequest(input) };
+    }
   } catch (error) {
     return {
       ok: false,
@@ -259,7 +263,7 @@ function parseRecalculateRequest(
     error: {
       code: "UNSUPPORTED_RIDE_TYPE",
       message: "Type de trajet non pris en charge pour le recalcul.",
-      suggestions: ['Utilisez "loop", "destination" ou "round_trip".'],
+      suggestions: ['Utilisez "loop", "destination", "round_trip" ou "gpx".'],
     },
   };
 }

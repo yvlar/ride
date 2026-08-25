@@ -42,7 +42,7 @@ import {
   principalRoadNames,
   routeShareSummary,
 } from "@/domain/ride/route-share";
-import { RIDE_STYLE_LABELS, RIDE_TYPE_LABELS } from "@/domain/ride/summarize-request";
+import { generatedRouteTypeLabel, RIDE_STYLE_LABELS } from "@/domain/ride/summarize-request";
 import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
@@ -436,7 +436,7 @@ export function DescribeRidePanel({
           <p className="text-base leading-6">
             {formatDistanceLabel(activeRoute.distanceKm)} ·{" "}
             {formatDurationLabel(activeRoute.durationMinutes)} ·{" "}
-            {RIDE_TYPE_LABELS[activeRoute.type]} ·{" "}
+            {generatedRouteTypeLabel(activeRoute.type)} ·{" "}
             {RIDE_STYLE_LABELS[activeRoute.style ?? "scenic"]}
           </p>
           <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">

@@ -36,6 +36,8 @@ export function evaluateOffRoute(input: {
   consecutiveFixes?: number;
   minDurationMs?: number;
   cooldownMs?: number;
+  minThresholdM?: number;
+  accuracyMultiplier?: number;
 }): { decision: OffRouteDecision; tracker: OffRouteTracker } {
   const tracker: OffRouteTracker = { ...input.tracker };
 
@@ -61,7 +63,11 @@ export function evaluateOffRoute(input: {
     return finish("cooldown", false, tracker);
   }
 
-  const threshold = offRouteThresholdM(input.accuracyMeters);
+  const threshold = Math.max(
+    input.minThresholdM ?? OFF_ROUTE_MIN_THRESHOLD_M,
+    input.accuracyMeters *
+      (input.accuracyMultiplier ?? OFF_ROUTE_ACCURACY_MULTIPLIER),
+  );
   const advancing =
     tracker.lastProgressKm === null ||
     input.progressKm + 0.01 >= tracker.lastProgressKm;

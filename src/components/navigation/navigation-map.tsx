@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Coordinates } from "@/domain/geo/types";
+import type { GpxMapOverlay } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import {
   MAP_UNAVAILABLE_MESSAGE,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 export type NavigationMapProps = {
   route: GeneratedRideRoute;
+  overlay?: GpxMapOverlay | null;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
   engine?: NavigationMapEngine;
@@ -25,6 +27,7 @@ export type NavigationMapProps = {
 
 export function NavigationMap({
   route,
+  overlay = null,
   userLocation,
   headingDeg = null,
   engine,
@@ -35,7 +38,10 @@ export function NavigationMap({
   const onRecenterReadyRef = useRef(onRecenterReady);
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
-  const viewModel = useMemo(() => toRideMapViewModel(route), [route]);
+  const viewModel = useMemo(
+    () => toRideMapViewModel(route, overlay),
+    [route, overlay],
+  );
   const viewModelRef = useRef(viewModel);
   const [error, setError] = useState<string | null>(null);
   const hasViewModel = Boolean(viewModel);

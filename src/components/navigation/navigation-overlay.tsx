@@ -35,6 +35,7 @@ export type NavigationOverlayProps = {
   carPlayConnected?: boolean;
   muted: boolean;
   recalcError: RideGenerationError | null;
+  statusLabel?: string | null;
   onMuteToggle: () => void;
   onRecenter: () => void;
   onOverview?: () => void;
@@ -57,6 +58,7 @@ export function NavigationOverlay({
   carPlayConnected = false,
   muted,
   recalcError,
+  statusLabel = null,
   onMuteToggle,
   onRecenter,
   onOverview,
@@ -92,6 +94,11 @@ export function NavigationOverlay({
             <p className="truncate text-sm leading-6 text-primary-foreground/80">
               {instruction}
             </p>
+            {statusLabel ? (
+              <p className="truncate text-sm font-medium leading-6">
+                {statusLabel}
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"

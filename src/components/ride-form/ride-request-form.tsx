@@ -52,7 +52,11 @@ import {
   principalRoadNames,
   routeShareSummary,
 } from "@/domain/ride/route-share";
-import { RIDE_TYPE_LABELS, RIDE_STYLE_LABELS } from "@/domain/ride/summarize-request";
+import {
+  generatedRouteTypeLabel,
+  plannerRideType,
+  RIDE_STYLE_LABELS,
+} from "@/domain/ride/summarize-request";
 import type { NaturalLanguageRideDraft } from "@/domain/ride/parse-natural-language";
 
 const RIDE_TYPES: { value: RideType; label: string; description: string }[] = [
@@ -125,7 +129,12 @@ export type RideRequestFormProps = {
   navigation?: Partial<
     Pick<
       NavigationSessionProps,
-      "locationWatch" | "speech" | "recalculate" | "mapEngine" | "now"
+      | "locationWatch"
+      | "speech"
+      | "recalculate"
+      | "joinRoute"
+      | "mapEngine"
+      | "now"
     >
   >;
   hideMap?: boolean;
@@ -194,10 +203,10 @@ export function RideRequestForm({
       : initialDestination,
   );
   const [type, setType] = useState<RideType>(
-    seed?.request.type ?? initialDraft?.type ?? initialType,
+    plannerRideType(seed?.request.type ?? initialDraft?.type ?? initialType),
   );
   const [targetDistanceKm, setTargetDistanceKm] = useState(
-    seed?.request.targetDistanceKm
+    seed && seed.request.type !== "gpx" && seed.request.targetDistanceKm
       ? String(seed.request.targetDistanceKm)
       : initialDraft?.targetDistanceKm
         ? String(initialDraft.targetDistanceKm)
@@ -888,7 +897,7 @@ export function RideRequestForm({
               <p className="text-sm leading-6">
                 {formatGeneratedDistanceKm(generatedRoute.distanceKm)} ·{" "}
                 {formatGeneratedDuration(generatedRoute.durationMinutes)} ·{" "}
-                {RIDE_TYPE_LABELS[generatedRoute.type]} ·{" "}
+                {generatedRouteTypeLabel(generatedRoute.type)} ·{" "}
                 {RIDE_STYLE_LABELS[generatedRoute.style ?? style]}
               </p>
               {(() => {
@@ -1048,6 +1057,7 @@ export function RideRequestForm({
             locationWatch={locationWatch}
             speech={speechEngine}
             recalculate={navigation?.recalculate}
+            joinRoute={navigation?.joinRoute}
             now={navigation?.now}
             useKnowledgeRouting={useKnowledgeRouting}
             initialMuted={voiceMuted}

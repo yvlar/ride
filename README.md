@@ -48,6 +48,15 @@ Exemple :
 > Distance maximale : 650 km
 > Routes communes : maximum 10 %
 
+### Import GPX
+
+L’utilisateur importe un fichier `.gpx` depuis l’explorateur. Ride prévisualise la trace, calcule le point d’entrée le plus proche de la position actuelle, guide jusqu’à ce point, puis suit la géométrie importée dans son ordre d’origine. Un moteur de routage ne remplace jamais cette trace par un itinéraire plus rapide.
+
+Exemple :
+
+> Fichier : cantons.gpx
+> Navigation : rejoindre le tracé, puis le suivre
+
 ## Paramètres de génération
 
 ### Distance ou durée
@@ -244,7 +253,7 @@ Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste
 
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
-La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Sur le web et l’iPhone, elle exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). La localisation en arrière-plan (permission Always), la navigation hors ligne, Android Auto et l’export GPX restent hors périmètre.
+La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Un fichier GPX importé (`FR-039`) reste la référence : Ride guide d’abord jusqu’au point d’entrée projeté sur la polyligne, puis suit la trace. Sur le web et l’iPhone, la navigation exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). La localisation en arrière-plan (permission Always), la navigation hors ligne, Android Auto et l’export GPX restent hors périmètre.
 
 La coque iOS Capacitor (`FR-027`) encapsule la même application web. Le domaine et les API Next.js ne changent pas. Ce dépôt fournit le projet Xcode dans `ios/` ; la compilation, le simulateur et TestFlight exigent macOS et Xcode. Cet environnement Linux ne produit pas d’IPA.
 

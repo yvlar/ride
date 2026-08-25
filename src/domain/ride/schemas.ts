@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { haversineKm, lineStringLengthKm } from "@/domain/geo/distance";
 import { MIN_DESTINATION_SEPARATION_KM } from "./constants";
+import { DEFAULT_ROUTE_PREFERENCES } from "./stored-route-preferences";
 import {
   isTargetDistanceRequired,
   parseTargetDistanceKm,
@@ -165,13 +166,34 @@ export function parseRoundTripRideRequest(
   };
 }
 
+export const gpxRideRequestSchema = z.object({
+  type: z.literal("gpx"),
+  start: placeSchema,
+  destination: placeSchema,
+  name: z.string().min(1),
+  style: rideStyleSchema.optional(),
+  preferences: routePreferencesSchema.optional(),
+});
+
+export type ParsedGpxRideRequest = z.infer<typeof gpxRideRequestSchema>;
+
+export function parseGpxRideRequest(
+  input: unknown,
+): import("./types").GpxRideRequest {
+  const parsed = gpxRideRequestSchema.parse(input);
+  return {
+    ...parsed,
+    preferences: parsed.preferences ?? { ...DEFAULT_ROUTE_PREFERENCES },
+  };
+}
+
 const lineStringSchema = z.object({
   type: z.literal("LineString"),
   coordinates: z.array(z.tuple([z.number(), z.number()])).min(2),
 });
 
 const previousRouteSchema = z.object({
-  type: z.enum(["loop", "destination", "round_trip"]),
+    type: z.enum(["loop", "destination", "round_trip", "gpx"]),
   geometry: lineStringSchema,
 });
 
@@ -253,7 +275,7 @@ const routeSegmentSnapshotSchema = z.object({
 const generatedRouteSnapshotSchema = z
   .object({
     id: z.string().min(1),
-    type: z.enum(["loop", "destination", "round_trip"]),
+    type: z.enum(["loop", "destination", "round_trip", "gpx"]),
     start: placeSchema,
     destination: placeSchema.optional(),
     style: rideStyleSchema.optional(),

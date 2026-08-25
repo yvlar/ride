@@ -1,5 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { offsetCoordinates } from "@/domain/geo/distance";
+import type { Position } from "@/domain/geo/types";
+import { composeGpxRoute } from "@/domain/gpx/compose";
 import type { LocationWatch, LocationWatchEvent } from "@/domain/location/types";
 import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
@@ -895,6 +898,604 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
           cancelSpeech: false,
         }),
       );
+    });
+  });
+});
+
+describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
+  const origin = { latitude: 45.4, longitude: -72.7 };
+  const east = { latitude: 45.4, longitude: -72.674 }; // ~2 km east
+  const gpxRoute: import("@/domain/gpx/types").GeneratedGpxRoute = {
+    id: "gpx-1",
+    type: "gpx",
+    source: "gpx",
+    name: "Trace Est",
+    start: { label: "Trace Est", coordinates: origin },
+    destination: { label: "Arrivée GPX", coordinates: east },
+    style: "touring",
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [origin.longitude, origin.latitude],
+        [east.longitude, east.latitude],
+      ],
+    },
+    parts: [
+      {
+        type: "LineString",
+        coordinates: [
+          [origin.longitude, origin.latitude],
+          [east.longitude, east.latitude],
+        ],
+      },
+    ],
+    gapBeforeVertex: [],
+    segments: [],
+    steps: [
+      {
+        id: "gpx:depart",
+        maneuverType: "depart",
+        modifier: "straight",
+        location: origin,
+        distanceKm: 2,
+        durationMinutes: 4,
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [east.longitude, east.latitude],
+          ],
+        },
+      },
+      {
+        id: "gpx:arrive",
+        maneuverType: "arrive",
+        modifier: "straight",
+        location: east,
+        distanceKm: 0,
+        durationMinutes: 0,
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [east.longitude, east.latitude],
+          ],
+        },
+      },
+    ],
+    distanceKm: 2,
+    durationMinutes: 4,
+    warnings: [],
+    isClosedLoop: false,
+    trackKind: "track",
+    originalGeometry: {
+      type: "LineString",
+      coordinates: [
+        [origin.longitude, origin.latitude],
+        [east.longitude, east.latitude],
+      ],
+    },
+    originalParts: [
+      {
+        type: "LineString",
+        coordinates: [
+          [origin.longitude, origin.latitude],
+          [east.longitude, east.latitude],
+        ],
+      },
+    ],
+  };
+
+  const gpxRequest: GenerateRideRequest = {
+    type: "gpx",
+    start: gpxRoute.start,
+    destination: gpxRoute.destination,
+    name: gpxRoute.name,
+    style: "touring",
+    preferences: { avoidHighways: false, avoidUnpaved: false },
+  };
+
+  function connectorResult(start: { latitude: number; longitude: number }, dest: { latitude: number; longitude: number }) {
+    const coordinates: Position[] = [
+      [start.longitude, start.latitude],
+      [dest.longitude, dest.latitude],
+    ];
+    return {
+      ok: true as const,
+      route: {
+        geometry: {
+          type: "LineString" as const,
+          coordinates,
+        },
+        segments: [],
+        steps: [
+          {
+            id: "join:1",
+            maneuverType: "continue" as const,
+            modifier: "straight" as const,
+            location: dest,
+            distanceKm: 1,
+            durationMinutes: 2,
+            geometry: {
+              type: "LineString" as const,
+              coordinates,
+            },
+          },
+        ],
+        distanceKm: 1,
+        durationMinutes: 2,
+      },
+    };
+  }
+
+  it("joins from GPS then follows the imported GPX without replacing it", async () => {
+    const { watch, emit } = createWatch();
+    const onRouteChange = vi.fn();
+    const joinRoute = vi.fn(async (input: { start: { latitude: number; longitude: number }; destination: { latitude: number; longitude: number } }) =>
+      connectorResult(input.start, input.destination),
+    );
+    const south = { latitude: 45.385, longitude: -72.7 };
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        onRouteChange={onRouteChange}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        recalculate={async () => ({ ok: true, route: gpxRoute })}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: { coordinates: south, accuracyMeters: 8, recordedAtMs: 1 },
+    });
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    expect(joinRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferences: gpxRequest.preferences,
+      }),
+      expect.any(AbortSignal),
+    );
+    await waitFor(() => {
+      expect(screen.getAllByText("Rejoindre le trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(onRouteChange).not.toHaveBeenCalled();
+
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 6, recordedAtMs: 2 },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(onRouteChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores a delayed GPX join after the rider is already following the imported trace (FR-039, BR-010)", async () => {
+    const { watch, emit } = createWatch();
+    const onRouteChange = vi.fn();
+    const onGpxOverlayChange = vi.fn();
+    let resolveJoin: (() => void) | undefined;
+    const joinRoute = vi.fn(
+      (input: {
+        start: { latitude: number; longitude: number };
+        destination: { latitude: number; longitude: number };
+      }) =>
+        new Promise<ReturnType<typeof connectorResult>>((resolve) => {
+          resolveJoin = () => resolve(connectorResult(input.start, input.destination));
+        }),
+    );
+    const south = { latitude: 45.385, longitude: -72.7 };
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        onRouteChange={onRouteChange}
+        onGpxOverlayChange={onGpxOverlayChange}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        recalculate={async () => ({ ok: true, route: gpxRoute })}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: { coordinates: south, accuracyMeters: 8, recordedAtMs: 1 },
+    });
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Rejoindre le trajet GPX").length).toBeGreaterThan(0);
+    });
+
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 6, recordedAtMs: 2 },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(onRouteChange).not.toHaveBeenCalled();
+
+    expect(resolveJoin).toBeDefined();
+    await act(async () => {
+      resolveJoin!();
+    });
+    expect(screen.queryAllByText("Rejoindre le trajet GPX")).toHaveLength(0);
+    expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    expect(onRouteChange).not.toHaveBeenCalled();
+    const overlayPhases = onGpxOverlayChange.mock.calls.map(
+      (call) => call[0]?.phase ?? null,
+    );
+    expect(overlayPhases.at(-1)).toBe("following_gpx");
+    expect(overlayPhases.includes("joining_gpx")).toBe(true);
+    expect(overlayPhases.lastIndexOf("joining_gpx")).toBeLessThan(
+      overlayPhases.lastIndexOf("following_gpx"),
+    );
+    const lastOverlay = onGpxOverlayChange.mock.calls.at(-1)?.[0];
+    expect(lastOverlay?.connectorGeometry).toBeNull();
+  });
+
+  it("skips the join when the rider is already on the GPX", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => connectorResult(origin, origin));
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 5, recordedAtMs: 1 },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+  });
+
+  it("does not jump remaining GPX at a self-crossing while following (FR-039)", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => connectorResult(origin, origin));
+    const north = offsetCoordinates(origin, 0, 0.4);
+    const east = offsetCoordinates(origin, 90, 0.4);
+    const south = offsetCoordinates(origin, 180, 0.4);
+    const west = offsetCoordinates(origin, 270, 0.4);
+    const crossingRoute = composeGpxRoute({
+      trip: {
+        id: "cross",
+        kind: "track",
+        name: "Croisement",
+        parts: [
+          {
+            points: [north, south, east, west].map((coordinates) => ({
+              coordinates,
+            })),
+          },
+        ],
+      },
+      fileName: "cross.gpx",
+    });
+    render(
+      <NavigationSession
+        route={crossingRoute}
+        request={{
+          type: "gpx",
+          start: crossingRoute.start,
+          destination: crossingRoute.destination,
+          name: crossingRoute.name,
+          style: "touring",
+          preferences: { avoidHighways: false, avoidUnpaved: false },
+        }}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: north,
+        accuracyMeters: 5,
+        headingDeg: 180,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: origin,
+        accuracyMeters: 5,
+        headingDeg: 270,
+        recordedAtMs: 2,
+      },
+    });
+    await waitFor(() => {
+      const remaining = screen.getByText("distance").previousElementSibling;
+      expect(remaining?.textContent).toMatch(/km$/);
+      expect(Number.parseFloat(remaining?.textContent ?? "0")).toBeGreaterThan(
+        1.5,
+      );
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+  });
+
+  it("keeps the GPX when the join engine fails", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        code: "PROVIDER_ERROR" as const,
+        message: "Le raccordement vers le trajet GPX a échoué. Le tracé importé reste affiché.",
+        suggestions: ["Réessayez."],
+      },
+    }));
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.385, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/raccordement/i);
+    });
+    expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
+  });
+
+  it("cancels during joining and stops voice plus in-flight requests", async () => {
+    const { watch, emit } = createWatch();
+    const onStop = vi.fn();
+    const speech = stubSpeech();
+    let abortSeen = false;
+    const joinRoute = vi.fn(
+      async (
+        _input: unknown,
+        signal?: AbortSignal,
+      ) => {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            signal?.addEventListener("abort", () => {
+              abortSeen = true;
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+          });
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return {
+              ok: false as const,
+              error: {
+                code: "STALE_RECALCULATE" as const,
+                message: "Ce raccordement n’est plus d’actualité.",
+                suggestions: [],
+              },
+            };
+          }
+          throw error;
+        }
+        return connectorResult(origin, origin);
+      },
+    );
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={onStop}
+        locationWatch={watch}
+        speech={speech}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.385, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    expect(onStop).toHaveBeenCalled();
+    expect(speech.cancel).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(abortSeen).toBe(true);
+    });
+  });
+
+  it("rejoins ahead after a confirmed GPX departure", async () => {
+    const { watch, emit } = createWatch();
+    let nowMs = 1_000_000;
+    const joinRoute = vi.fn(async (input: { start: { latitude: number; longitude: number }; destination: { latitude: number; longitude: number } }) =>
+      connectorResult(input.start, input.destination),
+    );
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        now={() => nowMs}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 5, recordedAtMs: nowMs },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    joinRoute.mockClear();
+    const farNorth = { latitude: 45.42, longitude: -72.69 };
+    for (let index = 0; index < 4; index += 1) {
+      nowMs += 4_000;
+      emit({
+        type: "fix",
+        fix: {
+          coordinates: farNorth,
+          accuracyMeters: 8,
+          recordedAtMs: nowMs,
+        },
+      });
+    }
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    const dest = joinRoute.mock.calls[0]?.[0]?.destination;
+    expect(dest).toBeDefined();
+    expect(dest!.longitude).toBeGreaterThan(origin.longitude);
+    await waitFor(() => {
+      expect(screen.getAllByText("Hors trajet").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("reads remaining after mid-trace progress then off-route rejoin (FR-039)", async () => {
+    const { watch, emit } = createWatch();
+    let nowMs = 1_000_000;
+    const joinRoute = vi.fn(async (input: { start: { latitude: number; longitude: number }; destination: { latitude: number; longitude: number } }) =>
+      connectorResult(input.start, input.destination),
+    );
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        now={() => nowMs}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: origin,
+        accuracyMeters: 5,
+        headingDeg: 90,
+        recordedAtMs: nowMs,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+
+    const mid = offsetCoordinates(origin, 90, 1);
+    nowMs += 2_000;
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: mid,
+        accuracyMeters: 5,
+        headingDeg: 90,
+        recordedAtMs: nowMs,
+      },
+    });
+
+    let followingRemainingKm = Number.NaN;
+    let followingRemainingMin = Number.NaN;
+    await waitFor(() => {
+      followingRemainingKm = Number.parseFloat(
+        screen.getByText("distance").previousElementSibling?.textContent ?? "",
+      );
+      followingRemainingMin = Number.parseFloat(
+        screen.getByText("restant").previousElementSibling?.textContent ?? "",
+      );
+      expect(followingRemainingKm).toBeGreaterThan(0.4);
+      expect(followingRemainingKm).toBeLessThan(1.6);
+    });
+
+    joinRoute.mockClear();
+    const farNorth = { latitude: 45.42, longitude: -72.69 };
+    for (let index = 0; index < 4; index += 1) {
+      nowMs += 4_000;
+      emit({
+        type: "fix",
+        fix: {
+          coordinates: farNorth,
+          accuracyMeters: 8,
+          recordedAtMs: nowMs,
+        },
+      });
+    }
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Hors trajet").length).toBeGreaterThan(0);
+    });
+    const pendingJoin = joinRoute.mock.results.at(-1)?.value as Promise<unknown>;
+    await act(async () => {
+      await pendingJoin;
+    });
+
+    nowMs += 1_000;
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: farNorth,
+        accuracyMeters: 8,
+        recordedAtMs: nowMs,
+      },
+    });
+
+    await waitFor(() => {
+      const joiningRemainingKm = Number.parseFloat(
+        screen.getByText("distance").previousElementSibling?.textContent ?? "",
+      );
+      const joiningRemainingMin = Number.parseFloat(
+        screen.getByText("restant").previousElementSibling?.textContent ?? "",
+      );
+      const connectorKm = 1;
+      const connectorMin = 2;
+      expect(joiningRemainingKm).toBeGreaterThan(connectorKm);
+      expect(joiningRemainingMin).toBeGreaterThan(connectorMin);
+      // Connector + GPX still ahead after mid-trace, not connector + full follow (~3 km / 6 min).
+      expect(joiningRemainingKm).toBeLessThan(gpxRoute.distanceKm + connectorKm - 0.2);
+      expect(joiningRemainingMin).toBeLessThan(gpxRoute.durationMinutes + connectorMin - 0.5);
+      expect(joiningRemainingKm).toBeCloseTo(followingRemainingKm + connectorKm, 0);
+      expect(joiningRemainingMin).toBeCloseTo(followingRemainingMin + connectorMin, 0);
     });
   });
 });

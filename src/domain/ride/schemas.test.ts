@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   describedOneWayRideRequestSchema,
   parseDestinationRideRequest,
+  parseGpxRideRequest,
   parseLoopRideRequest,
   parseRoundTripRideRequest,
   unsupportedRideTypeMessage,
 } from "./schemas";
+import { DEFAULT_ROUTE_PREFERENCES } from "./stored-route-preferences";
 
 const start = {
   label: "Granby",
@@ -201,5 +203,20 @@ describe("unsupportedRideTypeMessage", () => {
   it("points a misplaced round_trip at the FR-003 generator", () => {
     expect(unsupportedRideTypeMessage("round_trip")).toMatch(/FR-003/);
     expect(unsupportedRideTypeMessage("unknown")).toMatch(/FR-003/);
+  });
+});
+
+describe("parseGpxRideRequest (FR-039)", () => {
+  it("accepts a GPX ride request", () => {
+    const request = parseGpxRideRequest({
+      type: "gpx",
+      start,
+      destination,
+      name: "Cantons",
+      style: "touring",
+    });
+    expect(request.type).toBe("gpx");
+    expect(request.name).toBe("Cantons");
+    expect(request.preferences).toEqual(DEFAULT_ROUTE_PREFERENCES);
   });
 });
