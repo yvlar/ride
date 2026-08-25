@@ -7,6 +7,7 @@ import {
   combinedRemainingKm,
   enterFollowingIfOnTrace,
   gpxStatusLabel,
+  remainingFollowFromProgress,
 } from "./navigation";
 import type { ParsedGpxTrip } from "./types";
 import { FOLLOWING_GPX_MESSAGE, JOINING_GPX_MESSAGE, OFF_GPX_MESSAGE } from "./copy";
@@ -37,6 +38,33 @@ describe("GPX navigation helpers (FR-039)", () => {
 
   it("adds connector remaining to the GPX remaining", () => {
     expect(combinedRemainingKm(0.4, 12)).toBeCloseTo(12.4);
+  });
+
+  it("uses GPX still ahead of progressKm, not the full follow slice (FR-039)", () => {
+    const follow = remainingFollowFromProgress(
+      { distanceKm: 2.03, durationMinutes: 4.06 },
+      0.78,
+    );
+    expect(follow.remainingDistanceKm).toBeCloseTo(1.25, 2);
+    expect(follow.remainingDurationMinutes).toBeCloseTo(2.5, 1);
+    expect(combinedRemainingKm(1, follow.remainingDistanceKm)).toBeCloseTo(
+      2.25,
+      2,
+    );
+    expect(2 + follow.remainingDurationMinutes).toBeCloseTo(4.5, 1);
+  });
+
+  it("keeps the full follow remaining when progressKm is 0 (FR-039)", () => {
+    const follow = remainingFollowFromProgress(
+      { distanceKm: 2.03, durationMinutes: 4.06 },
+      0,
+    );
+    expect(follow.remainingDistanceKm).toBeCloseTo(2.03, 5);
+    expect(follow.remainingDurationMinutes).toBeCloseTo(4.06, 5);
+    expect(combinedRemainingKm(1, follow.remainingDistanceKm)).toBeCloseTo(
+      3.03,
+      2,
+    );
   });
 
   it("switches from joining to following once the rider is on the trace", () => {

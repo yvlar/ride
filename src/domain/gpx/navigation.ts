@@ -99,6 +99,27 @@ export function combinedRemainingKm(
   return Math.max(0, connectorRemainingKm) + Math.max(0, followRemainingKm);
 }
 
+/**
+ * GPX still ahead of `progressKm` on the unsliced follow geometry.
+ * Joining remaining must add this, not the full follow slice (FR-039).
+ * When progressKm is 0 (initial join), this equals the follow totals.
+ */
+export function remainingFollowFromProgress(
+  followRoute: Pick<GeneratedGpxRoute, "distanceKm" | "durationMinutes">,
+  progressKm: number,
+): { remainingDistanceKm: number; remainingDurationMinutes: number } {
+  const remainingDistanceKm = Math.max(0, followRoute.distanceKm - progressKm);
+  const remainingDurationMinutes =
+    followRoute.distanceKm > 0
+      ? Math.max(
+          0,
+          followRoute.durationMinutes *
+            (remainingDistanceKm / followRoute.distanceKm),
+        )
+      : 0;
+  return { remainingDistanceKm, remainingDurationMinutes };
+}
+
 export function beginGpxFromFix(
   original: GeneratedGpxRoute,
   fix: LocationFix,

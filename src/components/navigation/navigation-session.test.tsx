@@ -1487,21 +1487,15 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
       const joiningRemainingMin = Number.parseFloat(
         screen.getByText("restant").previousElementSibling?.textContent ?? "",
       );
-      expect(joiningRemainingKm).toBeGreaterThan(0);
-      expect(joiningRemainingMin).toBeGreaterThan(0);
-      expect({
-        followingRemainingKm,
-        followingRemainingMin,
-        joiningRemainingKm,
-        joiningRemainingMin,
-        connectorKm: 1,
-        connectorMin: 2,
-      }).toEqual(
-        expect.objectContaining({
-          followingRemainingKm: expect.any(Number),
-          joiningRemainingKm: expect.any(Number),
-        }),
-      );
+      const connectorKm = 1;
+      const connectorMin = 2;
+      expect(joiningRemainingKm).toBeGreaterThan(connectorKm);
+      expect(joiningRemainingMin).toBeGreaterThan(connectorMin);
+      // Connector + GPX still ahead after mid-trace, not connector + full follow (~3 km / 6 min).
+      expect(joiningRemainingKm).toBeLessThan(gpxRoute.distanceKm + connectorKm - 0.2);
+      expect(joiningRemainingMin).toBeLessThan(gpxRoute.durationMinutes + connectorMin - 0.5);
+      expect(joiningRemainingKm).toBeCloseTo(followingRemainingKm + connectorKm, 0);
+      expect(joiningRemainingMin).toBeCloseTo(followingRemainingMin + connectorMin, 0);
     });
   });
 });

@@ -64,6 +64,7 @@ import {
   gpxStatusLabel,
   liveRuntimeFromOriginal,
   markGpxCompleted,
+  remainingFollowFromProgress,
   type LiveGpxRuntime,
 } from "@/domain/gpx/navigation";
 import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
@@ -819,12 +820,17 @@ export function NavigationSession({
         if (!evaluated) {
           return;
         }
+        const followRemaining = remainingFollowFromProgress(
+          runtime.followRoute,
+          runtime.progressKm,
+        );
         const remainingKm = combinedRemainingKm(
           evaluated.remainingDistanceKm,
-          runtime.followRoute.distanceKm,
+          followRemaining.remainingDistanceKm,
         );
         const remainingMin =
-          evaluated.remainingDurationMinutes + runtime.followRoute.durationMinutes;
+          evaluated.remainingDurationMinutes +
+          followRemaining.remainingDurationMinutes;
         // #region agent log
         agentDebugLog("H2", "navigation-session.tsx:applyGpxFix:joiningRemaining", "joining remaining uses full followRoute", {
           phase: runtime.phase,
@@ -837,6 +843,18 @@ export function NavigationSession({
           combinedRemainingKm: remainingKm,
           combinedRemainingMin: remainingMin,
           followAheadKm: Math.max(0, runtime.followRoute.distanceKm - runtime.progressKm),
+          joinKind: runtime.offRoute && runtime.progressKm > 0 ? "rejoin" : "initial_join",
+        });
+        // #endregion
+        // #region agent log
+        agentDebugLog("H2", "navigation-session.tsx:applyGpxFix:joiningRemainingFixed", "joining remaining uses GPX still ahead of progressKm", {
+          runId: "post-fix",
+          phase: runtime.phase,
+          progressKm: runtime.progressKm,
+          followAheadKm: followRemaining.remainingDistanceKm,
+          followAheadMin: followRemaining.remainingDurationMinutes,
+          combinedRemainingKm: remainingKm,
+          combinedRemainingMin: remainingMin,
           joinKind: runtime.offRoute && runtime.progressKm > 0 ? "rejoin" : "initial_join",
         });
         // #endregion
