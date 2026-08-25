@@ -155,7 +155,7 @@ export class OpenAiWebSearchProvider implements WebSearchProvider {
         {
           type: "vercel:exa_search",
           config: {
-            query: queries[0],
+            query: queries.join(" | "),
             type: "fast",
             num_results: 8,
           },

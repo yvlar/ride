@@ -134,6 +134,8 @@ describe("OpenAiWebSearchProvider (FR-034)", () => {
     };
     expect(body.tools[0]?.type).toBe("vercel:exa_search");
     expect(body.tools[0]?.config?.query).toMatch(/motorcycle/);
+    expect(body.tools[0]?.config?.query).toMatch(/closures/);
+    expect(body.tools[0]?.config?.query).toMatch(/\|/);
     expect(body.tool_choice).toBe("required");
   });
 
