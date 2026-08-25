@@ -22,8 +22,8 @@ describe("Home explorer (FR-014, FR-031)", () => {
       screen.getByRole("button", { name: "Rechercher une destination" }),
     ).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: "Créer une boucle moto" }),
-    ).toBeEnabled();
+      screen.queryByRole("button", { name: "Créer une boucle moto" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Décrire mon trajet" }),
     ).toBeEnabled();
@@ -36,26 +36,22 @@ describe("Home explorer (FR-014, FR-031)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens the composition flow from Créer une boucle (FR-014, NFR-001, NFR-002)", () => {
+  it("opens destination search instead of a dedicated loop action (FR-014, FR-031, FR-032)", () => {
     renderHome();
-    fireEvent.click(screen.getByRole("button", { name: "Créer une boucle moto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechercher une destination" }));
 
+    expect(screen.getByRole("combobox", { name: "Destination" })).toBeEnabled();
     expect(
-      screen.getByRole("combobox", { name: "Point de départ" }),
-    ).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Ma position" })).toBeEnabled();
-    expect(screen.getByRole("radio", { name: /Boucle/ })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Distance cible \(km\)/)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Routes sinueuses" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Panoramique" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Équilibré" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeInTheDocument();
-    expect(screen.getByLabelText("Canada seulement")).toBeInTheDocument();
-    expect(screen.getByLabelText("Corridors RAG")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Générer ma ride" })).toBeEnabled();
-    expect(document.querySelector("select")).toBeNull();
-    expect(screen.getByRole("button", { name: /Rapide/ })).toBeDisabled();
-    expect(screen.getByLabelText("Éviter les péages")).toBeDisabled();
+      screen.queryByRole("button", { name: "Créer une boucle moto" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("exposes Boucle in Décrire mon trajet, not on the explorer (FR-034)", async () => {
+    renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    expect(await screen.findByLabelText("Boucle")).toBeChecked();
+    fireEvent.click(screen.getByLabelText("Boucle"));
+    expect(screen.getByLabelText("Boucle")).not.toBeChecked();
   });
 
   it("exposes route preferences in Réglages, not in Décrire mon trajet (FR-031, FR-034)", () => {

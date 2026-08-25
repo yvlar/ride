@@ -91,6 +91,52 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(JSON.stringify(result.route)).not.toMatch(/api\.tavily\.com/);
   });
 
+  it("routes a one-way when returnToStart is false (FR-034, FR-002)", async () => {
+    const search = fakeSearch();
+    const vias = [
+      offsetCoordinates(GRANBY.coordinates, 90, 40),
+      offsetCoordinates(GRANBY.coordinates, 90, 78),
+    ];
+    const planner: AiRidePlanner = {
+      async planLoop() {
+        return { viaPoints: vias, roads: [], pointsOfInterest: [] };
+      },
+    };
+    const planSpy = vi.spyOn(planner, "planLoop");
+    const routing = new MockRoutingProvider();
+    const routeSpy = vi.spyOn(routing, "calculateRoute");
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        style: "scenic",
+        preferences: { avoidHighways: true, avoidUnpaved: true },
+        useAiWebGeneration: true,
+        returnToStart: false,
+      },
+      routing,
+      undefined,
+      { webSearch: search, planner },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.type).toBe("destination");
+    expect(planSpy.mock.calls[0]?.[0].returnToStart).toBe(false);
+    expect(routeSpy.mock.calls[0]?.[0].destination).toEqual(vias[1]);
+    expect(routeSpy.mock.calls[0]?.[0].destination).not.toEqual(
+      GRANBY.coordinates,
+    );
+    if (result.route.type !== "destination") {
+      throw new Error("expected a destination route");
+    }
+    expect(result.route.destination.label).toBe("Arrivée proposée");
+  });
+
   it("does not fall back to geometric loop seeds when AI is required", async () => {
     const geometric = createLoopWaypointSets(GRANBY.coordinates, 80);
     const routing = new MockRoutingProvider();

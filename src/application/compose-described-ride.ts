@@ -7,9 +7,15 @@ import {
 } from "@/domain/ride/describe-distance";
 import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
 import type { Place } from "@/domain/geo/types";
-import type { RideStyle, RoutePreferences } from "@/domain/ride/types";
+import type {
+  GenerateRideRequest,
+  GeneratedRideRoute,
+  RideStyle,
+  RoutePreferences,
+} from "@/domain/ride/types";
 
 export const DESCRIBE_START_LABEL = "Position actuelle";
+export const DESCRIBE_ARRIVAL_LABEL = "Arrivée proposée";
 
 export const DESCRIBE_DEFAULT_PREFERENCES = DEFAULT_ROUTE_PREFERENCES;
 
@@ -73,4 +79,41 @@ export function describedStartPlace(coordinates: Place["coordinates"]): Place {
     label: DESCRIBE_START_LABEL,
     coordinates,
   };
+}
+
+export function describedArrivalPlace(coordinates: Place["coordinates"]): Place {
+  return {
+    label: DESCRIBE_ARRIVAL_LABEL,
+    coordinates,
+  };
+}
+
+/**
+ * FR-034 — persist the request that matches the generated geometry:
+ * a loop, or a one-way whose arrival was chosen by the planner.
+ */
+export function describedRequestFromGeneratedRoute(
+  route: GeneratedRideRoute,
+  preferences: RoutePreferences,
+): GenerateRideRequest | null {
+  if (route.type === "loop") {
+    return {
+      type: "loop",
+      start: route.start,
+      targetDistanceKm: route.targetDistanceKm,
+      style: route.style,
+      preferences,
+    };
+  }
+  if (route.type === "destination") {
+    return {
+      type: "destination",
+      start: route.start,
+      destination: route.destination,
+      targetDistanceKm: route.targetDistanceKm,
+      style: route.style,
+      preferences,
+    };
+  }
+  return null;
 }

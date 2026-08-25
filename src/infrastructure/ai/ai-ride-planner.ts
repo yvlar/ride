@@ -10,6 +10,8 @@ export type AiRidePlanInput = {
   preferences?: RoutePreferences;
   previousRouteSignature?: string;
   searchHits: WebSearchHit[];
+  /** FR-034 — false plans a one-way of the requested distance. */
+  returnToStart?: boolean;
 };
 
 export type AiRidePlan = {

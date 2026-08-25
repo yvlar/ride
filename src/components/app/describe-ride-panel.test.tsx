@@ -6,6 +6,7 @@ import {
 } from "./describe-ride-panel";
 import { CurrentPositionError } from "@/components/ride-form/browser-geolocation";
 import { DESCRIBE_DISTANCE_STORAGE_KEY } from "@/domain/ride/describe-distance";
+import { DESCRIBE_LOOP_STORAGE_KEY } from "@/domain/ride/describe-loop";
 import {
   ROUTE_PREFERENCES_STORAGE_KEY,
   writeStoredRoutePreferences,
@@ -55,6 +56,7 @@ const located = {
 
 function renderPanel(overrides: Partial<DescribeRidePanelProps> = {}) {
   window.localStorage.removeItem(DESCRIBE_DISTANCE_STORAGE_KEY);
+  window.localStorage.removeItem(DESCRIBE_LOOP_STORAGE_KEY);
   window.localStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
   return render(
     <DescribeRidePanel
@@ -79,6 +81,7 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(slider).toHaveAttribute("aria-valuemax", "500");
     expect(slider).toHaveAttribute("aria-valuenow", "100");
     expect(screen.getByText("100 km")).toBeInTheDocument();
+    expect(screen.getByLabelText("Boucle")).toBeChecked();
     expect(screen.queryByLabelText("Point de départ")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ma position" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Durée disponible/)).not.toBeInTheDocument();
@@ -161,6 +164,7 @@ describe("DescribeRidePanel (FR-034)", () => {
       expect.objectContaining({
         useAiWebGeneration: true,
         originAccuracyMeters: 8,
+        returnToStart: true,
       }),
     );
     expect(screen.getByText(/98\.2 km/)).toBeInTheDocument();
@@ -190,6 +194,28 @@ describe("DescribeRidePanel (FR-034)", () => {
           },
         }),
         expect.objectContaining({ useAiWebGeneration: true }),
+      );
+    });
+  });
+
+  it("sends returnToStart false when Boucle is off (FR-034)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    renderPanel({ generateRide });
+    await screen.findByText("Position détectée");
+    fireEvent.click(screen.getByLabelText("Boucle"));
+    expect(screen.getByLabelText("Boucle")).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "loop" }),
+        expect.objectContaining({
+          useAiWebGeneration: true,
+          returnToStart: false,
+        }),
       );
     });
   });
@@ -258,6 +284,7 @@ describe("DescribeRidePanel (FR-034)", () => {
         expect.objectContaining({
           useAiWebGeneration: true,
           previousRouteSignature: expect.any(String),
+          returnToStart: true,
         }),
       );
     });

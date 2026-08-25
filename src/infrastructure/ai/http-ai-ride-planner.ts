@@ -28,7 +28,7 @@ const planSchema = z.object({
   pointsOfInterest: z.array(z.string()).optional(),
 });
 
-const SYSTEM_PROMPT =
+const LOOP_SYSTEM_PROMPT =
   "You plan motorcycle loop via-points from web search notes. " +
   "Return JSON {\"viaPoints\":[{\"latitude\":number,\"longitude\":number}]," +
   "\"roads\":[string],\"pointsOfInterest\":[string]}. " +
@@ -38,6 +38,21 @@ const SYSTEM_PROMPT =
   "Prefer scenic or twisty public roads. Honor avoid-highway and paved-only " +
   "preferences. Skip private, closed, or inaccessible roads mentioned in the notes. " +
   "If a previous signature is provided, pick a clearly different corridor.";
+
+const ONE_WAY_SYSTEM_PROMPT =
+  "You plan motorcycle one-way via-points from web search notes. " +
+  "Return JSON {\"viaPoints\":[{\"latitude\":number,\"longitude\":number}]," +
+  "\"roads\":[string],\"pointsOfInterest\":[string]}. " +
+  "Select 3 to 6 via-points on real roads so a road-network router can build a " +
+  "one-way ride near the requested distance. The last via-point is the arrival. " +
+  "Do not return to the origin. Do not emit a route geometry, GeoJSON, or encoded polyline. " +
+  "Prefer scenic or twisty public roads. Honor avoid-highway and paved-only " +
+  "preferences. Skip private, closed, or inaccessible roads mentioned in the notes. " +
+  "If a previous signature is provided, pick a clearly different corridor.";
+
+function systemPromptFor(returnToStart: boolean): string {
+  return returnToStart ? LOOP_SYSTEM_PROMPT : ONE_WAY_SYSTEM_PROMPT;
+}
 
 export class HttpAiRidePlanner implements AiRidePlanner {
   private readonly client: ChatCompletionsClient;
@@ -53,7 +68,7 @@ export class HttpAiRidePlanner implements AiRidePlanner {
       const content = await this.client.complete({
         model: this.model,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPromptFor(input.returnToStart !== false) },
           { role: "user", content: buildAiRidePlanUserMessage(input) },
         ],
         temperature: 0.4,
@@ -83,6 +98,7 @@ export function buildAiRidePlanUserMessage(input: AiRidePlanInput): string {
       avoidUnpaved: true,
     },
     previousRouteSignature: input.previousRouteSignature ?? null,
+    returnToStart: input.returnToStart !== false,
     searchHits: input.searchHits,
   })}`;
 }

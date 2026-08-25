@@ -3,6 +3,7 @@ import {
   isAiWebGenerationRequested,
   readOriginAccuracyMeters,
   readPreviousRouteSignature,
+  readReturnToStart,
 } from "./ai-web-generation";
 
 describe("ai-web-generation transport flags (FR-034)", () => {
@@ -28,5 +29,14 @@ describe("ai-web-generation transport flags (FR-034)", () => {
     expect(
       readPreviousRouteSignature({ previousRouteSignature: "route-1:3:ab" }),
     ).toBe("route-1:3:ab");
+  });
+
+  it("defaults returnToStart to a loop and honors an explicit false (FR-034)", () => {
+    expect(readReturnToStart({ type: "loop" })).toBe(true);
+    expect(readReturnToStart({ returnToStart: true })).toBe(true);
+    expect(readReturnToStart({ returnToStart: false })).toBe(false);
+    expect(
+      readReturnToStart({ request: { type: "loop", returnToStart: false } }),
+    ).toBe(false);
   });
 });

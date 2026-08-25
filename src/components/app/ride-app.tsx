@@ -464,15 +464,6 @@ export function RideApp(props: RideRequestFormProps) {
                     variant="outline"
                     size="lg"
                     className="min-h-12 w-full text-base"
-                    onClick={() => openPlanner({ type: "loop" })}
-                  >
-                    Créer une boucle moto
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
                     onClick={() => setSheet("describe")}
                   >
                     Décrire mon trajet

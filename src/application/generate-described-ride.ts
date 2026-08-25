@@ -12,12 +12,18 @@ import {
 } from "@/infrastructure/search/web-search-error";
 import type { WebSearchProvider } from "@/infrastructure/search/web-search-provider";
 import { haversineKm } from "@/domain/geo/distance";
+import { lastCoordinates } from "@/domain/geo/geometry";
 import type { Coordinates } from "@/domain/geo/types";
+import { DESCRIBE_ARRIVAL_LABEL } from "@/application/compose-described-ride";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
   DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
   isDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
+import {
+  evaluateDestinationCandidate,
+  selectBestDestinationCandidate,
+} from "@/domain/ride/destination";
 import {
   evaluateLoopCandidate,
   selectBestLoopCandidate,
@@ -32,6 +38,8 @@ import {
   unsupportedRideTypeMessage,
 } from "@/domain/ride/schemas";
 import type {
+  DestinationCandidate,
+  GeneratedDestinationRoute,
   GeneratedLoopRoute,
   LoopCandidate,
   LoopRideRequest,
@@ -44,6 +52,7 @@ import type { RoutingProvider } from "@/infrastructure/routing/routing-provider"
 import {
   readOriginAccuracyMeters,
   readPreviousRouteSignature,
+  readReturnToStart,
 } from "./ai-web-generation";
 import {
   applyHardRoutePreferences,
@@ -67,7 +76,7 @@ export type GenerateDescribedRideDeps = {
 };
 
 export type GenerateDescribedRideResult =
-  | { ok: true; route: GeneratedLoopRoute }
+  | { ok: true; route: GeneratedLoopRoute | GeneratedDestinationRoute }
   | { ok: false; error: RideGenerationError };
 
 /**
@@ -166,6 +175,8 @@ export async function generateDescribedRide(
     return { ok: false, error: describedWebSearchError(error) };
   }
 
+  const returnToStart = readReturnToStart(input);
+
   let plan;
   try {
     plan = await planner.planLoop({
@@ -180,6 +191,7 @@ export async function generateDescribedRide(
           ? previousRideSignature({ geometry: options.previousGeometry })
           : undefined),
       searchHits,
+      returnToStart,
     });
   } catch (error) {
     return { ok: false, error: describedAiError(error) };
@@ -189,8 +201,9 @@ export async function generateDescribedRide(
     request.start.coordinates,
     request.targetDistanceKm,
     plan.viaPoints,
+    { returnToStart },
   );
-  if (viaPoints.length < 2) {
+  if (viaPoints.length < (returnToStart ? 2 : 1)) {
     return {
       ok: false,
       error: {
@@ -201,6 +214,9 @@ export async function generateDescribedRide(
     };
   }
 
+  if (!returnToStart) {
+    return routeDescribedOneWay(request, provider, viaPoints, options);
+  }
   return routeDescribedLoop(request, provider, viaPoints, options);
 }
 
@@ -369,12 +385,189 @@ async function routeDescribedLoop(
   return { ok: true, route };
 }
 
+async function routeDescribedOneWay(
+  request: LoopRideRequest,
+  routingProvider: RoutingProvider,
+  viaPoints: Coordinates[],
+  options?: RideGenerationOptions,
+): Promise<GenerateDescribedRideResult> {
+  const targetDistanceKm = request.targetDistanceKm;
+  if (targetDistanceKm === undefined) {
+    return {
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
+        suggestions: ["Choisissez une distance entre 20 km et 500 km."],
+      },
+    };
+  }
+
+  const destination = viaPoints[viaPoints.length - 1];
+  if (!destination) {
+    return {
+      ok: false,
+      error: {
+        code: "NO_ROUTE_FOUND",
+        message: NO_VALID_DESCRIBED_RIDE_MESSAGE,
+        suggestions: ["Réessayez.", "Modifiez la distance demandée."],
+      },
+    };
+  }
+  const inbound = viaPoints.slice(0, -1);
+  const waypointSets = [inbound, [...inbound].reverse()];
+  const style = request.style ?? "scenic";
+  const settled = await Promise.allSettled(
+    waypointSets.map(async (waypoints) => {
+      const result = applyHardRoutePreferences(
+        await routingProvider.calculateRoute({
+          start: request.start.coordinates,
+          destination,
+          waypoints,
+          style,
+          preferences: request.preferences,
+        }),
+        request.preferences,
+      );
+      const candidate: DestinationCandidate = {
+        geometry: result.geometry,
+        segments: result.segments,
+        steps: result.steps ?? [],
+        distanceKm: result.distanceKm,
+        durationMinutes: result.durationMinutes,
+        waypoints,
+      };
+      return evaluateDestinationCandidate(
+        request.start.coordinates,
+        destination,
+        candidate,
+        {
+          targetDistanceKm,
+          shortestDistanceKm: result.distanceKm,
+        },
+      );
+    }),
+  );
+
+  const evaluations = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+
+  if (evaluations.length === 0) {
+    return {
+      ok: false,
+      error: describedRoutingExhausted(settled),
+    };
+  }
+
+  const selectable = options?.previousGeometry
+    ? excludeSimilarToPrevious(
+        evaluations,
+        options.previousGeometry,
+        (evaluation) => evaluation.candidate.geometry,
+      )
+    : evaluations;
+
+  const selection = selectBestDestinationCandidate(
+    selectable,
+    style,
+    targetDistanceKm,
+    request.preferences?.avoidHighways === true,
+    request.preferences?.avoidUnpaved === true,
+    request.preferences?.stayInCanada === true,
+  );
+  if (
+    lostOnlyToPreviousCorridor(
+      options?.previousGeometry,
+      selection.status,
+      selectBestDestinationCandidate(
+        evaluations,
+        style,
+        targetDistanceKm,
+        request.preferences?.avoidHighways === true,
+        request.preferences?.avoidUnpaved === true,
+        request.preferences?.stayInCanada === true,
+      ).status,
+    )
+  ) {
+    return { ok: false, error: regenerationOverlapError() };
+  }
+
+  const knowledge = primaryKnowledgeError(settled);
+
+  if (selection.status === "known_unpaved_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(unpavedKnowledgeError()),
+    };
+  }
+  if (selection.status === "canada_only_rejected") {
+    return {
+      ok: false,
+      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
+    };
+  }
+  if (selection.status === "no_route_found") {
+    return {
+      ok: false,
+      error: {
+        code: "NO_ROUTE_FOUND",
+        message: NO_VALID_DESCRIBED_RIDE_MESSAGE,
+        suggestions: ["Réessayez.", "Modifiez la distance demandée."],
+      },
+    };
+  }
+  if (selection.status === "distance_out_of_tolerance") {
+    const best = selection.evaluation;
+    return {
+      ok: false,
+      error: withKnowledgeConstraint(
+        {
+          code: "DISTANCE_OUT_OF_TOLERANCE",
+          message: `Aucun trajet ne respecte ±10 % de ${targetDistanceKm.toFixed(0)} km (BR-001). Le meilleur candidat fait ${best.candidate.distanceKm.toFixed(1)} km.`,
+          suggestions: ["Ajustez la distance cible.", "Réessayez."],
+          bestCandidate: {
+            distanceKm: best.candidate.distanceKm,
+          },
+        },
+        knowledge,
+      ),
+    };
+  }
+
+  const evaluation = selection.evaluation;
+  const arrival =
+    lastCoordinates(evaluation.candidate.geometry) ?? destination;
+  const route: GeneratedDestinationRoute = {
+    id: crypto.randomUUID(),
+    type: "destination",
+    start: request.start,
+    destination: {
+      label: DESCRIBE_ARRIVAL_LABEL,
+      coordinates: arrival,
+    },
+    style,
+    targetDistanceKm,
+    geometry: evaluation.candidate.geometry,
+    segments: evaluation.candidate.segments,
+    steps: evaluation.candidate.steps ?? [],
+    distanceKm: evaluation.candidate.distanceKm,
+    durationMinutes: evaluation.candidate.durationMinutes,
+    warnings: evaluation.warnings,
+  };
+  return { ok: true, route };
+}
+
 export function filterViaPoints(
   origin: Coordinates,
   targetDistanceKm: number,
   points: Coordinates[],
+  options: { returnToStart?: boolean } = {},
 ): Coordinates[] {
-  const maxRadiusKm = targetDistanceKm * 0.55;
+  const returnToStart = options.returnToStart !== false;
+  const maxRadiusKm = returnToStart
+    ? targetDistanceKm * 0.55
+    : targetDistanceKm * 1.1;
   const minRadiusKm = Math.max(1, targetDistanceKm * 0.04);
   const filtered: Coordinates[] = [];
   for (const point of points) {

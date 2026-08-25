@@ -714,13 +714,13 @@ L’explorateur montre d’abord :
 
 - « Où veux-tu rouler ? »;
 - l’état de la position (sans demander le GPS tout seul sur l’accueil, `FR-017`);
-- Rechercher une destination, Créer une boucle moto, Décrire mon trajet;
+- Rechercher une destination, Décrire mon trajet;
 - Reprendre la navigation, s’il existe un trajet en mémoire;
 - les destinations récentes et les trajets favoris (`FR-035`).
 
 **Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Le flux **Décrire mon trajet** (`FR-034`) les lit à la génération et ne les affiche pas dans son panneau.
 
-**Décrire mon trajet** reste dans cette vue carte (`FR-034`) : l’utilisateur choisit une distance, le système obtient la position actuelle, puis l’IA génère le tracé sur la carte déjà visible, sans ouvrir l’écran de composition (`FR-014`).
+**Décrire mon trajet** reste dans cette vue carte (`FR-034`) : l’utilisateur choisit une distance et active ou non **Boucle**, le système obtient la position actuelle, puis l’IA génère le tracé sur la carte déjà visible, sans ouvrir l’écran de composition (`FR-014`). Il n’y a plus d’action explorateur distincte « Créer une boucle moto ».
 
 Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive dans un panneau inférieur. Les zones tactiles visent au moins 44 × 44 pt (`NFR-001`, `NFR-006`). La langue d’interface du MVP est le français canadien ; les chaînes restent extractibles pour une localisation anglaise future.
 
@@ -736,7 +736,12 @@ Avant **Démarrer** (`FR-023`), l’utilisateur voit au minimum : destination ou
 
 ### FR-034 — Génération IA depuis la position (Décrire mon trajet)
 
-Le flux **Décrire mon trajet** produit une **boucle moto** à partir de la position actuelle et d’une distance choisie. Il ne s’agit pas d’une recommandation de sorties hors demande : chaque génération calcule un trajet à la demande (`FR-011`), distinct de l’option facultative `FR-029` du formulaire de composition.
+Le flux **Décrire mon trajet** produit un trajet moto à partir de la position actuelle et d’une distance choisie. L’utilisateur active ou non **Boucle** :
+
+- **Boucle activée** (défaut) : le tracé revient au départ (`FR-001`);
+- **Boucle désactivée** : trajet aller de la distance demandée, sans retour au départ ; l’IA choisit l’arrivée (ce n’est pas une destination saisie par l’utilisateur, `FR-018`).
+
+Il ne s’agit pas d’une recommandation de sorties hors demande : chaque génération calcule un trajet à la demande (`FR-011`), distinct de l’option facultative `FR-029` du formulaire de composition. L’état de **Boucle** est conservé sur l’appareil.
 
 Ce flux ne propose **pas** :
 
@@ -744,7 +749,8 @@ Ce flux ne propose **pas** :
 - de bouton « Ma position »;
 - de sélection par durée (`FR-010`) : aucune durée souhaitée n’est envoyée;
 - de génération aléatoire ou non assistée par l’IA (pas de repli silencieux vers `createLoopWaypointSets` ni vers un fournisseur sans IA);
-- des interrupteurs « Éviter les autoroutes », « Éviter les routes non pavées » ou « Canada seulement » : ces options se règlent dans **Réglages** (`FR-031`) et sont lues à la génération.
+- des interrupteurs « Éviter les autoroutes », « Éviter les routes non pavées » ou « Canada seulement » : ces options se règlent dans **Réglages** (`FR-031`) et sont lues à la génération;
+- d’une action explorateur séparée « Créer une boucle moto ».
 
 #### Distance
 
@@ -771,6 +777,7 @@ Si le navigateur exige une interaction, la permission est demandée automatiquem
 - latitude et longitude actuelles;
 - précision de la localisation, lorsqu’elle est connue;
 - distance demandée;
+- si le trajet doit revenir au départ (**Boucle**) ou non;
 - préférences moto encore applicables (`FR-007`, `FR-008`, `FR-030`, style du domaine s’il est encore fourni);
 - lors d’une régénération, l’identifiant ou la signature du trajet précédent (`BR-006`).
 
@@ -783,7 +790,8 @@ L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corrido
 - calcule un trajet qui suit le réseau;
 - produit géométrie, manœuvres et instructions;
 - vise la distance demandée selon `BR-001` (±10 %);
-- retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`).
+- si **Boucle** est activée, retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`);
+- si **Boucle** est désactivée, retourne un aller qui commence près de la position actuelle et s’arrête à l’arrivée choisie, sans refermer la boucle.
 
 Si l’IA, la recherche Web ou le moteur de routage est indisponible, le système affiche une erreur claire et **Réessayer**. Il ne bascule pas silencieusement vers un générateur non-IA.
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   composeDescribedRide,
+  describedRequestFromGeneratedRoute,
   describedStartPlace,
 } from "@/application/compose-described-ride";
 import { DescribeDistanceSlider } from "@/components/app/describe-distance-slider";
@@ -29,6 +30,10 @@ import {
   snapDescribeDistanceKm,
   writeStoredDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
+import {
+  readStoredDescribeLoop,
+  writeStoredDescribeLoop,
+} from "@/domain/ride/describe-loop";
 import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
@@ -104,6 +109,11 @@ export function DescribeRidePanel({
       typeof window === "undefined" ? null : window.localStorage,
     ),
   );
+  const [returnToStart, setReturnToStart] = useState(() =>
+    readStoredDescribeLoop(
+      typeof window === "undefined" ? null : window.localStorage,
+    ),
+  );
   const [start, setStart] = useState<Place | null>(null);
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null);
   const [locationStatus, setLocationStatus] =
@@ -142,6 +152,14 @@ export function DescribeRidePanel({
     writeStoredDescribeDistanceKm(
       typeof window === "undefined" ? null : window.localStorage,
       snapped,
+    );
+  }
+
+  function persistLoop(next: boolean) {
+    setReturnToStart(next);
+    writeStoredDescribeLoop(
+      typeof window === "undefined" ? null : window.localStorage,
+      next,
     );
   }
 
@@ -218,13 +236,21 @@ export function DescribeRidePanel({
       const generated = await generateRide(composed.request, {
         useAiWebGeneration: true,
         originAccuracyMeters: located.accuracyMeters,
+        returnToStart,
       });
       if (generationId.current !== requestId) {
         return;
       }
       if (generated.ok) {
-        setComposedRequest(composed.request);
-        onRequestComposed(composed.request);
+        const persisted =
+          generated.route.type === "destination"
+            ? describedRequestFromGeneratedRoute(
+                generated.route,
+                composed.request.preferences ?? preferences,
+              ) ?? composed.request
+            : composed.request;
+        setComposedRequest(persisted);
+        onRequestComposed(persisted);
         setDisplayedRoute(generated.route);
         onGeneratedRouteChange(generated.route);
         return;
@@ -263,17 +289,26 @@ export function DescribeRidePanel({
         retryActionRef.current = "regenerate";
         return;
       }
-      const request = {
-        ...composedRequest,
+      const preferences = readStoredRoutePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+      );
+      const composed = composeDescribedRide({
         start: located.start,
         targetDistanceKm: distanceKm,
-        preferences: readStoredRoutePreferences(
-          typeof window === "undefined" ? null : window.localStorage,
-        ),
-      };
-      const generated = await regenerateRide(request, activeRoute, {
+        preferences,
+      });
+      if (!composed.ok) {
+        setGenerationError({
+          code: "VALIDATION_ERROR",
+          message: composed.errors[0]?.message ?? "La demande est invalide.",
+          suggestions: ["Réessayez."],
+        });
+        return;
+      }
+      const generated = await regenerateRide(composed.request, activeRoute, {
         useAiWebGeneration: true,
         originAccuracyMeters: located.accuracyMeters,
+        returnToStart,
         previousRouteSignature: previousRideSignature({
           id: activeRoute.id,
           geometry: activeRoute.geometry,
@@ -283,8 +318,15 @@ export function DescribeRidePanel({
         return;
       }
       if (generated.ok) {
-        setComposedRequest(request);
-        onRequestComposed(request);
+        const persisted =
+          generated.route.type === "destination"
+            ? describedRequestFromGeneratedRoute(
+                generated.route,
+                composed.request.preferences ?? preferences,
+              ) ?? composed.request
+            : composed.request;
+        setComposedRequest(persisted);
+        onRequestComposed(persisted);
         setDisplayedRoute(generated.route);
         onGeneratedRouteChange(generated.route);
         return;
@@ -336,6 +378,21 @@ export function DescribeRidePanel({
           value={distanceKm}
           disabled={busy}
           onChange={persistDistance}
+        />
+      </div>
+
+      <div className="mt-3 flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+        <div>
+          <Label htmlFor="describe-loop" className="text-base">
+            Boucle
+          </Label>
+          <p className="text-sm text-muted-foreground">Revenir au départ</p>
+        </div>
+        <Switch
+          id="describe-loop"
+          checked={returnToStart}
+          disabled={busy}
+          onCheckedChange={persistLoop}
         />
       </div>
 

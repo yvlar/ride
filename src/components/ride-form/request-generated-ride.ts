@@ -27,6 +27,7 @@ export type GenerateRideClientOptions = {
   useAiWebGeneration?: boolean;
   originAccuracyMeters?: number | null;
   previousRouteSignature?: string;
+  returnToStart?: boolean;
   signal?: AbortSignal;
 };
 
@@ -49,6 +50,9 @@ export function withGenerateRideTransport(
   }
   if (options?.previousRouteSignature) {
     payload.previousRouteSignature = options.previousRouteSignature;
+  }
+  if (typeof options?.returnToStart === "boolean") {
+    payload.returnToStart = options.returnToStart;
   }
   return payload;
 }

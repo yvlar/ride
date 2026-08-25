@@ -80,6 +80,20 @@ afterEach(() => {
 });
 
 describe("RideApp mobile shell (FR-031, FR-035)", () => {
+  it("does not expose a dedicated loop action on the explorer (FR-031, FR-034)", () => {
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} />
+      </AppearanceProvider>,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Créer une boucle moto" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Décrire mon trajet" }),
+    ).toBeEnabled();
+  });
+
   it("starts a saved ride in three interactions", async () => {
     window.localStorage.setItem(
       "ride.library.v1",
@@ -325,6 +339,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(screen.queryByLabelText("Votre demande")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Durée disponible/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Point de départ")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Boucle")).toBeChecked();
     fireEvent.change(
       screen.getByRole("slider", { name: "Distance du trajet en kilomètres" }),
       { target: { value: "80" } },
@@ -348,6 +363,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
         expect.objectContaining({
           useAiWebGeneration: true,
           originAccuracyMeters: 8,
+          returnToStart: true,
         }),
       );
     });

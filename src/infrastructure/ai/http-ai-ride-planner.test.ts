@@ -59,4 +59,33 @@ describe("HttpAiRidePlanner (FR-034)", () => {
     expect(message).toMatch(/12/);
     expect(message).toMatch(/route-1:3:abc/);
   });
+
+  it("asks for a one-way arrival when returnToStart is false (FR-034)", async () => {
+    const complete = vi.fn<ChatCompletionsClient["complete"]>(async () =>
+      JSON.stringify({
+        viaPoints: [
+          { latitude: 45.45, longitude: -72.6 },
+          { latitude: 45.5, longitude: -72.5 },
+        ],
+      }),
+    );
+    const planner = new HttpAiRidePlanner({ client: { complete } });
+    await planner.planLoop({
+      origin: ORIGIN,
+      accuracyMeters: 8,
+      targetDistanceKm: 80,
+      returnToStart: false,
+      searchHits: [],
+    });
+    expect(complete.mock.calls[0]?.[0].messages[0]?.content).toMatch(
+      /Do not return to the origin/,
+    );
+    expect(buildAiRidePlanUserMessage({
+      origin: ORIGIN,
+      accuracyMeters: null,
+      targetDistanceKm: 80,
+      returnToStart: false,
+      searchHits: [],
+    })).toMatch(/"returnToStart":false/);
+  });
 });

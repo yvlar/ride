@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   composeDescribedRide,
+  describedArrivalPlace,
+  describedRequestFromGeneratedRoute,
   describedStartPlace,
 } from "./compose-described-ride";
 
@@ -55,5 +57,37 @@ describe("composeDescribedRide (FR-034)", () => {
     expect(composeDescribedRide({ start: gps, targetDistanceKm: 600 }).ok).toBe(
       false,
     );
+  });
+
+  it("maps a generated one-way onto a destination request (FR-034, FR-002)", () => {
+    const preferences = {
+      avoidHighways: true,
+      avoidUnpaved: true,
+      stayInCanada: false,
+    };
+    const arrival = describedArrivalPlace({ latitude: 45.5, longitude: -72.5 });
+    const request = describedRequestFromGeneratedRoute(
+      {
+        id: "route-1",
+        type: "destination",
+        start: gps,
+        destination: arrival,
+        style: "scenic",
+        targetDistanceKm: 80,
+        geometry: { type: "LineString", coordinates: [[-72.73, 45.4]] },
+        segments: [],
+        distanceKm: 78,
+        durationMinutes: 70,
+        warnings: [],
+      },
+      preferences,
+    );
+    expect(request).toMatchObject({
+      type: "destination",
+      start: gps,
+      destination: arrival,
+      targetDistanceKm: 80,
+      preferences,
+    });
   });
 });

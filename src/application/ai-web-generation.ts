@@ -29,6 +29,21 @@ export function readPreviousRouteSignature(input: unknown): string | undefined {
   return value || undefined;
 }
 
+/**
+ * FR-034 — omitted or true closes the ride at the origin. Explicit false
+ * requests a one-way of the chosen distance.
+ */
+export function readReturnToStart(input: unknown): boolean {
+  const value = readNestedBoolean(input, "returnToStart");
+  if (value === false) {
+    return false;
+  }
+  if (value === true) {
+    return true;
+  }
+  return true;
+}
+
 function readNestedNumber(input: unknown, key: string): number | undefined {
   if (typeof input !== "object" || input === null) {
     return undefined;
@@ -53,6 +68,20 @@ function readNestedString(input: unknown, key: string): string | undefined {
   }
   if ("request" in record) {
     return readNestedString(record.request, key);
+  }
+  return undefined;
+}
+
+function readNestedBoolean(input: unknown, key: string): boolean | undefined {
+  if (typeof input !== "object" || input === null) {
+    return undefined;
+  }
+  const record = input as Record<string, unknown>;
+  if (typeof record[key] === "boolean") {
+    return record[key];
+  }
+  if ("request" in record) {
+    return readNestedBoolean(record.request, key);
   }
   return undefined;
 }

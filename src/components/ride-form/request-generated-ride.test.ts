@@ -154,4 +154,33 @@ describe("requestGeneratedRide (FR-011)", () => {
       }),
     );
   });
+
+  it("sends returnToStart false for a one-way described ride (FR-034)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: { route: ROUTE },
+          meta: { requestId: "req-5" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestGeneratedRide(REQUEST, {
+      useAiWebGeneration: true,
+      returnToStart: false,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/routes/generate",
+      expect.objectContaining({
+        body: JSON.stringify({
+          ...REQUEST,
+          useAiWebGeneration: true,
+          returnToStart: false,
+        }),
+      }),
+    );
+  });
 });
