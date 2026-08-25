@@ -154,6 +154,57 @@ describe("OpenAiWebSearchProvider (FR-034)", () => {
     ).rejects.toBeInstanceOf(WebSearchError);
   });
 
+  it("fails when a web_search_call did not complete (FR-034)", async () => {
+    const provider = new OpenAiWebSearchProvider({
+      apiKey: "test-openai-key",
+      fetcher: async () =>
+        new Response(
+          JSON.stringify({
+            output: [
+              {
+                type: "web_search_call",
+                status: "failed",
+                action: { type: "search", query: "motorcycle" },
+              },
+              {
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: JSON.stringify({
+                      hits: [
+                        {
+                          title: "Invented corridor",
+                          snippet: "Model notes without a completed search.",
+                        },
+                      ],
+                    }),
+                  },
+                ],
+              },
+            ],
+            output_text: JSON.stringify({
+              hits: [
+                {
+                  title: "Invented corridor",
+                  snippet: "Model notes without a completed search.",
+                },
+              ],
+            }),
+          }),
+          { status: 200 },
+        ),
+    });
+
+    await expect(
+      provider.searchMotorcycleRoads({
+        origin: ORIGIN,
+        accuracyMeters: null,
+        targetDistanceKm: 80,
+      }),
+    ).rejects.toBeInstanceOf(WebSearchError);
+  });
+
   it("fails when Responses did not actually search", async () => {
     const provider = new OpenAiWebSearchProvider({
       apiKey: "test-openai-key",

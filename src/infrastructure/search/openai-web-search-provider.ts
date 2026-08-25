@@ -229,7 +229,8 @@ function outputDidSearch(output: unknown[] | undefined): boolean {
     if (typeof item !== "object" || item === null) {
       return false;
     }
-    return (item as { type?: unknown }).type === "web_search_call";
+    const record = item as { type?: unknown; status?: unknown };
+    return record.type === "web_search_call" && record.status === "completed";
   });
 }
 
