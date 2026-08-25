@@ -34,17 +34,15 @@ import {
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
 import {
-  destinationRideRequestSchema,
+  describedOneWayRideRequestSchema,
   loopRideRequestSchema,
   unsupportedRideTypeMessage,
 } from "@/domain/ride/schemas";
 import type {
   DestinationCandidate,
-  DestinationRideRequest,
   GeneratedDestinationRoute,
   GeneratedLoopRoute,
   LoopCandidate,
-  LoopRideRequest,
   RideGenerationError,
   RideGenerationOptions,
   RideStyle,
@@ -84,7 +82,11 @@ export type GenerateDescribedRideResult =
   | { ok: false; error: RideGenerationError };
 
 type DescribedRoutingRequest = {
-  start: LoopRideRequest["start"];
+  type: "loop" | "destination";
+  start: {
+    label: string;
+    coordinates: Coordinates;
+  };
   targetDistanceKm?: number;
   style?: RideStyle;
   preferences?: RoutePreferences;
@@ -215,7 +217,7 @@ function parseDescribedRideRequest(
   input: unknown,
   type: unknown,
 ):
-  | { ok: true; request: LoopRideRequest | DestinationRideRequest }
+  | { ok: true; request: DescribedRoutingRequest }
   | { ok: false; error: RideGenerationError } {
   if (type !== "loop" && type !== "destination") {
     return {
@@ -231,7 +233,7 @@ function parseDescribedRideRequest(
   }
 
   if (type === "destination") {
-    const parsed = destinationRideRequestSchema.safeParse(input);
+    const parsed = describedOneWayRideRequestSchema.safeParse(input);
     if (!parsed.success) {
       return {
         ok: false,
@@ -239,7 +241,7 @@ function parseDescribedRideRequest(
           code: "VALIDATION_ERROR",
           message: parsed.error.issues.map((issue) => issue.message).join(" "),
           suggestions: [
-            "Indiquez un point de départ, une arrivée et une distance entre 20 km et 500 km.",
+            "Indiquez un point de départ et une distance entre 20 km et 500 km.",
           ],
         },
       };
@@ -247,7 +249,10 @@ function parseDescribedRideRequest(
     return {
       ok: true,
       request: {
-        ...parsed.data,
+        type: "destination",
+        start: parsed.data.start,
+        targetDistanceKm: parsed.data.targetDistanceKm,
+        style: parsed.data.style,
         preferences: parsed.data.preferences ?? {
           avoidHighways: false,
           avoidUnpaved: false,

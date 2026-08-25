@@ -90,6 +90,25 @@ export type ParsedDestinationRideRequest = z.infer<
   typeof destinationRideRequestSchema
 >;
 
+/**
+ * FR-034 — described one-way generate/regenerate. The arrival is chosen by
+ * the planner (`FR-018`), so FR-002's start/destination separation does not
+ * apply to a leftover previous arrival.
+ */
+export const describedOneWayRideRequestSchema = z.object({
+  type: z.literal("destination"),
+  start: placeSchema,
+  destination: placeSchema.optional(),
+  targetDistanceKm: targetDistanceKmSchema.optional(),
+  availableDurationMinutes: availableDurationMinutesSchema.optional(),
+  style: rideStyleSchema.optional(),
+  preferences: routePreferencesSchema.optional(),
+});
+
+export type ParsedDescribedOneWayRideRequest = z.infer<
+  typeof describedOneWayRideRequestSchema
+>;
+
 export function parseLoopRideRequest(input: unknown): LoopRideRequest {
   return loopRideRequestSchema.parse(input);
 }

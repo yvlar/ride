@@ -185,6 +185,42 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(result.route.destination.label).toBe("Arrivée proposée");
   });
 
+  it("still plans a one-way when GPS is near the previous arrival (FR-012, FR-034)", async () => {
+    const nearStart = {
+      label: "Arrivée proposée",
+      coordinates: offsetCoordinates(GRANBY.coordinates, 0, 0.2),
+    };
+    const vias = [
+      offsetCoordinates(GRANBY.coordinates, 90, 40),
+      offsetCoordinates(GRANBY.coordinates, 90, 78),
+    ];
+    const planner: AiRidePlanner = {
+      async planLoop() {
+        return { viaPoints: vias, roads: [], pointsOfInterest: [] };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "destination",
+        start: GRANBY,
+        destination: nearStart,
+        targetDistanceKm: 80,
+        style: "scenic",
+        useAiWebGeneration: true,
+      },
+      new MockRoutingProvider(),
+      undefined,
+      { webSearch: fakeSearch(), planner },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+    expect(result.route.type).toBe("destination");
+  });
+
   it("does not fall back to geometric loop seeds when AI is required", async () => {
     const geometric = createLoopWaypointSets(GRANBY.coordinates, 80);
     const routing = new MockRoutingProvider();
