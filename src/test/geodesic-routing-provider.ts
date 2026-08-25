@@ -12,7 +12,6 @@ import type {
   ProviderRouteRequest,
   ProviderRouteResult,
   RoutingProvider,
-  RoutingProviderOptions,
 } from "@/infrastructure/routing/routing-provider";
 
 const POINTS_PER_LEG = 12;
@@ -27,7 +26,6 @@ export class GeodesicRoutingProvider implements RoutingProvider {
 
   async calculateRoute(
     input: ProviderRouteRequest,
-    _options?: RoutingProviderOptions,
   ): Promise<ProviderRouteResult> {
     const stops = [input.start, ...(input.waypoints ?? []), input.destination];
     const coordinates: Position[] = [];
