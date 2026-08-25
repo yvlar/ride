@@ -53,6 +53,7 @@ import {
   GPX_REJOIN_COOLDOWN_MS,
 } from "@/domain/gpx/constants";
 import { selectGpxRejoinPoint } from "@/domain/gpx/follow";
+import { agentDebugLog } from "@/domain/gpx/_agent-debug-log";
 import {
   attachGpxConnector,
   beginGpxFromFix,
@@ -753,17 +754,48 @@ export function NavigationSession({
         return;
       }
 
+      // #region agent log
+      agentDebugLog({
+        hypothesisId: "H3",
+        location: "navigation-session.tsx:applyGpxFix:beforeEnter",
+        message: "applyGpxFix before enterFollowingIfOnTrace",
+        data: {
+          phase: runtime.phase,
+          progressRef: progressRef.current,
+          runtimeProgressKm: runtime.progressKm,
+          followDistanceKm: runtime.followRoute.distanceKm,
+        },
+      });
+      // #endregion
       const onTrace = enterFollowingIfOnTrace({ runtime, fix });
       if (onTrace) {
         if (runtime.phase === "joining_gpx") {
           generationRef.current += 1;
           abortRef.current?.abort();
         }
+        const previousPhase = runtime.phase;
+        const previousProgressRef = progressRef.current;
         runtime = onTrace;
         gpxRuntimeRef.current = runtime;
         progressRef.current = 0;
         offRouteRef.current = emptyOffRouteTracker();
         publishGpxOverlay(runtime);
+        // #region agent log
+        agentDebugLog({
+          hypothesisId: "H3",
+          location: "navigation-session.tsx:applyGpxFix:afterEnter",
+          message: "enterFollowingIfOnTrace returned runtime; progressRef reset",
+          data: {
+            previousPhase,
+            nextPhase: runtime.phase,
+            previousProgressRef,
+            progressRefAfter: progressRef.current,
+            nextProgressKm: runtime.progressKm,
+            nextFollowDistanceKm: runtime.followRoute.distanceKm,
+            didResetProgressRef: true,
+          },
+        });
+        // #endregion
       }
 
       if (runtime.phase === "joining_gpx") {
@@ -837,6 +869,24 @@ export function NavigationSession({
         previousProgressKm: progressRef.current,
         gapBeforeVertex: new Set(runtime.followRoute.gapBeforeVertex),
       });
+      // #region agent log
+      agentDebugLog({
+        hypothesisId: "H3",
+        location: "navigation-session.tsx:applyGpxFix:evaluateFollow",
+        message: "evaluateNavigationProgress while following_gpx",
+        data: {
+          previousProgressKm: progressRef.current,
+          followDistanceKm: runtime.followRoute.distanceKm,
+          evaluated: evaluated
+            ? {
+                progressKm: evaluated.projection.progressKm,
+                remainingDistanceKm: evaluated.remainingDistanceKm,
+                distanceToRouteM: evaluated.projection.distanceToRouteM,
+              }
+            : null,
+        },
+      });
+      // #endregion
       if (!evaluated) {
         return;
       }

@@ -3,6 +3,7 @@ import {
   initialBearingDeg,
   positionToCoordinates,
 } from "./distance";
+import { agentDebugLog } from "@/domain/gpx/_agent-debug-log";
 import type { Coordinates, LineString } from "./types";
 
 export type NearestPointOnLine = {
@@ -135,6 +136,41 @@ export function nearestPointOnLine(
   const best = candidates.reduce((current, candidate) =>
     score(candidate) < score(current) ? candidate : current,
   );
+
+  // #region agent log
+  {
+    const nearTie = candidates.filter(
+      (candidate) => Math.abs(candidate.distanceM - best.distanceM) <= 25,
+    );
+    if (nearTie.length > 1) {
+      const ranked = [...candidates]
+        .sort((left, right) => score(left) - score(right))
+        .slice(0, 3)
+        .map((candidate) => ({
+          segmentIndex: candidate.segmentIndex,
+          progressKm: candidate.progressKm,
+          distanceM: candidate.distanceM,
+          score: score(candidate),
+        }));
+      agentDebugLog({
+        hypothesisId: "H4",
+        location: "nearest-point.ts:nearestPointOnLine",
+        message: "nearestPointOnLine near-tie branch pick",
+        data: {
+          previousProgressKm: previous,
+          headingDeg: heading ?? null,
+          candidateCount: candidates.length,
+          bestSegmentIndex: best.segmentIndex,
+          bestProgressKm: best.progressKm,
+          bestDistanceM: best.distanceM,
+          nearTieCount: nearTie.length,
+          nearTieSegments: nearTie.map((candidate) => candidate.segmentIndex),
+          top3: ranked,
+        },
+      });
+    }
+  }
+  // #endregion
 
   return {
     ...best,

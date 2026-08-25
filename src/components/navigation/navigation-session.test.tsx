@@ -1168,6 +1168,58 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     expect(joinRoute).not.toHaveBeenCalled();
   });
 
+  it("debug repro FR-039 successive on-trace GPS fixes while following_gpx", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => connectorResult(origin, origin));
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: origin,
+        accuracyMeters: 5,
+        headingDeg: 90,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    const mid = { latitude: 45.4, longitude: -72.687 };
+    const further = { latitude: 45.4, longitude: -72.68 };
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: mid,
+        accuracyMeters: 6,
+        headingDeg: 90,
+        recordedAtMs: 2,
+      },
+    });
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: further,
+        accuracyMeters: 6,
+        headingDeg: 90,
+        recordedAtMs: 3,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+  });
+
   it("keeps the GPX when the join engine fails", async () => {
     const { watch, emit } = createWatch();
     const joinRoute = vi.fn(async () => ({
