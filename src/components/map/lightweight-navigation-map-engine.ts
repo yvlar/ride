@@ -39,14 +39,9 @@ export function createLightweightNavigationMapEngine(): MapEngine {
 
       appendGrid(svg);
 
-      const route = createSvgElement("polyline");
-      route.setAttribute("fill", "none");
-      route.setAttribute("stroke", "#0f766e");
-      route.setAttribute("stroke-width", "10");
-      route.setAttribute("stroke-linecap", "round");
-      route.setAttribute("stroke-linejoin", "round");
-      route.setAttribute("vector-effect", "non-scaling-stroke");
-      svg.append(route);
+      const routeLayer = createSvgElement("g");
+      routeLayer.setAttribute("data-route-lines", "true");
+      svg.append(routeLayer);
 
       const placeLayer = createSvgElement("g");
       placeLayer.setAttribute("data-place-markers", "true");
@@ -116,7 +111,53 @@ export function createLightweightNavigationMapEngine(): MapEngine {
 
       function applyViewModel(next: RideMapViewModel) {
         viewModel = next;
-        route.setAttribute("points", routePoints(next));
+        routeLayer.replaceChildren();
+        const lines =
+          next.parts && next.parts.length > 0 ? next.parts : [next.geometry];
+        for (const line of lines) {
+          const polyline = createSvgElement("polyline");
+          polyline.setAttribute("fill", "none");
+          polyline.setAttribute("stroke", "#0f766e");
+          polyline.setAttribute("stroke-width", "10");
+          polyline.setAttribute("stroke-linecap", "round");
+          polyline.setAttribute("stroke-linejoin", "round");
+          polyline.setAttribute("vector-effect", "non-scaling-stroke");
+          polyline.setAttribute(
+            "points",
+            samplePositions(line.coordinates)
+              .map((position) =>
+                project(
+                  { latitude: position[1], longitude: position[0] },
+                  next,
+                ),
+              )
+              .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+              .join(" "),
+          );
+          routeLayer.append(polyline);
+        }
+        if (next.connectorGeometry) {
+          const connector = createSvgElement("polyline");
+          connector.setAttribute("fill", "none");
+          connector.setAttribute("stroke", "#d97706");
+          connector.setAttribute("stroke-width", "8");
+          connector.setAttribute("stroke-dasharray", "16 12");
+          connector.setAttribute("stroke-linecap", "round");
+          connector.setAttribute("vector-effect", "non-scaling-stroke");
+          connector.setAttribute(
+            "points",
+            samplePositions(next.connectorGeometry.coordinates)
+              .map((position) =>
+                project(
+                  { latitude: position[1], longitude: position[0] },
+                  next,
+                ),
+              )
+              .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+              .join(" "),
+          );
+          routeLayer.append(connector);
+        }
         placeLayer.replaceChildren();
         appendPlaceMarker(
           placeLayer,
@@ -130,6 +171,14 @@ export function createLightweightNavigationMapEngine(): MapEngine {
             project(next.destination.coordinates, next),
             "Destination",
             "#dc2626",
+          );
+        }
+        if (next.entry) {
+          appendPlaceMarker(
+            placeLayer,
+            project(next.entry.coordinates, next),
+            "Entrée GPX",
+            "#d97706",
           );
         }
         applyUserLocation(lastUser);
@@ -173,15 +222,6 @@ export function createLightweightNavigationMapEngine(): MapEngine {
       };
     },
   };
-}
-
-function routePoints(viewModel: RideMapViewModel): string {
-  return samplePositions(viewModel.geometry.coordinates)
-    .map((position) =>
-      project({ latitude: position[1], longitude: position[0] }, viewModel),
-    )
-    .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
-    .join(" ");
 }
 
 function samplePositions(positions: Position[]): Position[] {

@@ -4,13 +4,17 @@ export type NavigationSessionState =
   | "locating"
   | "calculating"
   | "preview"
+  | "gpx_preview"
   | "ready"
   | "navigating"
+  | "joining_gpx"
+  | "following_gpx"
   | "off_route"
   | "recalculating"
   | "gps_lost"
   | "suspended"
   | "arrived"
+  | "gpx_completed"
   | "error";
 
 export type NavigationSessionEvent =
@@ -21,6 +25,9 @@ export type NavigationSessionEvent =
   | "generate_started"
   | "generate_succeeded"
   | "generate_failed"
+  | "gpx_imported"
+  | "gpx_join_started"
+  | "gpx_followed"
   | "ready"
   | "start"
   | "off_route"
@@ -37,6 +44,8 @@ export type NavigationSessionEvent =
 
 const NAVIGATING_STATES: ReadonlySet<NavigationSessionState> = new Set([
   "navigating",
+  "joining_gpx",
+  "following_gpx",
   "off_route",
   "recalculating",
   "gps_lost",
@@ -60,6 +69,7 @@ export function transitionNavigationState(
       if (event === "compose" || event === "permission_granted") return "locating";
       if (event === "permission_denied") return "permission_required";
       if (event === "generate_started") return "calculating";
+      if (event === "gpx_imported") return "gpx_preview";
       if (event === "error") return "error";
       return state;
     case "permission_required":
@@ -80,7 +90,14 @@ export function transitionNavigationState(
     case "preview":
       if (event === "ready") return "ready";
       if (event === "start") return "navigating";
+      if (event === "gpx_imported") return "gpx_preview";
       if (event === "generate_started") return "calculating";
+      if (event === "error") return "error";
+      return state;
+    case "gpx_preview":
+      if (event === "start" || event === "gpx_join_started") return "joining_gpx";
+      if (event === "gpx_followed") return "following_gpx";
+      if (event === "gpx_imported") return "gpx_preview";
       if (event === "error") return "error";
       return state;
     case "ready":
@@ -111,6 +128,8 @@ export function transitionNavigationState(
       return state;
     case "gps_lost":
       if (event === "gps_recovered") return "navigating";
+      if (event === "gpx_followed") return "following_gpx";
+      if (event === "gpx_join_started") return "joining_gpx";
       if (event === "suspend") return "suspended";
       if (event === "error") return "error";
       return state;
@@ -120,6 +139,25 @@ export function transitionNavigationState(
       return state;
     case "arrived":
       if (event === "start") return "navigating";
+      return state;
+    case "joining_gpx":
+      if (event === "gpx_followed") return "following_gpx";
+      if (event === "gpx_join_started") return "joining_gpx";
+      if (event === "off_route") return "joining_gpx";
+      if (event === "gps_lost") return "gps_lost";
+      if (event === "arrive") return "gpx_completed";
+      if (event === "error") return "error";
+      return state;
+    case "following_gpx":
+      if (event === "gpx_join_started" || event === "off_route") return "joining_gpx";
+      if (event === "gpx_followed") return "following_gpx";
+      if (event === "gps_lost") return "gps_lost";
+      if (event === "arrive") return "gpx_completed";
+      if (event === "error") return "error";
+      return state;
+    case "gpx_completed":
+      if (event === "start") return "following_gpx";
+      if (event === "gpx_imported") return "gpx_preview";
       return state;
     case "error":
       if (event === "compose" || event === "generate_started") return "calculating";

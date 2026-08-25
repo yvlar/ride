@@ -136,4 +136,9 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the GPX phase label (FR-039)", () => {
+    renderOverlay({ statusLabel: "Rejoindre le trajet GPX" });
+    expect(screen.getByText("Rejoindre le trajet GPX")).toBeInTheDocument();
+  });
 });

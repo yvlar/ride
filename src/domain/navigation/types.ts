@@ -71,6 +71,7 @@ export type RouteProjection = {
   remainingDistanceKm: number;
   remainingDurationMinutes: number;
   segmentIndex: number;
+  segmentFraction: number;
 };
 
 export type NavigationProgress = {

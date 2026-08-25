@@ -898,3 +898,346 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     });
   });
 });
+
+describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
+  const origin = { latitude: 45.4, longitude: -72.7 };
+  const east = { latitude: 45.4, longitude: -72.674 }; // ~2 km east
+  const gpxRoute: import("@/domain/gpx/types").GeneratedGpxRoute = {
+    id: "gpx-1",
+    type: "gpx",
+    source: "gpx",
+    name: "Trace Est",
+    start: { label: "Trace Est", coordinates: origin },
+    destination: { label: "Arrivée GPX", coordinates: east },
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [origin.longitude, origin.latitude],
+        [east.longitude, east.latitude],
+      ],
+    },
+    parts: [
+      {
+        type: "LineString",
+        coordinates: [
+          [origin.longitude, origin.latitude],
+          [east.longitude, east.latitude],
+        ],
+      },
+    ],
+    gapBeforeVertex: [],
+    segments: [],
+    steps: [
+      {
+        id: "gpx:depart",
+        maneuverType: "depart",
+        modifier: "straight",
+        location: origin,
+        distanceKm: 2,
+        durationMinutes: 4,
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [east.longitude, east.latitude],
+          ],
+        },
+      },
+      {
+        id: "gpx:arrive",
+        maneuverType: "arrive",
+        modifier: "straight",
+        location: east,
+        distanceKm: 0,
+        durationMinutes: 0,
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [east.longitude, east.latitude],
+          ],
+        },
+      },
+    ],
+    distanceKm: 2,
+    durationMinutes: 4,
+    warnings: [],
+    isClosedLoop: false,
+    trackKind: "track",
+    originalGeometry: {
+      type: "LineString",
+      coordinates: [
+        [origin.longitude, origin.latitude],
+        [east.longitude, east.latitude],
+      ],
+    },
+    originalParts: [
+      {
+        type: "LineString",
+        coordinates: [
+          [origin.longitude, origin.latitude],
+          [east.longitude, east.latitude],
+        ],
+      },
+    ],
+  };
+
+  const gpxRequest: GenerateRideRequest = {
+    type: "gpx",
+    start: gpxRoute.start,
+    destination: gpxRoute.destination,
+    name: gpxRoute.name,
+    style: "touring",
+    preferences: { avoidHighways: false, avoidUnpaved: false },
+  };
+
+  function connectorResult(start: { latitude: number; longitude: number }, dest: { latitude: number; longitude: number }) {
+    return {
+      ok: true as const,
+      route: {
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [start.longitude, start.latitude],
+            [dest.longitude, dest.latitude],
+          ],
+        },
+        segments: [],
+        steps: [
+          {
+            id: "join:1",
+            maneuverType: "continue" as const,
+            modifier: "straight" as const,
+            location: dest,
+            distanceKm: 1,
+            durationMinutes: 2,
+            geometry: {
+              type: "LineString" as const,
+              coordinates: [
+                [start.longitude, start.latitude],
+                [dest.longitude, dest.latitude],
+              ],
+            },
+          },
+        ],
+        distanceKm: 1,
+        durationMinutes: 2,
+      },
+    };
+  }
+
+  it("joins from GPS then follows the imported GPX without replacing it", async () => {
+    const { watch, emit } = createWatch();
+    const onRouteChange = vi.fn();
+    const joinRoute = vi.fn(async (input: { start: { latitude: number; longitude: number }; destination: { latitude: number; longitude: number } }) =>
+      connectorResult(input.start, input.destination),
+    );
+    const south = { latitude: 45.385, longitude: -72.7 };
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        onRouteChange={onRouteChange}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        recalculate={async () => ({ ok: true, route: gpxRoute })}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: { coordinates: south, accuracyMeters: 8, recordedAtMs: 1 },
+    });
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Rejoindre le trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(onRouteChange).not.toHaveBeenCalled();
+
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 6, recordedAtMs: 2 },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(onRouteChange).not.toHaveBeenCalled();
+  });
+
+  it("skips the join when the rider is already on the GPX", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => connectorResult(origin, origin));
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 5, recordedAtMs: 1 },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+  });
+
+  it("keeps the GPX when the join engine fails", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        code: "PROVIDER_ERROR" as const,
+        message: "Le raccordement vers le trajet GPX a échoué. Le tracé importé reste affiché.",
+        suggestions: ["Réessayez."],
+      },
+    }));
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.385, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/raccordement/i);
+    });
+    expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
+  });
+
+  it("cancels during joining and stops voice plus in-flight requests", async () => {
+    const { watch, emit } = createWatch();
+    const onStop = vi.fn();
+    const speech = stubSpeech();
+    let abortSeen = false;
+    const joinRoute = vi.fn(
+      async (
+        _input: unknown,
+        signal?: AbortSignal,
+      ) => {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            signal?.addEventListener("abort", () => {
+              abortSeen = true;
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+          });
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return {
+              ok: false as const,
+              error: {
+                code: "STALE_RECALCULATE" as const,
+                message: "Ce raccordement n’est plus d’actualité.",
+                suggestions: [],
+              },
+            };
+          }
+          throw error;
+        }
+        return connectorResult(origin, origin);
+      },
+    );
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={onStop}
+        locationWatch={watch}
+        speech={speech}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.385, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    expect(onStop).toHaveBeenCalled();
+    expect(speech.cancel).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(abortSeen).toBe(true);
+    });
+  });
+
+  it("rejoins ahead after a confirmed GPX departure", async () => {
+    const { watch, emit } = createWatch();
+    let nowMs = 1_000_000;
+    const joinRoute = vi.fn(async (input: { start: { latitude: number; longitude: number }; destination: { latitude: number; longitude: number } }) =>
+      connectorResult(input.start, input.destination),
+    );
+    render(
+      <NavigationSession
+        route={gpxRoute}
+        request={gpxRequest}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        now={() => nowMs}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: { coordinates: origin, accuracyMeters: 5, recordedAtMs: nowMs },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    joinRoute.mockClear();
+    const farNorth = { latitude: 45.42, longitude: -72.69 };
+    for (let index = 0; index < 4; index += 1) {
+      nowMs += 4_000;
+      emit({
+        type: "fix",
+        fix: {
+          coordinates: farNorth,
+          accuracyMeters: 8,
+          recordedAtMs: nowMs,
+        },
+      });
+    }
+    await waitFor(() => {
+      expect(joinRoute).toHaveBeenCalled();
+    });
+    const dest = joinRoute.mock.calls[0]?.[0]?.destination;
+    expect(dest).toBeDefined();
+    expect(dest!.longitude).toBeGreaterThan(origin.longitude);
+    await waitFor(() => {
+      expect(screen.getAllByText("Hors trajet").length).toBeGreaterThan(0);
+    });
+  });
+});

@@ -133,6 +133,70 @@ describe("toRideMapViewModel (FR-013)", () => {
     expect(camera.fitBoundsOptions.duration).toBe(0);
   });
 
+  it("draws GPX parts, a distinct connector and an entry marker (FR-039)", () => {
+    const gpx = {
+      id: "gpx-1",
+      type: "gpx" as const,
+      source: "gpx" as const,
+      name: "Cantons",
+      start: granby,
+      destination: tremblant,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-74.5962, 46.1185],
+        ],
+      },
+      parts: [
+        {
+          type: "LineString" as const,
+          coordinates: [
+            [-72.7342, 45.4001],
+            [-73.0, 45.6],
+          ],
+        },
+        {
+          type: "LineString" as const,
+          coordinates: [
+            [-74.0, 46.0],
+            [-74.5962, 46.1185],
+          ],
+        },
+      ],
+      gapBeforeVertex: [2],
+      segments: [],
+      distanceKm: 140,
+      durationMinutes: 110,
+      warnings: [],
+      isClosedLoop: false,
+      trackKind: "track" as const,
+      originalGeometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-74.5962, 46.1185],
+        ],
+      },
+      originalParts: [],
+    };
+    const model = toRideMapViewModel(gpx, {
+      phase: "joining_gpx",
+      connectorGeometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.8, 45.3],
+          [-72.7342, 45.4001],
+        ],
+      },
+      entryPoint: granby.coordinates,
+    });
+    expect(model!.parts).toHaveLength(2);
+    expect(model!.connectorGeometry?.coordinates).toHaveLength(2);
+    expect(model!.entry?.kind).toBe("entry");
+    expect(model!.directionLabel).toBe("Sens GPX : Cantons");
+  });
+
   it("returns null when the route has no drawable geometry", () => {
     expect(
       toRideMapViewModel({

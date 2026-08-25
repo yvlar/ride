@@ -30,7 +30,7 @@ import {
   headingFromGeolocateEvent,
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
-import { mapCameraFrame, type RideMapViewModel } from "./ride-map-view-model";
+import { mapCameraFrame, rideRouteFeatureCollection, type RideMapViewModel } from "./ride-map-view-model";
 
 export {
   NAVIGATION_FOLLOW_DURATION_MS,
@@ -168,11 +168,7 @@ export function createMapLibreEngine(
 
         try {
           const source = map.getSource("ride-route");
-          const data = {
-            type: "Feature" as const,
-            properties: {},
-            geometry: next.geometry,
-          };
+          const data = rideRouteFeatureCollection(next);
           if (source && "setData" in source && typeof source.setData === "function") {
             source.setData(data);
           } else {
@@ -195,6 +191,45 @@ export function createMapLibreEngine(
             });
           }
 
+          const connectorSource = map.getSource("ride-connector");
+          const connectorData = next.connectorGeometry
+            ? {
+                type: "Feature" as const,
+                properties: {},
+                geometry: next.connectorGeometry,
+              }
+            : {
+                type: "Feature" as const,
+                properties: {},
+                geometry: { type: "LineString" as const, coordinates: [] },
+              };
+          if (
+            connectorSource &&
+            "setData" in connectorSource &&
+            typeof connectorSource.setData === "function"
+          ) {
+            connectorSource.setData(connectorData);
+          } else {
+            map.addSource("ride-connector", {
+              type: "geojson",
+              data: connectorData,
+            });
+            map.addLayer({
+              id: "ride-connector-line",
+              type: "line",
+              source: "ride-connector",
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#f59e0b",
+                "line-width": 4,
+                "line-dasharray": [1.5, 1.5],
+              },
+            });
+          }
+
           for (const marker of markers) {
             marker.remove();
           }
@@ -208,6 +243,11 @@ export function createMapLibreEngine(
                   next.destination.label,
                   next.destination.coordinates,
                 ),
+              );
+            }
+            if (next.entry) {
+              markers.push(
+                placeMarker(map, next.entry.label, next.entry.coordinates),
               );
             }
             for (const arrow of next.directionArrows) {

@@ -1,9 +1,9 @@
 import {
-  haversineKm,
   initialBearingDeg,
   lineStringLengthKm,
   positionToCoordinates,
 } from "@/domain/geo/distance";
+import { nearestPointOnLine } from "@/domain/geo/nearest-point";
 import type { Coordinates, LineString } from "@/domain/geo/types";
 import {
   LOW_ACCURACY_LIMIT_M,
@@ -41,61 +41,30 @@ export function projectOnRoute(
   point: Coordinates,
   geometry: LineString,
   previousProgressKm: number | null = null,
+  options: {
+    headingDeg?: number | null;
+    gapBeforeVertex?: ReadonlySet<number>;
+  } = {},
 ): RouteProjection | null {
-  if (geometry.coordinates.length < 2) {
-    return null;
-  }
-
-  const candidates: RouteProjection[] = [];
-  let traveledKm = 0;
-
-  for (let index = 1; index < geometry.coordinates.length; index += 1) {
-    const from = positionToCoordinates(geometry.coordinates[index - 1]!);
-    const to = positionToCoordinates(geometry.coordinates[index]!);
-    const segmentKm = haversineKm(from, to);
-    const closest = closestPointOnSegment(point, from, to);
-    const progressKm = traveledKm + closest.t * segmentKm;
-    candidates.push({
-      snapped: closest.point,
-      distanceToRouteM: closest.distanceKm * 1_000,
-      progressKm,
-      remainingDistanceKm: 0,
-      remainingDurationMinutes: 0,
-      segmentIndex: index - 1,
-    });
-    traveledKm += segmentKm;
-  }
-
-  const targetProgressKm = previousProgressKm ?? 0;
-  const best = candidates.reduce<RouteProjection | null>((current, candidate) => {
-    if (!current) {
-      return candidate;
-    }
-    return projectionScore(candidate, targetProgressKm) <
-      projectionScore(current, targetProgressKm)
-      ? candidate
-      : current;
-  }, null);
-
-  if (!best) {
+  const nearest = nearestPointOnLine(point, geometry, {
+    previousProgressKm: previousProgressKm ?? 0,
+    headingDeg: options.headingDeg,
+    gapBeforeVertex: options.gapBeforeVertex,
+    progressPenaltyMPerKm: PROGRESS_MATCH_PENALTY_M_PER_KM,
+  });
+  if (!nearest) {
     return null;
   }
 
   return {
-    ...best,
-    remainingDistanceKm: Math.max(0, traveledKm - best.progressKm),
+    snapped: nearest.point,
+    distanceToRouteM: nearest.distanceM,
+    progressKm: nearest.progressKm,
+    remainingDistanceKm: nearest.remainingDistanceKm,
+    remainingDurationMinutes: 0,
+    segmentIndex: nearest.segmentIndex,
+    segmentFraction: nearest.t,
   };
-}
-
-function projectionScore(
-  candidate: RouteProjection,
-  targetProgressKm: number,
-): number {
-  return (
-    candidate.distanceToRouteM +
-    PROGRESS_MATCH_PENALTY_M_PER_KM *
-      Math.abs(candidate.progressKm - targetProgressKm)
-  );
 }
 
 export function remainingAlongRoute(
@@ -170,12 +139,18 @@ export function evaluateNavigationProgress(input: {
   totalDistanceKm: number;
   totalDurationMinutes: number;
   previousProgressKm: number | null;
+  headingDeg?: number | null;
+  gapBeforeVertex?: ReadonlySet<number>;
 }): NavigationProgress | null {
   const lowAccuracy = !isAccuracyUsable(input.fix.accuracyMeters);
   const projection = projectOnRoute(
     input.fix.coordinates,
     input.geometry,
     input.previousProgressKm,
+    {
+      headingDeg: input.headingDeg ?? input.fix.headingDeg,
+      gapBeforeVertex: input.gapBeforeVertex,
+    },
   );
   if (!projection) {
     return null;
@@ -254,46 +229,4 @@ export function navigationDisplayHeading(input: {
     positionToCoordinates(from),
     positionToCoordinates(to),
   );
-}
-
-function closestPointOnSegment(
-  point: Coordinates,
-  from: Coordinates,
-  to: Coordinates,
-): { point: Coordinates; t: number; distanceKm: number } {
-  const origin = from;
-  const p = toLocalKm(origin, point);
-  const a = toLocalKm(origin, from);
-  const b = toLocalKm(origin, to);
-  const vx = b.x - a.x;
-  const vy = b.y - a.y;
-  const length2 = vx * vx + vy * vy;
-  const t =
-    length2 === 0
-      ? 0
-      : clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / length2, 0, 1);
-  const snapped = {
-    latitude: from.latitude + (to.latitude - from.latitude) * t,
-    longitude: from.longitude + (to.longitude - from.longitude) * t,
-  };
-  return {
-    point: snapped,
-    t,
-    distanceKm: haversineKm(point, snapped),
-  };
-}
-
-function toLocalKm(origin: Coordinates, point: Coordinates): { x: number; y: number } {
-  const meanLat = ((origin.latitude + point.latitude) / 2) * (Math.PI / 180);
-  return {
-    x:
-      (point.longitude - origin.longitude) *
-      111.32 *
-      Math.cos(meanLat),
-    y: (point.latitude - origin.latitude) * 111.32,
-  };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }

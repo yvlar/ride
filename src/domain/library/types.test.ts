@@ -38,6 +38,30 @@ describe("ride library helpers (FR-035)", () => {
     ).toBe("Granby, QC → Mont-Tremblant, QC");
   });
 
+  it("uses the GPX name for a saved imported trace (FR-039)", () => {
+    expect(
+      savedRideName({
+        id: "g1",
+        type: "gpx",
+        source: "gpx",
+        name: "Cantons",
+        start: granby,
+        destination: granby,
+        geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        parts: [{ type: "LineString", coordinates: [[0, 0], [1, 1]] }],
+        gapBeforeVertex: [],
+        segments: [],
+        distanceKm: 12,
+        durationMinutes: 20,
+        warnings: [],
+        isClosedLoop: false,
+        trackKind: "track",
+        originalGeometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        originalParts: [{ type: "LineString", coordinates: [[0, 0], [1, 1]] }],
+      }),
+    ).toBe("Cantons");
+  });
+
   it("caps saved rides while replacing the same id", () => {
     const rides = upsertSavedRide(
       [

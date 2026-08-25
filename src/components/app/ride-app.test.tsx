@@ -116,6 +116,12 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       screen.getByRole("button", { name: "Décrire mon trajet" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Importer un fichier GPX" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Rechercher une destination" }),
+    ).toBeEnabled();
   });
 
   it("starts a saved ride in three interactions", async () => {
@@ -734,5 +740,31 @@ describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
         expect.objectContaining({ useAiWebGeneration: true }),
       );
     });
+  });
+});
+
+describe("RideApp GPX import (FR-039)", () => {
+  it("opens the GPX importer without replacing Trouver une destination", async () => {
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} />
+      </AppearanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Importer un fichier GPX" }));
+    expect(
+      screen.getByRole("heading", { name: "Importer un fichier GPX" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("gpx-file-input")).toHaveAttribute(
+      "accept",
+      ".gpx,application/gpx+xml,application/xml,text/xml",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
+    expect(
+      screen.getByRole("button", { name: "Rechercher une destination" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rechercher une destination" }));
+    expect(
+      screen.getByRole("heading", { name: "Trouver une destination" }),
+    ).toBeInTheDocument();
   });
 });

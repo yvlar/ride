@@ -24,6 +24,10 @@ import type {
   GenerateRideRequest,
   GeneratedRideRoute,
 } from "@/domain/ride/types";
+import { isGpxRoute } from "@/domain/gpx/types";
+import type { GpxMapOverlay } from "@/domain/gpx/types";
+import { plannerRideType } from "@/domain/ride/summarize-request";
+import { ImportGpxPanel } from "@/components/gpx/import-gpx-panel";
 import { NavigationSession } from "@/components/navigation/navigation-session";
 import { createCarPlayDisplay } from "@/infrastructure/carplay/create-carplay-display";
 import {
@@ -43,7 +47,7 @@ import {
 import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
 
-type ExplorerSheet = "home" | "search" | "describe" | "planner";
+type ExplorerSheet = "home" | "search" | "describe" | "planner" | "gpx";
 
 export function RideApp(props: RideRequestFormProps) {
   const library = useMemo(() => {
@@ -74,6 +78,8 @@ export function RideApp(props: RideRequestFormProps) {
     null,
   );
   const [navHeadingDeg, setNavHeadingDeg] = useState<number | null>(null);
+  const [gpxOverlay, setGpxOverlay] = useState<GpxMapOverlay | null>(null);
+  const [gpxSession, setGpxSession] = useState(0);
   const [describeMuted, setDescribeMuted] = useState(false);
   const [plannerDraft, setPlannerDraft] =
     useState<NaturalLanguageRideDraft | null>(null);
@@ -100,7 +106,7 @@ export function RideApp(props: RideRequestFormProps) {
   const carPlay = useMemo(() => createCarPlayDisplay(), []);
   const plannerOwnsMap = navigating && sheet === "planner";
   const explorerOwnsNavigation =
-    navigating && (sheet === "describe" || sheet === "search");
+    navigating && (sheet === "describe" || sheet === "search" || sheet === "gpx");
 
   useEffect(() => {
     requestRef.current = request;
@@ -208,6 +214,32 @@ export function RideApp(props: RideRequestFormProps) {
     setTab("explore");
   }
 
+  function openGpxImporter() {
+    setGpxSession((value) => value + 1);
+    setSheet("gpx");
+    setTab("explore");
+    navigatingRef.current = false;
+    setNavigating(false);
+    setNavUserLocation(null);
+    setNavHeadingDeg(null);
+    setGpxOverlay(null);
+  }
+
+  function openRide(nextRequest: GenerateRideRequest, nextRoute: GeneratedRideRoute) {
+    if (nextRequest.type === "gpx" || isGpxRoute(nextRoute)) {
+      requestRef.current = nextRequest;
+      routeRef.current = nextRoute;
+      setRequest(nextRequest);
+      setRoute(nextRoute);
+      openGpxImporter();
+      return;
+    }
+    openPlanner({
+      type: plannerRideType(nextRequest.type),
+      seed: { request: nextRequest, route: nextRoute },
+    });
+  }
+
   function startGuidedNavigation(options?: { muted?: boolean }) {
     if (navigatingRef.current) {
       return;
@@ -242,6 +274,14 @@ export function RideApp(props: RideRequestFormProps) {
     setNavigating(false);
     setNavUserLocation(null);
     setNavHeadingDeg(null);
+    setGpxOverlay(null);
+    if (routeRef.current && isGpxRoute(routeRef.current)) {
+      requestRef.current = null;
+      routeRef.current = null;
+      setRequest(null);
+      setRoute(null);
+      setSheet("home");
+    }
   }
 
   function remember(place: Place) {
@@ -275,13 +315,7 @@ export function RideApp(props: RideRequestFormProps) {
         const currentRequest = requestRef.current;
         const currentRoute = routeRef.current;
         if (currentRequest && currentRoute) {
-          openPlanner({
-            type: currentRequest.type,
-            seed: {
-              request: currentRequest,
-              route: currentRoute,
-            },
-          });
+          openRide(currentRequest, currentRoute);
         }
         return;
       }
@@ -297,13 +331,7 @@ export function RideApp(props: RideRequestFormProps) {
       }
       const item = savedRef.current.find((ride) => ride.id === parsed.id);
       if (item) {
-        openPlanner({
-          type: item.request.type,
-          seed: {
-            request: item.request,
-            route: item.route,
-          },
-        });
+        openRide(item.request, item.route);
       }
     });
   }, [carPlay]);
@@ -362,6 +390,7 @@ export function RideApp(props: RideRequestFormProps) {
           <div className="absolute inset-0">
             <RideMap
               route={route}
+              overlay={gpxOverlay}
               engine={props.mapEngine}
               fill
               expanded={explorerOwnsNavigation}
@@ -396,6 +425,7 @@ export function RideApp(props: RideRequestFormProps) {
             onRecenter={() => mapRecenterRef.current()}
             onOverview={() => mapOverviewRef.current()}
             onStop={stopGuidedNavigation}
+            onGpxOverlayChange={setGpxOverlay}
             onRouteChange={(next) => {
               const composed = requestRef.current;
               if (composed) {
@@ -407,6 +437,7 @@ export function RideApp(props: RideRequestFormProps) {
             locationWatch={locationWatch}
             speech={speechEngine}
             recalculate={props.navigation?.recalculate}
+            joinRoute={props.navigation?.joinRoute}
             now={props.navigation?.now}
             initialMuted={describeMuted}
           />
@@ -492,6 +523,15 @@ export function RideApp(props: RideRequestFormProps) {
                   >
                     Décrire mon trajet
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="min-h-12 w-full text-base"
+                    onClick={() => openGpxImporter()}
+                  >
+                    Importer un fichier GPX
+                  </Button>
                   {route && request ? (
                     <Button
                       type="button"
@@ -499,10 +539,9 @@ export function RideApp(props: RideRequestFormProps) {
                       size="lg"
                       className="min-h-12 w-full text-base"
                       onClick={() =>
-                        openPlanner({
-                          type: request.type,
-                          seed: { request, route },
-                        })
+                        request && route
+                          ? openRide(request, route)
+                          : undefined
                       }
                     >
                       Reprendre la navigation
@@ -534,12 +573,7 @@ export function RideApp(props: RideRequestFormProps) {
                         type="button"
                         variant="ghost"
                         className="min-h-12 w-full justify-start text-base"
-                        onClick={() =>
-                          openPlanner({
-                            type: item.request.type,
-                            seed: { request: item.request, route: item.route },
-                          })
-                        }
+                        onClick={() => openRide(item.request, item.route)}
                       >
                         {item.name}
                       </Button>
@@ -634,6 +668,40 @@ export function RideApp(props: RideRequestFormProps) {
                 />
               </MapBottomPanel>
             ) : null}
+
+            {sheet === "gpx" ? (
+              <MapBottomPanel
+                title="Importer un fichier GPX"
+                className={route ? "max-h-[58dvh]" : undefined}
+              >
+                <ImportGpxPanel
+                  key={gpxSession}
+                  initialRoute={route && isGpxRoute(route) ? route : null}
+                  onPreview={(next, composed) => {
+                    if (!next || !composed) {
+                      setRoute((current) =>
+                        current && isGpxRoute(current) ? null : current,
+                      );
+                      setRequest((current) =>
+                        current?.type === "gpx" ? null : current,
+                      );
+                      requestRef.current =
+                        requestRef.current?.type === "gpx"
+                          ? null
+                          : requestRef.current;
+                      return;
+                    }
+                    requestRef.current = composed;
+                    setRequest(composed);
+                    rememberGeneratedRoute(next, composed);
+                    props.onRequestComposed?.(composed);
+                  }}
+                  onStartNavigation={startGuidedNavigation}
+                  onBack={() => setSheet("home")}
+                  navigationActive={navigating && sheet === "gpx"}
+                />
+              </MapBottomPanel>
+            ) : null}
           </div>
         ) : null}
 
@@ -642,12 +710,7 @@ export function RideApp(props: RideRequestFormProps) {
             title="Mes trajets"
             empty="Aucun trajet généré dans cette session."
             items={sessionRides}
-            onStart={(item) =>
-              openPlanner({
-                type: item.request.type,
-                seed: { request: item.request, route: item.route },
-              })
-            }
+            onStart={(item) => openRide(item.request, item.route)}
           />
         ) : null}
 
@@ -656,12 +719,7 @@ export function RideApp(props: RideRequestFormProps) {
             title="Enregistrés"
             empty="Aucun trajet enregistré sur cet appareil."
             items={saved}
-            onStart={(item) =>
-              openPlanner({
-                type: item.request.type,
-                seed: { request: item.request, route: item.route },
-              })
-            }
+            onStart={(item) => openRide(item.request, item.route)}
             onRemove={(item) => {
               library.remove(item.id);
               setSaved(library.listSaved());

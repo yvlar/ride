@@ -1,4 +1,5 @@
 import type { Coordinates, LineString, Place } from "@/domain/geo/types";
+import type { GeneratedGpxRoute, GpxRideRequest } from "@/domain/gpx/types";
 import type { NavigationStep } from "@/domain/navigation/types";
 
 export type RideType = "loop" | "destination" | "round_trip";
@@ -57,7 +58,10 @@ export type RoundTripRideRequest = {
 export type GenerateRideRequest =
   | LoopRideRequest
   | DestinationRideRequest
-  | RoundTripRideRequest;
+  | RoundTripRideRequest
+  | GpxRideRequest;
+
+export type { GeneratedGpxRoute, GpxRideRequest };
 
 export type RideFormInput = {
   start: Place | null;
@@ -154,7 +158,8 @@ export type GeneratedRoundTripRoute = {
 export type GeneratedRideRoute =
   | GeneratedLoopRoute
   | GeneratedDestinationRoute
-  | GeneratedRoundTripRoute;
+  | GeneratedRoundTripRoute
+  | GeneratedGpxRoute;
 
 export type RideGenerationErrorCode =
   | "VALIDATION_ERROR"
@@ -167,7 +172,8 @@ export type RideGenerationErrorCode =
   | "AI_UNAVAILABLE"
   | "ROUTING_UNAVAILABLE"
   | "STALE_RECALCULATE"
-  | "RECALCULATE_IN_PROGRESS";
+  | "RECALCULATE_IN_PROGRESS"
+  | "GPX_INVALID";
 
 export type RideGenerationError = {
   code: RideGenerationErrorCode;

@@ -237,6 +237,10 @@ L’option est **facultative** et **désactivée par défaut**.
 
 Un segment, un pont ou un corridor qui entre aux États-Unis ne doit pas être proposé lorsque `FR-030` est actif. Si cette contrainte rend la génération impossible — y compris lorsque le départ ou la destination est déjà aux États-Unis — le système l’explique et suggère l’assouplissement le plus utile (désactiver l’option, ou choisir un départ et une destination au Canada). Il ne doit pas ignorer silencieusement le passage de frontière.
 
+### BR-010 — Géométrie GPX autoritaire
+
+Une trace ou une route GPX importée (`FR-039`) reste la référence de navigation. Un fournisseur de routage ne doit pas la remplacer par un autre chemin plus rapide. Il n’est utilisé que pour rejoindre le point d’entrée, revenir sur la portion restante après une sortie, ou accrocher une route `<rte>` sans réordonner ses points.
+
 ---
 
 ## 8. Génération et régénération
@@ -341,7 +345,7 @@ Le suivi GPS :
 - ne constitue **pas** à lui seul une navigation virage par virage (`FR-023`);
 - ne demande aucune permission de localisation en arrière-plan.
 
-La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position », le contrôle GPS de la carte, l’ouverture du flux **Décrire mon trajet** (`FR-034`), ou l’ouverture du volet **Trouver une destination** (`FR-038`). Aucune position n’est demandée automatiquement au chargement de la page d’accueil.
+La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position », le contrôle GPS de la carte, l’ouverture du flux **Décrire mon trajet** (`FR-034`), l’ouverture du volet **Trouver une destination** (`FR-038`), ou **Démarrer la navigation** sur un trajet GPX importé (`FR-039`). L’importation du fichier elle-même ne demande pas la position. Aucune position n’est demandée automatiquement au chargement de la page d’accueil.
 
 Le géocodage inverse de « Ma position » n’est exécuté **qu’une fois** à la sélection. Les mises à jour du suivi GPS sur la carte ne sont pas géocodées et ne remplacent pas le point de départ.
 
@@ -463,6 +467,7 @@ Les règles suivantes gouvernent le comportement du générateur, indépendammen
 | `BR-007` | Les routes non pavées connues ne sont pas relâchées silencieusement. |
 | `BR-008` | Un recalcul conserve le style et les préférences d’évitement. |
 | `BR-009` | Un passage aux États-Unis n’est pas relâché silencieusement. |
+| `BR-010` | Une géométrie GPX importée reste la référence de navigation ; le routage ne sert qu’au raccordement, au retour après une sortie, et à l’accroche d’une route `<rte>`. |
 
 ### BR-002 — Minimiser les routes répétées
 
@@ -716,13 +721,15 @@ L’explorateur montre d’abord :
 
 - « Où veux-tu rouler ? »;
 - l’état de la position (sans demander le GPS tout seul sur l’accueil, `FR-017`);
-- Rechercher une destination, Décrire mon trajet;
+- Rechercher une destination, Décrire mon trajet, Importer un fichier GPX (`FR-039`);
 - Reprendre la navigation, s’il existe un trajet en mémoire;
 - les destinations récentes et les trajets favoris (`FR-035`).
 
 **Rechercher une destination** ouvre le volet **Trouver une destination** (`FR-038`) : position actuelle automatique, champ unique de destination, génération et prévisualisation, puis navigation. Ce n’est pas le formulaire de composition (`FR-014`).
 
 **Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Les flux **Décrire mon trajet** (`FR-034`) et **Trouver une destination** (`FR-038`) les lisent à la génération et ne les affichent pas dans leur panneau.
+
+**Importer un fichier GPX** ouvre le flux `FR-039` dans la même vue carte, sans perturber **Trouver une destination**.
 
 **Décrire mon trajet** reste dans cette vue carte (`FR-034`) : l’utilisateur choisit une distance et active ou non **Boucle**, le système obtient la position actuelle, puis l’IA génère le tracé sur la carte déjà visible, sans ouvrir l’écran de composition (`FR-014`). Il n’y a plus d’action explorateur distincte « Créer une boucle moto ».
 
@@ -825,7 +832,7 @@ Les lieux choisis et les trajets **enregistrés explicitement** sont conservés 
 
 ### FR-036 — Machine d’état de navigation
 
-Le guidage s’appuie sur une machine d’état de domaine, indépendante de l’UI : inactif, permission requise, recherche de position, calcul, prévisualisation, prêt, navigation active, hors trajet, recalcul, GPS temporairement perdu, suspendu, arrivée, erreur.
+Le guidage s’appuie sur une machine d’état de domaine, indépendante de l’UI : inactif, permission requise, recherche de position, calcul, prévisualisation, prêt, navigation active, hors trajet, recalcul, GPS temporairement perdu, suspendu, arrivée, erreur. Un trajet GPX (`FR-039`) ajoute les phases explicites `gpx_preview`, `joining_gpx`, `following_gpx` et `gpx_completed`.
 
 Un rafraîchissement ne doit pas perdre le trajet composé. Un hors-trajet réel déclenche un recalcul contrôlé (`FR-026`) sans effacer l’écran. Une imprécision GPS isolée ne compte pas comme sortie de route. Une perte temporaire de GPS ne fait pas planter l’application. Le recalcul conserve style et préférences (`BR-008`).
 
@@ -893,6 +900,52 @@ Ensuite :
 
 États à prévoir, exclusifs : `idle`, `locating`, `destinationReady`, `generating`, `routePreview`, `navigating`, `cancelling`, `error`.
 
+### FR-039 — Import GPX et navigation sur la trace
+
+L’utilisateur peut importer un fichier `.gpx` depuis l’explorateur (`FR-031`), sans remplacer le flux **Trouver une destination** (`FR-038`) ni **Décrire mon trajet** (`FR-034`).
+
+Après importation, l’application prévisualise le trajet sur la carte déjà visible (`FR-013`) : nom (issu du GPX, sinon du fichier), trace complète, départ, arrivée, distance calculée sur la géométrie. **Démarrer la navigation** réutilise ce trajet (`FR-023` à `FR-026`).
+
+#### Fichier et analyse
+
+Le sélecteur de fichiers accepte notamment `.gpx`, `application/gpx+xml`, `application/xml` et `text/xml`, y compris sur iPhone / PWA (type MIME vide ou `application/octet-stream` si le nom se termine par `.gpx`).
+
+L’analyse est **locale**. Les entités XML externes et les déclarations `DOCTYPE` / `ENTITY` sont rejetées. Un fichier vide, corrompu, trop volumineux, sans coordonnées valides ou ne contenant que des waypoints `<wpt>` produit une erreur compréhensible.
+
+Formats : GPX 1.0 et 1.1, avec espaces de noms. Éléments : `<trk>` / `<trkseg>` / `<trkpt>`, `<rte>` / `<rtept>`, et champs facultatifs `name`, `desc`, `ele`, `time`.
+
+Règles de géométrie :
+
+- une trace `<trk>` fournit la géométrie **autoritaire**;
+- une route `<rte>` seule conserve l’ordre exact des `rtept` ; le moteur de routage existant (`RoutingProvider`, `BR-004`) construit la géométrie routable **sans réordonner** les points;
+- plusieurs `<trkseg>` d’une même trace restent des parties distinctes : aucune ligne droite artificielle entre segments non contigus;
+- plusieurs traces ou routes d’un même fichier restent des trajets distincts ; l’utilisateur en choisit une ; elles ne sont pas fusionnées en silence.
+
+Le résultat est converti vers le JSON interne Ride, avec au minimum `source: "gpx"`, un nom, la géométrie, les segments, la distance et les métadonnées utiles (parties, boucle fermée, genre piste/route).
+
+#### Point d’entrée et deux phases
+
+Au **Démarrer la navigation**, l’application utilise la position GPS actuelle. Le point d’entrée est la **projection sur la polyligne**, pas seulement le sommet GPX le plus proche. En cas d’ex æquo, le cap de déplacement puis l’ordre du trajet départagent.
+
+Phases :
+
+1. `gpx_preview` — prévisualisation;
+2. `joining_gpx` — raccordement routable de la position actuelle vers le point d’entrée, affiché dans un style distinct, message **Rejoindre le trajet GPX**, distance restante, instructions visuelles et vocales existantes. Si l’utilisateur est déjà assez près (seuil unique configurable, tenant compte de la précision GPS), cette phase est sautée;
+3. `following_gpx` — suivi de la géométrie GPX à partir du point d’entrée, message **Trajet GPX**, ordre original des points, sans recalcul OSRM de toute la trace;
+4. `gpx_completed` — arrivée.
+
+La géométrie GPX importée n’est **jamais** remplacée par un itinéraire plus rapide du fournisseur de routage (`BR-010`). Le routage ne sert qu’au raccordement, au retour après une sortie, et à l’accroche d’une route `<rte>`.
+
+Sens : jamais d’inversion automatique. Trace ouverte : du point d’entrée jusqu’au dernier point. Boucle fermée : du point d’entrée jusqu’à la fin, reprise au début, fin après une boucle complète de retour au point d’entrée.
+
+La progression le long du GPX est monotone, avec une petite tolérance GPS (`FR-024`). Elle tient compte de la progression précédente, de la distance au tracé, du cap et de la portion restante, afin d’éviter un retour en arrière, un saut sur une parallèle, un changement de branche à une intersection, une oscillation ou la fin prématurée d’une boucle.
+
+#### Sortie, retour et annulation
+
+Une sortie confirmée (`FR-026`) affiche **Hors trajet**, conserve le GPX original, et calcule seulement un raccordement vers un point cohérent **plus loin** sur la portion restante. Le retour sur la trace reprend `following_gpx`.
+
+**Annuler** fonctionne pendant la prévisualisation, le calcul du raccordement, `joining_gpx`, `following_gpx` et le recalcul. L’arrêt coupe le suivi et la voix, ignore les requêtes en vol, retire le GPX et le raccordement de la carte, réinitialise l’état, et permet d’importer ou de générer un autre trajet immédiatement (`FR-023`).
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -906,7 +959,7 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029`, de l’adaptateur de routage RAG, et de la génération à la demande du flux `FR-034`);
 - profils de motos;
 - automatisation des arrêts carburant;
-- import / export GPX;
+- export GPX (l’import et le suivi d’une trace importée font partie du MVP, `FR-039`);
 - intégration Garmin, Google Maps ou Apple Maps;
 - localisation en arrière-plan (permission Always / mode `location`);
 - fonctionnement avec écran verrouillé **sans** scène CarPlay connectée;
@@ -1003,6 +1056,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-036` | Machine d’état de navigation |
 | `FR-037` | Modes clair, sombre et navigation nocturne |
 | `FR-038` | Trouver une destination (position actuelle → aperçu → navigation) |
+| `FR-039` | Import GPX et navigation sur la trace |
 
 ### Règles métier
 
@@ -1016,6 +1070,8 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `BR-006` | Différence minimale à la régénération |
 | `BR-007` | Pas de relâchement silencieux des contraintes de surface connues |
 | `BR-008` | Préservation des préférences lors du recalcul |
+| `BR-009` | Pas de relâchement silencieux du passage aux États-Unis |
+| `BR-010` | Géométrie GPX autoritaire |
 
 ### Exigences non fonctionnelles
 

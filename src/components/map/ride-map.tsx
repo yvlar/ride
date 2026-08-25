@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Coordinates } from "@/domain/geo/types";
+import type { GpxMapOverlay } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
 import {
@@ -13,6 +14,7 @@ import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
 
 export type RideMapProps = {
   route: GeneratedRideRoute | null;
+  overlay?: GpxMapOverlay | null;
   engine?: MapEngine;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
@@ -26,6 +28,7 @@ export type RideMapProps = {
 
 export function RideMap({
   route,
+  overlay = null,
   engine,
   userLocation,
   headingDeg = null,
@@ -49,8 +52,8 @@ export function RideMap({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(
-    () => (route ? toRideMapViewModel(route) : idleMapViewModel()),
-    [route],
+    () => (route ? toRideMapViewModel(route, overlay) : idleMapViewModel()),
+    [route, overlay],
   );
   const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);

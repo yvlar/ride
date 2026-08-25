@@ -57,6 +57,20 @@ describe("navigation session state machine (FR-036)", () => {
     expect(run("permission_required", ["permission_granted"])).toBe("locating");
   });
 
+  it("covers GPX preview, join, follow and completion (FR-039)", () => {
+    expect(run("idle", ["gpx_imported"])).toBe("gpx_preview");
+    expect(run("gpx_preview", ["gpx_join_started"])).toBe("joining_gpx");
+    expect(run("joining_gpx", ["gpx_followed"])).toBe("following_gpx");
+    expect(run("following_gpx", ["arrive"])).toBe("gpx_completed");
+    expect(transitionNavigationState("following_gpx", "off_route")).toBe(
+      "joining_gpx",
+    );
+    expect(transitionNavigationState("joining_gpx", "stop")).toBe("idle");
+    expect(transitionNavigationState("gpx_preview", "stop")).toBe("idle");
+    expect(isActiveNavigationState("joining_gpx")).toBe(true);
+    expect(isActiveNavigationState("following_gpx")).toBe(true);
+  });
+
   it("suspends when the app backgrounds without CarPlay, then resumes", () => {
     expect(run("navigating", ["suspend", "resume"])).toBe("navigating");
   });
