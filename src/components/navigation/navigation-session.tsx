@@ -54,6 +54,7 @@ export type NavigationSessionProps = {
   /** FR-029 — keep the knowledge adapter on FR-026 recalculation. */
   useKnowledgeRouting?: boolean;
   initialMuted?: boolean;
+  onMutedChange?: (muted: boolean) => void;
   onUserLocation?: (
     point: Coordinates | null,
     headingDeg?: number | null,
@@ -81,6 +82,7 @@ export function NavigationSession({
   onOverview,
   wakeLock,
   initialMuted = false,
+  onMutedChange,
 }: NavigationSessionProps) {
   const [currentRoute, setCurrentRoute] = useState(route);
   const [muted, setMuted] = useState(initialMuted);
@@ -151,6 +153,10 @@ export function NavigationSession({
   useEffect(() => {
     mutedRef.current = muted;
   }, [muted]);
+
+  useEffect(() => {
+    onMutedChange?.(muted);
+  }, [muted, onMutedChange]);
   useEffect(() => {
     recalculatingRef.current = recalculating;
   }, [recalculating]);

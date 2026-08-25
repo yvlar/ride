@@ -74,6 +74,8 @@ export function RideApp(props: RideRequestFormProps) {
   const [saved, setSaved] = useState<SavedRide[]>([]);
   const [sessionRides, setSessionRides] = useState<SavedRide[]>([]);
   const [formKey, setFormKey] = useState(0);
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(false);
   const requestRef = useRef(request);
   const routeRef = useRef(route);
   const recentsRef = useRef(recents);
@@ -109,6 +111,8 @@ export function RideApp(props: RideRequestFormProps) {
     if (restored) {
       setRoute(restored.route);
       setRequest(restored.request);
+      setVoiceMuted(restored.muted);
+      setUseKnowledgeRouting(restored.useKnowledgeRouting);
       setSessionRides([
         {
           id: restored.route.id,
@@ -130,11 +134,18 @@ export function RideApp(props: RideRequestFormProps) {
       request,
       route,
       navigating,
-      muted: false,
-      useKnowledgeRouting: false,
+      muted: voiceMuted,
+      useKnowledgeRouting,
       savedAtMs: Date.now(),
     });
-  }, [navigating, request, route, sessionStore]);
+  }, [
+    navigating,
+    request,
+    route,
+    sessionStore,
+    useKnowledgeRouting,
+    voiceMuted,
+  ]);
 
   function openPlanner(next: {
     type: "loop" | "destination" | "round_trip";
@@ -149,6 +160,7 @@ export function RideApp(props: RideRequestFormProps) {
     setFormKey((value) => value + 1);
     setSheet("planner");
     setTab("explore");
+    setNavigating(false);
   }
 
   function rememberGeneratedRoute(
@@ -263,6 +275,10 @@ export function RideApp(props: RideRequestFormProps) {
       initialDestination={searchPlace}
       initialDraft={plannerDraft}
       seed={seed}
+      initialMuted={voiceMuted}
+      initialUseKnowledgeRouting={useKnowledgeRouting}
+      onVoiceMutedChange={setVoiceMuted}
+      onKnowledgeRoutingChange={setUseKnowledgeRouting}
       onRequestComposed={(composed) => {
         requestRef.current = composed;
         setRequest(composed);
