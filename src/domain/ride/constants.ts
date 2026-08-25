@@ -71,6 +71,24 @@ export const AVERAGE_SPEED_KMH = {
 /** Spatial cell size for matching the same roadway in either direction. */
 export const OVERLAP_CELL_KM = 0.05;
 
+/**
+ * BR-010 — an AI loop must reach this fraction of the target distance away
+ * from the origin, measured on the routed LineString.
+ */
+export const AI_LOOP_MIN_SPREAD_RATIO = 0.2;
+
+/**
+ * BR-011 — repeated edges whose midpoint is within this radius of the origin
+ * are treated as an unavoidable start/end connector.
+ */
+export const AI_LOOP_ORIGIN_CONNECTOR_KM = 1;
+
+/**
+ * BR-011 — maximum repeated-road share outside the origin connector, as a
+ * technical snap/quantization margin. Not enough for a real out-and-back.
+ */
+export const AI_LOOP_MAX_REPEATED_ROAD_PERCENT = 2;
+
 /** Start and destination must be farther apart than this for FR-002. */
 export const MIN_DESTINATION_SEPARATION_KM = 1;
 

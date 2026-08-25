@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
 import type { Coordinates, LineString } from "@/domain/geo/types";
-import { measureOverlapPercent, measureRepeatedRoadPercent } from "./overlap";
+import { measureOverlapPercent, measureRepeatedRoadPercent, measureRepeatedRoadPercentBeyondOrigin } from "./overlap";
 
 const GRANBY: Coordinates = { latitude: 45.403, longitude: -72.734 };
 
@@ -34,6 +34,36 @@ describe("measureRepeatedRoadPercent (BR-002)", () => {
     expect(
       measureRepeatedRoadPercent({ type: "LineString", coordinates: [] }),
     ).toBe(0);
+  });
+});
+
+describe("measureRepeatedRoadPercentBeyondOrigin (BR-011)", () => {
+  it("allows a short shared connector within 1 km of the origin", () => {
+    const connector = offsetCoordinates(GRANBY, 0, 0.6);
+    const north = offsetCoordinates(GRANBY, 0, 30);
+    const east = offsetCoordinates(GRANBY, 90, 30);
+    const path = line([
+      GRANBY,
+      connector,
+      north,
+      east,
+      connector,
+      GRANBY,
+    ]);
+
+    expect(measureRepeatedRoadPercent(path)).toBeGreaterThan(0);
+    expect(
+      measureRepeatedRoadPercentBeyondOrigin(path, GRANBY, 1),
+    ).toBeLessThanOrEqual(2);
+  });
+
+  it("still rejects a material out-and-back far from the origin", () => {
+    const far = offsetCoordinates(GRANBY, 90, 40);
+    const path = line([GRANBY, far, GRANBY]);
+
+    expect(
+      measureRepeatedRoadPercentBeyondOrigin(path, GRANBY, 1),
+    ).toBeGreaterThan(50);
   });
 });
 
