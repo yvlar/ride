@@ -832,7 +832,7 @@ Le moteur de routage configuré (détail d’infrastructure, p. ex. un adaptateu
 
 - calcule un trajet qui suit le réseau à partir des coordonnées proposées, sans inventer de géométrie;
 - produit géométrie GeoJSON `LineString` (`[longitude, latitude]`), manœuvres et instructions;
-- évalue **au moins** l’ordre de conduite fourni par l’IA, l’ordre inverse, et éventuellement un ordre optimisé comme candidat supplémentaire — sans remplacer systématiquement l’ordre IA par la chaîne géométrique la plus courte;
+- évalue d’abord l’ordre de conduite fourni par l’IA ; n’évalue l’ordre inverse et un ordre optimisé supplémentaire que si aucun candidat de cet ordre n’est déjà valide et s’il reste assez de temps — sans remplacer systématiquement l’ordre IA par la chaîne géométrique la plus courte;
 - vise la distance demandée selon `BR-001` (±10 %), contrainte **dure** pour ce flux : un trajet hors intervalle n’est jamais retourné avec succès, même au dernier essai;
 - si **Boucle** est activée, retourne une boucle commençant et se terminant près de la position actuelle (`FR-001`), suffisamment éloignée du départ (`BR-010`) et sans chemin matériellement répété (`BR-011`);
 - si **Boucle** est désactivée, retourne un aller qui commence près de la position actuelle et s’arrête à l’arrivée choisie, sans refermer la boucle.
@@ -843,7 +843,7 @@ La boucle serveur est bornée par l’échéance de la requête (`maxDuration` 6
 
 Si l’IA, la recherche Web ou le moteur de routage est indisponible, le système affiche une erreur claire et **Réessayer**. Il ne bascule pas silencieusement vers un générateur non-IA, ni vers `createLoopWaypointSets`.
 
-Lorsque ces services répondent, le serveur relance le planificateur avec un JSON de correction (distance réelle, éloignement, pourcentage de chemin répété, instruction) tant qu’il reste du temps. `NO_ROUTE_FOUND` n’est retourné qu’après plusieurs recherches distinctes, plusieurs corridors, plusieurs calculs routiers, et des tentatives de correction. Un candidat invalide n’est jamais présenté comme un succès. L’erreur structurée peut inclure le meilleur candidat (distance, éloignement, répétition, violations) pour expliquer l’échec. Les contraintes dures `FR-008`, `FR-030` et le corridor de régénération `FR-012` restent bloquantes.
+Lorsque ces services répondent, le serveur relance le planificateur avec un JSON de correction (distance réelle, éloignement, pourcentage de chemin répété, instruction) tant qu’il reste du temps. `NO_ROUTE_FOUND` n’est retourné qu’après plusieurs recherches distinctes, plusieurs corridors, plusieurs calculs routiers, et des tentatives de correction. Un candidat invalide n’est jamais présenté comme un succès. L’erreur structurée peut inclure le meilleur candidat (distance, éloignement, répétition, violations) pour expliquer l’échec. Les contraintes dures `FR-008`, `FR-030` et le corridor de régénération `FR-012` restent bloquantes. `FR-007` reste un avertissement si un trajet valide utilise une voie rapide (y compris `trunk`) et qu’aucune alternative sans voie rapide n’est retenue ; ce n’est pas un motif de rejet dur.
 
 #### Résultat, navigation et régénération
 
