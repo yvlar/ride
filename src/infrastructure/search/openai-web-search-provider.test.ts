@@ -137,6 +137,40 @@ describe("OpenAiWebSearchProvider (FR-034)", () => {
     expect(body.tool_choice).toBe("required");
   });
 
+  it("fails when Gateway metadata does not prove a search ran (FR-034)", async () => {
+    const provider = new OpenAiWebSearchProvider({
+      apiKey: "vck_test_key",
+      fetcher: async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    hits: [
+                      {
+                        title: "Invented corridor",
+                        snippet: "Model notes without a search tool call.",
+                      },
+                    ],
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    });
+
+    await expect(
+      provider.searchMotorcycleRoads({
+        origin: ORIGIN,
+        accuracyMeters: null,
+        targetDistanceKm: 80,
+      }),
+    ).rejects.toBeInstanceOf(WebSearchError);
+  });
+
   it("fails clearly when the search service is unavailable", async () => {
     const provider = new OpenAiWebSearchProvider({
       apiKey: "test-openai-key",

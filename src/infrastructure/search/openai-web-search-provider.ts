@@ -176,7 +176,7 @@ export class OpenAiWebSearchProvider implements WebSearchProvider {
     if (!parsed.success || !content) {
       throw new WebSearchError(WEB_SEARCH_INVALID_MESSAGE);
     }
-    if (typeof toolCalls === "number" && toolCalls < 1) {
+    if (typeof toolCalls !== "number" || toolCalls < 1) {
       throw new WebSearchError(WEB_SEARCH_UNAVAILABLE_MESSAGE);
     }
     return hitsFromText(content);
