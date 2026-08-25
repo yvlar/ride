@@ -18,8 +18,12 @@ import { haversineKm } from "@/domain/geo/distance";
 import { lastCoordinates } from "@/domain/geo/geometry";
 import type { Coordinates } from "@/domain/geo/types";
 import { DESCRIBE_ARRIVAL_LABEL } from "@/application/compose-described-ride";
+import {
+  excludeUnitedStatesCrossing,
+  routeEntersUnitedStates,
+} from "@/domain/ride/canada";
 import { previousRideSignature } from "@/domain/ride/route-signature";
-import { distanceToleranceExplanationKm, distanceToleranceGapKm } from "@/domain/ride/constraints";
+import { distanceToleranceExplanationKm, distanceToleranceGapKm, usesKnownUnpaved } from "@/domain/ride/constraints";
 import {
   DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
   isDescribeDistanceKm,
@@ -40,7 +44,7 @@ import {
   lostOnlyToPreviousCorridor,
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
-import { withUnknownSurfaceSignal } from "@/domain/ride/surfaces";
+import { withUnknownSurfaceSignal, excludeKnownUnpaved } from "@/domain/ride/surfaces";
 import {
   describedOneWayRideRequestSchema,
   loopRideRequestSchema,
@@ -440,20 +444,6 @@ async function routeDescribedLoop(
     };
   }
   if (selection.status === "no_route_found") {
-    const fallback = acceptOutOfTolerance
-      ? fallbackDescribedLoop(selectable, targetDistanceKm)
-      : undefined;
-    if (fallback) {
-      return {
-        ok: true,
-        route: describedLoopRoute(
-          request,
-          targetDistanceKm,
-          fallback,
-          request.preferences?.avoidHighways === true,
-        ),
-      };
-    }
     return { ok: false, error: noValidDescribedRideError() };
   }
   if (selection.status === "distance_out_of_tolerance") {
@@ -618,21 +608,38 @@ async function routeDescribedOneWay(
     };
   }
   if (selection.status === "no_route_found") {
-    const fallback = acceptOutOfTolerance
-      ? fallbackDescribedDestination(selectable, targetDistanceKm)
-      : undefined;
-    if (fallback) {
-      return {
-        ok: true,
-        route: describedOneWayRoute(
-          request,
-          style,
-          targetDistanceKm,
-          destination,
-          fallback,
-          request.preferences?.avoidHighways === true,
-        ),
-      };
+    if (acceptOutOfTolerance) {
+      const fallback = fallbackDescribedDestination(
+        selectable,
+        targetDistanceKm,
+        request.preferences?.avoidUnpaved === true,
+        request.preferences?.stayInCanada === true,
+      );
+      if (fallback.status === "selected") {
+        return {
+          ok: true,
+          route: describedOneWayRoute(
+            request,
+            style,
+            targetDistanceKm,
+            destination,
+            fallback.evaluation,
+            request.preferences?.avoidHighways === true,
+          ),
+        };
+      }
+      if (fallback.status === "known_unpaved_rejected") {
+        return {
+          ok: false,
+          error: knowledgeUnavailableError(unpavedKnowledgeError()),
+        };
+      }
+      if (fallback.status === "canada_only_rejected") {
+        return {
+          ok: false,
+          error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
+        };
+      }
     }
     return { ok: false, error: noValidDescribedRideError() };
   }
@@ -857,50 +864,52 @@ function describedPlanningRetry(
   return { reason: "no_route_found" };
 }
 
-function fallbackDescribedLoop(
-  evaluations: EvaluatedLoopCandidate[],
-  targetDistanceKm: number,
-): EvaluatedLoopCandidate | undefined {
-  const network = evaluations.filter(
-    (evaluation) => evaluation.followsRoadNetwork && !evaluation.isGeometricCircle,
-  );
-  if (network.length === 0) {
-    return undefined;
-  }
-  return [...network].sort((left, right) => {
-    if (left.isClosed !== right.isClosed) {
-      return left.isClosed ? -1 : 1;
-    }
-    return (
-      distanceToleranceGapKm(left.candidate.distanceKm, targetDistanceKm) -
-      distanceToleranceGapKm(right.candidate.distanceKm, targetDistanceKm)
-    );
-  })[0];
-}
-
 function fallbackDescribedDestination(
   evaluations: EvaluatedDestinationCandidate[],
   targetDistanceKm: number,
-): EvaluatedDestinationCandidate | undefined {
+  avoidUnpaved: boolean,
+  stayInCanada: boolean,
+):
+  | { status: "selected"; evaluation: EvaluatedDestinationCandidate }
+  | { status: "known_unpaved_rejected" }
+  | { status: "canada_only_rejected" }
+  | { status: "no_route_found" } {
   const network = evaluations.filter(
-    (evaluation) => evaluation.followsRoadNetwork,
+    (evaluation) => evaluation.followsRoadNetwork && evaluation.startsAtStart,
   );
   if (network.length === 0) {
-    return undefined;
+    return { status: "no_route_found" };
   }
-  return [...network].sort((left, right) => {
-    const leftAnchor =
-      (left.startsAtStart ? 1 : 0) + (left.reachesDestination ? 1 : 0);
-    const rightAnchor =
-      (right.startsAtStart ? 1 : 0) + (right.reachesDestination ? 1 : 0);
-    if (leftAnchor !== rightAnchor) {
-      return rightAnchor - leftAnchor;
+  const withoutUnpaved = excludeKnownUnpaved(
+    network,
+    (evaluation) => usesKnownUnpaved(evaluation.candidate.segments),
+    avoidUnpaved,
+  );
+  if (avoidUnpaved && withoutUnpaved.length === 0) {
+    return { status: "known_unpaved_rejected" };
+  }
+  const withoutUnitedStates = excludeUnitedStatesCrossing(
+    withoutUnpaved,
+    (evaluation) => routeEntersUnitedStates(evaluation.candidate),
+    stayInCanada,
+  );
+  if (stayInCanada && withoutUnitedStates.length === 0) {
+    return { status: "canada_only_rejected" };
+  }
+  const ranked = [...withoutUnitedStates].sort((left, right) => {
+    if (left.reachesDestination !== right.reachesDestination) {
+      return left.reachesDestination ? -1 : 1;
     }
     return (
       distanceToleranceGapKm(left.candidate.distanceKm, targetDistanceKm) -
       distanceToleranceGapKm(right.candidate.distanceKm, targetDistanceKm)
     );
-  })[0];
+  });
+  const best = ranked[0];
+  if (!best) {
+    return { status: "no_route_found" };
+  }
+  return { status: "selected", evaluation: best };
 }
 
 function withDescribedDistanceWarning(

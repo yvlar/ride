@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { filterViaPoints, generateDescribedRide } from "./generate-described-ride";
 import { generateRide } from "./generate-ride";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
+import type {
+  ProviderRouteRequest,
+  RoutingProvider,
+} from "@/infrastructure/routing/routing-provider";
 import { createLoopWaypointSets } from "@/domain/ride/loop";
 import type { AiRidePlanner } from "@/infrastructure/ai/ai-ride-planner";
 import { AiRidePlannerError } from "@/infrastructure/ai/ai-ride-planner-error";
@@ -350,6 +354,92 @@ describe("generateDescribedRide (FR-034)", () => {
         warning.includes("±10 % non atteint"),
       ),
     ).toBe(true);
+  });
+
+  it("does not return an unclosed path as a described loop (FR-001, FR-034)", async () => {
+    const openGeometry = {
+      type: "LineString" as const,
+      coordinates: Array.from({ length: 12 }, (_, index) => [
+        GRANBY.coordinates.longitude + index * 0.01,
+        GRANBY.coordinates.latitude,
+      ] as [number, number]),
+    };
+    const routing: RoutingProvider = {
+      async calculateRoute() {
+        return {
+          geometry: openGeometry,
+          segments: [
+            {
+              id: "open",
+              geometry: openGeometry,
+              distanceKm: 80,
+              durationMinutes: 80,
+              surface: "paved",
+            },
+          ],
+          steps: [],
+          distanceKm: 80,
+          durationMinutes: 80,
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+  });
+
+  it("rejects a leaked known unpaved described ride when avoidance is on (FR-008, FR-034)", async () => {
+    const mock = new MockRoutingProvider();
+    const leaky: RoutingProvider = {
+      async calculateRoute(input: ProviderRouteRequest) {
+        const routed = await mock.calculateRoute({
+          ...input,
+          preferences: undefined,
+        });
+        return {
+          ...routed,
+          segments: routed.segments.map((segment) => ({
+            ...segment,
+            surface: "unpaved" as const,
+          })),
+        };
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+        preferences: { avoidHighways: false, avoidUnpaved: true },
+      },
+      leaky,
+      undefined,
+      { webSearch: fakeSearch(), planner: fakePlanner() },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(result.error.message).toMatch(/non pavées/);
   });
 
   it("does not fall back to geometric loop seeds when AI is required", async () => {
