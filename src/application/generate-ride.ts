@@ -1,4 +1,5 @@
 import { generateDestinationRide } from "@/application/generate-destination-ride";
+import { generateDescribedRide } from "@/application/generate-described-ride";
 import { generateLoopRide } from "@/application/generate-loop-ride";
 import { generateRoundTripRide } from "@/application/generate-round-trip-ride";
 import { unsupportedRideTypeMessage } from "@/domain/ride/schemas";
@@ -6,6 +7,7 @@ import type {
   GenerateRideResult,
   RideGenerationOptions,
 } from "@/domain/ride/types";
+import { isAiWebGenerationRequested } from "@/application/ai-web-generation";
 import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
 import { providerConfigurationError } from "./routing-failure";
@@ -17,6 +19,10 @@ export async function generateRide(
   routingProvider?: RoutingProvider,
   options?: RideGenerationOptions,
 ): Promise<GenerateRideResult> {
+  if (isAiWebGenerationRequested(input)) {
+    return generateDescribedRide(input, routingProvider, options);
+  }
+
   let provider: RoutingProvider;
   try {
     provider = resolveRoutingProvider(input, routingProvider);

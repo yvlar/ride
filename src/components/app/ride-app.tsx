@@ -178,6 +178,11 @@ export function RideApp(props: RideRequestFormProps) {
       },
       ...current.filter((item) => item.id !== next.id),
     ]);
+    if (!navigatingRef.current) {
+      queueMicrotask(() => {
+        mapOverviewRef.current();
+      });
+    }
   }
 
   function startDescribeNavigation(options?: { muted?: boolean }) {
@@ -195,6 +200,11 @@ export function RideApp(props: RideRequestFormProps) {
       speechEngine.unlock();
     } catch {
       // Visual navigation continues if speech cannot unlock (FR-025).
+    }
+    try {
+      mapRecenterRef.current();
+    } catch {
+      // Follow-user camera still starts with the overlay (FR-023).
     }
     setDescribeMuted(Boolean(options?.muted));
     setNavigating(true);
@@ -557,20 +567,20 @@ export function RideApp(props: RideRequestFormProps) {
                 className={route ? "max-h-[58dvh]" : undefined}
               >
                 <DescribeRidePanel
-                  searchPlaces={props.searchPlaces}
-                  debounceMs={props.debounceMs}
                   generateRide={props.generateRide}
                   regenerateRide={props.regenerateRide}
-                  requestCoordinates={props.requestCoordinates}
-                  reversePlace={props.reversePlace}
-                  gpsPlace={gpsPlace}
+                  requestPosition={
+                    props.requestPosition ??
+                    (props.requestCoordinates
+                      ? async () => ({
+                          coordinates: await props.requestCoordinates!(),
+                          accuracyMeters: null,
+                        })
+                      : undefined)
+                  }
                   onRequestComposed={(composed) => {
                     requestRef.current = composed;
                     setRequest(composed);
-                    remember(composed.start);
-                    if (composed.type !== "loop") {
-                      remember(composed.destination);
-                    }
                     props.onRequestComposed?.(composed);
                   }}
                   onGeneratedRouteChange={(next) => {

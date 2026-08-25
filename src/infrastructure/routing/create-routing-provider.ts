@@ -18,6 +18,8 @@ export const MISSING_CHAT_API_KEY_MESSAGE =
 export type CreateRoutingProviderOptions = {
   /** FR-029 — per-request override to the knowledge/RAG adapter. */
   knowledgeRouting?: boolean;
+  /** FR-034 — described rides snap via-points onto the road-network adapter only. */
+  roadNetworkOnly?: boolean;
 };
 
 export function createRoutingProvider(
@@ -25,6 +27,10 @@ export function createRoutingProvider(
   options?: CreateRoutingProviderOptions,
 ): RoutingProvider {
   const env = parseEnv(source ?? serverProcessEnv());
+
+  if (options?.roadNetworkOnly) {
+    return createRoadNetworkProvider(env);
+  }
 
   if (options?.knowledgeRouting || env.ROUTING_PROVIDER === "ai-rag") {
     return createChatGptRagRoutingProvider(env);

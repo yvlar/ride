@@ -57,6 +57,46 @@ describe("POST /api/routes/regenerate", () => {
     ).toBeLessThanOrEqual(REGENERATION_MAX_OVERLAP_PERCENT);
   });
 
+  it("regenerates a described loop through AI and web search (FR-034)", async () => {
+    const request = {
+      type: "loop" as const,
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic" as const,
+      useAiWebGeneration: true,
+      originAccuracyMeters: 8,
+    };
+    const first = await generateRide(request);
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error(first.error.message);
+    }
+
+    const response = await POST(
+      new Request("http://localhost/api/routes/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request: {
+            ...request,
+            previousRouteSignature: first.route.id,
+          },
+          previousRoute: {
+            type: first.route.type,
+            geometry: first.route.geometry,
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      data: { route: { type: string; geometry: LineString } };
+    };
+    expect(payload.data.route.type).toBe("loop");
+    expect(JSON.stringify(payload)).not.toMatch(/searchHits/);
+  });
+
   it("rejects an invalid envelope (FR-012)", async () => {
     const response = await POST(
       new Request("http://localhost/api/routes/regenerate", {

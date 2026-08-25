@@ -1,4 +1,11 @@
+import type { Coordinates } from "@/domain/geo/types";
 import type { LocationFix } from "@/domain/navigation/types";
+
+/** FR-034 — one-shot precise fix used to generate a described loop. */
+export type LocatedPosition = {
+  coordinates: Coordinates;
+  accuracyMeters: number | null;
+};
 
 export type LocationWatchOptions = {
   enableHighAccuracy: true;

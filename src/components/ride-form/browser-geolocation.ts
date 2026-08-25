@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/domain/geo/types";
+import type { LocatedPosition } from "@/domain/location/types";
 
 export const CURRENT_POSITION_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
@@ -62,10 +63,10 @@ export function getBrowserGeolocation(): Geolocation | undefined {
   return navigator.geolocation;
 }
 
-export function requestCurrentCoordinates(
+export function requestCurrentPosition(
   geolocation: Pick<Geolocation, "getCurrentPosition"> | undefined =
     getBrowserGeolocation(),
-): Promise<Coordinates> {
+): Promise<LocatedPosition> {
   if (!geolocation) {
     return Promise.reject(new CurrentPositionError("unsupported"));
   }
@@ -73,9 +74,16 @@ export function requestCurrentCoordinates(
   return new Promise((resolve, reject) => {
     geolocation.getCurrentPosition(
       (position) => {
+        const accuracy = position.coords.accuracy;
         resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          coordinates: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          },
+          accuracyMeters:
+            typeof accuracy === "number" && Number.isFinite(accuracy)
+              ? accuracy
+              : null,
         });
       },
       (error) => {
@@ -84,4 +92,12 @@ export function requestCurrentCoordinates(
       CURRENT_POSITION_OPTIONS,
     );
   });
+}
+
+export async function requestCurrentCoordinates(
+  geolocation: Pick<Geolocation, "getCurrentPosition"> | undefined =
+    getBrowserGeolocation(),
+): Promise<Coordinates> {
+  const located = await requestCurrentPosition(geolocation);
+  return located.coordinates;
 }

@@ -2,7 +2,7 @@ import { regenerateRide } from "@/application/regenerate-ride";
 import type { RideGenerationError } from "@/domain/ride/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 15;
+export const maxDuration = 60;
 
 const MAX_BODY_BYTES = 32_768;
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -63,7 +63,10 @@ export async function POST(request: Request) {
         result.error.code === "VALIDATION_ERROR" ||
         result.error.code === "UNSUPPORTED_RIDE_TYPE"
           ? 400
-          : result.error.code === "PROVIDER_ERROR"
+          : result.error.code === "PROVIDER_ERROR" ||
+              result.error.code === "WEB_SEARCH_UNAVAILABLE" ||
+              result.error.code === "AI_UNAVAILABLE" ||
+              result.error.code === "ROUTING_UNAVAILABLE"
             ? 503
             : 422;
       return errorResponse(requestId, result.error, status);

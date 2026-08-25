@@ -467,3 +467,41 @@ describe("regenerateRide knowledge option (FR-029, FR-012)", () => {
     ).toBe(true);
   });
 });
+
+describe("regenerateRide described AI loop (FR-034, FR-012)", () => {
+  it("keeps the AI web pipeline instead of geometric seeds", async () => {
+    const request = {
+      type: "loop" as const,
+      start: GRANBY,
+      targetDistanceKm: 80,
+      style: "scenic" as const,
+      useAiWebGeneration: true,
+      originAccuracyMeters: 8,
+    };
+    const first = await generateRide(request);
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      throw new Error(first.error.message);
+    }
+
+    const regenerated = await regenerateRide({
+      request: {
+        ...request,
+        previousRouteSignature: first.route.id,
+      },
+      previousRoute: {
+        type: "loop",
+        geometry: first.route.geometry,
+      },
+    });
+
+    expect(regenerated.ok).toBe(true);
+    if (!regenerated.ok) {
+      throw new Error(regenerated.error.message);
+    }
+    expect(regenerated.route.type).toBe("loop");
+    expect(regenerated.route.geometry.coordinates.length).toBeGreaterThanOrEqual(
+      8,
+    );
+  });
+});

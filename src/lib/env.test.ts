@@ -11,6 +11,7 @@ describe("parseEnv", () => {
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_BASE_URL).toBeUndefined();
     expect(env.OPENAI_MODEL).toBeUndefined();
+    expect(env.WEB_SEARCH_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
 
@@ -42,23 +43,41 @@ describe("parseEnv", () => {
     expect(env.OPENAI_MODEL).toBe("gpt-4o-mini");
   });
 
+  it("accepts a Tavily or Brave web search provider (FR-034)", () => {
+    expect(
+      parseEnv({
+        WEB_SEARCH_PROVIDER: "brave",
+        WEB_SEARCH_API_KEY: "test-web-search-key",
+      }).WEB_SEARCH_PROVIDER,
+    ).toBe("brave");
+    expect(
+      parseEnv({
+        WEB_SEARCH_PROVIDER: "tavily",
+        WEB_SEARCH_API_KEY: "test-web-search-key",
+      }).WEB_SEARCH_PROVIDER,
+    ).toBe("tavily");
+  });
+
   it("treats blank strings as unset values", () => {
     const env = parseEnv({
       ROUTING_PROVIDER: "",
       ROUTING_API_KEY: "",
       OPENAI_API_KEY: "",
+      WEB_SEARCH_API_KEY: "",
       NEXT_PUBLIC_MAP_STYLE_URL: "",
     });
 
     expect(env.ROUTING_PROVIDER).toBe("mock");
     expect(env.ROUTING_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.WEB_SEARCH_API_KEY).toBeUndefined();
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
 
   it("reads OPENAI_API_KEY through a static process.env access (FR-029)", () => {
     const fromProcess = serverProcessEnv();
     expect(fromProcess).toHaveProperty("OPENAI_API_KEY");
+    expect(fromProcess).toHaveProperty("WEB_SEARCH_API_KEY");
     expect(parseEnv().OPENAI_API_KEY).toBe(process.env.OPENAI_API_KEY);
   });
 

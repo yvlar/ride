@@ -122,4 +122,36 @@ describe("requestGeneratedRide (FR-011)", () => {
       }),
     );
   });
+
+  it("includes AI web-generation fields for Décrire mon trajet (FR-034)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: { route: ROUTE },
+          meta: { requestId: "req-4" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestGeneratedRide(REQUEST, {
+      useAiWebGeneration: true,
+      originAccuracyMeters: 8,
+      previousRouteSignature: "route-1:2:abc",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/routes/generate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          ...REQUEST,
+          useAiWebGeneration: true,
+          originAccuracyMeters: 8,
+          previousRouteSignature: "route-1:2:abc",
+        }),
+      }),
+    );
+  });
 });

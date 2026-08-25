@@ -1,3 +1,4 @@
+import { isAiWebGenerationRequested } from "@/application/ai-web-generation";
 import { generateRide } from "@/application/generate-ride";
 import { resolveRoutingProvider } from "@/application/resolve-routing-provider";
 import { regenerateRideEnvelopeSchema } from "@/domain/ride/schemas";
@@ -21,6 +22,12 @@ export async function regenerateRide(
         ],
       },
     };
+  }
+
+  if (isAiWebGenerationRequested(input)) {
+    return generateRide(parsed.data.request, routingProvider, {
+      previousGeometry: parsed.data.previousRoute.geometry,
+    });
   }
 
   let provider: RoutingProvider;
