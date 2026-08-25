@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateDescribedRide } from "./generate-described-ride";
+import { filterViaPoints, generateDescribedRide } from "./generate-described-ride";
 import { generateRide } from "./generate-ride";
 import { MockRoutingProvider } from "@/infrastructure/routing/mock-routing-provider";
 import { createLoopWaypointSets } from "@/domain/ride/loop";
@@ -135,6 +135,44 @@ describe("generateDescribedRide (FR-034)", () => {
       throw new Error("expected a destination route");
     }
     expect(result.route.destination.label).toBe("Arrivée proposée");
+  });
+
+  it("does not promote an intermediate via when the planned arrival is out of range (FR-034, BR-001)", async () => {
+    const midpoint = offsetCoordinates(GRANBY.coordinates, 90, 40);
+    const tooFar = offsetCoordinates(GRANBY.coordinates, 90, 120);
+    const routing = new MockRoutingProvider();
+    const routeSpy = vi.spyOn(routing, "calculateRoute");
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+        returnToStart: false,
+      },
+      routing,
+      undefined,
+      {
+        webSearch: fakeSearch(),
+        planner: {
+          async planLoop() {
+            return {
+              viaPoints: [midpoint, tooFar],
+              roads: [],
+              pointsOfInterest: [],
+            };
+          },
+        },
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(routeSpy).not.toHaveBeenCalled();
   });
 
   it("regenerates a destination request through the AI one-way pipeline (FR-012, FR-034)", async () => {
@@ -415,5 +453,29 @@ describe("generateRide described flag (FR-034)", () => {
       targetDistanceKm: 80,
     });
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("filterViaPoints (FR-034)", () => {
+  it("keeps the planned one-way arrival last instead of promoting a closer via", () => {
+    const midpoint = offsetCoordinates(GRANBY.coordinates, 90, 40);
+    const arrival = offsetCoordinates(GRANBY.coordinates, 90, 78);
+    const tooFar = offsetCoordinates(GRANBY.coordinates, 90, 120);
+
+    expect(
+      filterViaPoints(GRANBY.coordinates, 80, [midpoint, tooFar], {
+        returnToStart: false,
+      }),
+    ).toEqual([]);
+    expect(
+      filterViaPoints(GRANBY.coordinates, 80, [tooFar, arrival], {
+        returnToStart: false,
+      }),
+    ).toEqual([arrival]);
+    expect(
+      filterViaPoints(GRANBY.coordinates, 80, [midpoint, arrival], {
+        returnToStart: false,
+      }),
+    ).toEqual([midpoint, arrival]);
   });
 });

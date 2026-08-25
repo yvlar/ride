@@ -626,21 +626,39 @@ export function filterViaPoints(
     ? targetDistanceKm * 0.55
     : targetDistanceKm * 1.1;
   const minRadiusKm = Math.max(1, targetDistanceKm * 0.04);
-  const filtered: Coordinates[] = [];
-  for (const point of points) {
+
+  if (!returnToStart) {
+    const arrival = points[points.length - 1];
     if (
-      !Number.isFinite(point.latitude) ||
-      !Number.isFinite(point.longitude)
+      !arrival ||
+      !isUsableViaPoint(origin, arrival, minRadiusKm, maxRadiusKm)
     ) {
-      continue;
+      return [];
     }
-    const distanceKm = haversineKm(origin, point);
-    if (distanceKm < minRadiusKm || distanceKm > maxRadiusKm) {
-      continue;
-    }
-    filtered.push(point);
+    const inbound = points
+      .slice(0, -1)
+      .filter((point) =>
+        isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+      );
+    return [...inbound, arrival];
   }
-  return filtered;
+
+  return points.filter((point) =>
+    isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+  );
+}
+
+function isUsableViaPoint(
+  origin: Coordinates,
+  point: Coordinates,
+  minRadiusKm: number,
+  maxRadiusKm: number,
+): boolean {
+  if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {
+    return false;
+  }
+  const distanceKm = haversineKm(origin, point);
+  return distanceKm >= minRadiusKm && distanceKm <= maxRadiusKm;
 }
 
 function describedWebSearchError(error: unknown): RideGenerationError {
