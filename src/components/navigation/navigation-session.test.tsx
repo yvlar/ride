@@ -230,9 +230,52 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       expect(screen.getByText(/Tournez à droite/)).toBeInTheDocument();
     });
     expect(speech.speak).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
-    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
     expect(onStop).toHaveBeenCalled();
+  });
+
+  it("ignores GPS ticks and drops the watch after navigation is cancelled (FR-023, FR-038)", () => {
+    const helper = createWatch();
+    const speech = stubSpeech();
+    const onStop = vi.fn();
+    const { unmount } = render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={onStop}
+        locationWatch={helper.watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(speech.cancel).toHaveBeenCalled();
+
+    helper.emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.7 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+    expect(speech.speak).not.toHaveBeenCalled();
+
+    unmount();
+    expect(helper.watch.activeNativeWatches()).toBe(0);
+    helper.emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.41, longitude: -72.71 },
+        accuracyMeters: 8,
+        recordedAtMs: 2,
+      },
+    });
+    expect(speech.speak).not.toHaveBeenCalled();
   });
 
   it("uses 48px touch targets for riding controls (NFR-006)", () => {
@@ -250,7 +293,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(screen.getByRole("button", { name: "Recentrer" })).toHaveClass(
       "min-h-12",
     );
-    expect(screen.getByRole("button", { name: "Arrêter" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "Annuler la navigation" })).toHaveClass(
       "min-h-12",
     );
     expect(screen.getByText(FOREGROUND_ONLY_MESSAGE)).toBeInTheDocument();

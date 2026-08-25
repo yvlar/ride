@@ -10,7 +10,7 @@ export const DEFAULT_ROUTE_PREFERENCES: RoutePreferences = {
 
 /**
  * FR-007, FR-008, FR-030 — preferences stored from Réglages and applied
- * by Décrire mon trajet (FR-034, FR-031).
+ * by Décrire mon trajet (FR-034) and Trouver une destination (FR-038).
  */
 export function readStoredRoutePreferences(
   storage: Pick<Storage, "getItem"> | null | undefined,

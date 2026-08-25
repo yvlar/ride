@@ -57,6 +57,21 @@ export function withGenerateRideTransport(
   return payload;
 }
 
+export function isAbortError(error: unknown): boolean {
+  return (
+    (typeof DOMException !== "undefined" &&
+      error instanceof DOMException &&
+      error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
+
+const GENERATION_ABORTED: RideGenerationError = {
+  code: "STALE_RECALCULATE",
+  message: "Génération annulée.",
+  suggestions: [],
+};
+
 export async function requestGeneratedRide(
   request: GenerateRideRequest,
   options?: GenerateRideClientOptions,
@@ -69,15 +84,22 @@ export async function requestGeneratedRide(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: options?.signal,
     });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error) || options?.signal?.aborted) {
+      return { ok: false, error: GENERATION_ABORTED };
+    }
     return { ok: false, error: PROVIDER_UNAVAILABLE };
   }
 
   let body: unknown;
   try {
     body = await response.json();
-  } catch {
+  } catch (error) {
+    if (isAbortError(error) || options?.signal?.aborted) {
+      return { ok: false, error: GENERATION_ABORTED };
+    }
     return { ok: false, error: PROVIDER_UNAVAILABLE };
   }
 

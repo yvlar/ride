@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RideMap } from "@/components/map/ride-map";
 import { DescribeRidePanel } from "@/components/app/describe-ride-panel";
+import { FindDestinationPanel } from "@/components/app/find-destination-panel";
 import { RoutePreferenceSettings } from "@/components/app/route-preference-settings";
 import {
   RideRequestForm,
@@ -10,7 +11,6 @@ import {
 } from "@/components/ride-form/ride-request-form";
 import {
   LocateButton,
-  PlaceSearchField,
 } from "@/components/ride-form/place-search-field";
 import { Button } from "@/components/ui/button";
 import { AppTabBar, type AppTab } from "@/components/shell/app-tab-bar";
@@ -67,6 +67,7 @@ export function RideApp(props: RideRequestFormProps) {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchPlace, setSearchPlace] = useState<Place | null>(null);
+  const [searchSession, setSearchSession] = useState(0);
   const [gpsLabel, setGpsLabel] = useState("Position non demandée");
   const [gpsPlace, setGpsPlace] = useState<Place | null>(null);
   const [navUserLocation, setNavUserLocation] = useState<Coordinates | null>(
@@ -98,7 +99,8 @@ export function RideApp(props: RideRequestFormProps) {
   const speechEngine = props.navigation?.speech ?? ownedSpeech;
   const carPlay = useMemo(() => createCarPlayDisplay(), []);
   const plannerOwnsMap = navigating && sheet === "planner";
-  const describeOwnsNavigation = navigating && sheet === "describe";
+  const explorerOwnsNavigation =
+    navigating && (sheet === "describe" || sheet === "search");
 
   useEffect(() => {
     requestRef.current = request;
@@ -166,6 +168,7 @@ export function RideApp(props: RideRequestFormProps) {
     setFormKey((value) => value + 1);
     setSheet("planner");
     setTab("explore");
+    navigatingRef.current = false;
     setNavigating(false);
   }
 
@@ -191,7 +194,25 @@ export function RideApp(props: RideRequestFormProps) {
     }
   }
 
-  function startDescribeNavigation(options?: { muted?: boolean }) {
+  function openFindDestination(place?: Place | null) {
+    if (place) {
+      setSearchPlace(place);
+      setSearchQuery(place.label);
+    }
+    navigatingRef.current = false;
+    setNavigating(false);
+    setNavUserLocation(null);
+    setNavHeadingDeg(null);
+    setSearchSession((value) => value + 1);
+    setSheet("search");
+    setTab("explore");
+  }
+
+  function startGuidedNavigation(options?: { muted?: boolean }) {
+    if (navigatingRef.current) {
+      return;
+    }
+    navigatingRef.current = true;
     try {
       setMapGeolocateEnabledRef.current(false);
     } catch {
@@ -214,6 +235,13 @@ export function RideApp(props: RideRequestFormProps) {
     }
     setDescribeMuted(Boolean(options?.muted));
     setNavigating(true);
+  }
+
+  function stopGuidedNavigation() {
+    navigatingRef.current = false;
+    setNavigating(false);
+    setNavUserLocation(null);
+    setNavHeadingDeg(null);
   }
 
   function remember(place: Place) {
@@ -263,7 +291,7 @@ export function RideApp(props: RideRequestFormProps) {
           event.id,
         );
         if (place) {
-          openPlanner({ type: "destination", destination: place });
+          openFindDestination(place);
         }
         return;
       }
@@ -336,9 +364,9 @@ export function RideApp(props: RideRequestFormProps) {
               route={route}
               engine={props.mapEngine}
               fill
-              expanded={describeOwnsNavigation}
-              userLocation={describeOwnsNavigation ? navUserLocation : null}
-              headingDeg={describeOwnsNavigation ? navHeadingDeg : null}
+              expanded={explorerOwnsNavigation}
+              userLocation={explorerOwnsNavigation ? navUserLocation : null}
+              headingDeg={explorerOwnsNavigation ? navHeadingDeg : null}
               onRecenterReady={(recenter) => {
                 mapRecenterRef.current = recenter;
               }}
@@ -352,7 +380,7 @@ export function RideApp(props: RideRequestFormProps) {
           </div>
         ) : null}
 
-        {describeOwnsNavigation && route && request ? (
+        {explorerOwnsNavigation && route && request ? (
           <NavigationSession
             route={route}
             request={request}
@@ -367,11 +395,7 @@ export function RideApp(props: RideRequestFormProps) {
             }}
             onRecenter={() => mapRecenterRef.current()}
             onOverview={() => mapOverviewRef.current()}
-            onStop={() => {
-              setNavigating(false);
-              setNavUserLocation(null);
-              setNavHeadingDeg(null);
-            }}
+            onStop={stopGuidedNavigation}
             onRouteChange={(next) => {
               const composed = requestRef.current;
               if (composed) {
@@ -455,7 +479,7 @@ export function RideApp(props: RideRequestFormProps) {
                     type="button"
                     size="lg"
                     className="min-h-12 w-full text-base"
-                    onClick={() => setSheet("search")}
+                    onClick={() => openFindDestination()}
                   >
                     Rechercher une destination
                   </Button>
@@ -494,9 +518,7 @@ export function RideApp(props: RideRequestFormProps) {
                         type="button"
                         variant="ghost"
                         className="min-h-12 w-full justify-start text-base"
-                        onClick={() =>
-                          openPlanner({ type: "destination", destination: place })
-                        }
+                        onClick={() => openFindDestination(place)}
                       >
                         {place.label}
                       </Button>
@@ -528,33 +550,52 @@ export function RideApp(props: RideRequestFormProps) {
             ) : null}
 
             {sheet === "search" ? (
-              <MapBottomPanel title="Rechercher une destination">
-                <PlaceSearchField
-                  id="explorer-destination"
-                  label="Destination"
-                  query={searchQuery}
-                  selectedPlace={searchPlace}
-                  placeholder="Nom, adresse ou lieu"
-                  debounceMs={props.debounceMs}
+              <MapBottomPanel
+                title="Trouver une destination"
+                className={route ? "max-h-[58dvh]" : undefined}
+              >
+                <FindDestinationPanel
+                  key={searchSession}
+                  generateRide={props.generateRide}
+                  regenerateRide={props.regenerateRide}
                   searchPlaces={props.searchPlaces}
-                  onQueryChange={(query) => {
-                    setSearchQuery(query);
-                    setSearchPlace(null);
-                  }}
-                  onPlaceSelected={(place) => {
+                  debounceMs={props.debounceMs}
+                  initialDestination={searchPlace}
+                  initialQuery={searchQuery}
+                  navigationActive={navigating && sheet === "search"}
+                  requestPosition={
+                    props.requestPosition ??
+                    (props.requestCoordinates
+                      ? async () => ({
+                          coordinates: await props.requestCoordinates!(),
+                          accuracyMeters: null,
+                        })
+                      : undefined)
+                  }
+                  reversePlace={props.reversePlace}
+                  onDestinationChange={(place, query) => {
                     setSearchPlace(place);
-                    remember(place);
-                    openPlanner({ type: "destination", destination: place });
+                    setSearchQuery(query);
+                    if (place) {
+                      remember(place);
+                    }
                   }}
+                  onRequestComposed={(composed) => {
+                    requestRef.current = composed;
+                    setRequest(composed);
+                    remember(composed.start);
+                    remember(composed.destination);
+                    props.onRequestComposed?.(composed);
+                  }}
+                  onGeneratedRouteChange={(next) => {
+                    const composed = requestRef.current;
+                    if (composed) {
+                      rememberGeneratedRoute(next, composed);
+                    }
+                  }}
+                  onStartNavigation={startGuidedNavigation}
+                  onBack={() => setSheet("home")}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="mt-3 min-h-12 w-full"
-                  onClick={() => setSheet("home")}
-                >
-                  Retour
-                </Button>
               </MapBottomPanel>
             ) : null}
 
@@ -586,7 +627,7 @@ export function RideApp(props: RideRequestFormProps) {
                       rememberGeneratedRoute(next, composed);
                     }
                   }}
-                  onStartNavigation={startDescribeNavigation}
+                  onStartNavigation={startGuidedNavigation}
                   onBack={() => setSheet("home")}
                 />
               </MapBottomPanel>

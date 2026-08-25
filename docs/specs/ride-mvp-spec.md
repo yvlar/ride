@@ -341,7 +341,7 @@ Le suivi GPS :
 - ne constitue **pas** à lui seul une navigation virage par virage (`FR-023`);
 - ne demande aucune permission de localisation en arrière-plan.
 
-La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position », le contrôle GPS de la carte, ou l’ouverture du flux **Décrire mon trajet** (`FR-034`). Aucune position n’est demandée automatiquement au chargement de la page d’accueil.
+La permission de géolocalisation n’est demandée qu’après une action explicite : le bouton « Ma position », le contrôle GPS de la carte, l’ouverture du flux **Décrire mon trajet** (`FR-034`), ou l’ouverture du volet **Trouver une destination** (`FR-038`). Aucune position n’est demandée automatiquement au chargement de la page d’accueil.
 
 Le géocodage inverse de « Ma position » n’est exécuté **qu’une fois** à la sélection. Les mises à jour du suivi GPS sur la carte ne sont pas géocodées et ne remplacent pas le point de départ.
 
@@ -358,8 +358,8 @@ Le domaine ne dépend ni de MapLibre ni d’un fournisseur de géocodage nommé 
 Le parcours MVP est le suivant :
 
 1. Ouvrir l’écran principal (`FR-014`), y compris via la coque iOS (`FR-027`).
-2. Saisir ou sélectionner le point de départ (`FR-017`), y compris via la position actuelle dont l’adresse est alors affichée.
-3. Choisir le type de trajet : boucle, départ vers destination, ou aller-retour différent.
+2. Saisir ou sélectionner le point de départ (`FR-017`), y compris via la position actuelle dont l’adresse est alors affichée. Le raccourci **Trouver une destination** (`FR-038`) utilise automatiquement la position actuelle et n’affiche pas de champ d’origine.
+3. Choisir le type de trajet : boucle, départ vers destination, ou aller-retour différent. Le raccourci `FR-038` fixe le type à un départ vers destination (`FR-002`).
 4. Saisir la destination si le type l’exige (`FR-018`).
 5. Indiquer une distance cible (`FR-009`) et/ou une durée disponible (`FR-010`).
 6. Choisir un style (`FR-019`).
@@ -545,6 +545,8 @@ L’arrêt, le retour à l’écran résultat ou le démontage :
 - ignorent tout recalcul en vol;
 - ne conservent aucune position GPS.
 
+Sur l’écran de guidage, une action **Annuler la navigation** reste visible en permanence, avec une zone tactile d’au moins 44 × 44 pt (`NFR-001`, `NFR-006`). Une confirmation courte précède l’arrêt, afin d’éviter une annulation accidentelle. L’utilisateur n’a pas à fermer ni à recharger l’application. Après l’annulation depuis **Trouver une destination** (`FR-038`), le volet de recherche se réaffiche, la position actuelle est actualisée, et une nouvelle génération est possible tout de suite.
+
 ### FR-024 — Instructions de manœuvre
 
 Pendant la navigation, l’écran affiche au minimum :
@@ -718,7 +720,9 @@ L’explorateur montre d’abord :
 - Reprendre la navigation, s’il existe un trajet en mémoire;
 - les destinations récentes et les trajets favoris (`FR-035`).
 
-**Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Le flux **Décrire mon trajet** (`FR-034`) les lit à la génération et ne les affiche pas dans son panneau.
+**Rechercher une destination** ouvre le volet **Trouver une destination** (`FR-038`) : position actuelle automatique, champ unique de destination, génération et prévisualisation, puis navigation. Ce n’est pas le formulaire de composition (`FR-014`).
+
+**Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Les flux **Décrire mon trajet** (`FR-034`) et **Trouver une destination** (`FR-038`) les lisent à la génération et ne les affichent pas dans leur panneau.
 
 **Décrire mon trajet** reste dans cette vue carte (`FR-034`) : l’utilisateur choisit une distance et active ou non **Boucle**, le système obtient la position actuelle, puis l’IA génère le tracé sur la carte déjà visible, sans ouvrir l’écran de composition (`FR-014`). Il n’y a plus d’action explorateur distincte « Créer une boucle moto ».
 
@@ -829,6 +833,66 @@ Un rafraîchissement ne doit pas perdre le trajet composé. Un hors-trajet réel
 
 L’interface offre un mode clair, un mode sombre et un mode navigation nocturne (contraste élevé, teinte chaude). Le mode système suit `prefers-color-scheme`. Les commandes ne s’appuient pas uniquement sur la couleur (`NFR-001`).
 
+### FR-038 — Trouver une destination (position actuelle → aperçu → navigation)
+
+Le volet **Trouver une destination** produit un trajet moto `FR-002` à partir de la **position actuelle** et d’une destination choisie. Il reste dans la vue carte (`FR-031`). Ce n’est pas le formulaire de composition (`FR-014`) et ce n’est pas **Décrire mon trajet** (`FR-034`).
+
+Ce flux ne propose **pas** :
+
+- de champ d’adresse d’origine, ni de saisie manuelle du départ;
+- de sélecteur de distance ou de durée (`FR-009`, `FR-010`);
+- des interrupteurs de préférences de route ni du style de trajet : ces options se règlent dans **Réglages** (`FR-031`) lorsqu’elles y existent, et sont lues à la génération. Le style de domaine utilisé est le défaut **scenic** (`FR-005`), comme `FR-034`, tant que Réglages ne stocke pas de style;
+- de duplication des options déjà disponibles dans Réglages (`avoidHighways`, `avoidUnpaved`, `stayInCanada`).
+
+#### Position de départ automatique
+
+À l’ouverture du volet, le système demande une **localisation précise ponctuelle**. Le suivi GPS continu (`watchPosition`) ne commence qu’au **Démarrer la navigation** (`FR-023`).
+
+Affichage : une information **non modifiable**, par exemple « Position détectée » et le libellé du lieu (adresse si le géocodage inverse la fournit, sinon « Position actuelle »). Pas de section d’origine complète.
+
+Si la permission est refusée ou si la localisation échoue : explication claire, **Réessayer la localisation**, et lorsque c’est possible **Ouvrir les réglages de localisation**. Jamais de champ d’adresse d’origine.
+
+#### Destination
+
+Un seul champ principal : **Où voulez-vous aller?** La recherche réutilise le système existant (`FR-032`). **Générer le trajet** n’est actif que si une destination valide **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération et la navigation.
+
+#### Génération
+
+**Générer le trajet** :
+
+- utilise les coordonnées GPS actuelles comme départ et la destination choisie comme arrivée;
+- transmet les préférences enregistrées dans Réglages;
+- affiche un état de chargement clair et ignore les doubles soumissions;
+- **annule** toute génération précédente encore en cours (p. ex. `AbortController`). Une réponse tardive d’une ancienne requête ne remplace jamais le trajet plus récent.
+
+Le schéma JSON Ride du trajet généré est conservé. Ce flux n’introduit pas de format TomTom ou GPX.
+
+#### Prévisualisation
+
+Après une génération réussie, le flux **reste dans la même fenêtre** :
+
+- le tracé complet s’affiche sur la carte déjà visible, cadrée sur l’ensemble du parcours (`FR-013`);
+- la distance réelle et la durée estimée sont des **informations seulement** (`FR-020`);
+- **Démarrer la navigation** réutilise **exactement** le trajet affiché, sans nouvelle génération (`FR-023` à `FR-026`);
+- une action secondaire **Modifier la destination** ou **Générer un autre trajet** permet de changer la destination ou de relancer une génération. Changer la destination n’envoie pas automatiquement une nouvelle génération.
+
+Deux navigations ou deux générations ne peuvent pas être actives en même temps. L’état du trajet actif et de la navigation active est unique pour la carte, le volet et l’écran de guidage.
+
+#### Annulation et nouvelle génération
+
+Pendant la navigation, **Annuler la navigation** (`FR-023`) arrête proprement le guidage, la voix, le suivi de progression, le recalcul, les observateurs GPS propres à la navigation, les minuteries et les requêtes encore actives.
+
+Ensuite :
+
+- l’état de navigation active est supprimé;
+- aucune instruction vocale ou manœuvre obsolète ne continue;
+- le volet **Trouver une destination** se réaffiche **sans rechargement**;
+- la position GPS est actualisée;
+- la destination précédente peut rester visible et reste **modifiable**;
+- aucune génération n’est relancée automatiquement.
+
+États à prévoir, exclusifs : `idle`, `locating`, `destinationReady`, `generating`, `routePreview`, `navigating`, `cancelling`, `error`.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -938,6 +1002,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-035` | Destinations récentes et trajets enregistrés locaux |
 | `FR-036` | Machine d’état de navigation |
 | `FR-037` | Modes clair, sombre et navigation nocturne |
+| `FR-038` | Trouver une destination (position actuelle → aperçu → navigation) |
 
 ### Règles métier
 

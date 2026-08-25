@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppearanceProvider } from "@/components/theme/appearance-provider";
 import { RideApp } from "./ride-app";
 import type { Place } from "@/domain/geo/types";
-import type { GenerateRideRequest, GenerateRideResult, GeneratedLoopRoute } from "@/domain/ride/types";
+import type { GenerateRideRequest, GenerateRideResult, GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { MapEngine } from "@/components/map/map-engine";
 import type { LocationWatch } from "@/domain/location/types";
 import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
@@ -41,6 +41,30 @@ vi.mock("@/infrastructure/carplay/create-carplay-display", () => ({
 const granby: Place = {
   label: "Granby, QC",
   coordinates: { latitude: 45.4001, longitude: -72.7342 },
+};
+
+const tremblant: Place = {
+  label: "Mont-Tremblant",
+  coordinates: { latitude: 46.118, longitude: -74.596 },
+};
+
+const destinationRoute: GeneratedDestinationRoute = {
+  id: "dest-1",
+  type: "destination",
+  start: granby,
+  destination: tremblant,
+  style: "scenic",
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.7342, 45.4001],
+      [-74.596, 46.118],
+    ],
+  },
+  segments: [],
+  distanceKm: 118.4,
+  durationMinutes: 105,
+  warnings: [],
 };
 
 const loop: GeneratedLoopRoute = {
@@ -177,7 +201,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Annuler la navigation" })).not.toBeInTheDocument();
   });
 
   it("opens pre-departure from CarPlay resume of a composed route (FR-033)", async () => {
@@ -212,7 +236,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Annuler la navigation" })).not.toBeInTheDocument();
   });
 
   it("restores mute and RAG preferences from the session (FR-035)", async () => {
@@ -289,7 +313,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     );
-    expect(screen.getByRole("button", { name: "Arrêter" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Annuler la navigation" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Explorer" })).not.toBeInTheDocument();
 
     act(() => {
@@ -300,7 +324,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Explorer" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Arrêter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Annuler la navigation" })).not.toBeInTheDocument();
   });
 
   it("generates an AI loop in place from the distance slider (FR-034, FR-011)", async () => {
@@ -444,8 +468,8 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       screen.queryByRole("heading", { name: "Composer le trajet" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
-    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
@@ -545,6 +569,98 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       await screen.findByText("L’autorisation de localisation a été refusée."),
     ).toBeInTheDocument();
+  });
+
+  it("generates, starts, cancels and generates again without reload (FR-038)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: destinationRoute,
+    }));
+    const unsubscribeWatch = vi.fn();
+    const locationWatch = {
+      start: vi.fn(),
+      subscribe: vi.fn(() => unsubscribeWatch),
+      activeNativeWatches: () => 0,
+    };
+    const speech = {
+      available: true,
+      speak: vi.fn(),
+      cancel: vi.fn(),
+      setMuted: vi.fn(),
+      unlock: vi.fn(),
+    };
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          generateRide={generateRide}
+          debounceMs={0}
+          searchPlaces={async () => [tremblant]}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
+          reversePlace={async (coordinates) => ({
+            label: granby.label,
+            coordinates,
+          })}
+          navigation={{ locationWatch, speech }}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rechercher une destination" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Trouver une destination" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Point de départ")).not.toBeInTheDocument();
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+      { target: { value: "Mont" } },
+    );
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Mont-Tremblant" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    const start = await screen.findByRole("button", {
+      name: "Démarrer la navigation",
+    });
+    const generateCalls = generateRide.mock.calls.length;
+    fireEvent.click(start);
+    fireEvent.click(start);
+    expect(
+      await screen.findByRole("dialog", { name: "Navigation" }),
+    ).toBeInTheDocument();
+    expect(generateRide).toHaveBeenCalledTimes(generateCalls);
+    expect(locationWatch.start).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole("dialog", { name: "Navigation" })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    expect(
+      await screen.findByRole("heading", { name: "Trouver une destination" }),
+    ).toBeInTheDocument();
+    expect(unsubscribeWatch).toHaveBeenCalled();
+    expect(speech.cancel).toHaveBeenCalled();
+    expect(screen.getByRole("combobox", { name: "Où voulez-vous aller?" })).toHaveValue(
+      "Mont-Tremblant",
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Générer le trajet" }),
+      ).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(generateRide.mock.calls.length).toBeGreaterThan(generateCalls);
+    expect(
+      screen.queryByRole("heading", { name: "Composer le trajet" }),
+    ).not.toBeInTheDocument();
   });
 });
 

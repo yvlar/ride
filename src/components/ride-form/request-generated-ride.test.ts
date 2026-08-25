@@ -183,4 +183,23 @@ describe("requestGeneratedRide (FR-011)", () => {
       }),
     );
   });
+
+  it("does not treat an aborted request as a usable route (FR-038)", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError")),
+    );
+
+    const result = await requestGeneratedRide(REQUEST, {
+      signal: controller.signal,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("STALE_RECALCULATE");
+  });
 });

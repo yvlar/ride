@@ -219,7 +219,11 @@ export function NavigationSession({
       return;
     }
     stoppedRef.current = true;
+    generationRef.current += 1;
     abortRef.current?.abort();
+    abortRef.current = null;
+    voiceRef.current = resetVoiceMemory();
+    progressSnapshotRef.current = null;
     speechEngine.cancel();
     void carPlayDisplay.stop();
     onStop();
