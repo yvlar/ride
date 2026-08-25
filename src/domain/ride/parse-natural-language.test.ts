@@ -29,4 +29,13 @@ describe("parseNaturalLanguageRide (FR-034)", () => {
     expect(draft.unsupported.length).toBeGreaterThan(0);
     expect(draft.style).toBe("scenic");
   });
+
+  it("extracts a start place before a trailing period (FR-034)", () => {
+    const draft = parseNaturalLanguageRide(
+      "Crée une boucle de 80 km au départ de Granby.",
+    );
+    expect(draft.type).toBe("loop");
+    expect(draft.startQuery).toBe("Granby");
+    expect(draft.targetDistanceKm).toBe(80);
+  });
 });

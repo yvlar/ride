@@ -224,4 +224,27 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(mount).toHaveBeenCalledTimes(1);
     expect(destroy).not.toHaveBeenCalled();
   });
+
+  it("fills the parent without enabling follow-user (FR-013, FR-031)", async () => {
+    const setFollowUser = vi.fn();
+    const setGeolocateEnabled = vi.fn();
+    const mount = vi.fn(() => ({
+      destroy: vi.fn(),
+      setFollowUser,
+      setGeolocateEnabled,
+    }));
+    const engine: MapEngine = { mount };
+
+    render(<RideMap route={loop} engine={engine} fill />);
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(setFollowUser).toHaveBeenCalledWith(false);
+    });
+    expect(setGeolocateEnabled).toHaveBeenCalledWith(true);
+    expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
+      "Sens : boucle depuis Granby, QC",
+    );
+  });
 });

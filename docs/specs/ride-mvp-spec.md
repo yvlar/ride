@@ -718,6 +718,8 @@ L’explorateur montre d’abord :
 - Reprendre la navigation, s’il existe un trajet en mémoire;
 - les destinations récentes et les trajets favoris (`FR-035`).
 
+**Décrire mon trajet** reste dans cette vue carte (`FR-034`) : la confirmation des critères génère le tracé sur la carte actuelle, sans ouvrir l’écran de composition.
+
 Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive dans un panneau inférieur. Les zones tactiles visent au moins 44 × 44 pt (`NFR-001`, `NFR-006`). La langue d’interface du MVP est le français canadien ; les chaînes restent extractibles pour une localisation anglaise future.
 
 ### FR-032 — Recherche de lieu (états et annulation)
@@ -735,6 +737,19 @@ Avant **Démarrer** (`FR-023`), l’utilisateur voit au minimum : destination ou
 L’utilisateur peut décrire un trajet en français, par exemple : « Crée une boucle de 250 km au départ de Granby, avec des routes sinueuses, sans autoroute et uniquement asphaltées. »
 
 Le parseur (éventuellement assisté par un modèle) ne produit que des **critères structurés** : type, requêtes de lieux, distance ou durée, style du domaine (`FR-004` à `FR-006`), préférences d’évitement. Il **n’invente pas** la géométrie. Le tracé final est toujours calculé et validé par le moteur de routage (`FR-011`, `BR-004`). Les styles ou préférences non offerts sont expliqués, pas simulés.
+
+L’utilisateur peut ajuster les critères structurés dans le même panneau avant de confirmer. **Continuer avec ces critères** :
+
+1. conserve les critères en mémoire;
+2. génère immédiatement le trajet (`FR-011`) dans la vue explorateur actuelle;
+3. affiche le tracé sur la carte déjà visible (`FR-013`), sans changer de page ni ouvrir le formulaire de composition (`FR-014`);
+4. présente ensuite l’écran avant le départ (`FR-015`, `FR-033`) avec **Démarrer la navigation** (`FR-023`) et **Régénérer** (`FR-012`).
+
+**Démarrer la navigation** réutilise le trajet affiché, active le guidage sur la même carte et dans la même fenêtre, et n’émet pas une nouvelle génération. Le suivi GPS, les manœuvres et le guidage vocal existants s’appliquent. Si la localisation n’est pas autorisée, un message explicatif ou une action directe (par ex. « Ma position ») est affiché (`FR-017`, `FR-033`).
+
+**Régénérer** reprend le même départ, la même destination et les mêmes paramètres, vise un corridor différent (`BR-006`) et ne remplace le tracé que si la nouvelle génération réussit.
+
+Pendant une génération ou une régénération, un indicateur de chargement s’affiche, les actions sont désactivées et les doubles requêtes sont ignorées. Une erreur affiche un message compréhensible avec une option pour réessayer, conserve le dernier trajet valide et ne fait pas planter la vue (`FR-021`).
 
 ### FR-035 — Destinations récentes et trajets enregistrés locaux
 

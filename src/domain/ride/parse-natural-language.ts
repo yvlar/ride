@@ -14,9 +14,9 @@ export type NaturalLanguageRideDraft = {
 const LOOP_PATTERN = /\bboucle\b/i;
 const ROUND_TRIP_PATTERN = /\baller[-\s]?retour\b|\bretour différent\b/i;
 const DESTINATION_PATTERN =
-  /\bvers\s+([^,.;]+?)(?:\s*,|\s+avec|\s+sans|\s*$)/i;
+  /\bvers\s+([^,.;]+?)(?:\s*[,.]|\s+avec|\s+sans|\s*$)/i;
 const FROM_PATTERN =
-  /\b(?:au départ de|départ de|depuis)\s+([^,.;]+?)(?:\s*,|\s+avec|\s+sans|\s*$)/i;
+  /\b(?:au départ de|départ de|depuis)\s+([^,.;]+?)(?:\s*[,.]|\s+avec|\s+sans|\s*$)/i;
 const DISTANCE_PATTERN = /(\d+(?:[.,]\d+)?)\s*km\b/i;
 const DURATION_PATTERN = /(\d+(?:[.,]\d+)?)\s*(?:h\b|heure)/i;
 

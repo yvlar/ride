@@ -17,6 +17,8 @@ export type RideMapProps = {
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
   expanded?: boolean;
+  /** Fill the parent without enabling navigation follow-user (explorer map). */
+  fill?: boolean;
   onRecenterReady?: (recenter: () => void) => void;
   onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
@@ -28,6 +30,7 @@ export function RideMap({
   userLocation,
   headingDeg = null,
   expanded = false,
+  fill = false,
   onRecenterReady,
   onOverviewReady,
   onGeolocateReady,
@@ -51,6 +54,7 @@ export function RideMap({
   );
   const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);
+  const fillContainer = expanded || fill;
 
   useEffect(() => {
     viewModelRef.current = viewModel;
@@ -213,9 +217,9 @@ export function RideMap({
   return (
     <section
       aria-label="Carte du trajet"
-      className={cn(expanded ? "relative h-full w-full" : "space-y-2")}
+      className={cn(fillContainer ? "relative h-full w-full" : "space-y-2")}
     >
-      {viewModel && !expanded && !viewModel.idle ? (
+      {viewModel && !fillContainer && !viewModel.idle ? (
         <>
           <p className="text-sm leading-6">{viewModel.directionLabel}</p>
           <ul className="space-y-1 text-sm leading-6 text-muted-foreground">
@@ -244,7 +248,7 @@ export function RideMap({
         ref={containerRef}
         className={cn(
           "w-full overflow-hidden bg-muted",
-          expanded
+          fillContainer
             ? "h-full min-h-full rounded-none border-0"
             : "h-64 min-h-64 rounded-lg border border-border",
           error ? "hidden" : undefined,

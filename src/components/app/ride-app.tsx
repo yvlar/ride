@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RideMap } from "@/components/map/ride-map";
+import { DescribeRidePanel } from "@/components/app/describe-ride-panel";
 import {
   RideRequestForm,
   type RideRequestFormProps,
@@ -11,30 +12,28 @@ import {
   PlaceSearchField,
 } from "@/components/ride-form/place-search-field";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { AppTabBar, type AppTab } from "@/components/shell/app-tab-bar";
 import { MapBottomPanel } from "@/components/shell/map-bottom-panel";
 import { useAppearance } from "@/components/theme/appearance-provider";
-import type { Place } from "@/domain/geo/types";
+import type { Coordinates, Place } from "@/domain/geo/types";
 import type { SavedRide } from "@/domain/library/types";
 import { savedRideName } from "@/domain/library/types";
-import {
-  parseNaturalLanguageRide,
-  type NaturalLanguageRideDraft,
-} from "@/domain/ride/parse-natural-language";
+import type { NaturalLanguageRideDraft } from "@/domain/ride/parse-natural-language";
 import type {
   GenerateRideRequest,
   GeneratedRideRoute,
 } from "@/domain/ride/types";
+import { NavigationSession } from "@/components/navigation/navigation-session";
 import { createCarPlayDisplay } from "@/infrastructure/carplay/create-carplay-display";
 import {
   findRecentPlaceByCatalogId,
   parseCarPlayCatalogId,
   toCarPlayCatalog,
 } from "@/infrastructure/carplay/map-carplay-catalog";
+import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createLocalRideLibrary } from "@/infrastructure/persistence/local-ride-library";
 import { createRideSessionStore } from "@/infrastructure/persistence/ride-session-store";
+import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
 
@@ -62,12 +61,13 @@ export function RideApp(props: RideRequestFormProps) {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchPlace, setSearchPlace] = useState<Place | null>(null);
-  const [describeText, setDescribeText] = useState("");
-  const [describeDraft, setDescribeDraft] = useState(
-    parseNaturalLanguageRide(""),
-  );
   const [gpsLabel, setGpsLabel] = useState("Position non demandée");
   const [gpsPlace, setGpsPlace] = useState<Place | null>(null);
+  const [navUserLocation, setNavUserLocation] = useState<Coordinates | null>(
+    null,
+  );
+  const [navHeadingDeg, setNavHeadingDeg] = useState<number | null>(null);
+  const [describeMuted, setDescribeMuted] = useState(false);
   const [plannerDraft, setPlannerDraft] =
     useState<NaturalLanguageRideDraft | null>(null);
   const [recents, setRecents] = useState<Place[]>([]);
@@ -81,7 +81,18 @@ export function RideApp(props: RideRequestFormProps) {
   const recentsRef = useRef(recents);
   const savedRef = useRef(saved);
   const navigatingRef = useRef(navigating);
+  const mapRecenterRef = useRef<() => void>(() => {});
+  const mapOverviewRef = useRef<() => void>(() => {});
+  const setMapGeolocateEnabledRef = useRef<(enabled: boolean) => void>(
+    () => {},
+  );
+  const ownedLocationWatch = useMemo(() => createForegroundLocationWatch(), []);
+  const ownedSpeech = useMemo(() => createSpeechGuidance(), []);
+  const locationWatch = props.navigation?.locationWatch ?? ownedLocationWatch;
+  const speechEngine = props.navigation?.speech ?? ownedSpeech;
   const carPlay = useMemo(() => createCarPlayDisplay(), []);
+  const plannerOwnsMap = navigating && sheet === "planner";
+  const describeOwnsNavigation = navigating && sheet === "describe";
 
   useEffect(() => {
     requestRef.current = request;
@@ -150,6 +161,43 @@ export function RideApp(props: RideRequestFormProps) {
     setSheet("planner");
     setTab("explore");
     setNavigating(false);
+  }
+
+  function rememberGeneratedRoute(
+    next: GeneratedRideRoute,
+    composed: GenerateRideRequest,
+  ) {
+    setRoute(next);
+    setSessionRides((current) => [
+      {
+        id: next.id,
+        name: savedRideName(next),
+        savedAtMs: Date.now(),
+        request: composed,
+        route: next,
+      },
+      ...current.filter((item) => item.id !== next.id),
+    ]);
+  }
+
+  function startDescribeNavigation(options?: { muted?: boolean }) {
+    try {
+      setMapGeolocateEnabledRef.current(false);
+    } catch {
+      // Preview GPS teardown must not block the explicit start (FR-023).
+    }
+    try {
+      locationWatch.start();
+    } catch {
+      // The overlay must still open after the explicit action (FR-023).
+    }
+    try {
+      speechEngine.unlock();
+    } catch {
+      // Visual navigation continues if speech cannot unlock (FR-025).
+    }
+    setDescribeMuted(Boolean(options?.muted));
+    setNavigating(true);
   }
 
   function remember(place: Place) {
@@ -241,20 +289,12 @@ export function RideApp(props: RideRequestFormProps) {
         props.onRequestComposed?.(composed);
       }}
       onGeneratedRouteChange={(next) => {
-        setRoute(next);
         const composed = requestRef.current;
         if (next && composed) {
-          setSessionRides((current) => [
-            {
-              id: next.id,
-              name: savedRideName(next),
-              savedAtMs: Date.now(),
-              request: composed,
-              route: next,
-            },
-            ...current.filter((item) => item.id !== next.id),
-          ]);
+          rememberGeneratedRoute(next, composed);
+          return;
         }
+        setRoute(next);
       }}
       onNavigatingChange={setNavigating}
       onSaveRide={(nextRoute, nextRequest) => {
@@ -274,14 +314,62 @@ export function RideApp(props: RideRequestFormProps) {
   return (
     <div className="relative flex h-dvh min-h-dvh flex-col bg-background text-foreground">
       <div className="relative min-h-0 flex-1">
-        {tab === "explore" && !navigating ? (
+        {tab === "explore" && !plannerOwnsMap ? (
           <div className="absolute inset-0">
             <RideMap
               route={route}
               engine={props.mapEngine}
-              expanded={false}
+              fill
+              expanded={describeOwnsNavigation}
+              userLocation={describeOwnsNavigation ? navUserLocation : null}
+              headingDeg={describeOwnsNavigation ? navHeadingDeg : null}
+              onRecenterReady={(recenter) => {
+                mapRecenterRef.current = recenter;
+              }}
+              onOverviewReady={(overview) => {
+                mapOverviewRef.current = overview;
+              }}
+              onGeolocateReady={(setEnabled) => {
+                setMapGeolocateEnabledRef.current = setEnabled;
+              }}
             />
           </div>
+        ) : null}
+
+        {describeOwnsNavigation && route && request ? (
+          <NavigationSession
+            route={route}
+            request={request}
+            renderMap={false}
+            onUserLocation={(point, heading) => {
+              setNavUserLocation(point);
+              setNavHeadingDeg(
+                typeof heading === "number" && Number.isFinite(heading)
+                  ? heading
+                  : null,
+              );
+            }}
+            onRecenter={() => mapRecenterRef.current()}
+            onOverview={() => mapOverviewRef.current()}
+            onStop={() => {
+              setNavigating(false);
+              setNavUserLocation(null);
+              setNavHeadingDeg(null);
+            }}
+            onRouteChange={(next) => {
+              const composed = requestRef.current;
+              if (composed) {
+                rememberGeneratedRoute(next, composed);
+                return;
+              }
+              setRoute(next);
+            }}
+            locationWatch={locationWatch}
+            speech={speechEngine}
+            recalculate={props.navigation?.recalculate}
+            now={props.navigation?.now}
+            initialMuted={describeMuted}
+          />
         ) : null}
 
         {tab === "explore" && sheet === "planner" ? (
@@ -322,8 +410,14 @@ export function RideApp(props: RideRequestFormProps) {
           </div>
         ) : null}
 
-        {tab === "explore" && !navigating && sheet !== "planner" ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+        {tab === "explore" && sheet !== "planner" ? (
+          <div
+            className={
+              navigating
+                ? "hidden"
+                : "pointer-events-none absolute inset-x-0 bottom-0 z-10"
+            }
+          >
             {sheet === "home" ? (
               <MapBottomPanel title="Où veux-tu rouler?">
                 <p className="mb-2 text-sm text-muted-foreground">{gpsLabel}</p>
@@ -458,48 +552,36 @@ export function RideApp(props: RideRequestFormProps) {
             ) : null}
 
             {sheet === "describe" ? (
-              <MapBottomPanel title="Décrire mon trajet">
-                <Label htmlFor="describe-ride">Votre demande</Label>
-                <Textarea
-                  id="describe-ride"
-                  className="mt-2 min-h-28 text-base"
-                  placeholder="Crée une boucle de 250 km au départ de Granby, avec des routes sinueuses, sans autoroute et uniquement asphaltées."
-                  value={describeText}
-                  onChange={(event) => {
-                    setDescribeText(event.target.value);
-                    setDescribeDraft(parseNaturalLanguageRide(event.target.value));
+              <MapBottomPanel
+                title="Décrire mon trajet"
+                className={route ? "max-h-[58dvh]" : undefined}
+              >
+                <DescribeRidePanel
+                  searchPlaces={props.searchPlaces}
+                  debounceMs={props.debounceMs}
+                  generateRide={props.generateRide}
+                  regenerateRide={props.regenerateRide}
+                  requestCoordinates={props.requestCoordinates}
+                  reversePlace={props.reversePlace}
+                  gpsPlace={gpsPlace}
+                  onRequestComposed={(composed) => {
+                    requestRef.current = composed;
+                    setRequest(composed);
+                    remember(composed.start);
+                    if (composed.type !== "loop") {
+                      remember(composed.destination);
+                    }
+                    props.onRequestComposed?.(composed);
                   }}
+                  onGeneratedRouteChange={(next) => {
+                    const composed = requestRef.current;
+                    if (composed) {
+                      rememberGeneratedRoute(next, composed);
+                    }
+                  }}
+                  onStartNavigation={startDescribeNavigation}
+                  onBack={() => setSheet("home")}
                 />
-                <p className="mt-2 text-sm text-muted-foreground">
-                  L’IA ne trace pas la route : ces critères seront calculés par le
-                  moteur de routage.
-                </p>
-                {describeDraft.unsupported.map((warning) => (
-                  <p key={warning} className="mt-1 text-sm text-muted-foreground">
-                    {warning}
-                  </p>
-                ))}
-                <Button
-                  type="button"
-                  size="lg"
-                  className="mt-3 min-h-12 w-full text-base"
-                  onClick={() => {
-                    openPlanner({
-                      type: describeDraft.type,
-                      draft: describeDraft,
-                    });
-                  }}
-                >
-                  Continuer avec ces critères
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="mt-2 min-h-12 w-full"
-                  onClick={() => setSheet("home")}
-                >
-                  Retour
-                </Button>
               </MapBottomPanel>
             ) : null}
           </div>
