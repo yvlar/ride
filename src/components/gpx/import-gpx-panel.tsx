@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   formatDistanceLabel,
   formatDurationLabel,
@@ -61,6 +61,26 @@ export function ImportGpxPanel({
   const [error, setError] = useState<RideGenerationError | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const abortInFlight = useCallback(() => {
+    const previousGeneration = generationRef.current;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    generationRef.current += 1;
+    // #region agent log
+    agentDebugLog({
+      hypothesisId: "H3",
+      location: "import-gpx-panel.tsx:abortInFlight",
+      message: "abortInFlight bumped generation",
+      data: {
+        instanceId: instanceIdRef.current,
+        previousGeneration,
+        generation: generationRef.current,
+        mounted: mountedRef.current,
+      },
+    });
+    // #endregion
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     // #region agent log
@@ -91,28 +111,9 @@ export function ImportGpxPanel({
         },
       });
       // #endregion
+      abortInFlight();
     };
-  }, []);
-
-  function abortInFlight() {
-    const previousGeneration = generationRef.current;
-    abortRef.current?.abort();
-    abortRef.current = null;
-    generationRef.current += 1;
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H3",
-      location: "import-gpx-panel.tsx:abortInFlight",
-      message: "abortInFlight bumped generation",
-      data: {
-        instanceId: instanceIdRef.current,
-        previousGeneration,
-        generation: generationRef.current,
-        mounted: mountedRef.current,
-      },
-    });
-    // #endregion
-  }
+  }, [abortInFlight]);
 
   function discardPreview() {
     abortInFlight();
@@ -134,7 +135,7 @@ export function ImportGpxPanel({
     name: string,
     extraWarnings: string[],
     snap: SnapFn,
-  ) {
+  ): Promise<boolean> {
     generationRef.current += 1;
     const generation = generationRef.current;
     abortRef.current?.abort();
@@ -152,13 +153,13 @@ export function ImportGpxPanel({
         warnings: extraWarnings,
       });
       if (generation !== generationRef.current) {
-        return;
+        return false;
       }
       setRoute(composed);
       setError(null);
       setBusy(false);
       onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
-      return;
+      return true;
     }
 
     setBusy(true);
@@ -218,12 +219,12 @@ export function ImportGpxPanel({
         },
       });
       // #endregion
-      return;
+      return false;
     }
     if (!snapped.ok) {
       setBusy(false);
       setError(snapped.error);
-      return;
+      return false;
     }
     const composed = composeGpxRoute({
       trip,
@@ -252,6 +253,7 @@ export function ImportGpxPanel({
     });
     // #endregion
     onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
+    return true;
   }
 
   async function handleFile(file: File) {
@@ -284,15 +286,18 @@ export function ImportGpxPanel({
       });
       return;
     }
-    setFileName(file.name);
-    setTrips(parsed.trips);
-    setWarnings(parsed.warnings);
     const first = parsed.trips[0];
     if (!first) {
       return;
     }
+    const applied = await applyTrip(first, file.name, parsed.warnings, snapWaypoints);
+    if (!applied) {
+      return;
+    }
+    setFileName(file.name);
+    setTrips(parsed.trips);
+    setWarnings(parsed.warnings);
     setSelectedId(first.id);
-    await applyTrip(first, file.name, parsed.warnings, snapWaypoints);
   }
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>) {

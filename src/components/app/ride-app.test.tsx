@@ -834,7 +834,7 @@ describe("RideApp GPX import (FR-039)", () => {
     expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
   });
 
-  it("repro H1/H2: leaving Explore during deferred <rte> snap still stores the GPX (FR-039)", async () => {
+  it("does not store a GPX preview if the user leaves Explore during a deferred <rte> snap (FR-039)", async () => {
     let releaseSnap: ((value: Response) => void) | undefined;
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
@@ -904,10 +904,11 @@ describe("RideApp GPX import (FR-039)", () => {
           ),
         );
       });
-      await waitFor(() => {
-        expect(screen.getByText("Route 112")).toBeInTheDocument();
-      });
-      expect(window.sessionStorage.getItem(RIDE_SESSION_STORAGE_KEY)).not.toBeNull();
+      expect(
+        screen.getByText("Aucun trajet généré dans cette session."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Route 112")).not.toBeInTheDocument();
+      expect(window.sessionStorage.getItem(RIDE_SESSION_STORAGE_KEY)).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }

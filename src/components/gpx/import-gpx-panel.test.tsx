@@ -143,6 +143,7 @@ describe("ImportGpxPanel (FR-039)", () => {
     expect(
       screen.queryByRole("button", { name: "Démarrer la navigation" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fichier :/)).not.toBeInTheDocument();
   });
 
   it("shows a readable error for a waypoint-only file", async () => {
@@ -224,15 +225,18 @@ describe("ImportGpxPanel (FR-039)", () => {
         onBack={() => {}}
       />,
     );
-    upload(TRACK);
+    upload(TRACK, "cantons.gpx");
     await waitFor(() => {
       expect(screen.getByText("Cantons")).toBeInTheDocument();
     });
-    upload(ROUTE);
+    expect(screen.getByText(/Fichier : cantons.gpx/)).toBeInTheDocument();
+    upload(ROUTE, "route-112.gpx");
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
     });
     expect(screen.getByText("Cantons")).toBeInTheDocument();
+    expect(screen.getByText(/Fichier : cantons.gpx/)).toBeInTheDocument();
+    expect(screen.queryByText(/Fichier : route-112.gpx/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
     expect(onPreview.mock.calls.some((call) => call[0] === null)).toBe(false);
   });
@@ -322,7 +326,7 @@ describe("ImportGpxPanel (FR-039)", () => {
     };
   }
 
-  it("repro H1: unmount during deferred <rte> snap still calls onPreview (FR-039)", async () => {
+  it("does not call onPreview if the panel unmounts during a deferred <rte> snap (FR-039)", async () => {
     const onPreview = vi.fn();
     const { snapWaypoints, release } = createDeferredSnap();
     const view = render(
@@ -340,11 +344,10 @@ describe("ImportGpxPanel (FR-039)", () => {
     expect(onPreview).not.toHaveBeenCalled();
     view.unmount();
     await release();
-    expect(onPreview).toHaveBeenCalled();
-    expect(onPreview.mock.calls.at(-1)?.[0]?.name).toBe("Route 112");
+    expect(onPreview).not.toHaveBeenCalled();
   });
 
-  it("repro H2: remounted panel still receives the previous instance's snap (FR-039)", async () => {
+  it("does not apply a previous instance's snap after remount (FR-039)", async () => {
     const onPreviewA = vi.fn();
     const { snapWaypoints, release } = createDeferredSnap();
     const first = render(
@@ -370,11 +373,11 @@ describe("ImportGpxPanel (FR-039)", () => {
       />,
     );
     await release();
-    expect(onPreviewA.mock.calls.at(-1)?.[0]?.name).toBe("Route 112");
+    expect(onPreviewA).not.toHaveBeenCalled();
     expect(onPreviewB).not.toHaveBeenCalled();
   });
 
-  it("repro H3: same mounted instance ignores a stale snap after a new file (FR-039)", async () => {
+  it("ignores a stale <rte> snap after a newer file on the same instance (FR-039)", async () => {
     const onPreview = vi.fn();
     const { snapWaypoints, release } = createDeferredSnap();
     render(
