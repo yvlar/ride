@@ -116,40 +116,7 @@ describe("GPX navigation helpers (FR-039)", () => {
     );
   });
 
-  it("debug repro FR-039 successive enterFollowingIfOnTrace while following_gpx", () => {
-    const original = lineRoute();
-    const started = beginGpxFromFix(original, {
-      coordinates: origin,
-      accuracyMeters: 5,
-      recordedAtMs: 1,
-    });
-    expect(started.runtime.phase).toBe("following_gpx");
-    const mid = offsetCoordinates(origin, 90, 1.2);
-    const second = enterFollowingIfOnTrace({
-      runtime: { ...started.runtime, progressKm: 1.2 },
-      fix: {
-        coordinates: mid,
-        accuracyMeters: 6,
-        headingDeg: 90,
-        recordedAtMs: 2,
-      },
-    });
-    const further = offsetCoordinates(origin, 90, 2);
-    const third = enterFollowingIfOnTrace({
-      runtime: second ?? { ...started.runtime, progressKm: 1.2 },
-      fix: {
-        coordinates: further,
-        accuracyMeters: 6,
-        headingDeg: 90,
-        recordedAtMs: 3,
-      },
-    });
-    expect(started.runtime.followRoute.distanceKm).toBeGreaterThan(2.5);
-    expect(second).toBeNull();
-    expect(third).toBeNull();
-  });
-
-  it("debug repro FR-039 figure-eight re-enter without previousProgressKm", () => {
+  it("does not re-slice remaining GPX at a self-crossing once following (FR-039)", () => {
     const north = offsetCoordinates(origin, 0, 0.4);
     const east = offsetCoordinates(origin, 90, 0.4);
     const south = offsetCoordinates(origin, 180, 0.4);

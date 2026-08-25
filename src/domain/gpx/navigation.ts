@@ -20,7 +20,6 @@ import type {
   GpxMapOverlay,
   GpxNavigationPhase,
 } from "./types";
-import { agentDebugLog } from "./_agent-debug-log";
 
 export type GpxConnectorRoute = {
   geometry: LineString;
@@ -129,36 +128,10 @@ export function enterFollowingIfOnTrace(input: {
   runtime: LiveGpxRuntime;
   fix: LocationFix;
 }): LiveGpxRuntime | null {
-  // #region agent log
-  agentDebugLog({
-    hypothesisId: "H1",
-    location: "navigation.ts:enterFollowingIfOnTrace:entry",
-    message: "enterFollowingIfOnTrace called",
-    data: {
-      phase: input.runtime.phase,
-      progressKm: input.runtime.progressKm,
-      followDistanceKm: input.runtime.followRoute.distanceKm,
-      followPointCount: input.runtime.followRoute.geometry.coordinates.length,
-    },
-  });
-  // #endregion
   if (input.runtime.phase === "gpx_completed") {
     return null;
   }
   if (input.runtime.phase === "following_gpx") {
-    // #region agent log
-    agentDebugLog({
-      hypothesisId: "H1",
-      location: "navigation.ts:enterFollowingIfOnTrace:skipFollowing",
-      message: "skip re-slice while already following_gpx",
-      data: {
-        runId: "post-fix",
-        skippedAlreadyFollowing: true,
-        progressKm: input.runtime.progressKm,
-        followDistanceKm: input.runtime.followRoute.distanceKm,
-      },
-    });
-    // #endregion
     return null;
   }
   const remaining: GeneratedGpxRoute = {
@@ -192,26 +165,6 @@ export function enterFollowingIfOnTrace(input: {
     offRoute: false,
     entry: input.runtime.entry ?? entry,
   };
-  // #region agent log
-  agentDebugLog({
-    hypothesisId: "H2",
-    location: "navigation.ts:enterFollowingIfOnTrace:exit",
-    message: "enterFollowingIfOnTrace returned new runtime",
-    data: {
-      returnedNonNull: true,
-      alreadyFollowing: input.runtime.phase === "following_gpx",
-      prevPhase: input.runtime.phase,
-      prevProgressKm: input.runtime.progressKm,
-      nextProgressKm: next.progressKm,
-      prevFollowDistanceKm: input.runtime.followRoute.distanceKm,
-      nextFollowDistanceKm: followRoute.distanceKm,
-      followShorter: followRoute.distanceKm < input.runtime.followRoute.distanceKm,
-      entrySegmentIndex: entry.segmentIndex,
-      entryProgressKm: entry.progressKm,
-      entryT: entry.t,
-    },
-  });
-  // #endregion
   return next;
 }
 

@@ -22,7 +22,6 @@ import {
   GPX_VERTEX_INSERT_EPS,
 } from "./constants";
 import type { GeneratedGpxRoute, GpxEntryPoint, GpxNavigationPhase } from "./types";
-import { agentDebugLog } from "./_agent-debug-log";
 
 export function gpxJoinArrivalThresholdM(accuracyMeters: number): number {
   const accuracy = Number.isFinite(accuracyMeters) ? accuracyMeters : 0;
@@ -63,22 +62,6 @@ export function findGpxEntryPoint(input: {
     progressKm: nearest.progressKm,
     distanceM: nearest.distanceM,
   };
-  // #region agent log
-  agentDebugLog({
-    hypothesisId: "H4",
-    location: "follow.ts:findGpxEntryPoint",
-    message: "findGpxEntryPoint projection",
-    data: {
-      segmentIndex: entry.segmentIndex,
-      t: entry.t,
-      progressKm: entry.progressKm,
-      distanceM: entry.distanceM,
-      geomPoints: input.geometry.coordinates.length,
-      headingDeg: input.headingDeg ?? null,
-      previousProgressKmPassed: false,
-    },
-  });
-  // #endregion
   return entry;
 }
 
