@@ -75,6 +75,9 @@ describe("generateDescribedRide (FR-034)", () => {
       throw new Error(result.error.message);
     }
     expect(searchSpy).toHaveBeenCalledTimes(1);
+    expect(searchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ returnToStart: true }),
+    );
     expect(planSpy).toHaveBeenCalledTimes(1);
     expect(planSpy.mock.calls[0]?.[0]).toMatchObject({
       origin: GRANBY.coordinates,
@@ -281,6 +284,45 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(used).not.toEqual(geometric[0]?.waypoints);
   });
 
+  it("orders a crossed AI waypoint reply before asking the road router", async () => {
+    const north = offsetCoordinates(GRANBY.coordinates, 0, 20);
+    const south = offsetCoordinates(GRANBY.coordinates, 180, 20);
+    const east = offsetCoordinates(GRANBY.coordinates, 90, 20);
+    const west = offsetCoordinates(GRANBY.coordinates, 270, 20);
+    const routing = new MockRoutingProvider();
+    const routeSpy = vi.spyOn(routing, "calculateRoute");
+
+    await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 160,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      {
+        webSearch: fakeSearch(),
+        planner: {
+          async planLoop() {
+            return {
+              viaPoints: [north, south, east, west],
+              roads: [],
+              pointsOfInterest: [],
+            };
+          },
+        },
+      },
+    );
+
+    expect(routeSpy.mock.calls[0]?.[0].waypoints).toEqual([
+      north,
+      east,
+      south,
+      west,
+    ]);
+  });
+
   it("returns WEB_SEARCH_UNAVAILABLE without calling a non-AI generator", async () => {
     const routing = new MockRoutingProvider();
     const routeSpy = vi.spyOn(routing, "calculateRoute");
@@ -308,6 +350,40 @@ describe("generateDescribedRide (FR-034)", () => {
       return;
     }
     expect(result.error.code).toBe("WEB_SEARCH_UNAVAILABLE");
+    expect(routeSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not let the AI invent waypoints when Web search found nothing", async () => {
+    const planner = fakePlanner();
+    const planSpy = vi.spyOn(planner, "planLoop");
+    const routing = new MockRoutingProvider();
+    const routeSpy = vi.spyOn(routing, "calculateRoute");
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      {
+        webSearch: {
+          async searchMotorcycleRoads() {
+            return [];
+          },
+        },
+        planner,
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("NO_ROUTE_FOUND");
+    expect(planSpy).not.toHaveBeenCalled();
     expect(routeSpy).not.toHaveBeenCalled();
   });
 
@@ -477,5 +553,20 @@ describe("filterViaPoints (FR-034)", () => {
         returnToStart: false,
       }),
     ).toEqual([midpoint, arrival]);
+  });
+
+  it("removes duplicate loop points that would cause a U-turn", () => {
+    const north = offsetCoordinates(GRANBY.coordinates, 0, 20);
+    const almostNorth = offsetCoordinates(north, 90, 0.1);
+    const east = offsetCoordinates(GRANBY.coordinates, 90, 20);
+
+    expect(
+      filterViaPoints(
+        GRANBY.coordinates,
+        80,
+        [north, almostNorth, east],
+        { returnToStart: true },
+      ),
+    ).toEqual([north, east]);
   });
 });

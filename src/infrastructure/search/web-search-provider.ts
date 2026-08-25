@@ -12,6 +12,8 @@ export type MotorcycleWebSearchInput = {
   targetDistanceKm: number;
   style?: RideStyle;
   preferences?: RoutePreferences;
+  /** FR-034 — false searches for a one-way corridor, not a loop. */
+  returnToStart?: boolean;
 };
 
 /**

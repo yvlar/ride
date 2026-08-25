@@ -76,4 +76,29 @@ describe("HttpWebSearchProvider (FR-034)", () => {
     expect(queries.join(" ")).toMatch(/motorcycle/);
     expect(queries.join(" ")).toMatch(/45\.4000/);
   });
+
+  it("searches for the requested shape and every hard route preference", () => {
+    const queries = motorcycleSearchQueries({
+      origin: ORIGIN,
+      accuracyMeters: 8,
+      targetDistanceKm: 180,
+      style: "curvy",
+      returnToStart: false,
+      preferences: {
+        avoidHighways: true,
+        avoidUnpaved: true,
+        stayInCanada: true,
+      },
+    });
+    const combined = queries.join(" ");
+
+    expect(queries).toHaveLength(3);
+    expect(combined).toMatch(/180 km one-way ride/);
+    expect(combined).not.toMatch(/180 km loop/);
+    expect(combined).toMatch(/within 198 km/);
+    expect(combined).toMatch(/avoid highways and freeways/);
+    expect(combined).toMatch(/paved roads only/);
+    expect(combined).toMatch(/stay in Canada/);
+    expect(combined).toMatch(/do not cross into the United States/);
+  });
 });

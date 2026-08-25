@@ -34,6 +34,10 @@ const LOOP_SYSTEM_PROMPT =
   "\"roads\":[string],\"pointsOfInterest\":[string]}. " +
   "Select 3 to 6 via-points on real roads around the origin so a road-network " +
   "router can close a loop near the requested distance. " +
+  "Use named public roads or places supported by the web notes; do not invent " +
+  "roads, points of interest, or unrelated coordinates. Return viaPoints already " +
+  "in riding order around one coherent corridor. Avoid zigzags across the origin, " +
+  "self-crossings, U-turns, duplicate points, and out-and-back legs. " +
   "Do not emit a route geometry, GeoJSON, or encoded polyline. " +
   "Prefer scenic or twisty public roads. Honor avoid-highway and paved-only " +
   "preferences. Skip private, closed, or inaccessible roads mentioned in the notes. " +
@@ -45,6 +49,10 @@ const ONE_WAY_SYSTEM_PROMPT =
   "\"roads\":[string],\"pointsOfInterest\":[string]}. " +
   "Select 3 to 6 via-points on real roads so a road-network router can build a " +
   "one-way ride near the requested distance. The last via-point is the arrival. " +
+  "Use named public roads or places supported by the web notes; do not invent " +
+  "roads, points of interest, or unrelated coordinates. Return viaPoints already " +
+  "in riding order from the origin to the arrival. Avoid zigzags, self-crossings, " +
+  "U-turns, duplicate points, and backtracking. " +
   "Do not return to the origin. Do not emit a route geometry, GeoJSON, or encoded polyline. " +
   "Prefer scenic or twisty public roads. Honor avoid-highway and paved-only " +
   "preferences. Skip private, closed, or inaccessible roads mentioned in the notes. " +
@@ -85,6 +93,12 @@ export class HttpAiRidePlanner implements AiRidePlanner {
 }
 
 export function buildAiRidePlanUserMessage(input: AiRidePlanInput): string {
+  const returnToStart = input.returnToStart !== false;
+  const maximumWaypointRadiusKm = Number(
+    (
+      input.targetDistanceKm * (returnToStart ? 0.55 : 1.1)
+    ).toFixed(1),
+  );
   return `${AI_RIDE_PLAN_QUERY_HEADER}\n${JSON.stringify({
     origin: {
       latitude: input.origin.latitude,
@@ -98,7 +112,12 @@ export function buildAiRidePlanUserMessage(input: AiRidePlanInput): string {
       avoidUnpaved: true,
     },
     previousRouteSignature: input.previousRouteSignature ?? null,
-    returnToStart: input.returnToStart !== false,
+    returnToStart,
+    planningBounds: {
+      maximumWaypointRadiusKm,
+      orderedTravelSequenceRequired: true,
+      avoidCrossingsAndBacktracking: true,
+    },
     searchHits: input.searchHits,
   })}`;
 }

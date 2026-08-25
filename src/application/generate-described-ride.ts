@@ -17,6 +17,10 @@ import type { Coordinates } from "@/domain/geo/types";
 import { DESCRIBE_ARRIVAL_LABEL } from "@/application/compose-described-ride";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
+  orderLoopWaypoints,
+  orderOneWayWaypoints,
+} from "@/domain/ride/waypoint-order";
+import {
   DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
   isDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
@@ -71,6 +75,7 @@ export const WEB_SEARCH_UNAVAILABLE_USER_MESSAGE =
   "La recherche Web est indisponible.";
 export const NO_VALID_DESCRIBED_RIDE_MESSAGE =
   "Aucun trajet valide n’a pu être trouvé.";
+const MIN_AI_VIA_POINT_SEPARATION_KM = 0.25;
 
 export type GenerateDescribedRideDeps = {
   webSearch?: WebSearchProvider;
@@ -140,6 +145,9 @@ export async function generateDescribedRide(
     return { ok: false, error: endpointError };
   }
 
+  const returnToStart =
+    request.type === "destination" ? false : readReturnToStart(input);
+
   let webSearch: WebSearchProvider;
   try {
     webSearch = deps.webSearch ?? createWebSearchProvider();
@@ -162,13 +170,21 @@ export async function generateDescribedRide(
       targetDistanceKm: request.targetDistanceKm,
       style: request.style,
       preferences: request.preferences,
+      returnToStart,
     });
   } catch (error) {
     return { ok: false, error: describedWebSearchError(error) };
   }
-
-  const returnToStart =
-    request.type === "destination" ? false : readReturnToStart(input);
+  if (searchHits.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "NO_ROUTE_FOUND",
+        message: NO_VALID_DESCRIBED_RIDE_MESSAGE,
+        suggestions: ["Réessayez.", "Modifiez la distance demandée."],
+      },
+    };
+  }
 
   let plan;
   try {
@@ -295,7 +311,11 @@ async function routeDescribedLoop(
     };
   }
 
-  const waypointSets = [viaPoints, [...viaPoints].reverse()];
+  const orderedViaPoints = orderLoopWaypoints(
+    request.start.coordinates,
+    viaPoints,
+  );
+  const waypointSets = [orderedViaPoints, [...orderedViaPoints].reverse()];
   const settled = await Promise.allSettled(
     waypointSets.map(async (waypoints) => {
       const result = applyHardRoutePreferences(
@@ -471,8 +491,12 @@ async function routeDescribedOneWay(
       },
     };
   }
-  const inbound = viaPoints.slice(0, -1);
-  const waypointSets = [inbound, [...inbound].reverse()];
+  const inbound = orderOneWayWaypoints(
+    request.start.coordinates,
+    destination,
+    viaPoints.slice(0, -1),
+  );
+  const waypointSets = [inbound];
   const style = request.style ?? "scenic";
   const settled = await Promise.allSettled(
     waypointSets.map(async (waypoints) => {
@@ -635,17 +659,39 @@ export function filterViaPoints(
     ) {
       return [];
     }
-    const inbound = points
-      .slice(0, -1)
-      .filter((point) =>
-        isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
-      );
+    const inbound = distinctViaPoints(
+      points
+        .slice(0, -1)
+        .filter((point) =>
+          isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+        ),
+    ).filter(
+      (point) =>
+        haversineKm(point, arrival) >= MIN_AI_VIA_POINT_SEPARATION_KM,
+    );
     return [...inbound, arrival];
   }
 
-  return points.filter((point) =>
-    isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+  return distinctViaPoints(
+    points.filter((point) =>
+      isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+    ),
   );
+}
+
+function distinctViaPoints(points: Coordinates[]): Coordinates[] {
+  const distinct: Coordinates[] = [];
+  for (const point of points) {
+    if (
+      distinct.every(
+        (candidate) =>
+          haversineKm(candidate, point) >= MIN_AI_VIA_POINT_SEPARATION_KM,
+      )
+    ) {
+      distinct.push(point);
+    }
+  }
+  return distinct;
 }
 
 function isUsableViaPoint(

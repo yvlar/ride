@@ -787,6 +787,7 @@ Pendant l’opération, l’interface affiche uniquement un état simple : « L�
 
 L’IA **n’invente pas** la géométrie. Elle sélectionne des routes, corridors, points d’intérêt ou points de passage structurés. Le moteur de routage configuré (détail d’infrastructure, p. ex. un adaptateur de réseau routier) :
 
+- valide, déduplique et ordonne les points de passage en un corridor cohérent avant le calcul, afin d’éviter les zigzags, croisements et demi-tours issus d’une réponse désordonnée;
 - calcule un trajet qui suit le réseau;
 - produit géométrie, manœuvres et instructions;
 - vise la distance demandée selon `BR-001` (±10 %);
