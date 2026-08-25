@@ -200,6 +200,27 @@ export function RideApp(props: RideRequestFormProps) {
     }
   }
 
+  function discardActiveGpxRide() {
+    const gpxId =
+      routeRef.current && isGpxRoute(routeRef.current)
+        ? routeRef.current.id
+        : null;
+    const hadGpx =
+      requestRef.current?.type === "gpx" || Boolean(gpxId);
+    if (!hadGpx) {
+      return;
+    }
+    requestRef.current = null;
+    routeRef.current = null;
+    setRequest(null);
+    setRoute(null);
+    setGpxOverlay(null);
+    if (gpxId) {
+      setSessionRides((current) => current.filter((item) => item.id !== gpxId));
+    }
+    sessionStore.clear();
+  }
+
   function openFindDestination(place?: Place | null) {
     if (place) {
       setSearchPlace(place);
@@ -276,12 +297,8 @@ export function RideApp(props: RideRequestFormProps) {
     setNavHeadingDeg(null);
     setGpxOverlay(null);
     if (routeRef.current && isGpxRoute(routeRef.current)) {
-      requestRef.current = null;
-      routeRef.current = null;
-      setRequest(null);
-      setRoute(null);
+      discardActiveGpxRide();
       setSheet("home");
-      sessionStore.clear();
     }
   }
 
@@ -683,16 +700,7 @@ export function RideApp(props: RideRequestFormProps) {
                   initialRoute={route && isGpxRoute(route) ? route : null}
                   onPreview={(next, composed) => {
                     if (!next || !composed) {
-                      setRoute((current) =>
-                        current && isGpxRoute(current) ? null : current,
-                      );
-                      setRequest((current) =>
-                        current?.type === "gpx" ? null : current,
-                      );
-                      requestRef.current =
-                        requestRef.current?.type === "gpx"
-                          ? null
-                          : requestRef.current;
+                      discardActiveGpxRide();
                       return;
                     }
                     requestRef.current = composed;

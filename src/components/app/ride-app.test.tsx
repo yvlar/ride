@@ -767,4 +767,38 @@ describe("RideApp GPX import (FR-039)", () => {
       screen.getByRole("heading", { name: "Trouver une destination" }),
     ).toBeInTheDocument();
   });
+
+  it("drops a cancelled GPX preview from session storage and Mes trajets (FR-039)", async () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Cantons</name>
+    <trkseg>
+      <trkpt lat="45.4000" lon="-72.7300"/>
+      <trkpt lat="45.4100" lon="-72.7100"/>
+    </trkseg>
+  </trk>
+</gpx>`;
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} />
+      </AppearanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Importer un fichier GPX" }));
+    const input = screen.getByTestId("gpx-file-input") as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File([xml], "cantons.gpx", { type: "application/gpx+xml" })] },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
+    });
+    expect(window.sessionStorage.getItem(RIDE_SESSION_STORAGE_KEY)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
+    expect(window.sessionStorage.getItem(RIDE_SESSION_STORAGE_KEY)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mes trajets" }));
+    expect(screen.queryByText("Cantons")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Aucun trajet généré dans cette session."),
+    ).toBeInTheDocument();
+  });
 });
