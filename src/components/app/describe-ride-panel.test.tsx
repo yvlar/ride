@@ -6,6 +6,10 @@ import {
 } from "./describe-ride-panel";
 import { CurrentPositionError } from "@/components/ride-form/browser-geolocation";
 import { DESCRIBE_DISTANCE_STORAGE_KEY } from "@/domain/ride/describe-distance";
+import {
+  ROUTE_PREFERENCES_STORAGE_KEY,
+  writeStoredRoutePreferences,
+} from "@/domain/ride/stored-route-preferences";
 import type { Place } from "@/domain/geo/types";
 import type {
   GenerateRideRequest,
@@ -51,6 +55,7 @@ const located = {
 
 function renderPanel(overrides: Partial<DescribeRidePanelProps> = {}) {
   window.localStorage.removeItem(DESCRIBE_DISTANCE_STORAGE_KEY);
+  window.localStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
   return render(
     <DescribeRidePanel
       requestPosition={async () => located}
@@ -78,6 +83,11 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(screen.queryByRole("button", { name: "Ma position" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Durée disponible/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Votre demande")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Éviter les autoroutes")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Éviter les routes non pavées"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Canada seulement")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Continuer avec ces critères" }),
     ).not.toBeInTheDocument();
@@ -142,6 +152,11 @@ describe("DescribeRidePanel (FR-034)", () => {
       expect.objectContaining({
         type: "loop",
         targetDistanceKm: 180,
+        preferences: {
+          avoidHighways: true,
+          avoidUnpaved: true,
+          stayInCanada: false,
+        },
       }),
       expect.objectContaining({
         useAiWebGeneration: true,
@@ -149,6 +164,34 @@ describe("DescribeRidePanel (FR-034)", () => {
       }),
     );
     expect(screen.getByText(/98\.2 km/)).toBeInTheDocument();
+  });
+
+  it("applies route preferences stored in Réglages at generation (FR-007, FR-008, FR-030, FR-031)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    renderPanel({ generateRide });
+    await screen.findByText("Position détectée");
+    writeStoredRoutePreferences(window.localStorage, {
+      avoidHighways: false,
+      avoidUnpaved: false,
+      stayInCanada: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preferences: {
+            avoidHighways: false,
+            avoidUnpaved: false,
+            stayInCanada: true,
+          },
+        }),
+        expect.objectContaining({ useAiWebGeneration: true }),
+      );
+    });
   });
 
   it("blocks a second generate click while the AI request is in flight", async () => {

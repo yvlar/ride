@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RideMap } from "@/components/map/ride-map";
 import { DescribeRidePanel } from "@/components/app/describe-ride-panel";
+import { RoutePreferenceSettings } from "@/components/app/route-preference-settings";
 import {
   RideRequestForm,
   type RideRequestFormProps,
@@ -35,6 +36,11 @@ import { createLocalRideLibrary } from "@/infrastructure/persistence/local-ride-
 import { createRideSessionStore } from "@/infrastructure/persistence/ride-session-store";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
+import {
+  readStoredRoutePreferences,
+  writeStoredRoutePreferences,
+} from "@/domain/ride/stored-route-preferences";
+import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
 
 type ExplorerSheet = "home" | "search" | "describe" | "planner";
@@ -711,6 +717,21 @@ function SettingsPanel({
   gpsLabel: string;
   onGpsLabel: (label: string) => void;
 }) {
+  const [routePreferences, setRoutePreferences] = useState<RoutePreferences>(
+    () =>
+      readStoredRoutePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+      ),
+  );
+
+  function persistRoutePreferences(next: RoutePreferences) {
+    setRoutePreferences(next);
+    writeStoredRoutePreferences(
+      typeof window === "undefined" ? null : window.localStorage,
+      next,
+    );
+  }
+
   return (
     <div className="absolute inset-0 z-10 overflow-y-auto bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
       <h1 className="text-2xl font-semibold tracking-tight">Réglages</h1>
@@ -736,6 +757,12 @@ function SettingsPanel({
           </button>
         ))}
       </fieldset>
+      <div className="mt-6">
+        <RoutePreferenceSettings
+          value={routePreferences}
+          onChange={persistRoutePreferences}
+        />
+      </div>
       <p className="mt-6 text-sm text-muted-foreground">
         Ride est une application web dans une coque iOS. Apple CarPlay n’est pas
         une page web : il s’agit d’un afficheur natif. Voir la documentation

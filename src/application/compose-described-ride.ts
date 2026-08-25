@@ -5,16 +5,13 @@ import {
   isDescribeDistanceKm,
   snapDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
+import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
 import type { Place } from "@/domain/geo/types";
 import type { RideStyle, RoutePreferences } from "@/domain/ride/types";
 
 export const DESCRIBE_START_LABEL = "Position actuelle";
 
-export const DESCRIBE_DEFAULT_PREFERENCES: RoutePreferences = {
-  avoidHighways: true,
-  avoidUnpaved: true,
-  stayInCanada: false,
-};
+export const DESCRIBE_DEFAULT_PREFERENCES = DEFAULT_ROUTE_PREFERENCES;
 
 export type ComposeDescribedRideInput = {
   start: Place | null;

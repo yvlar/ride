@@ -27,7 +27,11 @@ describe("composeDescribedRide (FR-034)", () => {
       start: gps,
       targetDistanceKm: 180,
       style: "scenic",
-      preferences: { avoidHighways: true, avoidUnpaved: true },
+      preferences: {
+        avoidHighways: true,
+        avoidUnpaved: true,
+        stayInCanada: false,
+      },
     });
     expect(result.request).not.toHaveProperty("availableDurationMinutes");
   });

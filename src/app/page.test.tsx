@@ -58,6 +58,22 @@ describe("Home explorer (FR-014, FR-031)", () => {
     expect(screen.getByLabelText("Éviter les péages")).toBeDisabled();
   });
 
+  it("exposes route preferences in Réglages, not in Décrire mon trajet (FR-031, FR-034)", () => {
+    renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    expect(screen.queryByLabelText("Éviter les autoroutes")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Éviter les routes non pavées"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Canada seulement")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    expect(screen.getByRole("heading", { name: "Réglages" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+    expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
+  });
+
   it("keeps primary actions at 48px on a phone viewport (NFR-001)", () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,

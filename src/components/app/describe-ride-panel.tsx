@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   composeDescribedRide,
-  DESCRIBE_DEFAULT_PREFERENCES,
   describedStartPlace,
 } from "@/application/compose-described-ride";
 import { DescribeDistanceSlider } from "@/components/app/describe-distance-slider";
@@ -30,6 +29,7 @@ import {
   snapDescribeDistanceKm,
   writeStoredDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
+import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
   principalRoadNames,
@@ -42,7 +42,6 @@ import type {
   GenerateRideResult,
   GeneratedRideRoute,
   RideGenerationError,
-  RoutePreferences,
 } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
 
@@ -104,9 +103,6 @@ export function DescribeRidePanel({
     readStoredDescribeDistanceKm(
       typeof window === "undefined" ? null : window.localStorage,
     ),
-  );
-  const [preferences, setPreferences] = useState<RoutePreferences>(
-    DESCRIBE_DEFAULT_PREFERENCES,
   );
   const [start, setStart] = useState<Place | null>(null);
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null);
@@ -203,6 +199,9 @@ export function DescribeRidePanel({
         retryActionRef.current = "generate";
         return;
       }
+      const preferences = readStoredRoutePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+      );
       const composed = composeDescribedRide({
         start: located.start,
         targetDistanceKm: distanceKm,
@@ -268,7 +267,9 @@ export function DescribeRidePanel({
         ...composedRequest,
         start: located.start,
         targetDistanceKm: distanceKm,
-        preferences,
+        preferences: readStoredRoutePreferences(
+          typeof window === "undefined" ? null : window.localStorage,
+        ),
       };
       const generated = await regenerateRide(request, activeRoute, {
         useAiWebGeneration: true,
@@ -336,57 +337,6 @@ export function DescribeRidePanel({
           disabled={busy}
           onChange={persistDistance}
         />
-      </div>
-
-      <div className="mt-4 space-y-2">
-        <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-          <Label htmlFor="describe-avoid-highways" className="text-base">
-            Éviter les autoroutes
-          </Label>
-          <Switch
-            id="describe-avoid-highways"
-            checked={preferences.avoidHighways}
-            disabled={busy}
-            onCheckedChange={(checked) =>
-              setPreferences((current) => ({
-                ...current,
-                avoidHighways: checked,
-              }))
-            }
-          />
-        </div>
-        <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-          <Label htmlFor="describe-avoid-unpaved" className="text-base">
-            Éviter les routes non pavées
-          </Label>
-          <Switch
-            id="describe-avoid-unpaved"
-            checked={preferences.avoidUnpaved}
-            disabled={busy}
-            onCheckedChange={(checked) =>
-              setPreferences((current) => ({
-                ...current,
-                avoidUnpaved: checked,
-              }))
-            }
-          />
-        </div>
-        <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-          <Label htmlFor="describe-stay-in-canada" className="text-base">
-            Canada seulement
-          </Label>
-          <Switch
-            id="describe-stay-in-canada"
-            checked={Boolean(preferences.stayInCanada)}
-            disabled={busy}
-            onCheckedChange={(checked) =>
-              setPreferences((current) => ({
-                ...current,
-                stayInCanada: checked,
-              }))
-            }
-          />
-        </div>
       </div>
 
       {busy && (regenerating || locationStatus === "detected") ? (

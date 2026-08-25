@@ -548,3 +548,59 @@ describe("RideApp appearance (FR-037)", () => {
     expect(document.documentElement.classList.contains("night")).toBe(true);
   });
 });
+
+describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
+  it("stores Réglages switches and applies them to Décrire mon trajet", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          generateRide={generateRide}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+    expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText("Canada seulement"));
+    fireEvent.click(screen.getByLabelText("Éviter les autoroutes"));
+    expect(screen.getByLabelText("Canada seulement")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    expect(screen.getByLabelText("Canada seulement")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
+    expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
+    expect(screen.queryByLabelText("Éviter les autoroutes")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Canada seulement")).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Générer mon trajet" }));
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preferences: {
+            avoidHighways: false,
+            avoidUnpaved: true,
+            stayInCanada: true,
+          },
+        }),
+        expect.objectContaining({ useAiWebGeneration: true }),
+      );
+    });
+  });
+});
