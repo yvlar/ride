@@ -123,7 +123,6 @@ export class OpenAiWebSearchProvider implements WebSearchProvider {
         },
       ],
       tool_choice: "required",
-      include: ["web_search_call.action.sources"],
       input: buildWebSearchUserMessage(queries),
     });
     const parsed = responsesSchema.safeParse(payload);
