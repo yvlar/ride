@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gpxFileInputAccept } from "@/domain/gpx/file-accept";
 import {
@@ -286,5 +286,117 @@ describe("ImportGpxPanel (FR-039)", () => {
       avoidUnpaved: false,
       stayInCanada: true,
     });
+  });
+
+  const SNAP_OK = {
+    ok: true as const,
+    route: {
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [-72.73, 45.4],
+          [-72.6, 45.41],
+        ] as [number, number][],
+      },
+      segments: [] as [],
+      distanceKm: 10,
+      durationMinutes: 12,
+    },
+  };
+
+  function createDeferredSnap() {
+    let resolveSnap: ((value: typeof SNAP_OK) => void) | undefined;
+    const snapWaypoints = vi.fn(
+      () =>
+        new Promise<typeof SNAP_OK>((resolve) => {
+          resolveSnap = resolve;
+        }),
+    );
+    return {
+      snapWaypoints,
+      async release() {
+        await act(async () => {
+          resolveSnap?.(SNAP_OK);
+        });
+      },
+    };
+  }
+
+  it("repro H1: unmount during deferred <rte> snap still calls onPreview (FR-039)", async () => {
+    const onPreview = vi.fn();
+    const { snapWaypoints, release } = createDeferredSnap();
+    const view = render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE, "route-112.gpx");
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalledTimes(1);
+    });
+    expect(onPreview).not.toHaveBeenCalled();
+    view.unmount();
+    await release();
+    expect(onPreview).toHaveBeenCalled();
+    expect(onPreview.mock.calls.at(-1)?.[0]?.name).toBe("Route 112");
+  });
+
+  it("repro H2: remounted panel still receives the previous instance's snap (FR-039)", async () => {
+    const onPreviewA = vi.fn();
+    const { snapWaypoints, release } = createDeferredSnap();
+    const first = render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreviewA}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE, "route-112.gpx");
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalledTimes(1);
+    });
+    first.unmount();
+    const onPreviewB = vi.fn();
+    render(
+      <ImportGpxPanel
+        snapWaypoints={vi.fn()}
+        onPreview={onPreviewB}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    await release();
+    expect(onPreviewA.mock.calls.at(-1)?.[0]?.name).toBe("Route 112");
+    expect(onPreviewB).not.toHaveBeenCalled();
+  });
+
+  it("repro H3: same mounted instance ignores a stale snap after a new file (FR-039)", async () => {
+    const onPreview = vi.fn();
+    const { snapWaypoints, release } = createDeferredSnap();
+    render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE, "route-112.gpx");
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalledTimes(1);
+    });
+    upload(TRACK, "cantons.gpx");
+    await waitFor(() => {
+      expect(screen.getByText("Cantons")).toBeInTheDocument();
+    });
+    await release();
+    expect(onPreview.mock.calls.some((call) => call[0]?.name === "Route 112")).toBe(
+      false,
+    );
+    expect(onPreview.mock.calls.at(-1)?.[0]?.name).toBe("Cantons");
   });
 });
