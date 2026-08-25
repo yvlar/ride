@@ -1,20 +1,27 @@
 import type { Coordinates } from "@/domain/geo/types";
+import type {
+  AiRouteCandidate,
+  DescribedCorrection,
+} from "@/domain/ride/ai-route";
 import type { RideStyle, RoutePreferences } from "@/domain/ride/types";
 import type { WebSearchHit } from "@/infrastructure/search/web-search-provider";
 
 export type DescribedPlanningFailureReason =
-  | "unusable_via_points"
+  | DescribedCorrection["reason"]
   | "routing_failed"
   | "distance_out_of_tolerance"
-  | "geometric_loop_rejected"
   | "no_route_found"
   | "known_unpaved_rejected"
   | "canada_only_rejected"
-  | "regeneration_overlap";
+  | "regeneration_overlap"
+  | "insufficient_web_grounding";
 
-export type DescribedPlanningFailure = {
+export type DescribedPlanningFailure = Omit<DescribedCorrection, "reason"> & {
   reason: DescribedPlanningFailureReason;
   lastDistanceKm?: number;
+  triedRoads?: string[];
+  searchRadiusKm?: number;
+  corridorHint?: string;
 };
 
 export type AiRidePlanInput = {
@@ -29,12 +36,14 @@ export type AiRidePlanInput = {
   returnToStart?: boolean;
   /** FR-034 — why the previous AI plan did not yield a usable road-network ride. */
   previousPlanningFailure?: DescribedPlanningFailure;
+  triedRoads?: string[];
+  searchRadiusKm?: number;
+  corridorHint?: string;
+  candidateCount?: number;
 };
 
 export type AiRidePlan = {
-  viaPoints: Coordinates[];
-  roads: string[];
-  pointsOfInterest: string[];
+  candidates: AiRouteCandidate[];
 };
 
 /**

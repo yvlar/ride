@@ -82,14 +82,16 @@ export class HttpWebSearchProvider implements WebSearchProvider {
     return uniqueHits(pages.flat());
   }
 
-  private async searchQuery(query: string): Promise<WebSearchHit[]> {
+  private async searchQuery(query: string): Promise<Array<{ title: string; snippet: string }>> {
     if (this.provider === "brave") {
       return this.searchBrave(query);
     }
     return this.searchTavily(query);
   }
 
-  private async searchTavily(query: string): Promise<WebSearchHit[]> {
+  private async searchTavily(
+    query: string,
+  ): Promise<Array<{ title: string; snippet: string }>> {
     const response = await this.request(`${this.baseUrl}/search`, {
       method: "POST",
       headers: {
@@ -117,7 +119,9 @@ export class HttpWebSearchProvider implements WebSearchProvider {
       .filter((hit) => hit.title || hit.snippet);
   }
 
-  private async searchBrave(query: string): Promise<WebSearchHit[]> {
+  private async searchBrave(
+    query: string,
+  ): Promise<Array<{ title: string; snippet: string }>> {
     const url = new URL(`${this.baseUrl}/res/v1/web/search`);
     url.searchParams.set("q", query);
     const response = await this.request(url.toString(), {
@@ -183,7 +187,8 @@ export function motorcycleSearchQueries(
   const searchRadiusKm = Math.max(
     10,
     Math.round(
-      input.targetDistanceKm * (returnToStart ? 0.55 : 1.1),
+      input.searchRadiusKm ??
+        input.targetDistanceKm * (returnToStart ? 0.55 : 1.1),
     ),
   );
   const rideKind = returnToStart
@@ -198,9 +203,23 @@ export function motorcycleSearchQueries(
   ].filter(Boolean);
   const preferenceQuery =
     preferences.length > 0 ? ` ${preferences.join(" ")}` : "";
+  const corridor = input.corridorHint
+    ? ` ${input.corridorHint} corridor`
+    : "";
+  const tried =
+    input.triedRoads && input.triedRoads.length > 0
+      ? ` avoid repeating ${input.triedRoads.slice(0, 6).join(", ")}`
+      : "";
+  const failure = input.previousFailureReason
+    ? ` previous failure ${input.previousFailureReason}`
+    : "";
+  const actual =
+    input.lastActualDistanceKm !== undefined
+      ? ` last routed distance ${input.lastActualDistanceKm.toFixed(0)} km`
+      : "";
   return [
-    `best ${style} scenic twisty motorcycle roads for a ${rideKind} starting near ${point} within ${searchRadiusKm} km${preferenceQuery}`,
-    `motorcycle route guides named roads viewpoints and towns near ${point} within ${searchRadiusKm} km for a ${rideKind}${preferenceQuery}`,
+    `best ${style} scenic twisty motorcycle roads for a ${rideKind} starting near ${point} within ${searchRadiusKm} km${corridor}${preferenceQuery}${tried}${failure}${actual}`,
+    `motorcycle route guides named roads viewpoints and towns near ${point} within ${searchRadiusKm} km for a ${rideKind}${corridor}${preferenceQuery}${tried}`,
     `current motorcycle road closures construction detours seasonal private and unpaved roads near ${point} within ${searchRadiusKm} km${preferenceQuery}`,
   ];
 }
@@ -211,7 +230,9 @@ function defaultBaseUrl(provider: "tavily" | "brave"): string {
     : DEFAULT_TAVILY_API_BASE_URL;
 }
 
-export function uniqueHits(hits: WebSearchHit[]): WebSearchHit[] {
+export function uniqueHits(
+  hits: Array<{ id?: string; title: string; snippet: string }>,
+): WebSearchHit[] {
   const seen = new Set<string>();
   const unique: WebSearchHit[] = [];
   for (const hit of hits) {
@@ -220,7 +241,11 @@ export function uniqueHits(hits: WebSearchHit[]): WebSearchHit[] {
       continue;
     }
     seen.add(key);
-    unique.push(hit);
+    unique.push({
+      id: hit.id?.trim() || `web-${unique.length + 1}`,
+      title: hit.title,
+      snippet: hit.snippet,
+    });
   }
   return unique;
 }

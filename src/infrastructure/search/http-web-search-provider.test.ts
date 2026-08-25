@@ -39,6 +39,7 @@ describe("HttpWebSearchProvider (FR-034)", () => {
 
     expect(hits).toEqual([
       {
+        id: "web-1",
         title: "Eastern Townships motorcycle loop",
         snippet: "Twisty scenic roads near Orford.",
       },
@@ -100,5 +101,31 @@ describe("HttpWebSearchProvider (FR-034)", () => {
     expect(combined).toMatch(/paved roads only/);
     expect(combined).toMatch(/stay in Canada/);
     expect(combined).toMatch(/do not cross into the United States/);
+  });
+
+  it("changes the query when the radius, corridor or previous failure change (FR-034)", () => {
+    const base = motorcycleSearchQueries({
+      origin: ORIGIN,
+      accuracyMeters: 8,
+      targetDistanceKm: 200,
+      searchRadiusKm: 110,
+      corridorHint: "north-east",
+    });
+    const expanded = motorcycleSearchQueries({
+      origin: ORIGIN,
+      accuracyMeters: 8,
+      targetDistanceKm: 200,
+      searchRadiusKm: 160,
+      corridorHint: "south-west",
+      previousFailureReason: "distance_too_short",
+      lastActualDistanceKm: 32,
+      triedRoads: ["Chemin des crêtes"],
+    });
+
+    expect(base.join("\n")).not.toBe(expanded.join("\n"));
+    expect(expanded.join(" ")).toMatch(/south-west/);
+    expect(expanded.join(" ")).toMatch(/distance_too_short/);
+    expect(expanded.join(" ")).toMatch(/32 km/);
+    expect(expanded.join(" ")).toMatch(/Chemin des crêtes/);
   });
 });

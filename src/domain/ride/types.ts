@@ -176,6 +176,8 @@ export type RideGenerationError = {
   bestCandidate?: {
     distanceKm: number;
     repeatedRoadPercent?: number;
+    maxDistanceFromOriginKm?: number;
+    violations?: string[];
   };
 };
 

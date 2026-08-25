@@ -118,6 +118,21 @@ export function joinLineStrings(
   };
 }
 
+/** Furthest vertex of a LineString from the origin, in kilometres. */
+export function maxDistanceFromOriginKm(
+  origin: Coordinates,
+  geometry: LineString,
+): number {
+  let maxKm = 0;
+  for (const position of geometry.coordinates) {
+    const distanceKm = haversineKm(origin, positionToCoordinates(position));
+    if (distanceKm > maxKm) {
+      maxKm = distanceKm;
+    }
+  }
+  return maxKm;
+}
+
 export function createCircleLineString(
   center: Coordinates,
   radiusKm: number,

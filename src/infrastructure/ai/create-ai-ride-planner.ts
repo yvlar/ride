@@ -1,6 +1,7 @@
 import { parseEnv, serverProcessEnv } from "@/lib/env";
 import {
   HttpChatCompletionsClient,
+  isVercelAiGatewayBaseUrl,
   normalizeChatApiKey,
   resolveChatCompletionsBaseUrl,
   resolveChatCompletionsModel,
@@ -24,15 +25,24 @@ export function createAiRidePlanner(
     apiKey,
     baseUrl: env.OPENAI_API_BASE_URL,
   });
+  const model = resolveChatCompletionsModel({
+    model: env.OPENAI_MODEL,
+    baseUrl,
+  });
+  if (isVercelAiGatewayBaseUrl(baseUrl)) {
+    return new HttpAiRidePlanner({
+      client: new HttpChatCompletionsClient({
+        apiKey,
+        baseUrl,
+        timeoutMs: 20_000,
+      }),
+      model,
+    });
+  }
   return new HttpAiRidePlanner({
-    client: new HttpChatCompletionsClient({
-      apiKey,
-      baseUrl,
-      timeoutMs: 20_000,
-    }),
-    model: resolveChatCompletionsModel({
-      model: env.OPENAI_MODEL,
-      baseUrl,
-    }),
+    apiKey,
+    baseUrl,
+    model,
+    timeoutMs: 20_000,
   });
 }

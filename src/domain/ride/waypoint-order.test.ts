@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
-import { orderLoopWaypoints, orderOneWayWaypoints } from "./waypoint-order";
+import {
+  describedLoopWaypointOrders,
+  orderLoopWaypoints,
+  orderOneWayWaypoints,
+} from "./waypoint-order";
 
 const GRANBY = { latitude: 45.403, longitude: -72.734 };
 
@@ -38,5 +42,15 @@ describe("AI waypoint ordering (FR-034)", () => {
     orderLoopWaypoints(GRANBY, points);
 
     expect(points).toEqual(snapshot);
+  });
+
+  it("keeps the AI riding order first and reverse second (FR-034)", () => {
+    const north = offsetCoordinates(GRANBY, 0, 20);
+    const south = offsetCoordinates(GRANBY, 180, 20);
+    const east = offsetCoordinates(GRANBY, 90, 20);
+    const orders = describedLoopWaypointOrders(GRANBY, [north, south, east]);
+
+    expect(orders[0]).toEqual([north, south, east]);
+    expect(orders[1]).toEqual([east, south, north]);
   });
 });

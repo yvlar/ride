@@ -71,6 +71,7 @@ describe("OpenAiWebSearchProvider (FR-034)", () => {
 
     expect(hits).toEqual([
       {
+        id: "web-1",
         title: "Eastern Townships motorcycle loop",
         snippet: "Twisty scenic roads near Orford.",
       },

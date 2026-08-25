@@ -9,6 +9,7 @@ type EdgeUsage = {
 
 type AccumulatedEdges = {
   usageByEdge: Map<string, EdgeUsage>;
+  edgeOrigins: Map<string, boolean>;
   totalKm: number;
 };
 
@@ -44,8 +45,11 @@ function interpolate(
 
 function addEdge(
   usageByEdge: Map<string, EdgeUsage>,
+  edgeOrigins: Map<string, boolean>,
   from: Coordinates,
   to: Coordinates,
+  origin?: Coordinates,
+  originConnectorRadiusKm?: number,
 ): number {
   const lengthKm = haversineKm(from, to);
   if (lengthKm === 0) {
@@ -58,11 +62,26 @@ function addEdge(
     count: current.count + 1,
     lengthKm: current.lengthKm + lengthKm,
   });
+  if (origin && originConnectorRadiusKm !== undefined) {
+    const midpoint = interpolate(from, to, 0.5);
+    const nearOrigin =
+      haversineKm(origin, midpoint) <= originConnectorRadiusKm &&
+      haversineKm(origin, from) <= originConnectorRadiusKm &&
+      haversineKm(origin, to) <= originConnectorRadiusKm;
+    edgeOrigins.set(key, (edgeOrigins.get(key) ?? true) && nearOrigin);
+  }
   return lengthKm;
 }
 
-function accumulateEdges(geometry: LineString): AccumulatedEdges {
+function accumulateEdges(
+  geometry: LineString,
+  options?: {
+    origin: Coordinates;
+    originConnectorRadiusKm: number;
+  },
+): AccumulatedEdges {
   const usageByEdge = new Map<string, EdgeUsage>();
+  const edgeOrigins = new Map<string, boolean>();
   let totalKm = 0;
 
   for (let index = 1; index < geometry.coordinates.length; index += 1) {
@@ -74,12 +93,19 @@ function accumulateEdges(geometry: LineString): AccumulatedEdges {
     let previous = from;
     for (let step = 1; step <= steps; step += 1) {
       const current = interpolate(from, to, step / steps);
-      totalKm += addEdge(usageByEdge, previous, current);
+      totalKm += addEdge(
+        usageByEdge,
+        edgeOrigins,
+        previous,
+        current,
+        options?.origin,
+        options?.originConnectorRadiusKm,
+      );
       previous = current;
     }
   }
 
-  return { usageByEdge, totalKm };
+  return { usageByEdge, edgeOrigins, totalKm };
 }
 
 /**
@@ -87,19 +113,71 @@ function accumulateEdges(geometry: LineString): AccumulatedEdges {
  * including travel in the opposite direction.
  */
 export function measureRepeatedRoadPercent(geometry: LineString): number {
-  const { usageByEdge, totalKm } = accumulateEdges(geometry);
+  return repeatedRoadShare(geometry).percent;
+}
+
+/**
+ * BR-011 — repeated share excluding a short origin connector. Opposite
+ * direction still matches. Origin-connector edges are ignored in both the
+ * repeated numerator and the outside-zone denominator.
+ */
+export function measureRepeatedRoadPercentBeyondOrigin(
+  geometry: LineString,
+  origin: Coordinates,
+  originConnectorRadiusKm: number,
+): number {
+  return repeatedRoadShare(geometry, {
+    origin,
+    originConnectorRadiusKm,
+  }).percentOutsideOrigin;
+}
+
+type RepeatedRoadShare = {
+  percent: number;
+  percentOutsideOrigin: number;
+};
+
+function repeatedRoadShare(
+  geometry: LineString,
+  options?: {
+    origin: Coordinates;
+    originConnectorRadiusKm: number;
+  },
+): RepeatedRoadShare {
+  const { usageByEdge, totalKm, edgeOrigins } = accumulateEdges(
+    geometry,
+    options,
+  );
   if (totalKm === 0) {
-    return 0;
+    return {
+      percent: 0,
+      percentOutsideOrigin: 0,
+    };
   }
 
   let repeatedKm = 0;
-  for (const usage of usageByEdge.values()) {
+  let repeatedKmOutsideOrigin = 0;
+  let totalKmOutsideOrigin = 0;
+
+  for (const [key, usage] of usageByEdge) {
+    const nearOrigin = options ? edgeOrigins.get(key) === true : false;
+    if (!nearOrigin) {
+      totalKmOutsideOrigin += usage.lengthKm;
+    }
     if (usage.count > 1) {
       repeatedKm += usage.lengthKm;
+      if (!nearOrigin) {
+        repeatedKmOutsideOrigin += usage.lengthKm;
+      }
     }
   }
 
-  return (repeatedKm / totalKm) * 100;
+  const outsideDenom = totalKmOutsideOrigin > 0 ? totalKmOutsideOrigin : totalKm;
+
+  return {
+    percent: (repeatedKm / totalKm) * 100,
+    percentOutsideOrigin: (repeatedKmOutsideOrigin / outsideDenom) * 100,
+  };
 }
 
 /**
