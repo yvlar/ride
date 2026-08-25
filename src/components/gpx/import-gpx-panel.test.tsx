@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gpxFileInputAccept } from "@/domain/gpx/file-accept";
 import {
@@ -143,6 +143,7 @@ describe("ImportGpxPanel (FR-039)", () => {
     expect(
       screen.queryByRole("button", { name: "Démarrer la navigation" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fichier :/)).not.toBeInTheDocument();
   });
 
   it("shows a readable error for a waypoint-only file", async () => {
@@ -224,15 +225,18 @@ describe("ImportGpxPanel (FR-039)", () => {
         onBack={() => {}}
       />,
     );
-    upload(TRACK);
+    upload(TRACK, "cantons.gpx");
     await waitFor(() => {
       expect(screen.getByText("Cantons")).toBeInTheDocument();
     });
-    upload(ROUTE);
+    expect(screen.getByText(/Fichier : cantons.gpx/)).toBeInTheDocument();
+    upload(ROUTE, "route-112.gpx");
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
     });
     expect(screen.getByText("Cantons")).toBeInTheDocument();
+    expect(screen.getByText(/Fichier : cantons.gpx/)).toBeInTheDocument();
+    expect(screen.queryByText(/Fichier : route-112.gpx/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
     expect(onPreview.mock.calls.some((call) => call[0] === null)).toBe(false);
   });
@@ -286,5 +290,116 @@ describe("ImportGpxPanel (FR-039)", () => {
       avoidUnpaved: false,
       stayInCanada: true,
     });
+  });
+
+  const SNAP_OK = {
+    ok: true as const,
+    route: {
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [-72.73, 45.4],
+          [-72.6, 45.41],
+        ] as [number, number][],
+      },
+      segments: [] as [],
+      distanceKm: 10,
+      durationMinutes: 12,
+    },
+  };
+
+  function createDeferredSnap() {
+    let resolveSnap: ((value: typeof SNAP_OK) => void) | undefined;
+    const snapWaypoints = vi.fn(
+      () =>
+        new Promise<typeof SNAP_OK>((resolve) => {
+          resolveSnap = resolve;
+        }),
+    );
+    return {
+      snapWaypoints,
+      async release() {
+        await act(async () => {
+          resolveSnap?.(SNAP_OK);
+        });
+      },
+    };
+  }
+
+  it("does not call onPreview if the panel unmounts during a deferred <rte> snap (FR-039)", async () => {
+    const onPreview = vi.fn();
+    const { snapWaypoints, release } = createDeferredSnap();
+    const view = render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE, "route-112.gpx");
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalledTimes(1);
+    });
+    expect(onPreview).not.toHaveBeenCalled();
+    view.unmount();
+    await release();
+    expect(onPreview).not.toHaveBeenCalled();
+  });
+
+  it("does not apply a previous instance's snap after remount (FR-039)", async () => {
+    const onPreviewA = vi.fn();
+    const { snapWaypoints, release } = createDeferredSnap();
+    const first = render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreviewA}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE, "route-112.gpx");
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalledTimes(1);
+    });
+    first.unmount();
+    const onPreviewB = vi.fn();
+    render(
+      <ImportGpxPanel
+        snapWaypoints={vi.fn()}
+        onPreview={onPreviewB}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    await release();
+    expect(onPreviewA).not.toHaveBeenCalled();
+    expect(onPreviewB).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale <rte> snap after a newer file on the same instance (FR-039)", async () => {
+    const onPreview = vi.fn();
+    const { snapWaypoints, release } = createDeferredSnap();
+    render(
+      <ImportGpxPanel
+        snapWaypoints={snapWaypoints}
+        onPreview={onPreview}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    upload(ROUTE, "route-112.gpx");
+    await waitFor(() => {
+      expect(snapWaypoints).toHaveBeenCalledTimes(1);
+    });
+    upload(TRACK, "cantons.gpx");
+    await waitFor(() => {
+      expect(screen.getByText("Cantons")).toBeInTheDocument();
+    });
+    await release();
+    expect(onPreview.mock.calls.some((call) => call[0]?.name === "Route 112")).toBe(
+      false,
+    );
+    expect(onPreview.mock.calls.at(-1)?.[0]?.name).toBe("Cantons");
   });
 });

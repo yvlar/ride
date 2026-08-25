@@ -833,4 +833,84 @@ describe("RideApp GPX import (FR-039)", () => {
     expect(screen.getByText("Cantons")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Démarrer la navigation" })).toBeEnabled();
   });
+
+  it("does not store a GPX preview if the user leaves Explore during a deferred <rte> snap (FR-039)", async () => {
+    let releaseSnap: ((value: Response) => void) | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/routes/snap-waypoints")) {
+        return new Promise<Response>((resolve) => {
+          releaseSnap = resolve;
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      render(
+        <AppearanceProvider>
+          <RideApp mapEngine={stubMapEngine()} />
+        </AppearanceProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Importer un fichier GPX" }));
+      const input = screen.getByTestId("gpx-file-input") as HTMLInputElement;
+      fireEvent.change(input, {
+        target: {
+          files: [
+            new File(
+              [
+                `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <rte>
+    <name>Route 112</name>
+    <rtept lat="45.40" lon="-72.73"/>
+    <rtept lat="45.41" lon="-72.60"/>
+  </rte>
+</gpx>`,
+              ],
+              "route-112.gpx",
+              { type: "application/gpx+xml" },
+            ),
+          ],
+        },
+      });
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalled();
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Mes trajets" }));
+      expect(
+        screen.getByText("Aucun trajet généré dans cette session."),
+      ).toBeInTheDocument();
+      await act(async () => {
+        releaseSnap?.(
+          new Response(
+            JSON.stringify({
+              data: {
+                route: {
+                  geometry: {
+                    type: "LineString",
+                    coordinates: [
+                      [-72.73, 45.4],
+                      [-72.6, 45.41],
+                    ],
+                  },
+                  segments: [],
+                  distanceKm: 10,
+                  durationMinutes: 12,
+                },
+              },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      });
+      expect(
+        screen.getByText("Aucun trajet généré dans cette session."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Route 112")).not.toBeInTheDocument();
+      expect(window.sessionStorage.getItem(RIDE_SESSION_STORAGE_KEY)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

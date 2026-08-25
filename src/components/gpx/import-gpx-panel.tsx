@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   formatDistanceLabel,
   formatDurationLabel,
@@ -56,11 +56,17 @@ export function ImportGpxPanel({
   const [error, setError] = useState<RideGenerationError | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function abortInFlight() {
+  const abortInFlight = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     generationRef.current += 1;
-  }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      abortInFlight();
+    };
+  }, [abortInFlight]);
 
   function discardPreview() {
     abortInFlight();
@@ -82,7 +88,7 @@ export function ImportGpxPanel({
     name: string,
     extraWarnings: string[],
     snap: SnapFn,
-  ) {
+  ): Promise<boolean> {
     generationRef.current += 1;
     const generation = generationRef.current;
     abortRef.current?.abort();
@@ -100,13 +106,13 @@ export function ImportGpxPanel({
         warnings: extraWarnings,
       });
       if (generation !== generationRef.current) {
-        return;
+        return false;
       }
       setRoute(composed);
       setError(null);
       setBusy(false);
       onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
-      return;
+      return true;
     }
 
     setBusy(true);
@@ -116,12 +122,12 @@ export function ImportGpxPanel({
     );
     const snapped = await snap({ waypoints, preferences }, controller.signal);
     if (generation !== generationRef.current || controller.signal.aborted) {
-      return;
+      return false;
     }
     if (!snapped.ok) {
       setBusy(false);
       setError(snapped.error);
-      return;
+      return false;
     }
     const composed = composeGpxRoute({
       trip,
@@ -133,6 +139,7 @@ export function ImportGpxPanel({
     setError(null);
     setBusy(false);
     onPreview(composed, gpxRideRequestFromRoute(composed, preferences));
+    return true;
   }
 
   async function handleFile(file: File) {
@@ -165,15 +172,18 @@ export function ImportGpxPanel({
       });
       return;
     }
-    setFileName(file.name);
-    setTrips(parsed.trips);
-    setWarnings(parsed.warnings);
     const first = parsed.trips[0];
     if (!first) {
       return;
     }
+    const applied = await applyTrip(first, file.name, parsed.warnings, snapWaypoints);
+    if (!applied) {
+      return;
+    }
+    setFileName(file.name);
+    setTrips(parsed.trips);
+    setWarnings(parsed.warnings);
     setSelectedId(first.id);
-    await applyTrip(first, file.name, parsed.warnings, snapWaypoints);
   }
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
