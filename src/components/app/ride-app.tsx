@@ -352,7 +352,6 @@ export function RideApp(props: RideRequestFormProps) {
             speech={speechEngine}
             recalculate={props.navigation?.recalculate}
             now={props.navigation?.now}
-            mapEngine={props.mapEngine}
             initialMuted={describeMuted}
           />
         ) : null}
@@ -395,8 +394,14 @@ export function RideApp(props: RideRequestFormProps) {
           </div>
         ) : null}
 
-        {tab === "explore" && !navigating && sheet !== "planner" ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+        {tab === "explore" && sheet !== "planner" ? (
+          <div
+            className={
+              navigating
+                ? "hidden"
+                : "pointer-events-none absolute inset-x-0 bottom-0 z-10"
+            }
+          >
             {sheet === "home" ? (
               <MapBottomPanel title="Où veux-tu rouler?">
                 <p className="mb-2 text-sm text-muted-foreground">{gpsLabel}</p>

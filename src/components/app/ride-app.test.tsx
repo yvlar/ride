@@ -5,6 +5,7 @@ import { RideApp } from "./ride-app";
 import type { Place } from "@/domain/geo/types";
 import type { GenerateRideRequest, GenerateRideResult, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { MapEngine } from "@/components/map/map-engine";
+import type { LocationWatch } from "@/domain/location/types";
 import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
 import { RIDE_SESSION_STORAGE_KEY } from "@/domain/ride/session-snapshot";
 
@@ -340,6 +341,14 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       screen.queryByRole("heading", { name: "Composer le trajet" }),
     ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
+    expect(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Régénérer" })).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "Décrire mon trajet" })).toBeInTheDocument();
   });
 
   it("regenerates from the same describe criteria without leaving the view (FR-012, FR-034)", async () => {
@@ -377,34 +386,31 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     await waitFor(() => {
       expect(regenerateRide).toHaveBeenCalledTimes(1);
     });
-    const [regeneratedRequest, previousRoute] = regenerateRide.mock.calls[0] as [
-      GenerateRideRequest,
-      GeneratedLoopRoute,
-    ];
-    expect(regeneratedRequest).toMatchObject({
-      type: "loop",
-      start: granby,
-      style: "curvy",
-    });
-    expect(previousRoute.id).toBe(loop.id);
+    expect(regenerateRide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "loop",
+        start: granby,
+        style: "curvy",
+      }),
+      expect.objectContaining({ id: loop.id }),
+    );
     expect(
       screen.queryByRole("heading", { name: "Composer le trajet" }),
     ).not.toBeInTheDocument();
   });
 
   it("shows a GPS permission message during describe navigation (FR-023, FR-033)", async () => {
-    const listeners = new Set<(event: { type: string; error?: { message: string } }) => void>();
-    const locationWatch = {
+    const locationWatch: LocationWatch = {
       start: vi.fn(),
-      subscribe: vi.fn((listener: (event: { type: string; error?: { message: string } }) => void) => {
-        listeners.add(listener);
+      subscribe: vi.fn((listener) => {
         listener({
           type: "error",
-          error: { message: "L’autorisation de localisation a été refusée." },
+          error: {
+            code: "PERMISSION_DENIED",
+            message: "L’autorisation de localisation a été refusée.",
+          },
         });
-        return () => {
-          listeners.delete(listener);
-        };
+        return () => {};
       }),
       activeNativeWatches: () => 0,
     };
