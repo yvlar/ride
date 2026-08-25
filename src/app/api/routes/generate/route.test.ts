@@ -267,7 +267,7 @@ describe("POST /api/routes/generate", () => {
       expect(serialized).not.toMatch(/motorcycle scenic twisty/);
       const urls = fetchSpy.mock.calls.map(([input]) => fetchUrl(input));
       expect(urls.some((url) => url.includes("api.tavily.com"))).toBe(true);
-      expect(urls.some((url) => url.includes("/chat/completions"))).toBe(true);
+      expect(urls.some((url) => url.includes("/responses"))).toBe(true);
     } finally {
       fetchSpy.mockRestore();
     }
@@ -299,7 +299,6 @@ describe("POST /api/routes/generate", () => {
       const urls = fetchSpy.mock.calls.map(([input]) => fetchUrl(input));
       expect(urls.some((url) => url.includes("/responses"))).toBe(true);
       expect(urls.some((url) => url.includes("api.tavily.com"))).toBe(false);
-      expect(urls.some((url) => url.includes("/chat/completions"))).toBe(true);
     } finally {
       if (previousKey === undefined) {
         delete process.env.WEB_SEARCH_API_KEY;

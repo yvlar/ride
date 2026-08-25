@@ -1,5 +1,6 @@
 import { createAiRidePlanner } from "@/infrastructure/ai/create-ai-ride-planner";
 import type {
+  AiRidePlan,
   AiRidePlanner,
   DescribedPlanningFailure,
 } from "@/infrastructure/ai/ai-ride-planner";
@@ -9,63 +10,54 @@ import {
   isAiRidePlannerError,
 } from "@/infrastructure/ai/ai-ride-planner-error";
 import { createWebSearchProvider } from "@/infrastructure/search/create-web-search-provider";
+import { motorcycleSearchQueries } from "@/infrastructure/search/http-web-search-provider";
 import {
   isWebSearchError,
   WebSearchError,
 } from "@/infrastructure/search/web-search-error";
-import type { WebSearchProvider } from "@/infrastructure/search/web-search-provider";
+import type {
+  MotorcycleWebSearchInput,
+  WebSearchHit,
+  WebSearchProvider,
+} from "@/infrastructure/search/web-search-provider";
 import { haversineKm } from "@/domain/geo/distance";
 import { lastCoordinates } from "@/domain/geo/geometry";
 import type { Coordinates } from "@/domain/geo/types";
 import { DESCRIBE_ARRIVAL_LABEL } from "@/application/compose-described-ride";
 import {
-  excludeUnitedStatesCrossing,
-  routeEntersUnitedStates,
-} from "@/domain/ride/canada";
+  aiWaypointToCoordinates,
+  describedCorrectionFromEvaluation,
+  evaluateDescribedRoute,
+  hasRequiredWebGrounding,
+  isGeometricDescribedLoop,
+  type AiRouteCandidate,
+  type NamedSearchNote,
+  type RouteCandidateEvaluation,
+} from "@/domain/ride/ai-route";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
-  distanceToleranceExplanationKm,
-  distanceToleranceGapKm,
-  usesKnownUnpaved,
-} from "@/domain/ride/constraints";
-import {
-  orderLoopWaypoints,
-  orderOneWayWaypoints,
+  describedLoopWaypointOrders,
+  describedOneWayWaypointOrders,
 } from "@/domain/ride/waypoint-order";
 import {
   DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
   isDescribeDistanceKm,
 } from "@/domain/ride/describe-distance";
-import {
-  evaluateDestinationCandidate,
-  selectBestDestinationCandidate,
-  type EvaluatedDestinationCandidate,
-} from "@/domain/ride/destination";
 import { withHighwayAvoidanceSignal } from "@/domain/ride/highways";
-import {
-  evaluateLoopCandidate,
-  selectBestLoopCandidate,
-  type EvaluatedLoopCandidate,
-} from "@/domain/ride/loop";
 import {
   excludeSimilarToPrevious,
   lostOnlyToPreviousCorridor,
   regenerationOverlapError,
 } from "@/domain/ride/regeneration";
-import {
-  excludeKnownUnpaved,
-  withUnknownSurfaceSignal,
-} from "@/domain/ride/surfaces";
+import { withUnknownSurfaceSignal } from "@/domain/ride/surfaces";
 import {
   describedOneWayRideRequestSchema,
   loopRideRequestSchema,
   unsupportedRideTypeMessage,
 } from "@/domain/ride/schemas";
 import type {
-  DestinationCandidate,
   GeneratedDestinationRoute,
   GeneratedLoopRoute,
-  LoopCandidate,
   RideGenerationError,
   RideGenerationOptions,
   RideStyle,
@@ -76,7 +68,10 @@ import {
   canadaOnlyKnowledgeError,
   unpavedKnowledgeError,
 } from "@/infrastructure/routing/routing-knowledge-error";
-import type { RoutingProvider } from "@/infrastructure/routing/routing-provider";
+import type {
+  ProviderRouteResult,
+  RoutingProvider,
+} from "@/infrastructure/routing/routing-provider";
 import {
   readOriginAccuracyMeters,
   readPreviousRouteSignature,
@@ -86,9 +81,7 @@ import {
   applyHardRoutePreferences,
   errorFromExhaustedAttempts,
   knowledgeUnavailableError,
-  primaryKnowledgeError,
   stayInCanadaEndpointError,
-  withKnowledgeConstraint,
 } from "./routing-failure";
 
 export const ROUTING_UNAVAILABLE_MESSAGE =
@@ -96,26 +89,25 @@ export const ROUTING_UNAVAILABLE_MESSAGE =
 export const WEB_SEARCH_UNAVAILABLE_USER_MESSAGE =
   "La recherche Web est indisponible.";
 export const NO_VALID_DESCRIBED_RIDE_MESSAGE =
-  "Aucun trajet valide n’a pu être trouvé.";
+  "Aucun trajet respectant toutes les contraintes n’a été trouvé.";
 const MIN_AI_VIA_POINT_SEPARATION_KM = 0.25;
+const DESCRIBED_PLAN_ROUNDS = 3;
+const DESCRIBED_CANDIDATES_PER_ROUND = 4;
+const DESCRIBED_REQUEST_BUDGET_MS = 55_000;
+const CORRIDOR_HINTS = ["north-east", "south-west", "north-west"] as const;
 
-const DESCRIBED_PLAN_ATTEMPTS = 3;
-const VIA_FILTER_MODES = ["strict", "wide", "planned"] as const;
-
-export type ViaFilterMode = (typeof VIA_FILTER_MODES)[number];
+export type ViaFilterMode = "strict" | "wide" | "planned";
 
 export type GenerateDescribedRideDeps = {
   webSearch?: WebSearchProvider;
   planner?: AiRidePlanner;
+  now?: () => number;
+  deadlineMs?: number;
 };
 
 export type GenerateDescribedRideResult =
   | { ok: true; route: GeneratedLoopRoute | GeneratedDestinationRoute }
   | { ok: false; error: RideGenerationError };
-
-type DescribedRouteAttempt = {
-  acceptOutOfTolerance?: boolean;
-};
 
 type DescribedRoutingRequest = {
   type: "loop" | "destination";
@@ -128,9 +120,17 @@ type DescribedRoutingRequest = {
   preferences?: RoutePreferences;
 };
 
+type RoutedDescribedAttempt = {
+  candidate: AiRouteCandidate;
+  waypoints: Coordinates[];
+  routed: ProviderRouteResult;
+  evaluation: RouteCandidateEvaluation;
+};
+
 /**
  * FR-034 — AI + web search must both run. The road-network adapter then
  * snaps structured via-points. Never fall back to geometric loop seeds.
+ * BR-001 / BR-010 / BR-011 are hard for this flow.
  */
 export async function generateDescribedRide(
   input: unknown,
@@ -193,85 +193,176 @@ export async function generateDescribedRide(
     return { ok: false, error: describedAiError(error) };
   }
 
-  let searchHits;
-  try {
-    searchHits = await webSearch.searchMotorcycleRoads({
-      origin: request.start.coordinates,
-      accuracyMeters: readOriginAccuracyMeters(input),
-      targetDistanceKm: request.targetDistanceKm,
-      style: request.style,
-      preferences: request.preferences,
-      returnToStart,
-    });
-  } catch (error) {
-    return { ok: false, error: describedWebSearchError(error) };
-  }
-  const minViaCount = returnToStart ? 2 : 1;
-  const planInput = {
-    origin: request.start.coordinates,
-    accuracyMeters: readOriginAccuracyMeters(input),
-    targetDistanceKm: request.targetDistanceKm,
-    style: request.style,
-    preferences: request.preferences,
-    previousRouteSignature:
-      readPreviousRouteSignature(input) ??
-      (options?.previousGeometry
-        ? previousRideSignature({ geometry: options.previousGeometry })
-        : undefined),
-    searchHits,
-    returnToStart,
-  };
-
+  const now = deps.now ?? Date.now;
+  const deadline = now() + (deps.deadlineMs ?? DESCRIBED_REQUEST_BUDGET_MS);
+  const usedQueryKeys = new Set<string>();
+  const triedRoads: string[] = [];
   let previousPlanningFailure: DescribedPlanningFailure | undefined;
+  let bestAttempt: RoutedDescribedAttempt | undefined;
   let lastFailure: GenerateDescribedRideResult | undefined;
+  let lastHits: WebSearchHit[] = [];
 
-  for (let attempt = 0; attempt < DESCRIBED_PLAN_ATTEMPTS; attempt += 1) {
-    const lastAttempt = attempt === DESCRIBED_PLAN_ATTEMPTS - 1;
-    const mode = VIA_FILTER_MODES[attempt] ?? "planned";
-    let plan;
+  for (let round = 0; round < DESCRIBED_PLAN_ROUNDS; round += 1) {
+    if (now() >= deadline) {
+      break;
+    }
+
+    const searchInput = refinedSearchInput(
+      request,
+      returnToStart,
+      round,
+      previousPlanningFailure,
+      triedRoads,
+    );
+    const queries = motorcycleSearchQueries(searchInput);
+    const queryKey = queries.join("\n");
+    if (usedQueryKeys.has(queryKey) && round > 0) {
+      searchInput.searchRadiusKm = Math.round(
+        (searchInput.searchRadiusKm ?? request.targetDistanceKm ?? 100) * 1.25,
+      );
+      searchInput.corridorHint = CORRIDOR_HINTS[(round + 1) % CORRIDOR_HINTS.length];
+    }
+    usedQueryKeys.add(motorcycleSearchQueries(searchInput).join("\n"));
+
+    try {
+      lastHits = await webSearch.searchMotorcycleRoads(searchInput);
+    } catch (error) {
+      return { ok: false, error: describedWebSearchError(error) };
+    }
+
+    if (lastHits.length === 0) {
+      previousPlanningFailure = {
+        reason: "unusable_via_points",
+        instruction:
+          "Web search returned no named roads, villages, or points of interest. Expand the radius and search a different corridor.",
+        searchRadiusKm: searchInput.searchRadiusKm,
+        corridorHint: searchInput.corridorHint,
+      };
+      lastFailure = {
+        ok: false,
+        error: noValidDescribedRideError(),
+      };
+      continue;
+    }
+
+    let plan: AiRidePlan;
     try {
       plan = await planner.planLoop({
-        ...planInput,
+        origin: request.start.coordinates,
+        accuracyMeters: readOriginAccuracyMeters(input),
+        targetDistanceKm: request.targetDistanceKm,
+        style: request.style,
+        preferences: request.preferences,
+        previousRouteSignature:
+          readPreviousRouteSignature(input) ??
+          (options?.previousGeometry
+            ? previousRideSignature({ geometry: options.previousGeometry })
+            : undefined),
+        searchHits: lastHits,
+        returnToStart,
         previousPlanningFailure,
+        triedRoads,
+        searchRadiusKm: searchInput.searchRadiusKm,
+        corridorHint: searchInput.corridorHint,
+        candidateCount: DESCRIBED_CANDIDATES_PER_ROUND,
       });
     } catch (error) {
       lastFailure = { ok: false, error: describedAiError(error) };
-      previousPlanningFailure = { reason: "unusable_via_points" };
+      previousPlanningFailure = {
+        reason: "unusable_via_points",
+        instruction:
+          "Replace unroutable coordinates with named public-road anchors from the web results.",
+      };
       continue;
     }
 
-    const viaPoints = filterViaPoints(
-      request.start.coordinates,
-      request.targetDistanceKm,
-      plan.viaPoints,
-      { returnToStart, mode },
+    const attempts = await evaluatePlanCandidates(
+      request,
+      provider,
+      plan.candidates.slice(0, DESCRIBED_CANDIDATES_PER_ROUND),
+      lastHits,
+      returnToStart,
     );
-    if (viaPoints.length < minViaCount) {
-      lastFailure = { ok: false, error: noValidDescribedRideError() };
-      previousPlanningFailure = { reason: "unusable_via_points" };
+    if (attempts.knowledgeError) {
+      return { ok: false, error: attempts.knowledgeError };
+    }
+    if (attempts.routingError && attempts.routed.length === 0) {
+      if (attempts.routingError.code === "ROUTING_UNAVAILABLE") {
+        return { ok: false, error: attempts.routingError };
+      }
+      lastFailure = { ok: false, error: attempts.routingError };
+      previousPlanningFailure = {
+        reason: "routing_failed",
+        instruction:
+          "Replace unroutable coordinates with named public-road anchors from the web results.",
+      };
       continue;
     }
 
-    const routed = returnToStart
-      ? await routeDescribedLoop(request, provider, viaPoints, options, {
-          acceptOutOfTolerance: lastAttempt,
-        })
-      : await routeDescribedOneWay(request, provider, viaPoints, options, {
-          acceptOutOfTolerance: lastAttempt,
-        });
-    if (routed.ok) {
-      return routed;
+    const selectable = options?.previousGeometry
+      ? excludeSimilarToPrevious(
+          attempts.routed,
+          options.previousGeometry,
+          (attempt) => attempt.routed.geometry,
+        )
+      : attempts.routed;
+    if (
+      lostOnlyToPreviousCorridor(
+        options?.previousGeometry,
+        selectable.some((attempt) => attempt.evaluation.valid)
+          ? "selected"
+          : "no_route_found",
+        attempts.routed.some((attempt) => attempt.evaluation.valid)
+          ? "selected"
+          : "no_route_found",
+      )
+    ) {
+      lastFailure = { ok: false, error: regenerationOverlapError() };
+      previousPlanningFailure = {
+        reason: "regeneration_overlap",
+        instruction: "Pick a clearly different named corridor.",
+      };
+      continue;
     }
 
-    lastFailure = routed;
-    const retry = describedPlanningRetry(routed.error);
-    if (!retry || lastAttempt) {
-      return routed;
+    const valid = selectable.filter((attempt) => attempt.evaluation.valid);
+    const chosen = pickBestValid(valid);
+    if (chosen) {
+      return {
+        ok: true,
+        route: returnToStart
+          ? describedLoopRoute(request, request.targetDistanceKm, chosen)
+          : describedOneWayRoute(request, request.targetDistanceKm, chosen),
+      };
     }
-    previousPlanningFailure = retry;
+
+    const bestThisRound = pickBestInvalid(selectable);
+    if (
+      bestThisRound &&
+      isBetterAttempt(bestThisRound, bestAttempt)
+    ) {
+      bestAttempt = bestThisRound;
+    }
+    triedRoads.push(
+      ...selectable.flatMap((attempt) => attempt.candidate.roads),
+    );
+    previousPlanningFailure = planningFailureFromAttempt(
+      bestThisRound,
+      searchInput,
+      triedRoads,
+    );
+    lastFailure = {
+      ok: false,
+      error: noValidDescribedRideError(bestAttempt?.evaluation),
+    };
   }
 
-  return lastFailure ?? { ok: false, error: noValidDescribedRideError() };
+  return (
+    lastFailure ?? {
+      ok: false,
+      error: noValidDescribedRideError(bestAttempt?.evaluation),
+    }
+  );
 }
 
 function parseDescribedRideRequest(
@@ -338,376 +429,249 @@ function parseDescribedRideRequest(
   return { ok: true, request: parsed.data };
 }
 
-async function routeDescribedLoop(
+async function evaluatePlanCandidates(
   request: DescribedRoutingRequest,
   routingProvider: RoutingProvider,
-  viaPoints: Coordinates[],
-  options?: RideGenerationOptions,
-  attempt?: DescribedRouteAttempt,
-): Promise<GenerateDescribedRideResult> {
+  candidates: AiRouteCandidate[],
+  hits: WebSearchHit[],
+  returnToStart: boolean,
+): Promise<{
+  routed: RoutedDescribedAttempt[];
+  routingError?: RideGenerationError;
+  knowledgeError?: RideGenerationError;
+}> {
   const targetDistanceKm = request.targetDistanceKm;
   if (targetDistanceKm === undefined) {
-    return {
-      ok: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
-        suggestions: ["Choisissez une distance entre 20 km et 500 km."],
-      },
-    };
+    return { routed: [] };
+  }
+  const notes: NamedSearchNote[] = hits.map((hit) => ({
+    id: hit.id,
+    title: hit.title,
+    snippet: hit.snippet,
+  }));
+  const minViaCount = returnToStart ? 2 : 1;
+  const jobs = candidates.flatMap((candidate, index) => {
+    const grounded =
+      notes.length === 0 || hasRequiredWebGrounding(candidate, notes);
+    if (!grounded) {
+      return [];
+    }
+    const rawPoints = candidate.viaPoints.map(aiWaypointToCoordinates);
+    const viaPoints = filterViaPoints(
+      request.start.coordinates,
+      targetDistanceKm,
+      rawPoints,
+      { returnToStart },
+    );
+    if (viaPoints.length < minViaCount) {
+      return [];
+    }
+    const orders = returnToStart
+      ? describedLoopWaypointOrders(request.start.coordinates, viaPoints)
+      : oneWayOrders(request.start.coordinates, viaPoints);
+    return orders.map((waypoints, orderIndex) => ({
+      candidate,
+      candidateId: `${candidate.candidateName}:${index}:${orderIndex}`,
+      waypoints,
+    }));
+  });
+
+  if (jobs.length === 0) {
+    return { routed: [] };
   }
 
-  const orderedViaPoints = orderLoopWaypoints(
-    request.start.coordinates,
-    viaPoints,
-  );
-  const waypointSets = [orderedViaPoints, [...orderedViaPoints].reverse()];
   const settled = await Promise.allSettled(
-    waypointSets.map(async (waypoints) => {
-      const result = applyHardRoutePreferences(
+    jobs.map(async (job) => {
+      const routed = applyHardRoutePreferences(
         await routingProvider.calculateRoute({
           start: request.start.coordinates,
-          destination: request.start.coordinates,
-          waypoints,
+          destination: returnToStart
+            ? request.start.coordinates
+            : job.waypoints[job.waypoints.length - 1],
+          waypoints: returnToStart
+            ? job.waypoints
+            : job.waypoints.slice(0, -1),
           style: request.style,
           preferences: request.preferences,
         }),
         request.preferences,
       );
-      const candidate: LoopCandidate = {
-        geometry: result.geometry,
-        segments: result.segments,
-        steps: result.steps ?? [],
-        distanceKm: result.distanceKm,
-        durationMinutes: result.durationMinutes,
-        waypoints,
-      };
-      return evaluateLoopCandidate(
-        request.start.coordinates,
+      if (
+        returnToStart &&
+        isGeometricDescribedLoop({
+          geometry: routed.geometry,
+          segments: routed.segments,
+          distanceKm: routed.distanceKm,
+          durationMinutes: routed.durationMinutes,
+          waypoints: job.waypoints,
+        })
+      ) {
+        throw Object.assign(new Error("geometric_loop_rejected"), {
+          name: "GeometricLoopRejected",
+        });
+      }
+      const evaluation = evaluateDescribedRoute({
+        candidateId: job.candidateId,
+        origin: request.start.coordinates,
         targetDistanceKm,
-        candidate,
-      );
+        geometry: routed.geometry,
+        distanceKm: routed.distanceKm,
+        segments: routed.segments,
+        preferences: request.preferences,
+        returnToStart,
+      });
+      return {
+        candidate: job.candidate,
+        waypoints: job.waypoints,
+        routed,
+        evaluation,
+      } satisfies RoutedDescribedAttempt;
     }),
   );
 
-  const evaluations = settled.flatMap((result) =>
+  const routed = settled.flatMap((result) =>
     result.status === "fulfilled" ? [result.value] : [],
   );
-
-  if (evaluations.length === 0) {
+  const knowledge = knowledgeErrorFromSettled(settled);
+  if (knowledge) {
+    return { routed, knowledgeError: knowledge };
+  }
+  if (routed.length === 0) {
     return {
-      ok: false,
-      error: describedRoutingExhausted(settled),
+      routed,
+      routingError: describedRoutingExhausted(settled),
     };
   }
+  return { routed };
+}
 
-  const selectable = options?.previousGeometry
-    ? excludeSimilarToPrevious(
-        evaluations,
-        options.previousGeometry,
-        (evaluation) => evaluation.candidate.geometry,
-      )
-    : evaluations;
+function oneWayOrders(
+  origin: Coordinates,
+  viaPoints: Coordinates[],
+): Coordinates[][] {
+  const destination = viaPoints[viaPoints.length - 1];
+  if (!destination) {
+    return [];
+  }
+  return describedOneWayWaypointOrders(
+    origin,
+    destination,
+    viaPoints.slice(0, -1),
+  ).map((inbound) => [...inbound, destination]);
+}
 
-  const selection = selectBestLoopCandidate(
-    selectable,
-    targetDistanceKm,
-    request.style,
-    request.preferences?.avoidHighways === true,
-    request.preferences?.avoidUnpaved === true,
-    request.preferences?.stayInCanada === true,
-  );
-  const acceptOutOfTolerance = attempt?.acceptOutOfTolerance === true;
-  const knowledge = primaryKnowledgeError(settled);
-
-  if (
-    lostOnlyToPreviousCorridor(
-      options?.previousGeometry,
-      describedSelectionStatus(selection.status, acceptOutOfTolerance),
-      describedSelectionStatus(
-        selectBestLoopCandidate(
-          evaluations,
-          targetDistanceKm,
-          request.style,
-          request.preferences?.avoidHighways === true,
-          request.preferences?.avoidUnpaved === true,
-          request.preferences?.stayInCanada === true,
-        ).status,
-        acceptOutOfTolerance,
-      ),
-    )
-  ) {
-    return { ok: false, error: regenerationOverlapError() };
-  }
-
-  if (selection.status === "known_unpaved_rejected") {
-    return {
-      ok: false,
-      error: knowledgeUnavailableError(unpavedKnowledgeError()),
-    };
-  }
-  if (selection.status === "canada_only_rejected") {
-    return {
-      ok: false,
-      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
-    };
-  }
-  if (selection.status === "geometric_loop_rejected") {
-    return {
-      ok: false,
-      error: {
-        code: "GEOMETRIC_LOOP_REJECTED",
-        message:
-          "Le tracé obtenu est une boucle géométrique, pas un itinéraire sur le réseau routier (FR-001).",
-        suggestions: ["Réessayez.", "Vérifiez le moteur de routage."],
-      },
-    };
-  }
-  if (selection.status === "no_route_found") {
-    return { ok: false, error: noValidDescribedRideError() };
-  }
-  if (selection.status === "distance_out_of_tolerance") {
-    if (acceptOutOfTolerance) {
-      return {
-        ok: true,
-        route: describedLoopRoute(
-          request,
-          targetDistanceKm,
-          selection.evaluation,
-          request.preferences?.avoidHighways === true,
-        ),
-      };
-    }
-    const best = selection.evaluation;
-    return {
-      ok: false,
-      error: withKnowledgeConstraint(
-        {
-          code: "DISTANCE_OUT_OF_TOLERANCE",
-          message: `Aucun trajet ne respecte ±10 % de ${targetDistanceKm.toFixed(0)} km (BR-001). Le meilleur candidat fait ${best.candidate.distanceKm.toFixed(1)} km.`,
-          suggestions: ["Ajustez la distance cible.", "Réessayez."],
-          bestCandidate: {
-            distanceKm: best.candidate.distanceKm,
-            repeatedRoadPercent: best.repeatedRoadPercent,
-          },
-        },
-        knowledge,
-      ),
-    };
-  }
-
+function refinedSearchInput(
+  request: DescribedRoutingRequest,
+  returnToStart: boolean,
+  round: number,
+  previousFailure: DescribedPlanningFailure | undefined,
+  triedRoads: string[],
+): MotorcycleWebSearchInput {
+  const targetDistanceKm = request.targetDistanceKm ?? 100;
+  const baseRadius = targetDistanceKm * (returnToStart ? 0.55 : 1.1);
+  const radiusScale = 1 + round * 0.35;
   return {
-    ok: true,
-    route: describedLoopRoute(
-      request,
-      targetDistanceKm,
-      selection.evaluation,
-      request.preferences?.avoidHighways === true,
-    ),
+    origin: request.start.coordinates,
+    accuracyMeters: null,
+    targetDistanceKm,
+    style: request.style,
+    preferences: request.preferences,
+    returnToStart,
+    searchRadiusKm: Math.round(baseRadius * radiusScale),
+    corridorHint: CORRIDOR_HINTS[round % CORRIDOR_HINTS.length],
+    triedRoads: triedRoads.length > 0 ? [...new Set(triedRoads)] : undefined,
+    previousFailureReason: previousFailure?.reason,
+    lastActualDistanceKm:
+      previousFailure?.actualDistanceKm ?? previousFailure?.lastDistanceKm,
   };
 }
 
-async function routeDescribedOneWay(
-  request: DescribedRoutingRequest,
-  routingProvider: RoutingProvider,
-  viaPoints: Coordinates[],
-  options?: RideGenerationOptions,
-  attempt?: DescribedRouteAttempt,
-): Promise<GenerateDescribedRideResult> {
-  const targetDistanceKm = request.targetDistanceKm;
-  if (targetDistanceKm === undefined) {
-    return {
-      ok: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: DESCRIBE_DISTANCE_OUT_OF_RANGE_MESSAGE,
-        suggestions: ["Choisissez une distance entre 20 km et 500 km."],
-      },
-    };
+function pickBestValid(
+  attempts: RoutedDescribedAttempt[],
+): RoutedDescribedAttempt | undefined {
+  return [...attempts].sort((left, right) => {
+    const repeatDelta =
+      left.evaluation.repeatedRoadPercent -
+      right.evaluation.repeatedRoadPercent;
+    if (repeatDelta !== 0) {
+      return repeatDelta;
+    }
+    const spreadDelta =
+      right.evaluation.maxDistanceFromOriginKm -
+      left.evaluation.maxDistanceFromOriginKm;
+    if (spreadDelta !== 0) {
+      return spreadDelta;
+    }
+    return (
+      Math.abs(left.evaluation.distanceKm - left.evaluation.targetDistanceKm) -
+      Math.abs(right.evaluation.distanceKm - right.evaluation.targetDistanceKm)
+    );
+  })[0];
+}
+
+function pickBestInvalid(
+  attempts: RoutedDescribedAttempt[],
+): RoutedDescribedAttempt | undefined {
+  if (attempts.length === 0) {
+    return undefined;
   }
+  return [...attempts].sort((left, right) => {
+    const violationDelta =
+      left.evaluation.violations.length - right.evaluation.violations.length;
+    if (violationDelta !== 0) {
+      return violationDelta;
+    }
+    return (
+      Math.abs(left.evaluation.distanceKm - left.evaluation.targetDistanceKm) -
+      Math.abs(right.evaluation.distanceKm - right.evaluation.targetDistanceKm)
+    );
+  })[0];
+}
 
-  const destination = viaPoints[viaPoints.length - 1];
-  if (!destination) {
-    return { ok: false, error: noValidDescribedRideError() };
+function isBetterAttempt(
+  next: RoutedDescribedAttempt,
+  current: RoutedDescribedAttempt | undefined,
+): boolean {
+  if (!current) {
+    return true;
   }
-  const inbound = orderOneWayWaypoints(
-    request.start.coordinates,
-    destination,
-    viaPoints.slice(0, -1),
-  );
-  const waypointSets = [inbound];
-  const style = request.style ?? "scenic";
-  const settled = await Promise.allSettled(
-    waypointSets.map(async (waypoints) => {
-      const result = applyHardRoutePreferences(
-        await routingProvider.calculateRoute({
-          start: request.start.coordinates,
-          destination,
-          waypoints,
-          style,
-          preferences: request.preferences,
-        }),
-        request.preferences,
-      );
-      const candidate: DestinationCandidate = {
-        geometry: result.geometry,
-        segments: result.segments,
-        steps: result.steps ?? [],
-        distanceKm: result.distanceKm,
-        durationMinutes: result.durationMinutes,
-        waypoints,
-      };
-      return evaluateDestinationCandidate(
-        request.start.coordinates,
-        destination,
-        candidate,
-        {
-          targetDistanceKm,
-          shortestDistanceKm: result.distanceKm,
-        },
-      );
-    }),
-  );
-
-  const evaluations = settled.flatMap((result) =>
-    result.status === "fulfilled" ? [result.value] : [],
-  );
-
-  if (evaluations.length === 0) {
-    return {
-      ok: false,
-      error: describedRoutingExhausted(settled),
-    };
-  }
-
-  const selectable = options?.previousGeometry
-    ? excludeSimilarToPrevious(
-        evaluations,
-        options.previousGeometry,
-        (evaluation) => evaluation.candidate.geometry,
-      )
-    : evaluations;
-
-  const selection = selectBestDestinationCandidate(
-    selectable,
-    style,
-    targetDistanceKm,
-    request.preferences?.avoidHighways === true,
-    request.preferences?.avoidUnpaved === true,
-    request.preferences?.stayInCanada === true,
-  );
-  const acceptOutOfTolerance = attempt?.acceptOutOfTolerance === true;
-  const knowledge = primaryKnowledgeError(settled);
-
   if (
-    lostOnlyToPreviousCorridor(
-      options?.previousGeometry,
-      describedSelectionStatus(selection.status, acceptOutOfTolerance),
-      describedSelectionStatus(
-        selectBestDestinationCandidate(
-          evaluations,
-          style,
-          targetDistanceKm,
-          request.preferences?.avoidHighways === true,
-          request.preferences?.avoidUnpaved === true,
-          request.preferences?.stayInCanada === true,
-        ).status,
-        acceptOutOfTolerance,
-      ),
-    )
+    next.evaluation.violations.length !== current.evaluation.violations.length
   ) {
-    return { ok: false, error: regenerationOverlapError() };
+    return (
+      next.evaluation.violations.length < current.evaluation.violations.length
+    );
   }
+  return (
+    Math.abs(next.evaluation.distanceKm - next.evaluation.targetDistanceKm) <
+    Math.abs(
+      current.evaluation.distanceKm - current.evaluation.targetDistanceKm,
+    )
+  );
+}
 
-  if (selection.status === "known_unpaved_rejected") {
+function planningFailureFromAttempt(
+  attempt: RoutedDescribedAttempt | undefined,
+  searchInput: MotorcycleWebSearchInput,
+  triedRoads: string[],
+): DescribedPlanningFailure {
+  if (!attempt) {
     return {
-      ok: false,
-      error: knowledgeUnavailableError(unpavedKnowledgeError()),
+      reason: "unusable_via_points",
+      instruction:
+        "Replace unroutable coordinates with named public-road anchors from the web results.",
+      triedRoads,
+      searchRadiusKm: searchInput.searchRadiusKm,
+      corridorHint: searchInput.corridorHint,
     };
   }
-  if (selection.status === "canada_only_rejected") {
-    return {
-      ok: false,
-      error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
-    };
-  }
-  if (selection.status === "no_route_found") {
-    if (acceptOutOfTolerance) {
-      const fallback = fallbackDescribedDestination(
-        selectable,
-        targetDistanceKm,
-        request.preferences?.avoidUnpaved === true,
-        request.preferences?.stayInCanada === true,
-      );
-      if (fallback.status === "selected") {
-        return {
-          ok: true,
-          route: describedOneWayRoute(
-            request,
-            style,
-            targetDistanceKm,
-            destination,
-            fallback.evaluation,
-            request.preferences?.avoidHighways === true,
-          ),
-        };
-      }
-      if (fallback.status === "known_unpaved_rejected") {
-        return {
-          ok: false,
-          error: knowledgeUnavailableError(unpavedKnowledgeError()),
-        };
-      }
-      if (fallback.status === "canada_only_rejected") {
-        return {
-          ok: false,
-          error: knowledgeUnavailableError(canadaOnlyKnowledgeError()),
-        };
-      }
-    }
-    return { ok: false, error: noValidDescribedRideError() };
-  }
-  if (selection.status === "distance_out_of_tolerance") {
-    if (acceptOutOfTolerance) {
-      return {
-        ok: true,
-        route: describedOneWayRoute(
-          request,
-          style,
-          targetDistanceKm,
-          destination,
-          selection.evaluation,
-          request.preferences?.avoidHighways === true,
-        ),
-      };
-    }
-    const best = selection.evaluation;
-    return {
-      ok: false,
-      error: withKnowledgeConstraint(
-        {
-          code: "DISTANCE_OUT_OF_TOLERANCE",
-          message: `Aucun trajet ne respecte ±10 % de ${targetDistanceKm.toFixed(0)} km (BR-001). Le meilleur candidat fait ${best.candidate.distanceKm.toFixed(1)} km.`,
-          suggestions: ["Ajustez la distance cible.", "Réessayez."],
-          bestCandidate: {
-            distanceKm: best.candidate.distanceKm,
-          },
-        },
-        knowledge,
-      ),
-    };
-  }
-
+  const correction = describedCorrectionFromEvaluation(attempt.evaluation);
   return {
-    ok: true,
-    route: describedOneWayRoute(
-      request,
-      style,
-      targetDistanceKm,
-      destination,
-      selection.evaluation,
-      request.preferences?.avoidHighways === true,
-    ),
+    ...correction,
+    lastDistanceKm: attempt.evaluation.distanceKm,
+    triedRoads,
+    searchRadiusKm: searchInput.searchRadiusKm,
+    corridorHint: searchInput.corridorHint,
   };
 }
 
@@ -718,65 +682,42 @@ export function filterViaPoints(
   options: { returnToStart?: boolean; mode?: ViaFilterMode } = {},
 ): Coordinates[] {
   const returnToStart = options.returnToStart !== false;
-  const { minRadiusKm, maxRadiusKm } = viaRadiusKm(
-    targetDistanceKm,
-    returnToStart,
-    options.mode ?? "strict",
-  );
+  const maxRadiusKm = returnToStart
+    ? targetDistanceKm * 0.75
+    : targetDistanceKm * 1.1;
 
   if (!returnToStart) {
     const arrival = points[points.length - 1];
-    if (
-      !arrival ||
-      !isUsableViaPoint(origin, arrival, minRadiusKm, maxRadiusKm)
-    ) {
+    if (!arrival || !isFinitePoint(arrival) || haversineKm(origin, arrival) < MIN_AI_VIA_POINT_SEPARATION_KM) {
+      return [];
+    }
+    if (haversineKm(origin, arrival) > maxRadiusKm && options.mode !== "planned") {
       return [];
     }
     const inbound = distinctViaPoints(
       points
         .slice(0, -1)
-        .filter((point) =>
-          isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+        .filter(
+          (point) =>
+            isFinitePoint(point) &&
+            haversineKm(origin, point) >= MIN_AI_VIA_POINT_SEPARATION_KM &&
+            (options.mode === "planned" ||
+              haversineKm(origin, point) <= maxRadiusKm),
         ),
     ).filter(
-      (point) =>
-        haversineKm(point, arrival) >= MIN_AI_VIA_POINT_SEPARATION_KM,
+      (point) => haversineKm(point, arrival) >= MIN_AI_VIA_POINT_SEPARATION_KM,
     );
     return [...inbound, arrival];
   }
 
   return distinctViaPoints(
-    points.filter((point) =>
-      isUsableViaPoint(origin, point, minRadiusKm, maxRadiusKm),
+    points.filter(
+      (point) =>
+        isFinitePoint(point) &&
+        haversineKm(origin, point) >= MIN_AI_VIA_POINT_SEPARATION_KM &&
+        haversineKm(origin, point) <= maxRadiusKm,
     ),
   );
-}
-
-function viaRadiusKm(
-  targetDistanceKm: number,
-  returnToStart: boolean,
-  mode: ViaFilterMode,
-): { minRadiusKm: number; maxRadiusKm: number } {
-  if (mode === "planned") {
-    return {
-      minRadiusKm: 0.2,
-      maxRadiusKm: Number.POSITIVE_INFINITY,
-    };
-  }
-  if (mode === "wide") {
-    return {
-      minRadiusKm: Math.max(0.5, targetDistanceKm * 0.02),
-      maxRadiusKm: returnToStart
-        ? targetDistanceKm * 0.75
-        : targetDistanceKm * 1.5,
-    };
-  }
-  return {
-    minRadiusKm: Math.max(1, targetDistanceKm * 0.04),
-    maxRadiusKm: returnToStart
-      ? targetDistanceKm * 0.55
-      : targetDistanceKm * 1.1,
-  };
 }
 
 function distinctViaPoints(points: Coordinates[]): Coordinates[] {
@@ -794,17 +735,8 @@ function distinctViaPoints(points: Coordinates[]): Coordinates[] {
   return distinct;
 }
 
-function isUsableViaPoint(
-  origin: Coordinates,
-  point: Coordinates,
-  minRadiusKm: number,
-  maxRadiusKm: number,
-): boolean {
-  if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {
-    return false;
-  }
-  const distanceKm = haversineKm(origin, point);
-  return distanceKm >= minRadiusKm && distanceKm <= maxRadiusKm;
+function isFinitePoint(point: Coordinates): boolean {
+  return Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
 }
 
 function describedWebSearchError(error: unknown): RideGenerationError {
@@ -862,125 +794,69 @@ function describedRoutingExhausted(
   return exhausted;
 }
 
-function noValidDescribedRideError(): RideGenerationError {
+function knowledgeErrorFromSettled(
+  settled: PromiseSettledResult<unknown>[],
+): RideGenerationError | undefined {
+  const messages = settled.flatMap((result) =>
+    result.status === "rejected" && result.reason instanceof Error
+      ? [result.reason.message]
+      : [],
+  );
+  if (
+    messages.length > 0 &&
+    messages.every((message) => message === unpavedKnowledgeError().message)
+  ) {
+    return knowledgeUnavailableError(unpavedKnowledgeError());
+  }
+  if (
+    messages.length > 0 &&
+    messages.every((message) => message === canadaOnlyKnowledgeError().message)
+  ) {
+    return knowledgeUnavailableError(canadaOnlyKnowledgeError());
+  }
+  return undefined;
+}
+
+function noValidDescribedRideError(
+  evaluation?: RouteCandidateEvaluation,
+): RideGenerationError {
   return {
     code: "NO_ROUTE_FOUND",
     message: NO_VALID_DESCRIBED_RIDE_MESSAGE,
     suggestions: ["Réessayez.", "Modifiez la distance demandée."],
+    bestCandidate: evaluation
+      ? {
+          distanceKm: evaluation.distanceKm,
+          repeatedRoadPercent: evaluation.repeatedRoadPercent,
+          maxDistanceFromOriginKm: evaluation.maxDistanceFromOriginKm,
+          violations: evaluation.violations,
+        }
+      : undefined,
   };
-}
-
-function describedSelectionStatus(
-  status: string,
-  acceptOutOfTolerance: boolean,
-): string {
-  if (acceptOutOfTolerance && status === "distance_out_of_tolerance") {
-    return "selected";
-  }
-  return status;
-}
-
-function describedPlanningRetry(
-  error: RideGenerationError,
-): DescribedPlanningFailure | undefined {
-  if (error.code === "DISTANCE_OUT_OF_TOLERANCE") {
-    return {
-      reason: "distance_out_of_tolerance",
-      lastDistanceKm: error.bestCandidate?.distanceKm,
-    };
-  }
-  if (error.code === "GEOMETRIC_LOOP_REJECTED") {
-    return { reason: "geometric_loop_rejected" };
-  }
-  if (error.code === "ROUTING_UNAVAILABLE" || error.code === "PROVIDER_ERROR") {
-    return { reason: "routing_failed" };
-  }
-  if (error.code !== "NO_ROUTE_FOUND") {
-    return undefined;
-  }
-  if (error.message === regenerationOverlapError().message) {
-    return { reason: "regeneration_overlap" };
-  }
-  if (error.message === unpavedKnowledgeError().message) {
-    return { reason: "known_unpaved_rejected" };
-  }
-  if (error.message === canadaOnlyKnowledgeError().message) {
-    return { reason: "canada_only_rejected" };
-  }
-  return { reason: "no_route_found" };
-}
-
-function fallbackDescribedDestination(
-  evaluations: EvaluatedDestinationCandidate[],
-  targetDistanceKm: number,
-  avoidUnpaved: boolean,
-  stayInCanada: boolean,
-):
-  | { status: "selected"; evaluation: EvaluatedDestinationCandidate }
-  | { status: "known_unpaved_rejected" }
-  | { status: "canada_only_rejected" }
-  | { status: "no_route_found" } {
-  const network = evaluations.filter(
-    (evaluation) => evaluation.followsRoadNetwork && evaluation.startsAtStart,
-  );
-  if (network.length === 0) {
-    return { status: "no_route_found" };
-  }
-  const withoutUnpaved = excludeKnownUnpaved(
-    network,
-    (evaluation) => usesKnownUnpaved(evaluation.candidate.segments),
-    avoidUnpaved,
-  );
-  if (avoidUnpaved && withoutUnpaved.length === 0) {
-    return { status: "known_unpaved_rejected" };
-  }
-  const withoutUnitedStates = excludeUnitedStatesCrossing(
-    withoutUnpaved,
-    (evaluation) => routeEntersUnitedStates(evaluation.candidate),
-    stayInCanada,
-  );
-  if (stayInCanada && withoutUnitedStates.length === 0) {
-    return { status: "canada_only_rejected" };
-  }
-  const ranked = [...withoutUnitedStates].sort((left, right) => {
-    if (left.reachesDestination !== right.reachesDestination) {
-      return left.reachesDestination ? -1 : 1;
-    }
-    return (
-      distanceToleranceGapKm(left.candidate.distanceKm, targetDistanceKm) -
-      distanceToleranceGapKm(right.candidate.distanceKm, targetDistanceKm)
-    );
-  });
-  const best = ranked[0];
-  if (!best) {
-    return { status: "no_route_found" };
-  }
-  return { status: "selected", evaluation: best };
-}
-
-function withDescribedDistanceWarning(
-  warnings: string[],
-  distanceKm: number,
-  targetDistanceKm: number,
-): string[] {
-  const explanation = distanceToleranceExplanationKm(
-    distanceKm,
-    targetDistanceKm,
-  );
-  if (!explanation || warnings.includes(explanation)) {
-    return warnings;
-  }
-  return [...warnings, explanation];
 }
 
 function describedLoopRoute(
   request: DescribedRoutingRequest,
   targetDistanceKm: number,
-  evaluation: EvaluatedLoopCandidate,
-  avoidHighways: boolean,
+  attempt: RoutedDescribedAttempt,
 ): GeneratedLoopRoute {
+  const avoidHighways = request.preferences?.avoidHighways === true;
   const finalized = withUnknownSurfaceSignal(
-    withHighwayAvoidanceSignal(evaluation, avoidHighways),
+    withHighwayAvoidanceSignal(
+      {
+        candidate: {
+          geometry: attempt.routed.geometry,
+          segments: attempt.routed.segments,
+          steps: attempt.routed.steps ?? [],
+          distanceKm: attempt.routed.distanceKm,
+          durationMinutes: attempt.routed.durationMinutes,
+          waypoints: attempt.waypoints,
+        },
+        warnings: [],
+        repeatedRoadPercent: attempt.evaluation.repeatedRoadPercent,
+      },
+      avoidHighways,
+    ),
   );
   return {
     id: crypto.randomUUID(),
@@ -996,27 +872,36 @@ function describedLoopRoute(
     statistics: {
       repeatedRoadPercent: finalized.repeatedRoadPercent,
     },
-    warnings: withDescribedDistanceWarning(
-      finalized.warnings,
-      finalized.candidate.distanceKm,
-      targetDistanceKm,
-    ),
+    warnings: finalized.warnings,
   };
 }
 
 function describedOneWayRoute(
   request: DescribedRoutingRequest,
-  style: RideStyle,
   targetDistanceKm: number,
-  plannedArrival: Coordinates,
-  evaluation: EvaluatedDestinationCandidate,
-  avoidHighways: boolean,
+  attempt: RoutedDescribedAttempt,
 ): GeneratedDestinationRoute {
+  const style = request.style ?? "scenic";
+  const avoidHighways = request.preferences?.avoidHighways === true;
   const finalized = withUnknownSurfaceSignal(
-    withHighwayAvoidanceSignal(evaluation, avoidHighways),
+    withHighwayAvoidanceSignal(
+      {
+        candidate: {
+          geometry: attempt.routed.geometry,
+          segments: attempt.routed.segments,
+          steps: attempt.routed.steps ?? [],
+          distanceKm: attempt.routed.distanceKm,
+          durationMinutes: attempt.routed.durationMinutes,
+          waypoints: attempt.waypoints,
+        },
+        warnings: [],
+      },
+      avoidHighways,
+    ),
   );
   const arrival =
-    lastCoordinates(finalized.candidate.geometry) ?? plannedArrival;
+    lastCoordinates(finalized.candidate.geometry) ??
+    attempt.waypoints[attempt.waypoints.length - 1];
   return {
     id: crypto.randomUUID(),
     type: "destination",
@@ -1032,10 +917,6 @@ function describedOneWayRoute(
     steps: finalized.candidate.steps ?? [],
     distanceKm: finalized.candidate.distanceKm,
     durationMinutes: finalized.candidate.durationMinutes,
-    warnings: withDescribedDistanceWarning(
-      finalized.warnings,
-      finalized.candidate.distanceKm,
-      targetDistanceKm,
-    ),
+    warnings: finalized.warnings,
   };
 }
