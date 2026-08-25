@@ -772,6 +772,71 @@ describe("generateDescribedRide (FR-034)", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("reuses web hits when correcting a repeated-road plan (FR-034, BR-011)", async () => {
+    const origin = GRANBY.coordinates;
+    const far = offsetCoordinates(origin, 90, 40);
+    const outAndBack = densify(line([origin, far, origin]));
+    let round = 0;
+    const search = fakeSearch();
+    const searchSpy = vi.spyOn(search, "searchMotorcycleRoads");
+    const planner: AiRidePlanner = {
+      async planLoop(input) {
+        round += 1;
+        if (round === 1) {
+          return { candidates: [elongatedLoopCandidate(origin, 80)] };
+        }
+        expect(input.previousPlanningFailure?.reason).toBe("repeated_road");
+        expect(input.searchHits).toEqual(NAMED_HITS);
+        return {
+          candidates: [elongatedLoopCandidate(origin, 80, 20)],
+        };
+      },
+    };
+    const routing: RoutingProvider = {
+      async calculateRoute() {
+        if (round === 1) {
+          return {
+            geometry: outAndBack,
+            segments: [
+              {
+                id: "repeat",
+                geometry: outAndBack,
+                distanceKm: 80,
+                durationMinutes: 80,
+                surface: "paved",
+                roadClass: "secondary",
+              },
+            ],
+            steps: [],
+            distanceKm: 80,
+            durationMinutes: 80,
+          };
+        }
+        return new GeodesicRoutingProvider().calculateRoute({
+          start: origin,
+          destination: origin,
+          waypoints: elongatedLoopVias(origin, 80, 20),
+        });
+      },
+    };
+
+    const result = await generateDescribedRide(
+      {
+        type: "loop",
+        start: GRANBY,
+        targetDistanceKm: 80,
+        useAiWebGeneration: true,
+      },
+      routing,
+      undefined,
+      { webSearch: search, planner },
+    );
+
+    expect(searchSpy).toHaveBeenCalledTimes(1);
+    expect(round).toBe(2);
+    expect(result.ok).toBe(true);
+  });
+
   it("runs an expanded search after unroutable first points (FR-034)", async () => {
     let searchRound = 0;
     const search: WebSearchProvider = {

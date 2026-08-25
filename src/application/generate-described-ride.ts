@@ -99,8 +99,9 @@ const MIN_AI_VIA_POINT_SEPARATION_KM = 0.25;
 const DESCRIBED_PLAN_ROUNDS = 3;
 const DESCRIBED_CANDIDATES_PER_ROUND = 4;
 const DESCRIBED_REQUEST_BUDGET_MS = 55_000;
-const MIN_ROUND_BUDGET_MS = 12_000;
-const EXTRA_ORDER_BUDGET_MS = 18_000;
+const MIN_SEARCH_ROUND_BUDGET_MS = 22_000;
+const MIN_CORRECTION_ROUND_BUDGET_MS = 15_000;
+const EXTRA_ORDER_BUDGET_MS = 8_000;
 const MAX_ROUTING_CALL_MS = 7_000;
 const CORRIDOR_HINTS = ["north-east", "south-west", "north-west"] as const;
 
@@ -215,7 +216,15 @@ export async function generateDescribedRide(
     if (remainingMs <= 0) {
       break;
     }
-    if (round > 0 && remainingMs < MIN_ROUND_BUDGET_MS) {
+    const refreshSearch = shouldRefreshWebSearch(
+      round,
+      lastHits,
+      previousPlanningFailure,
+    );
+    const minRoundBudgetMs = refreshSearch
+      ? MIN_SEARCH_ROUND_BUDGET_MS
+      : MIN_CORRECTION_ROUND_BUDGET_MS;
+    if (round > 0 && remainingMs < minRoundBudgetMs) {
       break;
     }
 
@@ -226,20 +235,23 @@ export async function generateDescribedRide(
       previousPlanningFailure,
       triedRoads,
     );
-    const queries = motorcycleSearchQueries(searchInput);
-    const queryKey = queries.join("\n");
-    if (usedQueryKeys.has(queryKey) && round > 0) {
-      searchInput.searchRadiusKm = Math.round(
-        (searchInput.searchRadiusKm ?? request.targetDistanceKm ?? 100) * 1.25,
-      );
-      searchInput.corridorHint = CORRIDOR_HINTS[(round + 1) % CORRIDOR_HINTS.length];
-    }
-    usedQueryKeys.add(motorcycleSearchQueries(searchInput).join("\n"));
+    if (refreshSearch) {
+      const queries = motorcycleSearchQueries(searchInput);
+      const queryKey = queries.join("\n");
+      if (usedQueryKeys.has(queryKey) && round > 0) {
+        searchInput.searchRadiusKm = Math.round(
+          (searchInput.searchRadiusKm ?? request.targetDistanceKm ?? 100) * 1.25,
+        );
+        searchInput.corridorHint =
+          CORRIDOR_HINTS[(round + 1) % CORRIDOR_HINTS.length];
+      }
+      usedQueryKeys.add(motorcycleSearchQueries(searchInput).join("\n"));
 
-    try {
-      lastHits = await webSearch.searchMotorcycleRoads(searchInput);
-    } catch (error) {
-      return { ok: false, error: describedWebSearchError(error) };
+      try {
+        lastHits = await webSearch.searchMotorcycleRoads(searchInput);
+      } catch (error) {
+        return { ok: false, error: describedWebSearchError(error) };
+      }
     }
 
     if (lastHits.length === 0) {
@@ -582,7 +594,14 @@ async function evaluatePlanCandidates(
 
   const extraJobs = [1, 2].flatMap((orderIndex) => jobsForOrder(orderIndex));
   const remainingMs = budget.deadlineMs - budget.now();
-  if (extraJobs.length === 0 || remainingMs < EXTRA_ORDER_BUDGET_MS) {
+  const canCorrect = remainingMs >= MIN_CORRECTION_ROUND_BUDGET_MS;
+  const canRunExtrasAndCorrect =
+    remainingMs >= EXTRA_ORDER_BUDGET_MS + MIN_CORRECTION_ROUND_BUDGET_MS;
+  if (
+    extraJobs.length === 0 ||
+    remainingMs < EXTRA_ORDER_BUDGET_MS ||
+    (canCorrect && !canRunExtrasAndCorrect)
+  ) {
     return settleDescribedAttempts(firstSettled, firstRouted);
   }
 
@@ -728,6 +747,21 @@ function oneWayOrders(
   ).map((inbound) => [...inbound, destination]);
 }
 
+function shouldRefreshWebSearch(
+  round: number,
+  lastHits: WebSearchHit[],
+  previousFailure: DescribedPlanningFailure | undefined,
+): boolean {
+  if (round === 0 || lastHits.length === 0 || !previousFailure) {
+    return true;
+  }
+  return (
+    previousFailure.reason === "unusable_via_points" ||
+    previousFailure.reason === "insufficient_web_grounding" ||
+    previousFailure.reason === "routing_failed"
+  );
+}
+
 function refinedSearchInput(
   request: DescribedRoutingRequest,
   returnToStart: boolean,
@@ -795,6 +829,12 @@ function pickBestInvalid(
     if (violationDelta !== 0) {
       return violationDelta;
     }
+    const repeatDelta =
+      left.evaluation.repeatedRoadPercent -
+      right.evaluation.repeatedRoadPercent;
+    if (repeatDelta !== 0) {
+      return repeatDelta;
+    }
     return (
       Math.abs(left.evaluation.distanceKm - left.evaluation.targetDistanceKm) -
       Math.abs(right.evaluation.distanceKm - right.evaluation.targetDistanceKm)
@@ -814,6 +854,15 @@ function isBetterAttempt(
   ) {
     return (
       next.evaluation.violations.length < current.evaluation.violations.length
+    );
+  }
+  if (
+    next.evaluation.repeatedRoadPercent !==
+    current.evaluation.repeatedRoadPercent
+  ) {
+    return (
+      next.evaluation.repeatedRoadPercent <
+      current.evaluation.repeatedRoadPercent
     );
   }
   return (

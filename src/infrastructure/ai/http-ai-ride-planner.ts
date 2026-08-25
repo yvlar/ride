@@ -192,8 +192,11 @@ export class HttpAiRidePlanner implements AiRidePlanner {
   }
 
   private async planViaResponses(input: AiRidePlanInput): Promise<AiRidePlan> {
+    const hasSearchHits = input.searchHits.length > 0;
     const tools = [
-      { type: "web_search", search_context_size: "medium" },
+      ...(hasSearchHits
+        ? []
+        : [{ type: "web_search", search_context_size: "medium" }]),
       {
         type: "function",
         name: PROPOSE_RIDE_CANDIDATES_TOOL,
@@ -213,7 +216,9 @@ export class HttpAiRidePlanner implements AiRidePlanner {
     const first = await this.requestResponses({
       model: this.model,
       tools,
-      tool_choice: "auto",
+      tool_choice: hasSearchHits
+        ? { type: "function", name: PROPOSE_RIDE_CANDIDATES_TOOL }
+        : "auto",
       input: conversation,
     });
     const firstPlan = tryParseAiRidePlanFromResponses(first);

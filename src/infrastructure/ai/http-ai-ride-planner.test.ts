@@ -170,7 +170,7 @@ describe("HttpAiRidePlanner (FR-034)", () => {
     expect(request?.messages[0]?.content).toMatch(/previousPlanningFailure/);
   });
 
-  it("uses Responses web_search and a strict function to propose candidates", async () => {
+  it("calls propose_ride_candidates without web_search when hits are already grounded", async () => {
     const fetcher = vi.fn<typeof fetch>(async () =>
       new Response(
         JSON.stringify({
@@ -206,8 +206,13 @@ describe("HttpAiRidePlanner (FR-034)", () => {
     const [, init] = fetcher.mock.calls[0] ?? [];
     const body = JSON.parse(String(init?.body)) as {
       tools: Array<{ type?: string; name?: string; strict?: boolean }>;
+      tool_choice?: { type?: string; name?: string };
     };
-    expect(body.tools.some((tool) => tool.type === "web_search")).toBe(true);
+    expect(body.tools.some((tool) => tool.type === "web_search")).toBe(false);
+    expect(body.tool_choice).toEqual({
+      type: "function",
+      name: PROPOSE_RIDE_CANDIDATES_TOOL,
+    });
     expect(
       body.tools.some(
         (tool) =>
