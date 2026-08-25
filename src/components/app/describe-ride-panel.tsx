@@ -635,6 +635,43 @@ export function DescribeRidePanel({
             {RIDE_TYPE_LABELS[activeRoute.type]} ·{" "}
             {RIDE_STYLE_LABELS[activeRoute.style ?? draft.style]}
           </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="min-w-0 text-sm leading-6">
+              GPS :{" "}
+              {start
+                ? `position définie (${start.label}).`
+                : "non confirmé — utilisez Ma position."}
+            </p>
+            <LocateButton
+              requestCoordinates={requestCoordinates}
+              reversePlace={reversePlace}
+              onLocated={(place, warning) => {
+                setStart(place);
+                setStartQuery(place.label);
+                setStartWarning(warning ?? null);
+                setFieldErrors((current) => ({ ...current, start: undefined }));
+              }}
+              onError={(message) => {
+                setStartWarning(message);
+              }}
+            />
+          </div>
+          {startWarning ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              {startWarning}
+            </p>
+          ) : null}
+          <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+            <Label htmlFor="describe-voice" className="text-base">
+              Guidage vocal {voiceMuted ? "(désactivé)" : "(activé)"}
+            </Label>
+            <Switch
+              id="describe-voice"
+              checked={!voiceMuted}
+              disabled={busy}
+              onCheckedChange={(checked) => setVoiceMuted(!checked)}
+            />
+          </div>
           {(() => {
             const shares = routeShareSummary(activeRoute.segments);
             const roads = principalRoadNames(activeRoute.segments);
@@ -665,63 +702,6 @@ export function DescribeRidePanel({
               ))}
             </ul>
           ) : null}
-          <p className="text-sm leading-6">
-            GPS :{" "}
-            {start
-              ? `position définie (${start.label}).`
-              : "non confirmé — utilisez Ma position."}{" "}
-            Guidage vocal {voiceMuted ? "désactivé" : "activé"}.
-          </p>
-          <LocateButton
-            requestCoordinates={requestCoordinates}
-            reversePlace={reversePlace}
-            onLocated={(place, warning) => {
-              setStart(place);
-              setStartQuery(place.label);
-              setStartWarning(warning ?? null);
-              setFieldErrors((current) => ({ ...current, start: undefined }));
-            }}
-            onError={(message) => {
-              setStartWarning(message);
-            }}
-          />
-          {startWarning ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {startWarning}
-            </p>
-          ) : null}
-          <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
-            <Label htmlFor="describe-voice" className="text-base">
-              Guidage vocal
-            </Label>
-            <Switch
-              id="describe-voice"
-              checked={!voiceMuted}
-              disabled={busy}
-              onCheckedChange={(checked) => setVoiceMuted(!checked)}
-            />
-          </div>
-          <Button
-            type="button"
-            size="lg"
-            className="min-h-12 w-full text-base"
-            disabled={busy}
-            aria-label="Démarrer la navigation"
-            onClick={() => onStartNavigation({ muted: voiceMuted })}
-          >
-            Démarrer la navigation
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="min-h-12 w-full text-base"
-            disabled={busy}
-            aria-busy={regenerating}
-            onClick={() => void handleRegenerate()}
-          >
-            {regenerating ? "Régénération…" : "Régénérer"}
-          </Button>
         </section>
       ) : null}
 
@@ -747,15 +727,49 @@ export function DescribeRidePanel({
         </div>
       ) : null}
 
-      <Button
-        type="button"
-        variant="ghost"
-        className="mt-2 min-h-12 w-full"
-        disabled={busy}
-        onClick={onBack}
+      <div
+        className={cn(
+          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card/95 px-4 pt-3",
+          activeRoute ? "pb-[max(0.25rem,env(safe-area-inset-bottom))]" : "border-t-0",
+        )}
+        role={activeRoute ? "group" : undefined}
+        aria-label={activeRoute ? "Actions du trajet" : undefined}
       >
-        Retour
-      </Button>
+        {activeRoute ? (
+          <>
+            <Button
+              type="button"
+              size="lg"
+              className="min-h-12 w-full text-base"
+              disabled={busy}
+              aria-label="Démarrer la navigation"
+              onClick={() => onStartNavigation({ muted: voiceMuted })}
+            >
+              Démarrer la navigation
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="min-h-12 w-full text-base"
+              disabled={busy}
+              aria-busy={regenerating}
+              onClick={() => void handleRegenerate()}
+            >
+              {regenerating ? "Régénération…" : "Régénérer"}
+            </Button>
+          </>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-12 w-full"
+          disabled={busy}
+          onClick={onBack}
+        >
+          Retour
+        </Button>
+      </div>
     </div>
   );
 }

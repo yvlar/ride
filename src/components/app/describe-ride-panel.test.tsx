@@ -100,6 +100,10 @@ describe("DescribeRidePanel (FR-034)", () => {
     );
     expect(onGeneratedRouteChange).toHaveBeenCalledWith(loop);
     expect(generateRide).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("group", { name: "Actions du trajet" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Guidage vocal (activé)")).toBeInTheDocument();
   });
 
   it("blocks a second Continuer click while generation is in flight", async () => {

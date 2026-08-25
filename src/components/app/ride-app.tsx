@@ -536,7 +536,10 @@ export function RideApp(props: RideRequestFormProps) {
             ) : null}
 
             {sheet === "describe" ? (
-              <MapBottomPanel title="Décrire mon trajet">
+              <MapBottomPanel
+                title="Décrire mon trajet"
+                className={route ? "max-h-[58dvh]" : undefined}
+              >
                 <DescribeRidePanel
                   searchPlaces={props.searchPlaces}
                   debounceMs={props.debounceMs}
