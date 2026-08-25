@@ -141,6 +141,10 @@ export type RideRequestFormProps = {
   } | null;
   initialStart?: Place | null;
   initialDraft?: NaturalLanguageRideDraft | null;
+  initialMuted?: boolean;
+  initialUseKnowledgeRouting?: boolean;
+  onVoiceMutedChange?: (muted: boolean) => void;
+  onKnowledgeRoutingChange?: (enabled: boolean) => void;
 };
 
 export function RideRequestForm({
@@ -163,6 +167,10 @@ export function RideRequestForm({
   seed = null,
   initialStart = null,
   initialDraft = null,
+  initialMuted = false,
+  initialUseKnowledgeRouting = false,
+  onVoiceMutedChange,
+  onKnowledgeRoutingChange,
 }: RideRequestFormProps) {
   const [startQuery, setStartQuery] = useState(
     seed?.request.start.label ??
@@ -216,8 +224,10 @@ export function RideRequestForm({
       initialDraft?.preferences.stayInCanada ??
       false,
   );
-  const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(false);
-  const [voiceMuted, setVoiceMuted] = useState(false);
+  const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(
+    initialUseKnowledgeRouting,
+  );
+  const [voiceMuted, setVoiceMuted] = useState(initialMuted);
   const [regenerating, setRegenerating] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<RideFormField, string>>>(
     {},
@@ -806,6 +816,7 @@ export function RideRequestForm({
                 aria-describedby="use-knowledge-routing-hint"
                 onCheckedChange={(checked) => {
                   setUseKnowledgeRouting(checked);
+                  onKnowledgeRoutingChange?.(checked);
                   invalidateInFlightGeneration();
                 }}
               />
@@ -954,7 +965,11 @@ export function RideRequestForm({
                 <Switch
                   id="voice-guidance"
                   checked={!voiceMuted}
-                  onCheckedChange={(checked) => setVoiceMuted(!checked)}
+                  onCheckedChange={(checked) => {
+                    const next = !checked;
+                    setVoiceMuted(next);
+                    onVoiceMutedChange?.(next);
+                  }}
                 />
               </div>
               <Button
@@ -1034,6 +1049,10 @@ export function RideRequestForm({
             now={navigation?.now}
             useKnowledgeRouting={useKnowledgeRouting}
             initialMuted={voiceMuted}
+            onMutedChange={(muted) => {
+              setVoiceMuted(muted);
+              onVoiceMutedChange?.(muted);
+            }}
           />
         ) : null}
     </>

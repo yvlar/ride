@@ -126,18 +126,16 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         var sections: [CPListSection] = []
         if let resume = catalog.resumeTitle {
             let item = CPListItem(text: resume, detailText: catalog.resumeSubtitle ?? "Reprendre")
-            item.handler = { _, completion in
-                RideCarPlaySession.shared.selectCatalogItem(id: "resume")
-                completion()
+            item.handler = { [weak self] _, completion in
+                self?.selectCatalogItem("resume", completion: completion)
             }
             sections.append(CPListSection(items: [item], header: "En cours", sectionIndexTitle: nil))
         }
         if !catalog.recents.isEmpty {
             let items = catalog.recents.map { entry -> CPListItem in
                 let item = CPListItem(text: entry.title, detailText: entry.subtitle)
-                item.handler = { _, completion in
-                    RideCarPlaySession.shared.selectCatalogItem(id: entry.id)
-                    completion()
+                item.handler = { [weak self] _, completion in
+                    self?.selectCatalogItem(entry.id, completion: completion)
                 }
                 return item
             }
@@ -146,9 +144,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if !catalog.favorites.isEmpty {
             let items = catalog.favorites.map { entry -> CPListItem in
                 let item = CPListItem(text: entry.title, detailText: entry.subtitle)
-                item.handler = { _, completion in
-                    RideCarPlaySession.shared.selectCatalogItem(id: entry.id)
-                    completion()
+                item.handler = { [weak self] _, completion in
+                    self?.selectCatalogItem(entry.id, completion: completion)
                 }
                 return item
             }
@@ -157,17 +154,55 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         return sections
     }
 
+    private func selectCatalogItem(_ id: String, completion: @escaping () -> Void) {
+        RideCarPlaySession.shared.selectCatalogItem(id: id)
+        returnToMap(completion: completion)
+    }
+
+    private func returnToMap(completion: @escaping () -> Void = {}) {
+        guard let interfaceController, interfaceController.topTemplate !== mapTemplate else {
+            completion()
+            return
+        }
+        interfaceController.popToRootTemplate(animated: true) { _, _ in
+            completion()
+        }
+    }
+
+    private func pushOverMap(_ template: CPTemplate) {
+        guard let interfaceController else {
+            return
+        }
+        if interfaceController.topTemplate === template {
+            return
+        }
+        if interfaceController.topTemplate === mapTemplate {
+            interfaceController.pushTemplate(template, animated: true)
+            return
+        }
+        interfaceController.popToRootTemplate(animated: false) { [weak self] _, _ in
+            self?.interfaceController?.pushTemplate(template, animated: true)
+        }
+    }
+
     private func showCatalogList() {
         let catalog = RideCarPlaySession.shared.catalog
+        if let catalogListTemplate, interfaceController?.topTemplate === catalogListTemplate {
+            catalogListTemplate.updateSections(makeCatalogSections(catalog))
+            return
+        }
         let list = CPListTemplate(title: "Trajets", sections: makeCatalogSections(catalog))
         catalogListTemplate = list
-        interfaceController?.pushTemplate(list, animated: true)
+        pushOverMap(list)
     }
 
     private func showSearch() {
+        if interfaceController?.topTemplate is CPSearchTemplate {
+            return
+        }
         let search = CPSearchTemplate()
         search.delegate = self
-        interfaceController?.pushTemplate(search, animated: true)
+        pushOverMap(search)
     }
 
     func searchTemplate(
@@ -182,9 +217,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
         completionHandler(matches.map { entry in
             let item = CPListItem(text: entry.title, detailText: entry.subtitle)
-            item.handler = { _, completion in
-                RideCarPlaySession.shared.selectCatalogItem(id: entry.id)
-                completion()
+            item.handler = { [weak self] _, completion in
+                self?.selectCatalogItem(entry.id, completion: completion)
             }
             return item
         })
@@ -195,7 +229,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         selectedResult item: CPListItem,
         completionHandler: @escaping () -> Void
     ) {
-        completionHandler()
+        returnToMap(completion: completionHandler)
     }
 
     private func updateNavigation(_ snapshot: RideCarPlaySnapshot) {

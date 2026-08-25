@@ -55,5 +55,7 @@ describe("native CarPlay session (FR-028)", () => {
     expect(scene).toContain("snapshot.muted || snapshot.cancelSpeech");
     expect(scene).toContain("updateSections");
     expect(scene).not.toMatch(/_ = catalog/);
+    expect(scene).toContain("popToRootTemplate");
+    expect(scene).toContain("pushOverMap");
   });
 });
