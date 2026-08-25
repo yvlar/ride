@@ -94,7 +94,7 @@ describe("composeDescribedRide (FR-034)", () => {
       draft: parseNaturalLanguageRide("Une boucle de 80 km au départ de Atlantis."),
       start: null,
       destination: null,
-      fallbackStart: null,
+      fallbackStart: gpsPlace,
       searchPlaces: async () => [],
     });
 

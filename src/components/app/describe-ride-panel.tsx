@@ -130,6 +130,7 @@ export function DescribeRidePanel({
   const [voiceMuted, setVoiceMuted] = useState(false);
   const generationId = useRef(0);
   const inFlightRef = useRef(false);
+  const retryActionRef = useRef<"continue" | "regenerate">("continue");
   const startRef = useRef(start);
   const busy = generating || regenerating;
 
@@ -186,23 +187,25 @@ export function DescribeRidePanel({
         setDestination(composed.request.destination);
         setDestinationQuery(composed.request.destination.label);
       }
-      setComposedRequest(composed.request);
-      onRequestComposed(composed.request);
       const generated = await generateRide(composed.request);
       if (generationId.current !== requestId) {
         return;
       }
       if (generated.ok) {
+        setComposedRequest(composed.request);
+        onRequestComposed(composed.request);
         setDisplayedRoute(generated.route);
         onGeneratedRouteChange(generated.route);
         setEditing(false);
         return;
       }
+      retryActionRef.current = "continue";
       setGenerationError(generated.error);
     } catch {
       if (generationId.current !== requestId) {
         return;
       }
+      retryActionRef.current = "continue";
       setGenerationError(GENERATION_UNAVAILABLE);
     } finally {
       if (generationId.current === requestId) {
@@ -231,11 +234,13 @@ export function DescribeRidePanel({
         onGeneratedRouteChange(generated.route);
         return;
       }
+      retryActionRef.current = "regenerate";
       setGenerationError(generated.error);
     } catch {
       if (generationId.current !== requestId) {
         return;
       }
+      retryActionRef.current = "regenerate";
       setGenerationError(GENERATION_UNAVAILABLE);
     } finally {
       if (generationId.current === requestId) {
@@ -246,7 +251,7 @@ export function DescribeRidePanel({
   }
 
   function handleRetry() {
-    if (activeRoute && composedRequest) {
+    if (retryActionRef.current === "regenerate") {
       void handleRegenerate();
       return;
     }

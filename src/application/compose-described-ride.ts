@@ -22,16 +22,15 @@ export type ComposeDescribedRideInput = {
 export async function composeDescribedRide(
   input: ComposeDescribedRideInput,
 ): Promise<ComposeRideRequestResult> {
-  const start =
+  const resolvedStart =
     input.start ??
     (await resolvePlace(
       input.draft.startQuery,
       input.searchPlaces,
       input.signal,
-    )) ??
-    input.fallbackStart;
+    ));
 
-  if (!start && input.draft.startQuery) {
+  if (!resolvedStart && input.draft.startQuery) {
     return {
       ok: false,
       errors: [
@@ -42,6 +41,8 @@ export async function composeDescribedRide(
       ],
     };
   }
+
+  const start = resolvedStart ?? input.fallbackStart;
 
   const needsDestination = input.draft.type !== "loop";
   let destination = needsDestination ? input.destination : null;

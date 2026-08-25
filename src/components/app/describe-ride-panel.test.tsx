@@ -223,6 +223,75 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(screen.getByText(/248\.2 km/)).toBeInTheDocument();
   });
 
+  it("does not replace stored criteria when a later Continuer fails (FR-012, FR-021)", async () => {
+    const generateRide = vi
+      .fn<
+        (
+          request: GenerateRideRequest,
+        ) => Promise<GenerateRideResult>
+      >()
+      .mockResolvedValueOnce({ ok: true, route: loop })
+      .mockResolvedValue({
+        ok: false,
+        error: {
+          code: "NO_ROUTE_FOUND",
+          message: "Aucun trajet n’a pu être calculé.",
+          suggestions: ["Réessayez."],
+        },
+      });
+    const regenerateRide = vi.fn();
+    const onRequestComposed = vi.fn();
+    const onGeneratedRouteChange = vi.fn();
+
+    render(
+      <DescribeRidePanel
+        searchPlaces={searchPlaces}
+        debounceMs={0}
+        generateRide={generateRide}
+        regenerateRide={regenerateRide}
+        onRequestComposed={onRequestComposed}
+        onGeneratedRouteChange={onGeneratedRouteChange}
+        onStartNavigation={() => {}}
+        onBack={() => {}}
+      />,
+    );
+
+    fillLoopDescription();
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Modifier les critères" }),
+    );
+    fireEvent.change(screen.getByLabelText("Distance cible (km)"), {
+      target: { value: "80" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec ces critères" }));
+
+    expect(
+      await screen.findByText("Aucun trajet n’a pu être calculé."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/248\.2 km/)).toBeInTheDocument();
+    expect(screen.getByText(/boucle d’environ 250 km/i)).toBeInTheDocument();
+    expect(onRequestComposed).toHaveBeenCalledTimes(1);
+    expect(onGeneratedRouteChange).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await waitFor(() => {
+      expect(generateRide).toHaveBeenCalledTimes(3);
+    });
+    expect(generateRide).toHaveBeenLastCalledWith(
+      expect.objectContaining({ targetDistanceKm: 80 }),
+    );
+    expect(regenerateRide).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+    await waitFor(() => {
+      expect(regenerateRide).toHaveBeenCalledWith(
+        expect.objectContaining({ targetDistanceKm: 250 }),
+        loop,
+      );
+    });
+  });
+
   it("starts navigation with the displayed route and does not regenerate (FR-023)", async () => {
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
