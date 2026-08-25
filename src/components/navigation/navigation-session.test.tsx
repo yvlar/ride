@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { offsetCoordinates } from "@/domain/geo/distance";
 import type { Position } from "@/domain/geo/types";
+import { composeGpxRoute } from "@/domain/gpx/compose";
 import type { LocationWatch, LocationWatchEvent } from "@/domain/location/types";
 import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
@@ -1216,6 +1218,82 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     });
     await waitFor(() => {
       expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    expect(joinRoute).not.toHaveBeenCalled();
+    const remainingLabel = screen.getByText("distance").previousElementSibling;
+    expect(remainingLabel?.textContent).toMatch(/km$/);
+    expect(Number.parseFloat(remainingLabel?.textContent ?? "0")).toBeGreaterThan(
+      0.3,
+    );
+  });
+
+  it("does not jump remaining GPX at a self-crossing while following (FR-039)", async () => {
+    const { watch, emit } = createWatch();
+    const joinRoute = vi.fn(async () => connectorResult(origin, origin));
+    const north = offsetCoordinates(origin, 0, 0.4);
+    const east = offsetCoordinates(origin, 90, 0.4);
+    const south = offsetCoordinates(origin, 180, 0.4);
+    const west = offsetCoordinates(origin, 270, 0.4);
+    const crossingRoute = composeGpxRoute({
+      trip: {
+        id: "cross",
+        kind: "track",
+        name: "Croisement",
+        parts: [
+          {
+            points: [north, south, east, west].map((coordinates) => ({
+              coordinates,
+            })),
+          },
+        ],
+      },
+      fileName: "cross.gpx",
+    });
+    render(
+      <NavigationSession
+        route={crossingRoute}
+        request={{
+          type: "gpx",
+          start: crossingRoute.start,
+          destination: crossingRoute.destination,
+          name: crossingRoute.name,
+          style: "touring",
+          preferences: { avoidHighways: false, avoidUnpaved: false },
+        }}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        joinRoute={joinRoute}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: north,
+        accuracyMeters: 5,
+        headingDeg: 180,
+        recordedAtMs: 1,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("Trajet GPX").length).toBeGreaterThan(0);
+    });
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: origin,
+        accuracyMeters: 5,
+        headingDeg: 270,
+        recordedAtMs: 2,
+      },
+    });
+    await waitFor(() => {
+      const remaining = screen.getByText("distance").previousElementSibling;
+      expect(remaining?.textContent).toMatch(/km$/);
+      expect(Number.parseFloat(remaining?.textContent ?? "0")).toBeGreaterThan(
+        1.5,
+      );
     });
     expect(joinRoute).not.toHaveBeenCalled();
   });

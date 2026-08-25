@@ -60,6 +60,29 @@ describe("GPX navigation helpers (FR-039)", () => {
     expect(following?.connector).toBeNull();
   });
 
+  it("does not re-slice remaining GPX once following_gpx has started (FR-039)", () => {
+    const original = lineRoute();
+    const started = beginGpxFromFix(original, {
+      coordinates: origin,
+      accuracyMeters: 5,
+      recordedAtMs: 1,
+    });
+    expect(started.runtime.phase).toBe("following_gpx");
+    const remainingBefore = started.runtime.followRoute.distanceKm;
+    const along = offsetCoordinates(origin, 90, 1.2);
+    const next = enterFollowingIfOnTrace({
+      runtime: { ...started.runtime, progressKm: 1.2 },
+      fix: {
+        coordinates: along,
+        accuracyMeters: 6,
+        headingDeg: 90,
+        recordedAtMs: 2,
+      },
+    });
+    expect(next).toBeNull();
+    expect(started.runtime.followRoute.distanceKm).toBe(remainingBefore);
+  });
+
   it("does not rewind GPX progress on GPS noise behind the rider", () => {
     const original = lineRoute();
     const along = offsetCoordinates(origin, 90, 1.2);
@@ -121,9 +144,9 @@ describe("GPX navigation helpers (FR-039)", () => {
         recordedAtMs: 3,
       },
     });
-    expect(started.runtime.followRoute.distanceKm).toBeGreaterThan(0);
-    expect(second === null || second.phase === "following_gpx").toBe(true);
-    expect(third === null || third.phase === "following_gpx").toBe(true);
+    expect(started.runtime.followRoute.distanceKm).toBeGreaterThan(2.5);
+    expect(second).toBeNull();
+    expect(third).toBeNull();
   });
 
   it("debug repro FR-039 figure-eight re-enter without previousProgressKm", () => {
@@ -163,7 +186,7 @@ describe("GPX navigation helpers (FR-039)", () => {
         recordedAtMs: 2,
       },
     });
-    expect(started.runtime.followRoute.distanceKm).toBeGreaterThan(0);
-    expect(atCrossing === null || atCrossing.phase === "following_gpx").toBe(true);
+    expect(started.runtime.followRoute.distanceKm).toBeGreaterThan(2);
+    expect(atCrossing).toBeNull();
   });
 });
