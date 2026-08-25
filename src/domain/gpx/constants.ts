@@ -20,8 +20,13 @@ export const GPX_REVERSE_PROGRESS_PENALTY_M = 80;
 
 export const GPX_VERTEX_INSERT_EPS = 1e-6;
 
+/**
+ * FR-039 — HTML `accept` hint. iOS Files greys out unrecognized extensions
+ * unless `application/octet-stream` is present (no GPX UTI on iOS).
+ * Client code still requires a `.gpx` name or a known XML MIME type.
+ */
 export const GPX_FILE_ACCEPT =
-  ".gpx,application/gpx+xml,application/xml,text/xml";
+  "application/octet-stream,.gpx,application/gpx+xml,application/xml,text/xml";
 
 export const GPX_MIME_TYPES = [
   "application/gpx+xml",
