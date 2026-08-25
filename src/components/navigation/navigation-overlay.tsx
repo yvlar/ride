@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LocateFixed, Maximize2, Volume2, VolumeX, X } from "lucide-react";
+import { LocateFixed, Maximize2, Volume2, VolumeX } from "lucide-react";
 import {
   CARPLAY_ACTIVE_MESSAGE,
   FOREGROUND_ONLY_MESSAGE,
@@ -164,20 +164,25 @@ export function NavigationOverlay({
                 <p className="text-xs leading-4 text-muted-foreground">distance</p>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Arrêter"
-              className={cn(TOUCH_TARGET, "shrink-0")}
-              onClick={() => setConfirmStop(true)}
-            >
-              <X aria-hidden="true" className="size-6" />
-            </Button>
           </div>
 
+          <Button
+            type="button"
+            variant="destructive"
+            aria-label="Annuler la navigation"
+            className="min-h-12 w-full text-base"
+            onClick={() => setConfirmStop(true)}
+          >
+            Annuler la navigation
+          </Button>
+
           {confirmStop ? (
-            <div role="alertdialog" aria-label="Terminer la navigation" className="space-y-2">
-              <p className="text-sm">Terminer la navigation ?</p>
+            <div
+              role="alertdialog"
+              aria-label="Annuler la navigation"
+              className="space-y-2"
+            >
+              <p className="text-sm">Annuler la navigation ?</p>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
@@ -193,7 +198,7 @@ export function NavigationOverlay({
                   className="min-h-12"
                   onClick={onStop}
                 >
-                  Terminer
+                  Oui, annuler
                 </Button>
               </div>
             </div>

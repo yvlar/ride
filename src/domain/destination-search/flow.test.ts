@@ -1,0 +1,204 @@
+import { describe, expect, it } from "vitest";
+import type { Place } from "@/domain/geo/types";
+import type { GenerateRideRequest, GeneratedDestinationRoute } from "@/domain/ride/types";
+import {
+  canGenerateDestinationSearch,
+  canStartDestinationNavigation,
+  createDestinationSearchState,
+  emptyDestinationSearchState,
+  reduceDestinationSearch,
+  type DestinationSearchState,
+} from "./flow";
+
+const granby: Place = {
+  label: "Position actuelle",
+  coordinates: { latitude: 45.4001, longitude: -72.7342 },
+};
+
+const tremblant: Place = {
+  label: "Mont-Tremblant",
+  coordinates: { latitude: 46.118, longitude: -74.596 },
+};
+
+const request: GenerateRideRequest = {
+  type: "destination",
+  start: granby,
+  destination: tremblant,
+  style: "scenic",
+  preferences: { avoidHighways: true, avoidUnpaved: true, stayInCanada: false },
+};
+
+const route: GeneratedDestinationRoute = {
+  id: "route-1",
+  type: "destination",
+  start: granby,
+  destination: tremblant,
+  style: "scenic",
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.7342, 45.4001],
+      [-74.596, 46.118],
+    ],
+  },
+  segments: [],
+  distanceKm: 120,
+  durationMinutes: 110,
+  warnings: [],
+};
+
+const laterRoute: GeneratedDestinationRoute = {
+  ...route,
+  id: "route-2",
+  distanceKm: 124,
+};
+
+function located(state: DestinationSearchState): DestinationSearchState {
+  return reduceDestinationSearch(state, { type: "locate_success", start: granby });
+}
+
+function withDestination(state: DestinationSearchState): DestinationSearchState {
+  return reduceDestinationSearch(state, {
+    type: "set_destination",
+    destination: tremblant,
+  });
+}
+
+function previewed(state: DestinationSearchState): DestinationSearchState {
+  const generating = reduceDestinationSearch(state, { type: "generate_start" });
+  return reduceDestinationSearch(generating, {
+    type: "generate_success",
+    generationId: generating.generationId,
+    route,
+    request,
+  });
+}
+
+describe("destination search flow (FR-038)", () => {
+  it("starts locating and keeps generate disabled without GPS or destination", () => {
+    const state = emptyDestinationSearchState();
+    expect(state.phase).toBe("locating");
+    expect(canGenerateDestinationSearch(state)).toBe(false);
+    const withGps = located(state);
+    expect(withGps.phase).toBe("idle");
+    expect(canGenerateDestinationSearch(withGps)).toBe(false);
+    const ready = withDestination(withGps);
+    expect(ready.phase).toBe("destinationReady");
+    expect(canGenerateDestinationSearch(ready)).toBe(true);
+  });
+
+  it("uses the current GPS place as origin once locating succeeds", () => {
+    const state = located(withDestination(emptyDestinationSearchState()));
+    expect(state.start).toEqual(granby);
+    expect(state.destination).toEqual(tremblant);
+    expect(state.phase).toBe("destinationReady");
+  });
+
+  it("ignores a stale generate_success from an older request (FR-038)", () => {
+    const ready = withDestination(located(emptyDestinationSearchState()));
+    const first = reduceDestinationSearch(ready, { type: "generate_start" });
+    const second = reduceDestinationSearch(first, { type: "generate_start" });
+    const stale = reduceDestinationSearch(second, {
+      type: "generate_success",
+      generationId: first.generationId,
+      route,
+      request,
+    });
+    expect(stale.phase).toBe("generating");
+    expect(stale.route).toBeNull();
+    const fresh = reduceDestinationSearch(stale, {
+      type: "generate_success",
+      generationId: second.generationId,
+      route: laterRoute,
+      request,
+    });
+    expect(fresh.phase).toBe("routePreview");
+    expect(fresh.route?.id).toBe("route-2");
+  });
+
+  it("previews a generated route before navigation can start", () => {
+    const preview = previewed(withDestination(located(emptyDestinationSearchState())));
+    expect(preview.phase).toBe("routePreview");
+    expect(canStartDestinationNavigation(preview)).toBe(true);
+    expect(preview.route).toEqual(route);
+    expect(preview.request).toEqual(request);
+  });
+
+  it("starts a single navigation from the previewed route", () => {
+    const preview = previewed(withDestination(located(emptyDestinationSearchState())));
+    const navigating = reduceDestinationSearch(preview, { type: "start_navigation" });
+    expect(navigating.phase).toBe("navigating");
+    expect(
+      reduceDestinationSearch(navigating, { type: "start_navigation" }).phase,
+    ).toBe("navigating");
+    expect(navigating.generationId).toBeGreaterThan(preview.generationId);
+  });
+
+  it("rejects generate_start and start_navigation while already navigating", () => {
+    const navigating = reduceDestinationSearch(
+      previewed(withDestination(located(emptyDestinationSearchState()))),
+      { type: "start_navigation" },
+    );
+    expect(
+      reduceDestinationSearch(navigating, { type: "generate_start" }).phase,
+    ).toBe("navigating");
+    expect(
+      reduceDestinationSearch(navigating, {
+        type: "generate_success",
+        generationId: navigating.generationId,
+        route: laterRoute,
+        request,
+      }).route?.id,
+    ).toBe("route-1");
+  });
+
+  it("returns to destination search after cancel without auto-generating", () => {
+    const navigating = reduceDestinationSearch(
+      previewed(withDestination(located(emptyDestinationSearchState()))),
+      { type: "start_navigation" },
+    );
+    const cancelling = reduceDestinationSearch(navigating, {
+      type: "cancel_navigation",
+    });
+    expect(cancelling.phase).toBe("cancelling");
+    const completed = reduceDestinationSearch(cancelling, {
+      type: "cancel_completed",
+    });
+    expect(completed.phase).toBe("locating");
+    expect(completed.destination).toEqual(tremblant);
+    expect(completed.route).toBeNull();
+    expect(completed.request).toBeNull();
+    expect(canStartDestinationNavigation(completed)).toBe(false);
+    const ready = located(completed);
+    expect(ready.phase).toBe("destinationReady");
+    expect(canGenerateDestinationSearch(ready)).toBe(true);
+  });
+
+  it("keeps an initial destination from recents while locating (FR-035, FR-038)", () => {
+    const state = createDestinationSearchState({ destination: tremblant });
+    expect(state.destinationQuery).toBe("Mont-Tremblant");
+    expect(state.phase).toBe("locating");
+    expect(canGenerateDestinationSearch(state)).toBe(false);
+  });
+
+  it("keeps preview and generating phases when a locate refresh starts", () => {
+    const preview = previewed(withDestination(located(emptyDestinationSearchState())));
+    expect(
+      reduceDestinationSearch(preview, { type: "locate_start" }).phase,
+    ).toBe("routePreview");
+    const generating = reduceDestinationSearch(preview, { type: "generate_start" });
+    expect(
+      reduceDestinationSearch(generating, { type: "locate_start" }).phase,
+    ).toBe("generating");
+  });
+
+  it("editing the destination invalidates the preview without generating", () => {
+    const preview = previewed(withDestination(located(emptyDestinationSearchState())));
+    const edited = reduceDestinationSearch(preview, { type: "edit_destination" });
+    expect(edited.phase).toBe("destinationReady");
+    expect(edited.destination).toEqual(tremblant);
+    expect(edited.route).toBeNull();
+    expect(canStartDestinationNavigation(edited)).toBe(false);
+    expect(canGenerateDestinationSearch(edited)).toBe(true);
+  });
+});

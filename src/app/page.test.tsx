@@ -40,7 +40,9 @@ describe("Home explorer (FR-014, FR-031)", () => {
     renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Rechercher une destination" }));
 
-    expect(screen.getByRole("combobox", { name: "Destination" })).toBeEnabled();
+    expect(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+    ).toBeEnabled();
     expect(
       screen.queryByRole("button", { name: "Créer une boucle moto" }),
     ).not.toBeInTheDocument();

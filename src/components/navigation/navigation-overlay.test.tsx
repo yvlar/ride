@@ -66,9 +66,8 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
       "min-h-12",
       "min-w-12",
     );
-    expect(screen.getByRole("button", { name: "Arrêter" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "Annuler la navigation" })).toHaveClass(
       "min-h-12",
-      "min-w-12",
     );
     expect(screen.getByRole("button", { name: "Aperçu du trajet" })).toHaveClass(
       "min-h-12",
@@ -86,8 +85,8 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Muet" }));
     fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
     fireEvent.click(screen.getByRole("button", { name: "Aperçu du trajet" }));
-    fireEvent.click(screen.getByRole("button", { name: "Arrêter" }));
-    fireEvent.click(screen.getByRole("button", { name: "Terminer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
 
     expect(onMuteToggle).toHaveBeenCalledTimes(1);
     expect(onRecenter).toHaveBeenCalledTimes(1);
