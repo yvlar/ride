@@ -254,6 +254,9 @@ export function rideRouteFeatureCollection(
     geometry: LineString;
   }>;
 } {
+  if (viewModel.idle) {
+    return { type: "FeatureCollection", features: [] };
+  }
   const lines =
     viewModel.parts && viewModel.parts.length > 0
       ? viewModel.parts

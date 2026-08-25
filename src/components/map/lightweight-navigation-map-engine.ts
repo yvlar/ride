@@ -112,8 +112,11 @@ export function createLightweightNavigationMapEngine(): MapEngine {
       function applyViewModel(next: RideMapViewModel) {
         viewModel = next;
         routeLayer.replaceChildren();
-        const lines =
-          next.parts && next.parts.length > 0 ? next.parts : [next.geometry];
+        const lines = next.idle
+          ? []
+          : next.parts && next.parts.length > 0
+            ? next.parts
+            : [next.geometry];
         for (const line of lines) {
           const polyline = createSvgElement("polyline");
           polyline.setAttribute("fill", "none");

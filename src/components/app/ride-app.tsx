@@ -281,6 +281,7 @@ export function RideApp(props: RideRequestFormProps) {
       setRequest(null);
       setRoute(null);
       setSheet("home");
+      sessionStore.clear();
     }
   }
 

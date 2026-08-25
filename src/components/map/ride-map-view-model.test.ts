@@ -6,7 +6,7 @@ import type {
   GeneratedLoopRoute,
   GeneratedRoundTripRoute,
 } from "@/domain/ride/types";
-import { mapCameraFrame, toRideMapViewModel } from "./ride-map-view-model";
+import { idleMapViewModel, mapCameraFrame, rideRouteFeatureCollection, toRideMapViewModel } from "./ride-map-view-model";
 
 const granby: Place = {
   label: "Granby, QC",
@@ -197,6 +197,12 @@ describe("toRideMapViewModel (FR-013)", () => {
     expect(model!.connectorGeometry?.coordinates).toHaveLength(2);
     expect(model!.entry?.kind).toBe("entry");
     expect(model!.directionLabel).toBe("Sens GPX : Cantons");
+  });
+
+  it("removes GPX geometry from the map when idle after cancel (FR-039)", () => {
+    expect(rideRouteFeatureCollection(idleMapViewModel()).features).toHaveLength(
+      0,
+    );
   });
 
   it("returns null when the route has no drawable geometry", () => {
