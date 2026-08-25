@@ -1,11 +1,15 @@
+import { AI_RIDE_PLAN_QUERY_HEADER } from "@/infrastructure/ai/http-ai-ride-planner";
+
 export const STUB_WEB_SEARCH_HITS = [
   {
-    title: "Scenic motorcycle roads",
-    snippet: "Twisty paved routes popular with riders near lakes.",
+    id: "web-1",
+    title: "Chemin des crêtes",
+    snippet: "Twisty paved motorcycle road near lakes and Belvédère de Bolton.",
   },
   {
-    title: "Road work notice",
-    snippet: "Seasonal closures on some private forest roads.",
+    id: "web-2",
+    title: "Belvédère de Bolton",
+    snippet: "Scenic village lookout popular with riders.",
   },
 ];
 
@@ -19,8 +23,15 @@ export function stubWebSearchResponse(
       : input instanceof URL
         ? input.href
         : input.url;
+  const body = typeof init?.body === "string" ? init.body : "";
 
   if (url.includes("/responses")) {
+    if (
+      body.includes(AI_RIDE_PLAN_QUERY_HEADER) ||
+      body.includes("propose_ride_candidates")
+    ) {
+      return undefined;
+    }
     return new Response(
       JSON.stringify({
         output: [
@@ -67,8 +78,12 @@ export function stubWebSearchResponse(
         web: {
           results: [
             {
-              title: "Scenic motorcycle roads",
-              description: "Twisty paved routes popular with riders.",
+              title: "Chemin des crêtes",
+              description: "Twisty paved motorcycle road near lakes.",
+            },
+            {
+              title: "Belvédère de Bolton",
+              description: "Scenic village lookout.",
             },
           ],
         },

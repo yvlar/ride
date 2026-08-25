@@ -26,6 +26,7 @@ const jsonHitsSchema = z.object({
   hits: z
     .array(
       z.object({
+        id: z.string().optional(),
         title: z.string().optional(),
         snippet: z.string().optional(),
       }),
@@ -107,9 +108,6 @@ export class OpenAiWebSearchProvider implements WebSearchProvider {
       ? await this.searchViaGateway(queries)
       : await this.searchViaResponses(queries);
     const unique = uniqueHits(hits.map(sanitizeHit).filter(hasText));
-    if (unique.length === 0) {
-      throw new WebSearchError(WEB_SEARCH_UNAVAILABLE_MESSAGE);
-    }
     return unique;
   }
 
@@ -248,7 +246,7 @@ function hitsFromResponses(payload: {
   }
   const text = collectOutputText(payload.output ?? []).trim();
   if (text) {
-    return [{ title: "Notes de recherche Web", snippet: stripUrls(text) }];
+    return [{ id: "", title: "Notes de recherche Web", snippet: stripUrls(text) }];
   }
   return [];
 }
@@ -274,7 +272,7 @@ function hitsFromOutputItems(output: unknown[]): WebSearchHit[] {
         }
         const title = (source as { title?: unknown }).title;
         if (typeof title === "string" && title.trim()) {
-          hits.push({ title: title.trim(), snippet: "" });
+          hits.push({ id: "", title: title.trim(), snippet: "" });
         }
       }
     }
@@ -297,7 +295,7 @@ function hitsFromOutputItems(output: unknown[]): WebSearchHit[] {
           }
           const title = (annotation as { title?: unknown }).title;
           if (typeof title === "string" && title.trim()) {
-            hits.push({ title: title.trim(), snippet: "" });
+            hits.push({ id: "", title: title.trim(), snippet: "" });
           }
         }
       }
@@ -337,6 +335,7 @@ function hitsFromText(content: string): WebSearchHit[] {
   }
   return (hits.data.hits ?? [])
     .map((hit) => ({
+      id: hit.id?.trim() ?? "",
       title: hit.title?.trim() ?? "",
       snippet: hit.snippet?.trim() ?? "",
     }))
@@ -366,6 +365,7 @@ function parseJsonObject(content: string): unknown {
 
 function sanitizeHit(hit: WebSearchHit): WebSearchHit {
   return {
+    id: hit.id,
     title: stripUrls(hit.title).slice(0, 200),
     snippet: stripUrls(hit.snippet).slice(0, 500),
   };

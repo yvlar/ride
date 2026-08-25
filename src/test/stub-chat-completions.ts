@@ -5,6 +5,7 @@ import {
   CHAT_RANKING_QUERY_HEADER,
 } from "@/infrastructure/routing/rag/chatgpt-corridor-retriever";
 import { lexicalScore, tokenize } from "@/infrastructure/routing/rag/retrieve";
+import { elongatedLoopCandidate } from "./geodesic-routing-provider";
 import { stubWebSearchResponse } from "./stub-web-search";
 
 type KindPayload = {
@@ -45,6 +46,29 @@ export function stubChatCompletionsResponse(
       : input instanceof URL
         ? input.href
         : input.url;
+  if (url.includes("/responses") && userContentFromResponses(init).includes(AI_RIDE_PLAN_QUERY_HEADER)) {
+    return new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "web_search_call",
+            status: "completed",
+          },
+          {
+            type: "function_call",
+            name: "propose_ride_candidates",
+            arguments: JSON.stringify(planFromDescribePrompt(userContentFromResponses(init))),
+          },
+        ],
+        output_text: JSON.stringify(planFromDescribePrompt(userContentFromResponses(init))),
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  }
+
   if (!url.includes("/chat/completions")) {
     return undefined;
   }
@@ -93,8 +117,26 @@ export function stubChatCompletionsResponse(
   );
 }
 
+function userContentFromResponses(init?: RequestInit): string {
+  const body = typeof init?.body === "string" ? init.body : "";
+  if (!body) {
+    return "";
+  }
+  try {
+    const payload = JSON.parse(body) as {
+      input?: { role?: string; content?: string }[];
+    };
+    return (
+      payload.input?.find((item) => item.role === "user")?.content ?? body
+    );
+  } catch {
+    return body;
+  }
+}
+
 function planFromDescribePrompt(userContent: string): {
-  viaPoints: { latitude: number; longitude: number }[];
+  candidates: ReturnType<typeof elongatedLoopCandidate>[];
+  viaPoints?: { latitude: number; longitude: number }[];
   roads: string[];
   pointsOfInterest: string[];
 } {
@@ -109,26 +151,40 @@ function planFromDescribePrompt(userContent: string): {
     latitude: payload.origin?.latitude ?? 45.4,
     longitude: payload.origin?.longitude ?? -72.73,
   };
-  const offset = payload.previousRouteSignature ? 40 : 0;
+  const offset = payload.previousRouteSignature ? 180 : 0;
+  const targetKm = payload.targetDistanceKm ?? 100;
   if (payload.returnToStart === false) {
-    const targetKm = payload.targetDistanceKm ?? 100;
     const bearing = payload.previousRouteSignature ? 270 : 90;
+    const viaPoints = [
+      offsetCoordinates(origin, bearing, targetKm * 0.5),
+      offsetCoordinates(origin, bearing, targetKm * 0.975),
+    ];
     return {
-      viaPoints: [
-        offsetCoordinates(origin, bearing, targetKm * 0.5),
-        offsetCoordinates(origin, bearing, targetKm * 0.975),
+      candidates: [
+        {
+          candidateName: "one-way",
+          viaPoints: viaPoints.map((point, index) => ({
+            label: index === 0 ? "Chemin des crêtes" : "Belvédère de Bolton",
+            latitude: point.latitude,
+            longitude: point.longitude,
+            sourceResultIds: ["web-1", "web-2"],
+          })),
+          roads: ["Chemin des crêtes"],
+          pointsOfInterest: ["Belvédère de Bolton"],
+        },
       ],
+      viaPoints,
       roads: ["Chemin des crêtes"],
-      pointsOfInterest: ["Belvédère"],
+      pointsOfInterest: ["Belvédère de Bolton"],
     };
   }
-  const radiusKm = Math.max(8, (payload.targetDistanceKm ?? 100) / 8);
+  const first = elongatedLoopCandidate(origin, targetKm, offset);
+  const second = elongatedLoopCandidate(origin, targetKm, offset + 80);
+  const third = elongatedLoopCandidate(origin, targetKm, offset + 160);
   return {
-    viaPoints: [0, 90, 180, 270].map((bearing) =>
-      offsetCoordinates(origin, bearing + offset, radiusKm),
-    ),
-    roads: ["Chemin des crêtes"],
-    pointsOfInterest: ["Belvédère"],
+    candidates: [first, second, third],
+    roads: first.roads,
+    pointsOfInterest: first.pointsOfInterest,
   };
 }
 
