@@ -100,7 +100,7 @@ describe("evaluateDescribedRoute (FR-034, BR-001, BR-010, BR-011)", () => {
     });
 
     expect(evaluation.violations).toContain("repeated_road");
-    expect(evaluation.repeatedRoadPercent).toBeGreaterThan(2);
+    expect(evaluation.repeatedRoadPercent).toBeGreaterThan(15);
     expect(evaluation.valid).toBe(false);
   });
 
@@ -142,7 +142,32 @@ describe("evaluateDescribedRoute (FR-034, BR-001, BR-010, BR-011)", () => {
 
     expect(evaluation.violations).toEqual([]);
     expect(evaluation.maxDistanceFromOriginKm).toBeGreaterThanOrEqual(40);
-    expect(evaluation.repeatedRoadPercent).toBeLessThanOrEqual(2);
+    expect(evaluation.repeatedRoadPercent).toBeLessThanOrEqual(15);
+    expect(evaluation.valid).toBe(true);
+  });
+
+  it("accepts a modest shared connector below 15% (BR-011)", () => {
+    const stem = offsetCoordinates(ORIGIN, 90, 12);
+    const north = offsetCoordinates(stem, 0, 45);
+    const northEast = offsetCoordinates(north, 90, 55);
+    const east = offsetCoordinates(stem, 90, 55);
+    const geometry = densify(
+      line([ORIGIN, stem, north, northEast, east, stem, ORIGIN]),
+      8,
+    );
+    const evaluation = evaluateDescribedRoute({
+      candidateId: "modest-stem",
+      origin: ORIGIN,
+      targetDistanceKm: 200,
+      geometry,
+      distanceKm: 200,
+      segments: segmentsFor(geometry, 200),
+      returnToStart: true,
+    });
+
+    expect(evaluation.repeatedRoadPercent).toBeGreaterThan(2);
+    expect(evaluation.repeatedRoadPercent).toBeLessThanOrEqual(15);
+    expect(evaluation.violations).not.toContain("repeated_road");
     expect(evaluation.valid).toBe(true);
   });
 
@@ -228,7 +253,7 @@ describe("evaluateDescribedRoute (FR-034, BR-001, BR-010, BR-011)", () => {
 
     expect(correction.reason).toBe("repeated_road");
     expect(correction.repeatedRoadPercent).toBeGreaterThan(2);
-    expect(correction.maximumAllowedPercent).toBe(2);
+    expect(correction.maximumAllowedPercent).toBe(15);
     expect(correction.instruction).toMatch(/unused roads/i);
   });
 });

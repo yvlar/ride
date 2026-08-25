@@ -84,10 +84,11 @@ export const AI_LOOP_MIN_SPREAD_RATIO = 0.2;
 export const AI_LOOP_ORIGIN_CONNECTOR_KM = 1;
 
 /**
- * BR-011 — maximum repeated-road share outside the origin connector, as a
- * technical snap/quantization margin. Not enough for a real out-and-back.
+ * BR-011 — maximum repeated-road share outside the origin connector.
+ * Live road-network loops often share a numbered-road connector; 15 % still
+ * rejects an out-and-back (~50 %+).
  */
-export const AI_LOOP_MAX_REPEATED_ROAD_PERCENT = 2;
+export const AI_LOOP_MAX_REPEATED_ROAD_PERCENT = 15;
 
 /** Start and destination must be farther apart than this for FR-002. */
 export const MIN_DESTINATION_SEPARATION_KM = 1;

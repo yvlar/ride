@@ -7,6 +7,7 @@ import {
 } from "@/infrastructure/routing/rag/chat-completions-client";
 import { parseJsonObjectContent } from "@/infrastructure/routing/rag/chatgpt-corridor-retriever";
 import type { AiRouteCandidate, AiWaypoint } from "@/domain/ride/ai-route";
+import { AI_LOOP_MAX_REPEATED_ROAD_PERCENT } from "@/domain/ride/constants";
 import {
   AI_UNAVAILABLE_MESSAGE,
   AiRidePlannerError,
@@ -309,7 +310,7 @@ export function buildAiRidePlanUserMessage(input: AiRidePlanInput): string {
       candidateCount,
       minimumOuterRadiusKm,
       distanceTolerancePercent: 10,
-      maximumRepeatedRoadPercent: 2,
+      maximumRepeatedRoadPercent: AI_LOOP_MAX_REPEATED_ROAD_PERCENT,
       orderedTravelSequenceRequired: true,
       coordinateOrder: "latitude_longitude",
       geoJsonOrder: "longitude_latitude",
