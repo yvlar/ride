@@ -24,6 +24,13 @@ export type RideMapProps = {
   onRecenterReady?: (recenter: () => void) => void;
   onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
+  /** FR-038 — arm click / long-press / marker-drag destination picking. */
+  pickMode?: boolean;
+  /** Coordinates of the draggable destination marker, when one is placed. */
+  pickMarker?: Coordinates | null;
+  onPick?: (coordinates: Coordinates) => void;
+  /** Accessible name, so a picker map is not announced as the route map. */
+  label?: string;
 };
 
 export function RideMap({
@@ -37,6 +44,10 @@ export function RideMap({
   onRecenterReady,
   onOverviewReady,
   onGeolocateReady,
+  pickMode = false,
+  pickMarker = null,
+  onPick,
+  label = "Carte du trajet",
 }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
@@ -49,6 +60,9 @@ export function RideMap({
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
   const expandedRef = useRef(expanded);
+  const onPickRef = useRef(onPick);
+  const pickModeRef = useRef(pickMode);
+  const pickMarkerRef = useRef(pickMarker);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(
@@ -78,6 +92,10 @@ export function RideMap({
   useEffect(() => {
     expandedRef.current = expanded;
   }, [expanded]);
+
+  useEffect(() => {
+    onPickRef.current = onPick;
+  }, [onPick]);
 
   useEffect(() => {
     userLocationRef.current = userLocation;
@@ -119,6 +137,11 @@ export function RideMap({
               setWarning(message);
             }
           },
+          onPick: (coordinates) => {
+            if (!cancelled) {
+              onPickRef.current?.(coordinates);
+            }
+          },
         });
         handleRef.current = handle;
         const latest = viewModelRef.current ?? initial;
@@ -132,6 +155,8 @@ export function RideMap({
         );
         handle.setGeolocateEnabled?.(!expandedRef.current);
         handle.setFollowUser?.(expandedRef.current);
+        handle.setPickEnabled?.(pickModeRef.current);
+        handle.setPickMarker?.(pickMarkerRef.current ?? null);
         onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onOverviewReadyRef.current?.(() => handle?.overview?.());
         onGeolocateReadyRef.current?.((enabled) => {
@@ -158,6 +183,11 @@ export function RideMap({
                 setError(message);
               }
             },
+            onPick: (coordinates) => {
+              if (!cancelled) {
+                onPickRef.current?.(coordinates);
+              }
+            },
           });
           handleRef.current = handle;
           const latest = viewModelRef.current ?? initial;
@@ -171,6 +201,8 @@ export function RideMap({
           );
           handle.setGeolocateEnabled?.(!expandedRef.current);
           handle.setFollowUser?.(expandedRef.current);
+          handle.setPickEnabled?.(pickModeRef.current);
+          handle.setPickMarker?.(pickMarkerRef.current ?? null);
           onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onOverviewReadyRef.current?.(() => handle?.overview?.());
           onGeolocateReadyRef.current?.((enabled) => {
@@ -208,6 +240,16 @@ export function RideMap({
     handleRef.current?.setUserLocation?.(userLocation ?? null, headingDeg);
   }, [userLocation, headingDeg]);
 
+  useEffect(() => {
+    pickModeRef.current = pickMode;
+    handleRef.current?.setPickEnabled?.(pickMode);
+  }, [pickMode]);
+
+  useEffect(() => {
+    pickMarkerRef.current = pickMarker;
+    handleRef.current?.setPickMarker?.(pickMarker ?? null);
+  }, [pickMarker]);
+
   useLayoutEffect(() => {
     handleRef.current?.setGeolocateEnabled?.(!expanded);
     handleRef.current?.setFollowUser?.(expanded);
@@ -219,7 +261,7 @@ export function RideMap({
 
   return (
     <section
-      aria-label="Carte du trajet"
+      aria-label={label}
       className={cn(fillContainer ? "relative h-full w-full" : "space-y-2")}
     >
       {viewModel && !fillContainer && !viewModel.idle ? (

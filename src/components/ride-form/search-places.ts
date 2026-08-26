@@ -1,4 +1,4 @@
-import type { Place } from "@/domain/geo/types";
+import type { Coordinates, Place } from "@/domain/geo/types";
 
 type GeocodeSuccessBody = {
   data?: {
@@ -6,14 +6,23 @@ type GeocodeSuccessBody = {
   };
 };
 
+export type SearchPlacesOptions = {
+  /** Current position, so nearby results rank first (FR-032). */
+  proximity?: Coordinates | null;
+};
+
 export async function searchPlacesFromApi(
   query: string,
   signal?: AbortSignal,
+  options: SearchPlacesOptions = {},
 ): Promise<Place[]> {
-  const response = await fetch(
-    `/api/geocode?q=${encodeURIComponent(query)}&locale=fr`,
-    { signal },
-  );
+  const params = new URLSearchParams({ q: query, locale: "fr" });
+  if (options.proximity) {
+    params.set("latitude", String(options.proximity.latitude));
+    params.set("longitude", String(options.proximity.longitude));
+  }
+
+  const response = await fetch(`/api/geocode?${params.toString()}`, { signal });
 
   if (response.status === 400) {
     return [];

@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { composeDestinationRide } from "@/application/compose-destination-ride";
 import {
   formatDistanceLabel,
   formatDurationLabel,
 } from "@/components/navigation/format-navigation";
+import { DestinationMapPicker } from "@/components/map/destination-map-picker";
 import { PlaceSearchField } from "@/components/ride-form/place-search-field";
+import { SelectedDestinationCard } from "@/components/ride-form/selected-destination-card";
+import { searchPlacesFromApi } from "@/components/ride-form/search-places";
 import {
   CurrentPositionError,
   type GeolocationFailureReason,
@@ -28,6 +31,7 @@ import {
   createDestinationSearchState,
   reduceDestinationSearch,
 } from "@/domain/destination-search/flow";
+import type { MapEngine } from "@/components/map/map-engine";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { LocatedPosition } from "@/domain/location/types";
 import { previousRideSignature } from "@/domain/ride/route-signature";
@@ -43,6 +47,8 @@ import type {
 import { requestDevicePosition } from "@/infrastructure/location/request-device-coordinates";
 import { openDeviceLocationSettings } from "@/infrastructure/location/open-location-settings";
 import { cn } from "@/lib/utils";
+
+export const DESTINATION_FIELD_LABEL = "Adresse, ville ou code postal";
 
 const GENERATION_UNAVAILABLE: RideGenerationError = {
   code: "PROVIDER_ERROR",
@@ -82,6 +88,8 @@ export type FindDestinationPanelProps = {
   reversePlace?: (coordinates: Coordinates) => Promise<Place>;
   searchPlaces?: (query: string, signal?: AbortSignal) => Promise<Place[]>;
   debounceMs?: number;
+  /** Injected in tests; the picker mounts the real MapLibre engine otherwise. */
+  mapEngine?: MapEngine;
   initialDestination?: Place | null;
   initialQuery?: string;
   navigationActive?: boolean;
@@ -100,6 +108,7 @@ export function FindDestinationPanel({
   reversePlace = reverseGeocodePlace,
   searchPlaces,
   debounceMs,
+  mapEngine,
   initialDestination = null,
   initialQuery = "",
   navigationActive = false,
@@ -127,6 +136,22 @@ export function FindDestinationPanel({
   const preview = state.route;
   const canGenerate = canGenerateDestinationSearch(state);
   const canStart = canStartDestinationNavigation(state);
+  const showDestinationCard =
+    state.stage === "selected" && state.destination !== null;
+  // Changing the destination mid-generation is allowed: it aborts the in-flight
+  // request rather than waiting for it (FR-038). Only a cancellation in
+  // progress freezes the controls.
+  const destinationLocked =
+    state.phase === "cancelling" || state.phase === "navigating";
+  const proximity = state.start?.coordinates ?? null;
+  // Proximity is bound here so the field never talks to the geocoder itself.
+  const searchNearby = useCallback(
+    (query: string, signal?: AbortSignal) =>
+      searchPlaces
+        ? searchPlaces(query, signal)
+        : searchPlacesFromApi(query, signal, { proximity }),
+    [searchPlaces, proximity],
+  );
 
   useEffect(() => {
     startRef.current = state.start;
@@ -402,26 +427,70 @@ export function FindDestinationPanel({
       ) : null}
 
       <div className="mt-4">
-        <PlaceSearchField
-          id="find-destination"
-          label="Où voulez-vous aller?"
-          query={state.destinationQuery}
-          selectedPlace={state.destination}
-          placeholder="Nom, adresse ou lieu"
-          debounceMs={debounceMs}
-          searchPlaces={searchPlaces}
-          onQueryChange={(query) => {
+        {showDestinationCard && state.destination ? (
+          <SelectedDestinationCard
+            destination={state.destination}
+            disabled={destinationLocked}
+            onEdit={() => dispatch({ type: "edit_destination_text" })}
+            onClear={() => {
+              abortRef.current?.abort();
+              inFlightRef.current = false;
+              dispatch({ type: "clear_destination" });
+            }}
+            onAdjustOnMap={() => dispatch({ type: "open_map_picker" })}
+          />
+        ) : (
+          <PlaceSearchField
+            id="find-destination"
+            label={DESTINATION_FIELD_LABEL}
+            query={state.destinationQuery}
+            selectedPlace={state.destination}
+            placeholder={DESTINATION_FIELD_LABEL}
+            hint="Par exemple : 125 rue Principale, Granby · Roxton Pond · J2G 2W4"
+            debounceMs={debounceMs}
+            searchPlaces={searchNearby}
+            footer={
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-12 w-full text-base"
+                disabled={destinationLocked}
+                onClick={() => dispatch({ type: "open_map_picker" })}
+              >
+                Choisir sur la carte
+              </Button>
+            }
+            onQueryChange={(query) => {
+              abortRef.current?.abort();
+              inFlightRef.current = false;
+              dispatch({ type: "change_destination_query", query });
+            }}
+            onPlaceSelected={(place) => {
+              abortRef.current?.abort();
+              inFlightRef.current = false;
+              dispatch({
+                type: "set_destination",
+                destination: { ...place, source: place.source ?? "search" },
+              });
+            }}
+          />
+        )}
+      </div>
+
+      {state.mapPickerOpen ? (
+        <DestinationMapPicker
+          engine={mapEngine}
+          userLocation={state.start?.coordinates ?? null}
+          initialPoint={state.destination?.coordinates ?? null}
+          reversePlace={reversePlace}
+          onCancel={() => dispatch({ type: "cancel_map_picker" })}
+          onConfirm={(destination) => {
             abortRef.current?.abort();
             inFlightRef.current = false;
-            dispatch({ type: "change_destination_query", query });
-          }}
-          onPlaceSelected={(place) => {
-            abortRef.current?.abort();
-            inFlightRef.current = false;
-            dispatch({ type: "set_destination", destination: place });
+            dispatch({ type: "confirm_map_pick", destination });
           }}
         />
-      </div>
+      ) : null}
 
       {busy && state.phase === "generating" ? (
         <p role="status" className="mt-4 text-sm text-muted-foreground">

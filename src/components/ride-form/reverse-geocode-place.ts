@@ -1,15 +1,10 @@
+import { mapPointDestination } from "@/domain/destination/destination";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import { CURRENT_POSITION_FALLBACK_LABEL } from "@/infrastructure/geocoding/labels";
 
 type ReverseGeocodeSuccessBody = {
   data?: {
-    place?: {
-      label?: unknown;
-      coordinates?: {
-        latitude?: unknown;
-        longitude?: unknown;
-      };
-    };
+    place?: Partial<Place> & { label?: unknown };
   };
 };
 
@@ -33,15 +28,14 @@ export async function reverseGeocodePlace(
   }
 
   const body = (await response.json()) as ReverseGeocodeSuccessBody;
-  const label = body.data?.place?.label;
+  const place = body.data?.place;
+  const label = place?.label;
   if (typeof label !== "string" || label.trim() === "") {
     throw new Error("Reverse geocoding failed");
   }
 
-  return {
-    label,
-    coordinates,
-  };
+  // Descriptive fields are optional; the caller decides what to display.
+  return { ...(place as Place), label, coordinates };
 }
 
 export function currentPositionFallback(coordinates: Coordinates): Place {
@@ -49,4 +43,9 @@ export function currentPositionFallback(coordinates: Coordinates): Place {
     label: CURRENT_POSITION_FALLBACK_LABEL,
     coordinates,
   };
+}
+
+/** FR-038 — a map point with no usable address is still a destination. */
+export function mapPointFallback(coordinates: Coordinates): Place {
+  return mapPointDestination(coordinates);
 }

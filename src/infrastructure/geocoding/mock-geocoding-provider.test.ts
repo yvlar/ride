@@ -5,18 +5,28 @@ describe("MockGeocodingProvider (FR-017)", () => {
   it("returns matching places for a partial query", async () => {
     const places = await mockGeocodingProvider.search("gran", "fr");
 
-    expect(places).toEqual([
-      {
-        label: "Granby, QC",
-        coordinates: { latitude: 45.4001, longitude: -72.7342 },
-      },
+    expect(places.map((place) => place.label)).toEqual([
+      "Granby, Québec, Canada",
+      "Granby, Colorado, États-Unis",
+      "125 Rue Principale, Granby, Québec, Canada",
+      "J2G 2W4, Granby, Québec, Canada",
     ]);
+    expect(places.at(0)).toMatchObject({
+      name: "Granby",
+      locality: "Granby",
+      region: "Québec",
+      country: "Canada",
+      kind: "city",
+      coordinates: { latitude: 45.4001, longitude: -72.7342 },
+    });
   });
 
   it("matches without regard to accents", async () => {
     const places = await mockGeocodingProvider.search("quebec", "fr");
 
-    expect(places.map((place) => place.label)).toContain("Québec, QC");
+    expect(places.map((place) => place.label)).toContain(
+      "Québec, Québec, Canada",
+    );
   });
 
   it("returns no results for a query that is too short", async () => {
@@ -27,7 +37,12 @@ describe("MockGeocodingProvider (FR-017)", () => {
     const coordinates = { latitude: 45.4, longitude: -72.73 };
     const place = await mockGeocodingProvider.reverse(coordinates, "fr");
 
-    expect(place.label).toBe("Granby, QC");
+    // The nearest fixture is the street address, not the municipality
+    // centroid: a reverse lookup should return the most precise known place.
+    expect(place.label).toBe("125 Rue Principale, Granby, Québec, Canada");
+    expect(place.locality).toBe("Granby");
+    expect(place.region).toBe("Québec");
+    expect(place.kind).toBe("address");
     expect(place.coordinates).toEqual(coordinates);
   });
 

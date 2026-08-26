@@ -23,6 +23,13 @@ const coordinatesSchema = z.object({
   longitude: z.number().gte(-180).lte(180),
 });
 
+const boundingBoxSchema = z.object({
+  west: z.number(),
+  south: z.number(),
+  east: z.number(),
+  north: z.number(),
+});
+
 const placeSchema = z.object({
   label: z.string().min(1),
   coordinates: coordinatesSchema,
@@ -30,6 +37,16 @@ const placeSchema = z.object({
   addressLine: z.string().min(1).optional(),
   locality: z.string().min(1).optional(),
   region: z.string().min(1).optional(),
+  // FR-038 — descriptive fields survive the round trip so the preview can
+  // label the destination the way the rider selected it. Routing itself only
+  // ever reads `coordinates`.
+  postalCode: z.string().min(1).optional(),
+  country: z.string().min(1).optional(),
+  kind: z.enum(["address", "city", "postal_code", "place"]).optional(),
+  precision: z.enum(["exact", "approximate"]).optional(),
+  source: z.enum(["search", "map"]).optional(),
+  id: z.string().min(1).optional(),
+  bounds: boundingBoxSchema.optional(),
 });
 
 export const rideStyleSchema = z.enum(["curvy", "scenic", "touring"]);

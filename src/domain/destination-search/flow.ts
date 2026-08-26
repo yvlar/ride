@@ -1,3 +1,4 @@
+import { isUsableDestination } from "@/domain/destination/destination";
 import type { Place } from "@/domain/geo/types";
 import type { GenerateRideRequest, GeneratedRideRoute } from "@/domain/ride/types";
 
@@ -29,8 +30,16 @@ export type DestinationSearchError = {
   suggestions: string[];
 };
 
+/**
+ * FR-038 — whether the pane shows the search field or the confirmed
+ * destination card. Independent of `phase`, which tracks the ride itself.
+ */
+export type DestinationStage = "searching" | "selected";
+
 export type DestinationSearchState = {
   phase: DestinationSearchPhase;
+  stage: DestinationStage;
+  mapPickerOpen: boolean;
   start: Place | null;
   destination: Place | null;
   destinationQuery: string;
@@ -65,6 +74,11 @@ export type DestinationSearchEvent =
       suggestions: string[];
     }
   | { type: "generate_aborted"; generationId: number }
+  | { type: "clear_destination" }
+  | { type: "edit_destination_text" }
+  | { type: "open_map_picker" }
+  | { type: "cancel_map_picker" }
+  | { type: "confirm_map_pick"; destination: Place }
   | { type: "start_navigation" }
   | { type: "cancel_navigation" }
   | { type: "cancel_completed" }
@@ -73,6 +87,8 @@ export type DestinationSearchEvent =
 export function emptyDestinationSearchState(): DestinationSearchState {
   return {
     phase: "locating",
+    stage: "searching",
+    mapPickerOpen: false,
     start: null,
     destination: null,
     destinationQuery: "",
@@ -91,6 +107,7 @@ export function createDestinationSearchState(options?: {
   const destination = options?.destination ?? null;
   return {
     ...emptyDestinationSearchState(),
+    stage: isUsableDestination(destination) ? "selected" : "searching",
     destination,
     destinationQuery:
       options?.destinationQuery ?? destination?.label ?? "",
@@ -100,7 +117,13 @@ export function createDestinationSearchState(options?: {
 export function canGenerateDestinationSearch(
   state: DestinationSearchState,
 ): boolean {
-  if (!state.start || !state.destination) {
+  if (!state.start || !isUsableDestination(state.destination)) {
+    return false;
+  }
+  // A destination is only ever set by an explicit selection or a confirmed
+  // map pick; editing the text clears it, so raw field text can never reach
+  // the routing engine (FR-038).
+  if (state.mapPickerOpen) {
     return false;
   }
   if (
@@ -216,6 +239,8 @@ export function reduceDestinationSearch(
       const next = destChanged ? invalidatePreview(state) : state;
       const withDest: DestinationSearchState = {
         ...next,
+        stage: "selected",
+        mapPickerOpen: false,
         destination: event.destination,
         destinationQuery: event.destination.label,
         error: next.error?.kind === "generation" ? null : next.error,
@@ -241,6 +266,7 @@ export function reduceDestinationSearch(
       const destination = stillSelected ? next.destination : null;
       return {
         ...next,
+        stage: destination ? "selected" : "searching",
         destination,
         destinationQuery: event.query,
         phase:
@@ -326,6 +352,52 @@ export function reduceDestinationSearch(
                 : "locating",
       };
     }
+    case "clear_destination": {
+      if (state.phase === "navigating" || state.phase === "cancelling") {
+        return state;
+      }
+      return {
+        ...invalidatePreview(state),
+        stage: "searching",
+        mapPickerOpen: false,
+        destination: null,
+        destinationQuery: "",
+        error: state.error?.kind === "generation" ? null : state.error,
+        phase: state.start ? "idle" : state.phase,
+      };
+    }
+    case "edit_destination_text": {
+      if (state.phase === "navigating" || state.phase === "cancelling") {
+        return state;
+      }
+      // Reopens the field with the current text. The destination stays valid
+      // until the text actually changes (FR-038).
+      return { ...state, stage: "searching", mapPickerOpen: false };
+    }
+    case "open_map_picker": {
+      if (state.phase === "navigating" || state.phase === "cancelling") {
+        return state;
+      }
+      return { ...state, mapPickerOpen: true };
+    }
+    case "cancel_map_picker": {
+      // Cancelling changes nothing: the destination chosen before opening the
+      // map survives, and the pane returns to the view it came from (FR-038).
+      return {
+        ...state,
+        mapPickerOpen: false,
+        stage: state.destination ? "selected" : "searching",
+      };
+    }
+    case "confirm_map_pick": {
+      if (state.phase === "navigating" || state.phase === "cancelling") {
+        return state;
+      }
+      return reduceDestinationSearch(
+        { ...state, mapPickerOpen: false },
+        { type: "set_destination", destination: event.destination },
+      );
+    }
     case "start_navigation": {
       if (state.phase === "navigating" || state.phase === "cancelling") {
         return state;
@@ -356,6 +428,7 @@ export function reduceDestinationSearch(
       return {
         ...state,
         phase: "locating",
+        mapPickerOpen: false,
         route: null,
         request: null,
         error: null,

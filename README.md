@@ -251,6 +251,19 @@ Pour suivre les routes OpenStreetMap réelles, définir `ROUTING_PROVIDER=osrm` 
 
 Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste la valeur locale et de test. Un adaptateur Nominatim compatible (`GEOCODING_PROVIDER=nominatim`) peut être activé en définissant `GEOCODING_API_BASE_URL` vers un service dédié ou géré. `GEOCODING_API_KEY` est facultative. Aucun serveur public de démonstration n’est configuré par défaut. Les appels passent uniquement par le serveur, via `GeocodingProvider.reverse()`.
 
+#### Limites du géocodage des codes postaux canadiens
+
+OpenStreetMap couvre mal les codes postaux canadiens complets (`A1A 1A1`). La couverture porte surtout sur la **RTA**, les trois premiers caractères. **Trouver une destination** (`FR-038`) en tient compte :
+
+- le code est normalisé au format `A1A 1A1` dans le domaine, quelle que soit la saisie;
+- la recherche interroge d’abord le code complet, puis se rabat sur la RTA lorsque le fournisseur ne connaît pas le code;
+- un résultat de RTA est marqué **approximatif**, affiché comme une zone, et le marqueur reste ajustable sur la carte avant la génération.
+
+Deux autres limites du fournisseur actuel valent d’être connues :
+
+- Nominatim n’offre pas de biais de proximité pondéré. `viewbox` sans `bounded` n’est qu’une indication, d’où le reclassement (`Québec`, puis `Canada`, puis distance) effectué côté serveur dans le domaine.
+- `countrycodes` est un filtre **exclusif**. Il n’est donc pas utilisé pour « prioriser » le Canada, qui bloquerait les destinations étrangères.
+
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
 La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Un fichier GPX importé (`FR-039`) reste la référence : Ride guide d’abord jusqu’au point d’entrée projeté sur la polyligne, puis suit la trace. Sur le web et l’iPhone, la navigation exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). La localisation en arrière-plan (permission Always), la navigation hors ligne, Android Auto et l’export GPX restent hors périmètre.

@@ -64,12 +64,9 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const place = await getGeocodingProvider().reverse(coordinates, locale);
     return jsonResponse({
-      data: {
-        place: {
-          label: place.label,
-          coordinates,
-        },
-      },
+      // The whole Place is returned: the map picker needs the municipality,
+      // region and kind to describe the point it just dropped (FR-038).
+      data: { place: { ...place, coordinates } },
       meta: { requestId: requestId() },
     });
   } catch {

@@ -25,6 +25,17 @@ export function createPlaceMarkerElement(label: string): HTMLElement {
   return element;
 }
 
+export const PICK_MARKER_LABEL = "Destination choisie sur la carte";
+
+/** FR-038 — the draggable pin the rider places and adjusts. */
+export function createPickMarkerElement(): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "ride-map-pick-marker";
+  element.setAttribute("role", "img");
+  element.setAttribute("aria-label", PICK_MARKER_LABEL);
+  return element;
+}
+
 export function createUserPuckElement(): HTMLElement {
   const element = document.createElement("div");
   element.className = "ride-map-user-puck";

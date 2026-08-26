@@ -615,6 +615,7 @@ export function RideApp(props: RideRequestFormProps) {
                   regenerateRide={props.regenerateRide}
                   searchPlaces={props.searchPlaces}
                   debounceMs={props.debounceMs}
+                  mapEngine={props.mapEngine}
                   initialDestination={searchPlace}
                   initialQuery={searchQuery}
                   navigationActive={navigating && sheet === "search"}

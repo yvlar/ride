@@ -41,7 +41,7 @@ describe("Home explorer (FR-014, FR-031)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rechercher une destination" }));
 
     expect(
-      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+      screen.getByRole("combobox", { name: "Adresse, ville ou code postal" }),
     ).toBeEnabled();
     expect(
       screen.queryByRole("button", { name: "Créer une boucle moto" }),

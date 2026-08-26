@@ -202,3 +202,166 @@ describe("destination search flow (FR-038)", () => {
     expect(canGenerateDestinationSearch(edited)).toBe(true);
   });
 });
+describe("destination flow — destination validity (FR-038)", () => {
+  const start: Place = {
+    label: "Granby",
+    coordinates: { latitude: 45.4001, longitude: -72.7342 },
+  };
+  const destination: Place = {
+    label: "Mont-Tremblant, Québec, Canada",
+    name: "Mont-Tremblant",
+    kind: "city",
+    precision: "approximate",
+    coordinates: { latitude: 46.1185, longitude: -74.5962 },
+  };
+
+  function located(): DestinationSearchState {
+    return reduceDestinationSearch(emptyDestinationSearchState(), {
+      type: "locate_success",
+      start,
+    });
+  }
+
+  function withDestination(): DestinationSearchState {
+    return reduceDestinationSearch(located(), {
+      type: "set_destination",
+      destination,
+    });
+  }
+
+  it("only enables generation once a destination is confirmed", () => {
+    expect(canGenerateDestinationSearch(located())).toBe(false);
+
+    const ready = withDestination();
+    expect(ready.stage).toBe("selected");
+    expect(canGenerateDestinationSearch(ready)).toBe(true);
+  });
+
+  it("refuses a destination whose coordinates are unusable", () => {
+    const broken = reduceDestinationSearch(located(), {
+      type: "set_destination",
+      destination: {
+        ...destination,
+        coordinates: { latitude: Number.NaN, longitude: -74.5 },
+      },
+    });
+
+    expect(canGenerateDestinationSearch(broken)).toBe(false);
+  });
+
+  it("invalidates the destination as soon as the text diverges", () => {
+    const edited = reduceDestinationSearch(withDestination(), {
+      type: "change_destination_query",
+      query: "Mont-Trembl",
+    });
+
+    expect(edited.destination).toBeNull();
+    expect(edited.stage).toBe("searching");
+    expect(canGenerateDestinationSearch(edited)).toBe(false);
+  });
+
+  it("keeps the destination when the text is retyped identically", () => {
+    const same = reduceDestinationSearch(withDestination(), {
+      type: "change_destination_query",
+      query: destination.label,
+    });
+
+    expect(same.destination).toEqual(destination);
+    expect(canGenerateDestinationSearch(same)).toBe(true);
+  });
+
+  it("clears the destination on demand", () => {
+    const cleared = reduceDestinationSearch(withDestination(), {
+      type: "clear_destination",
+    });
+
+    expect(cleared.destination).toBeNull();
+    expect(cleared.destinationQuery).toBe("");
+    expect(canGenerateDestinationSearch(cleared)).toBe(false);
+  });
+
+  it("keeps the destination editable without invalidating it", () => {
+    const editing = reduceDestinationSearch(withDestination(), {
+      type: "edit_destination_text",
+    });
+
+    expect(editing.stage).toBe("searching");
+    expect(editing.destination).toEqual(destination);
+    expect(canGenerateDestinationSearch(editing)).toBe(true);
+  });
+});
+
+describe("destination flow — map picker (FR-038)", () => {
+  const start: Place = {
+    label: "Granby",
+    coordinates: { latitude: 45.4001, longitude: -72.7342 },
+  };
+  const chosen: Place = {
+    label: "Mont-Tremblant",
+    coordinates: { latitude: 46.1185, longitude: -74.5962 },
+  };
+  const picked: Place = {
+    label: "Point sélectionné sur la carte (45.90000, -73.10000)",
+    source: "map",
+    coordinates: { latitude: 45.9, longitude: -73.1 },
+  };
+
+  function ready(): DestinationSearchState {
+    return reduceDestinationSearch(
+      reduceDestinationSearch(emptyDestinationSearchState(), {
+        type: "locate_success",
+        start,
+      }),
+      { type: "set_destination", destination: chosen },
+    );
+  }
+
+  it("blocks generation while the picker is open", () => {
+    const open = reduceDestinationSearch(ready(), { type: "open_map_picker" });
+
+    expect(open.mapPickerOpen).toBe(true);
+    expect(canGenerateDestinationSearch(open)).toBe(false);
+  });
+
+  it("keeps the previous destination when the picker is cancelled", () => {
+    const cancelled = reduceDestinationSearch(
+      reduceDestinationSearch(ready(), { type: "open_map_picker" }),
+      { type: "cancel_map_picker" },
+    );
+
+    expect(cancelled.mapPickerOpen).toBe(false);
+    expect(cancelled.destination).toEqual(chosen);
+    expect(cancelled.stage).toBe("selected");
+    expect(canGenerateDestinationSearch(cancelled)).toBe(true);
+  });
+
+  it("adopts a confirmed map pick as the destination", () => {
+    const confirmed = reduceDestinationSearch(
+      reduceDestinationSearch(ready(), { type: "open_map_picker" }),
+      { type: "confirm_map_pick", destination: picked },
+    );
+
+    expect(confirmed.mapPickerOpen).toBe(false);
+    expect(confirmed.destination).toEqual(picked);
+    expect(confirmed.destinationQuery).toBe(picked.label);
+    expect(confirmed.stage).toBe("selected");
+    expect(canGenerateDestinationSearch(confirmed)).toBe(true);
+  });
+
+  it("drops a stale preview when the map pick moves the destination", () => {
+    const previewed: DestinationSearchState = {
+      ...ready(),
+      phase: "routePreview",
+      route: { id: "route-1" } as unknown as DestinationSearchState["route"],
+      request: {} as unknown as DestinationSearchState["request"],
+    };
+
+    const confirmed = reduceDestinationSearch(previewed, {
+      type: "confirm_map_pick",
+      destination: picked,
+    });
+
+    expect(confirmed.route).toBeNull();
+    expect(confirmed.request).toBeNull();
+  });
+});

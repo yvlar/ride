@@ -210,4 +210,173 @@ describe("PlaceSearchField (FR-032)", () => {
       screen.getByRole("option", { name: "Granby, QC" }),
     ).toBeInTheDocument();
   });
+  it("never lets a slow answer replace a newer query (FR-032)", async () => {
+    const resolvers: Array<(places: Place[]) => void> = [];
+    const searchPlaces = vi.fn(
+      () =>
+        new Promise<Place[]>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    const { rerender } = render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Gra"
+        searchPlaces={searchPlaces}
+      />,
+    );
+    await waitFor(() => expect(searchPlaces).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Magog"
+        searchPlaces={searchPlaces}
+      />,
+    );
+    await waitFor(() => expect(searchPlaces).toHaveBeenCalledTimes(2));
+
+    // The first request answers last; it must not paint stale results.
+    resolvers[0]?.([
+      { label: "Granby, QC", coordinates: { latitude: 45.4, longitude: -72.7 } },
+    ]);
+    await waitFor(() => {
+      expect(screen.queryByRole("option", { name: "Granby, QC" })).toBeNull();
+    });
+
+    resolvers[1]?.([
+      { label: "Magog, QC", coordinates: { latitude: 45.26, longitude: -72.14 } },
+    ]);
+    expect(
+      await screen.findByRole("option", { name: "Magog, QC" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Granby, QC" })).toBeNull();
+  });
+
+  it("never preselects an ambiguous first result (FR-032)", async () => {
+    const searchPlaces = vi.fn(async (): Promise<Place[]> => [
+      {
+        label: "Granby, Québec, Canada",
+        name: "Granby",
+        region: "Québec",
+        country: "Canada",
+        coordinates: { latitude: 45.4001, longitude: -72.7342 },
+      },
+      {
+        label: "Granby, Colorado, États-Unis",
+        name: "Granby",
+        region: "Colorado",
+        country: "États-Unis",
+        coordinates: { latitude: 40.0866, longitude: -105.9372 },
+      },
+    ]);
+    const onPlaceSelected = vi.fn();
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Granby"
+        searchPlaces={searchPlaces}
+        onPlaceSelected={onPlaceSelected}
+      />,
+    );
+
+    const options = await screen.findAllByRole("option");
+    expect(options).toHaveLength(2);
+    for (const option of options) {
+      expect(option).toHaveAttribute("aria-selected", "false");
+    }
+    expect(onPlaceSelected).not.toHaveBeenCalled();
+  });
+
+  it("navigates results with the keyboard and commits with Enter (NFR-001)", async () => {
+    const searchPlaces = vi.fn(async (): Promise<Place[]> => [
+      { label: "Granby, QC", coordinates: { latitude: 45.4, longitude: -72.73 } },
+      { label: "Magog, QC", coordinates: { latitude: 45.26, longitude: -72.14 } },
+    ]);
+    const onPlaceSelected = vi.fn();
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="QC"
+        searchPlaces={searchPlaces}
+        onPlaceSelected={onPlaceSelected}
+      />,
+    );
+    await screen.findAllByRole("option");
+    const combobox = screen.getByRole("combobox", { name: "Lieu" });
+
+    // Enter before moving must not commit anything.
+    fireEvent.keyDown(combobox, { key: "Enter" });
+    expect(onPlaceSelected).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    expect(combobox).toHaveAttribute(
+      "aria-activedescendant",
+      "place-suggestions-option-0",
+    );
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    expect(combobox).toHaveAttribute(
+      "aria-activedescendant",
+      "place-suggestions-option-1",
+    );
+    fireEvent.keyDown(combobox, { key: "ArrowUp" });
+    fireEvent.keyDown(combobox, { key: "Enter" });
+
+    expect(onPlaceSelected).toHaveBeenCalledTimes(1);
+    expect(onPlaceSelected.mock.calls[0]?.[0]?.label).toBe("Granby, QC");
+  });
+
+  it("offers a retry after a network failure (FR-032)", async () => {
+    const searchPlaces = vi
+      .fn<(query: string, signal?: AbortSignal) => Promise<Place[]>>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce([
+        { label: "Magog, QC", coordinates: { latitude: 45.26, longitude: -72.14 } },
+      ]);
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Magog"
+        searchPlaces={searchPlaces}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/Pas de réseau/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+
+    expect(
+      await screen.findByRole("option", { name: "Magog, QC" }),
+    ).toBeInTheDocument();
+    expect(searchPlaces).toHaveBeenCalledTimes(2);
+  });
+
+  it("labels each result with its destination type (FR-038)", async () => {
+    const searchPlaces = vi.fn(async (): Promise<Place[]> => [
+      {
+        label: "J2G 2W4, Granby, Québec, Canada",
+        name: "J2G 2W4",
+        locality: "Granby",
+        region: "Québec",
+        country: "Canada",
+        kind: "postal_code",
+        precision: "approximate",
+        coordinates: { latitude: 45.4004, longitude: -72.7325 },
+      },
+    ]);
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="J2G 2W4"
+        searchPlaces={searchPlaces}
+      />,
+    );
+
+    const option = await screen.findByRole("option");
+    expect(option).toHaveTextContent("J2G 2W4");
+    expect(option).toHaveTextContent("Code postal");
+    expect(option).toHaveTextContent("Granby");
+    expect(option).toHaveTextContent("Canada");
+  });
 });
