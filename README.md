@@ -251,6 +251,8 @@ Pour suivre les routes OpenStreetMap réelles, définir `ROUTING_PROVIDER=osrm` 
 
 Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste la valeur locale et de test. Un adaptateur Nominatim compatible (`GEOCODING_PROVIDER=nominatim`) peut être activé en définissant `GEOCODING_API_BASE_URL` vers un service dédié ou géré. `GEOCODING_API_KEY` est facultative. Aucun serveur public de démonstration n’est configuré par défaut. Les appels passent uniquement par le serveur, via `GeocodingProvider.reverse()`.
 
+Le champ de destination accepte aussi un code postal canadien (`FR-040`) : `J2G 2W4` et `J2G2W4` désignent la même destination. La recherche exacte lit une base de référence Supabase alimentée par Données Québec (CP Territoires) via `npm run update:postal-codes`. `SUPABASE_URL` et `SUPABASE_ANON_KEY` restent côté serveur (jamais `NEXT_PUBLIC_`) ; sans elles, la recherche continue de fonctionner avec le seul fournisseur de géocodage. Détails et garde-fous : [`docs/postal-codes.md`](docs/postal-codes.md).
+
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
 La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Un fichier GPX importé (`FR-039`) reste la référence : Ride guide d’abord jusqu’au point d’entrée projeté sur la polyligne, puis suit la trace. Sur le web et l’iPhone, la navigation exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). La localisation en arrière-plan (permission Always), la navigation hors ligne, Android Auto et l’export GPX restent hors périmètre.
@@ -268,6 +270,7 @@ Commandes utiles :
 | `npm run typecheck` | Vérification TypeScript |
 | `npm test` | Tests Vitest |
 | `npm run build` | Build de production |
+| `npm run update:postal-codes` | Importe les codes postaux (Données Québec → Supabase) |
 | `npm run cap:sync` | Copie la config Capacitor vers le projet iOS |
 | `npm run cap:ios` | Ouvre le projet dans Xcode (macOS uniquement) |
 

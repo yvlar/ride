@@ -87,6 +87,26 @@ describe("parseEnv", () => {
     expect(parseEnv().OPENAI_API_KEY).toBe(process.env.OPENAI_API_KEY);
   });
 
+  it("accepts a server-only Supabase read configuration (FR-040)", () => {
+    const env = parseEnv({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_ANON_KEY: "test-anon-key",
+    });
+
+    expect(env.SUPABASE_URL).toBe("https://project.supabase.co");
+    expect(env.SUPABASE_ANON_KEY).toBe("test-anon-key");
+    expect(parseEnv({}).SUPABASE_URL).toBeUndefined();
+    expect(parseEnv({}).SUPABASE_ANON_KEY).toBeUndefined();
+  });
+
+  it("never exposes a Supabase key through NEXT_PUBLIC_ (FR-040)", () => {
+    const publicKeys = Object.keys(serverProcessEnv()).filter((key) =>
+      key.startsWith("NEXT_PUBLIC_"),
+    );
+
+    expect(publicKeys).toEqual(["NEXT_PUBLIC_MAP_STYLE_URL"]);
+  });
+
   it("rejects an invalid public map style URL", () => {
     expect(() =>
       parseEnv({

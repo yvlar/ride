@@ -407,7 +407,7 @@ export function FindDestinationPanel({
           label="Où voulez-vous aller?"
           query={state.destinationQuery}
           selectedPlace={state.destination}
-          placeholder="Nom, adresse ou lieu"
+          placeholder="Adresse, ville ou code postal"
           debounceMs={debounceMs}
           searchPlaces={searchPlaces}
           onQueryChange={(query) => {

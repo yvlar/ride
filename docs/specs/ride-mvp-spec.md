@@ -737,7 +737,7 @@ Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive da
 
 ### FR-032 — Recherche de lieu (états et annulation)
 
-La recherche par nom, adresse ou lieu affiche un nom et une ligne secondaire (adresse ou localité) pour distinguer les homonymes. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
+La recherche par nom, adresse, lieu ou code postal (`FR-040`) affiche un nom et une ligne secondaire (adresse ou localité) pour distinguer les homonymes. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
 
 Une recherche plus récente **annule** la précédente. Un résultat obsolète ne doit jamais remplacer l’affichage d’une requête plus récente. L’intelligence artificielle ne fournit pas de coordonnées inventées.
 
@@ -861,7 +861,7 @@ Si la permission est refusée ou si la localisation échoue : explication claire
 
 #### Destination
 
-Un seul champ principal : **Où voulez-vous aller?** La recherche réutilise le système existant (`FR-032`). **Générer le trajet** n’est actif que si une destination valide **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération et la navigation.
+Un seul champ principal : **Où voulez-vous aller?**, dont l’invite est **Adresse, ville ou code postal**. La recherche réutilise le système existant (`FR-032`) et reconnaît un code postal canadien complet (`FR-040`). **Générer le trajet** n’est actif que si une destination valide **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération et la navigation.
 
 #### Génération
 
@@ -945,6 +945,26 @@ La progression le long du GPX est monotone, avec une petite tolérance GPS (`FR-
 Une sortie confirmée (`FR-026`) affiche **Hors trajet**, conserve le GPX original, et calcule seulement un raccordement vers un point cohérent **plus loin** sur la portion restante. Le retour sur la trace reprend `following_gpx`.
 
 **Annuler** fonctionne pendant la prévisualisation, le calcul du raccordement, `joining_gpx`, `following_gpx` et le recalcul. L’arrêt coupe le suivi et la voix, ignore les requêtes en vol, retire le GPX et le raccordement de la carte, réinitialise l’état, et permet d’importer ou de générer un autre trajet immédiatement (`FR-023`).
+
+### FR-040 — Recherche de destination par code postal canadien
+
+Le champ unique de destination (`FR-038`) accepte une **adresse**, une **ville**, un **lieu** et un **code postal canadien**. Un code postal complet, écrit `J2G 2W4` ou `J2G2W4`, en majuscules ou en minuscules, désigne la **même** destination.
+
+La chaîne saisie est normalisée : espaces, tiret et casse retirés, forme canonique `J2G2W4`. Une chaîne de six caractères quelconques n’est pas un code postal : la validation suit la forme de Postes Canada (`A1A1A1`, sans les lettres D, F, I, O, Q, U, et sans W ni Z en première position).
+
+Lorsque la chaîne est un code postal complet, le système interroge une **base de référence** de codes postaux par **égalité exacte** sur le code normalisé. Le résultat trouvé devient une destination du modèle existant : coordonnées, municipalité et libellé lisible « `J2G 2W4, Granby, QC` ». La destination se sélectionne, s’affiche sur la carte et alimente **Générer le trajet** comme n’importe quel autre lieu (`FR-038`).
+
+Repli, dans cet ordre :
+
+- code postal complet **trouvé** dans la base de référence → destination;
+- code postal complet **absent**, saisie partielle (`J2G`, `J2G 2`), adresse, ville ou POI → fournisseur de géocodage existant (`FR-032`);
+- clic sur la carte → géocodage inverse existant (`FR-017`).
+
+La base de référence est un **détail d’infrastructure** (`BR-004`, `NFR-005`) : le domaine décrit un `PostalCodeProvider` et ne connaît ni la base de données, ni la province couverte. La couverture actuelle est le Québec; l’ajout d’une autre province se fait par la couche d’infrastructure, sans changement d’interface.
+
+Une base de référence **indisponible ou non configurée** ne bloque jamais la recherche : l’erreur est journalisée côté serveur, la requête repart vers le fournisseur de géocodage, et l’utilisateur ne voit aucune erreur technique. Lorsque tous les fournisseurs échouent, l’affichage reste celui de `FR-032`.
+
+La lecture passe par le serveur (`/api/geocode`). Aucune clé privilégiée n’est exposée au navigateur, le jeu de données n’est jamais embarqué dans le bundle, et la source publique n’est jamais appelée à chaque frappe : elle ne sert qu’à la synchronisation périodique de la base de référence.
 
 ---
 
@@ -1057,6 +1077,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-037` | Modes clair, sombre et navigation nocturne |
 | `FR-038` | Trouver une destination (position actuelle → aperçu → navigation) |
 | `FR-039` | Import GPX et navigation sur la trace |
+| `FR-040` | Recherche de destination par code postal canadien |
 
 ### Règles métier
 
