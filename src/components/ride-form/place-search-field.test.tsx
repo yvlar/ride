@@ -146,8 +146,22 @@ const granby: Place = {
   label: "Granby, QC",
   name: "Granby",
   locality: "Granby",
-  region: "QC",
+  region: "Québec",
+  country: "Canada",
+  type: "city",
+  precision: "approximate",
   coordinates: { latitude: 45.4, longitude: -72.73 },
+};
+
+const granbyFrance: Place = {
+  label: "Granby, Normandie, France",
+  name: "Granby",
+  locality: "Granby",
+  region: "Normandie",
+  country: "France",
+  type: "city",
+  precision: "approximate",
+  coordinates: { latitude: 49.1, longitude: 0.2 },
 };
 
 const fieldProps = {
@@ -209,5 +223,108 @@ describe("PlaceSearchField (FR-032)", () => {
     expect(
       screen.getByRole("option", { name: "Granby, QC" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Québec, Canada")).toBeInTheDocument();
+    expect(screen.getByText("Ville")).toBeInTheDocument();
+    expect(screen.getByText("Emplacement approximatif")).toBeInTheDocument();
+  });
+
+  it("does not select an ambiguous first result until the user explicitly chooses it", async () => {
+    const onPlaceSelected = vi.fn();
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Granby"
+        searchPlaces={async () => [granby, granbyFrance]}
+        onPlaceSelected={onPlaceSelected}
+      />,
+    );
+
+    const input = screen.getByRole("combobox", { name: "Lieu" });
+    await screen.findByText("Normandie, France");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPlaceSelected).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPlaceSelected).toHaveBeenCalledWith(granby);
+  });
+
+  it("ignores a stale response even when the old request does not honor abort", async () => {
+    let resolveOld: (places: Place[]) => void = () => {};
+    let resolveNew: (places: Place[]) => void = () => {};
+    const searchPlaces = vi.fn((query: string) => {
+      return new Promise<Place[]>((resolve) => {
+        if (query === "Gran") {
+          resolveOld = resolve;
+        } else {
+          resolveNew = resolve;
+        }
+      });
+    });
+
+    const { rerender } = render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Gran"
+        searchPlaces={searchPlaces}
+      />,
+    );
+    await waitFor(() => expect(searchPlaces).toHaveBeenCalledTimes(1));
+    rerender(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Granby"
+        searchPlaces={searchPlaces}
+      />,
+    );
+    await waitFor(() => expect(searchPlaces).toHaveBeenCalledTimes(2));
+
+    resolveNew([granby]);
+    expect(
+      await screen.findByRole("option", { name: "Granby, QC" }),
+    ).toBeInTheDocument();
+    resolveOld([granbyFrance]);
+    await Promise.resolve();
+    expect(
+      screen.queryByRole("option", { name: "Granby, Normandie, France" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("normalizes a Canadian postal code before searching", async () => {
+    const searchPlaces = vi.fn(async (query: string) => {
+      void query;
+      return [granby];
+    });
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="j2g2w4"
+        searchPlaces={searchPlaces}
+      />,
+    );
+
+    await waitFor(() => expect(searchPlaces).toHaveBeenCalled());
+    expect(searchPlaces.mock.calls[0]?.[0]).toBe("J2G 2W4");
+  });
+
+  it("offers a retry after a network error", async () => {
+    const searchPlaces = vi
+      .fn<() => Promise<Place[]>>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce([granby]);
+    render(
+      <PlaceSearchField
+        {...fieldProps}
+        query="Granby"
+        searchPlaces={searchPlaces}
+      />,
+    );
+
+    expect(await screen.findByText(/Pas de réseau/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(
+      await screen.findByRole("option", { name: "Granby, QC" }),
+    ).toBeInTheDocument();
+    expect(searchPlaces).toHaveBeenCalledTimes(2);
   });
 });

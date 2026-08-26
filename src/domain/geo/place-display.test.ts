@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { placePrimaryName, placeSecondaryLine } from "./place-display";
+import {
+  placePrecisionLabel,
+  placePrimaryName,
+  placeSecondaryLine,
+  placeTypeLabel,
+} from "./place-display";
 
 describe("place display (FR-032)", () => {
   it("uses the explicit name and address to distinguish similar places", () => {
@@ -22,5 +27,23 @@ describe("place display (FR-032)", () => {
     };
     expect(placePrimaryName(granby)).toBe("Granby");
     expect(placeSecondaryLine(granby)).toBe("QC");
+  });
+
+  it("shows province, postal code, country, type, and approximate precision", () => {
+    const postal = {
+      label: "J2G 2W4, Granby, Québec, Canada",
+      name: "J2G 2W4",
+      locality: "Granby",
+      region: "Québec",
+      postalCode: "J2G 2W4",
+      country: "Canada",
+      type: "postal_code" as const,
+      precision: "approximate" as const,
+      coordinates: { latitude: 45.4, longitude: -72.73 },
+    };
+
+    expect(placeSecondaryLine(postal)).toBe("Granby, Québec, Canada");
+    expect(placeTypeLabel(postal)).toBe("Code postal");
+    expect(placePrecisionLabel(postal)).toBe("Emplacement approximatif");
   });
 });

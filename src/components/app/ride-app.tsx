@@ -71,6 +71,9 @@ export function RideApp(props: RideRequestFormProps) {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchPlace, setSearchPlace] = useState<Place | null>(null);
+  const [searchMapFocus, setSearchMapFocus] = useState<
+    Place | null | undefined
+  >(undefined);
   const [searchSession, setSearchSession] = useState(0);
   const [gpsLabel, setGpsLabel] = useState("Position non demandée");
   const [gpsPlace, setGpsPlace] = useState<Place | null>(null);
@@ -226,6 +229,7 @@ export function RideApp(props: RideRequestFormProps) {
       setSearchPlace(place);
       setSearchQuery(place.label);
     }
+    setSearchMapFocus(place ?? null);
     navigatingRef.current = false;
     setNavigating(false);
     setNavUserLocation(null);
@@ -413,6 +417,11 @@ export function RideApp(props: RideRequestFormProps) {
               route={route}
               overlay={gpxOverlay}
               engine={props.mapEngine}
+              focusPlace={
+                sheet === "search" && !navigating
+                  ? searchMapFocus
+                  : undefined
+              }
               fill
               expanded={explorerOwnsNavigation}
               userLocation={explorerOwnsNavigation ? navUserLocation : null}
@@ -635,6 +644,7 @@ export function RideApp(props: RideRequestFormProps) {
                       remember(place);
                     }
                   }}
+                  onDestinationFocusChange={setSearchMapFocus}
                   onRequestComposed={(composed) => {
                     requestRef.current = composed;
                     setRequest(composed);
@@ -645,13 +655,17 @@ export function RideApp(props: RideRequestFormProps) {
                     props.onRequestComposed?.(composed);
                   }}
                   onGeneratedRouteChange={(next) => {
+                    setSearchMapFocus(undefined);
                     const composed = requestRef.current;
                     if (composed) {
                       rememberGeneratedRoute(next, composed);
                     }
                   }}
                   onStartNavigation={startGuidedNavigation}
-                  onBack={() => setSheet("home")}
+                  onBack={() => {
+                    setSearchMapFocus(undefined);
+                    setSheet("home");
+                  }}
                 />
               </MapBottomPanel>
             ) : null}

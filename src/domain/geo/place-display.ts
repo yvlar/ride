@@ -1,5 +1,12 @@
 import type { Place } from "@/domain/geo/types";
 
+export const PLACE_TYPE_LABELS = {
+  address: "Adresse",
+  city: "Ville",
+  postal_code: "Code postal",
+  place: "Lieu",
+} as const;
+
 /**
  * FR-032 — primary line for a search result. Never invents a place name.
  */
@@ -20,6 +27,8 @@ export function placeSecondaryLine(place: Place): string | null {
     place.addressLine?.trim(),
     place.locality?.trim(),
     place.region?.trim(),
+    place.postalCode?.trim(),
+    place.country?.trim(),
   ].filter((part): part is string => Boolean(part));
 
   if (parts.length === 0) {
@@ -35,4 +44,12 @@ export function placeSecondaryLine(place: Place): string | null {
     (part, index) => parts.indexOf(part) === index && part !== place.name?.trim(),
   );
   return unique.length > 0 ? unique.join(", ") : null;
+}
+
+export function placeTypeLabel(place: Place): string {
+  return PLACE_TYPE_LABELS[place.type ?? "place"];
+}
+
+export function placePrecisionLabel(place: Place): string | null {
+  return place.precision === "approximate" ? "Emplacement approximatif" : null;
 }

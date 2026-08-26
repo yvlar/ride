@@ -195,10 +195,42 @@ describe("destination search flow (FR-038)", () => {
   it("editing the destination invalidates the preview without generating", () => {
     const preview = previewed(withDestination(located(emptyDestinationSearchState())));
     const edited = reduceDestinationSearch(preview, { type: "edit_destination" });
-    expect(edited.phase).toBe("destinationReady");
-    expect(edited.destination).toEqual(tremblant);
+    expect(edited.phase).toBe("idle");
+    expect(edited.destination).toBeNull();
+    expect(edited.destinationQuery).toBe("Mont-Tremblant");
     expect(edited.route).toBeNull();
     expect(canStartDestinationNavigation(edited)).toBe(false);
-    expect(canGenerateDestinationSearch(edited)).toBe(true);
+    expect(canGenerateDestinationSearch(edited)).toBe(false);
+  });
+
+  it("invalidates a selection when its text is edited or explicitly cleared", () => {
+    const selected = withDestination(located(emptyDestinationSearchState()));
+    const edited = reduceDestinationSearch(selected, {
+      type: "change_destination_query",
+      query: "Mont-Tremblant modifié",
+    });
+    expect(edited.destination).toBeNull();
+    expect(canGenerateDestinationSearch(edited)).toBe(false);
+
+    const cleared = reduceDestinationSearch(selected, {
+      type: "clear_destination",
+    });
+    expect(cleared.destination).toBeNull();
+    expect(cleared.destinationQuery).toBe("");
+  });
+
+  it("does not enable generation for invalid coordinates", () => {
+    const invalid = reduceDestinationSearch(
+      located(emptyDestinationSearchState()),
+      {
+        type: "set_destination",
+        destination: {
+          label: "Invalide",
+          coordinates: { latitude: Number.NaN, longitude: -72.7 },
+        },
+      },
+    );
+    expect(invalid.destination).toBeNull();
+    expect(canGenerateDestinationSearch(invalid)).toBe(false);
   });
 });

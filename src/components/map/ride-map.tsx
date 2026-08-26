@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Coordinates } from "@/domain/geo/types";
+import type { Coordinates, Place } from "@/domain/geo/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 import { cn } from "@/lib/utils";
@@ -10,13 +10,19 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
-import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
+import {
+  idleMapViewModel,
+  placeMapViewModel,
+  toRideMapViewModel,
+} from "./ride-map-view-model";
 
 export type RideMapProps = {
   route: GeneratedRideRoute | null;
   overlay?: GpxMapOverlay | null;
   engine?: MapEngine;
   userLocation?: Coordinates | null;
+  /** `undefined` preserves the route; `null` intentionally shows the idle explorer. */
+  focusPlace?: Place | null;
   headingDeg?: number | null;
   expanded?: boolean;
   /** Fill the parent without enabling navigation follow-user (explorer map). */
@@ -31,6 +37,7 @@ export function RideMap({
   overlay = null,
   engine,
   userLocation,
+  focusPlace,
   headingDeg = null,
   expanded = false,
   fill = false,
@@ -41,7 +48,13 @@ export function RideMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
   const viewModelRef = useRef(
-    route ? toRideMapViewModel(route) : idleMapViewModel(),
+    focusPlace !== undefined
+      ? focusPlace
+        ? placeMapViewModel(focusPlace)
+        : idleMapViewModel()
+      : route
+        ? toRideMapViewModel(route)
+        : idleMapViewModel(),
   );
   const onRecenterReadyRef = useRef(onRecenterReady);
   const onOverviewReadyRef = useRef(onOverviewReady);
@@ -52,8 +65,15 @@ export function RideMap({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(
-    () => (route ? toRideMapViewModel(route, overlay) : idleMapViewModel()),
-    [route, overlay],
+    () =>
+      focusPlace !== undefined
+        ? focusPlace
+          ? placeMapViewModel(focusPlace)
+          : idleMapViewModel()
+        : route
+          ? toRideMapViewModel(route, overlay)
+          : idleMapViewModel(),
+    [focusPlace, route, overlay],
   );
   const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);

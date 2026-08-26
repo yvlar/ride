@@ -14,8 +14,27 @@ describe("reverseGeocodePlace (FR-017)", () => {
         JSON.stringify({
           data: {
             place: {
+              id: "nominatim:123",
               label: "12 Rue Principale, Granby",
-              coordinates,
+              name: "12 Rue Principale",
+              addressLine: "12 Rue Principale",
+              fullAddress:
+                "12 Rue Principale, Granby, Québec, J2G 2W4, Canada",
+              locality: "Granby",
+              region: "Québec",
+              postalCode: "J2G 2W4",
+              country: "Canada",
+              countryCode: "CA",
+              type: "address",
+              source: "map",
+              precision: "exact",
+              bounds: {
+                west: -72.74,
+                south: 45.39,
+                east: -72.72,
+                north: 45.41,
+              },
+              coordinates: { latitude: 0, longitude: 0 },
             },
           },
         }),
@@ -26,7 +45,25 @@ describe("reverseGeocodePlace (FR-017)", () => {
     await expect(
       reverseGeocodePlace(coordinates, "fr", fetcher),
     ).resolves.toEqual({
+      id: "nominatim:123",
       label: "12 Rue Principale, Granby",
+      name: "12 Rue Principale",
+      addressLine: "12 Rue Principale",
+      fullAddress: "12 Rue Principale, Granby, Québec, J2G 2W4, Canada",
+      locality: "Granby",
+      region: "Québec",
+      postalCode: "J2G 2W4",
+      country: "Canada",
+      countryCode: "CA",
+      type: "address",
+      source: "map",
+      precision: "exact",
+      bounds: {
+        west: -72.74,
+        south: 45.39,
+        east: -72.72,
+        north: 45.41,
+      },
       coordinates,
     });
     const requested = String(fetcher.mock.calls.at(0)?.at(0));

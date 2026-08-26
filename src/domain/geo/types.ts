@@ -3,15 +3,26 @@ export type Coordinates = {
   longitude: number;
 };
 
+export type PlaceType = "address" | "city" | "postal_code" | "place";
+
 export type Place = {
+  id?: string;
   label: string;
   coordinates: Coordinates;
   /** Short name that distinguishes similar results (FR-032). */
   name?: string;
   /** Street or address line when distinct from `name`. */
   addressLine?: string;
+  fullAddress?: string;
   locality?: string;
   region?: string;
+  postalCode?: string;
+  country?: string;
+  countryCode?: string;
+  type?: PlaceType;
+  source?: "search" | "map";
+  precision?: "exact" | "approximate";
+  bounds?: BoundingBox;
 };
 
 /** GeoJSON position: [longitude, latitude] */

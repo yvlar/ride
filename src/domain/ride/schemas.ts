@@ -23,13 +23,29 @@ const coordinatesSchema = z.object({
   longitude: z.number().gte(-180).lte(180),
 });
 
+const boundingBoxSchema = z.object({
+  west: z.number().gte(-180).lte(180),
+  south: z.number().gte(-90).lte(90),
+  east: z.number().gte(-180).lte(180),
+  north: z.number().gte(-90).lte(90),
+});
+
 const placeSchema = z.object({
+  id: z.string().min(1).optional(),
   label: z.string().min(1),
   coordinates: coordinatesSchema,
   name: z.string().min(1).optional(),
   addressLine: z.string().min(1).optional(),
+  fullAddress: z.string().min(1).optional(),
   locality: z.string().min(1).optional(),
   region: z.string().min(1).optional(),
+  postalCode: z.string().min(1).optional(),
+  country: z.string().min(1).optional(),
+  countryCode: z.string().min(2).max(2).optional(),
+  type: z.enum(["address", "city", "postal_code", "place"]).optional(),
+  source: z.enum(["search", "map"]).optional(),
+  precision: z.enum(["exact", "approximate"]).optional(),
+  bounds: boundingBoxSchema.optional(),
 });
 
 export const rideStyleSchema = z.enum(["curvy", "scenic", "touring"]);
