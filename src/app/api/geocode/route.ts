@@ -1,5 +1,7 @@
+import { searchDestinationPlaces } from "@/application/search-destination-places";
 import { getGeocodingProvider } from "@/infrastructure/geocoding/get-geocoding-provider";
 import { MOCK_GEOCODING_MIN_QUERY_LENGTH } from "@/infrastructure/geocoding/mock-geocoding-provider";
+import { getPostalCodeProvider } from "@/infrastructure/postal-codes/get-postal-code-provider";
 
 function jsonResponse(
   body: unknown,
@@ -30,7 +32,13 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const places = await getGeocodingProvider().search(query, locale);
+  const places = await searchDestinationPlaces(query, locale, {
+    geocoding: getGeocodingProvider(),
+    postalCodes: getPostalCodeProvider(),
+    onPostalCodeFailure: (error) => {
+      console.error("[geocode] recherche de code postal indisponible", error);
+    },
+  });
 
   return jsonResponse({
     data: { places },
