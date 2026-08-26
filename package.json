@@ -16,7 +16,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "update:postal-codes": "tsx scripts/update-quebec-postal-codes.ts",
+    "update:postal-codes": "tsx --env-file-if-exists=.env.local scripts/update-quebec-postal-codes.ts",
     "cap:sync": "npx cap sync ios",
     "cap:ios": "npx cap open ios"
   },

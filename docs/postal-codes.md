@@ -130,9 +130,25 @@ fonctionner avec le fournisseur de géocodage.
 ## Mise à jour des données
 
 ```bash
-npm run update:postal-codes            # récupère, valide et importe
+npm run update:postal-codes                # récupère, valide et importe
 npm run update:postal-codes -- --dry-run   # valide la source sans écrire
 ```
+
+Le script lit `.env.local` s’il existe (comme `next dev`), sinon les variables
+d’environnement du shell :
+
+```bash
+# .env.local
+SUPABASE_URL=https://<projet>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<clé secrète, jamais commitée>
+```
+
+`.env.local` est déjà ignoré par git. La clé `service_role` (ou une clé secrète
+`sb_secret_…`) ne sert qu’à ce script : elle ne doit jamais être définie sur un
+build client ni dans Vercel pour l’application.
+
+`--dry-run` n’écrit rien et n’a besoin d’aucune clé : c’est la façon la plus
+sûre de vérifier la source avant un premier import.
 
 Le script :
 
