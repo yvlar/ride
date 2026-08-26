@@ -236,15 +236,6 @@ export function createMapLibreEngine(
           markers.length = 0;
           if (!next.idle) {
             markers.push(placeMarker(map, next.start.label, next.start.coordinates));
-            if (next.destination) {
-              markers.push(
-                placeMarker(
-                  map,
-                  next.destination.label,
-                  next.destination.coordinates,
-                ),
-              );
-            }
             if (next.entry) {
               markers.push(
                 placeMarker(map, next.entry.label, next.entry.coordinates),
@@ -253,6 +244,15 @@ export function createMapLibreEngine(
             for (const arrow of next.directionArrows) {
               markers.push(placeArrow(map, arrow));
             }
+          }
+          if (next.destination) {
+            markers.push(
+              placeMarker(
+                map,
+                next.destination.label,
+                next.destination.coordinates,
+              ),
+            );
           }
 
           // The constructor already frames the first view. A second fitBounds

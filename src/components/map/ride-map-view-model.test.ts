@@ -6,7 +6,13 @@ import type {
   GeneratedLoopRoute,
   GeneratedRoundTripRoute,
 } from "@/domain/ride/types";
-import { idleMapViewModel, mapCameraFrame, rideRouteFeatureCollection, toRideMapViewModel } from "./ride-map-view-model";
+import {
+  idleMapViewModel,
+  mapCameraFrame,
+  placeMapViewModel,
+  rideRouteFeatureCollection,
+  toRideMapViewModel,
+} from "./ride-map-view-model";
 
 const granby: Place = {
   label: "Granby, QC",
@@ -17,6 +23,23 @@ const tremblant: Place = {
   label: "Mont-Tremblant, QC",
   coordinates: { latitude: 46.1185, longitude: -74.5962 },
 };
+
+describe("placeMapViewModel", () => {
+  it("centers on a selected city without exposing artificial route geometry", () => {
+    const city: Place = {
+      ...tremblant,
+      type: "city",
+      precision: "approximate",
+      bounds: { west: -74.7, south: 46, east: -74.5, north: 46.2 },
+    };
+    const viewModel = placeMapViewModel(city);
+
+    expect(viewModel.idle).toBe(true);
+    expect(viewModel.bounds).toEqual(city.bounds);
+    expect(viewModel.destination?.coordinates).toEqual(city.coordinates);
+    expect(rideRouteFeatureCollection(viewModel).features).toEqual([]);
+  });
+});
 
 const loop: GeneratedLoopRoute = {
   id: "loop-1",

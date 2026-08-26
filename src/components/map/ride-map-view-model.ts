@@ -4,7 +4,12 @@ import {
   initialBearingDeg,
   positionToCoordinates,
 } from "@/domain/geo/distance";
-import type { BoundingBox, Coordinates, LineString } from "@/domain/geo/types";
+import type {
+  BoundingBox,
+  Coordinates,
+  LineString,
+  Place,
+} from "@/domain/geo/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import { isGpxRoute } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
@@ -165,6 +170,27 @@ export function idleMapViewModel(
     },
     directionLabel: "",
     directionArrows: [],
+  };
+}
+
+/** Focuses the explorer map on a confirmed destination without inventing a route. */
+export function placeMapViewModel(place: Place): RideMapViewModel {
+  const span = place.precision === "approximate" ? 0.2 : 0.025;
+  const idle = idleMapViewModel(place.coordinates);
+  return {
+    ...idle,
+    bounds: place.bounds ?? {
+      west: place.coordinates.longitude - span,
+      south: place.coordinates.latitude - span * 0.7,
+      east: place.coordinates.longitude + span,
+      north: place.coordinates.latitude + span * 0.7,
+    },
+    destination: {
+      kind: "destination",
+      label: "Destination",
+      placeLabel: place.label,
+      coordinates: place.coordinates,
+    },
   };
 }
 

@@ -1,4 +1,5 @@
 import type { Place } from "@/domain/geo/types";
+import { hasValidCoordinates } from "@/domain/geo/coordinates";
 import type { GenerateRideRequest, GeneratedRideRoute } from "@/domain/ride/types";
 
 /**
@@ -51,6 +52,8 @@ export type DestinationSearchEvent =
     }
   | { type: "set_destination"; destination: Place }
   | { type: "change_destination_query"; query: string }
+  | { type: "unselect_destination" }
+  | { type: "clear_destination" }
   | { type: "generate_start" }
   | {
       type: "generate_success";
@@ -100,7 +103,12 @@ export function createDestinationSearchState(options?: {
 export function canGenerateDestinationSearch(
   state: DestinationSearchState,
 ): boolean {
-  if (!state.start || !state.destination) {
+  if (
+    !state.start ||
+    !state.destination ||
+    !hasValidCoordinates(state.start.coordinates) ||
+    !hasValidCoordinates(state.destination.coordinates)
+  ) {
     return false;
   }
   if (
@@ -207,6 +215,9 @@ export function reduceDestinationSearch(
       if (state.phase === "navigating" || state.phase === "cancelling") {
         return state;
       }
+      if (!hasValidCoordinates(event.destination.coordinates)) {
+        return state;
+      }
       const destChanged =
         state.destination === null ||
         state.destination.coordinates.latitude !==
@@ -229,6 +240,31 @@ export function reduceDestinationSearch(
       return {
         ...withDest,
         phase: withDest.start ? "destinationReady" : withDest.phase,
+      };
+    }
+    case "unselect_destination": {
+      if (state.phase === "navigating" || state.phase === "cancelling") {
+        return state;
+      }
+      const next = invalidatePreview(state);
+      return {
+        ...next,
+        destination: null,
+        phase: next.start ? "idle" : "locating",
+        error: next.error?.kind === "generation" ? null : next.error,
+      };
+    }
+    case "clear_destination": {
+      if (state.phase === "navigating" || state.phase === "cancelling") {
+        return state;
+      }
+      const next = invalidatePreview(state);
+      return {
+        ...next,
+        destination: null,
+        destinationQuery: "",
+        phase: next.start ? "idle" : "locating",
+        error: next.error?.kind === "generation" ? null : next.error,
       };
     }
     case "change_destination_query": {
@@ -369,7 +405,8 @@ export function reduceDestinationSearch(
       }
       return {
         ...invalidatePreview(state),
-        phase: state.destination && state.start ? "destinationReady" : "idle",
+        destination: null,
+        phase: state.start ? "idle" : "locating",
       };
     }
     default: {

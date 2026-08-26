@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { composeDestinationRide } from "@/application/compose-destination-ride";
+import { DestinationMapPicker } from "@/components/app/destination-map-picker";
+import type { DestinationPickerMapEngine } from "@/components/map/destination-picker-map-engine";
 import {
   formatDistanceLabel,
   formatDurationLabel,
@@ -22,6 +24,7 @@ import {
   reverseGeocodePlace,
 } from "@/components/ride-form/reverse-geocode-place";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   canGenerateDestinationSearch,
   canStartDestinationNavigation,
@@ -29,6 +32,13 @@ import {
   reduceDestinationSearch,
 } from "@/domain/destination-search/flow";
 import type { Coordinates, Place } from "@/domain/geo/types";
+import { hasValidCoordinates } from "@/domain/geo/coordinates";
+import {
+  placePrecisionLabel,
+  placePrimaryName,
+  placeSecondaryLine,
+  placeTypeLabel,
+} from "@/domain/geo/place-display";
 import type { LocatedPosition } from "@/domain/location/types";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import { principalRoadNames, routeShareSummary } from "@/domain/ride/route-share";
@@ -80,13 +90,19 @@ export type FindDestinationPanelProps = {
   regenerateRide?: typeof requestRegeneratedRide;
   requestPosition?: () => Promise<LocatedPosition>;
   reversePlace?: (coordinates: Coordinates) => Promise<Place>;
-  searchPlaces?: (query: string, signal?: AbortSignal) => Promise<Place[]>;
+  searchPlaces?: (
+    query: string,
+    signal?: AbortSignal,
+    proximity?: Coordinates,
+  ) => Promise<Place[]>;
   debounceMs?: number;
+  destinationMapEngine?: DestinationPickerMapEngine;
   initialDestination?: Place | null;
   initialQuery?: string;
   navigationActive?: boolean;
   openLocationSettings?: () => boolean;
   onDestinationChange?: (place: Place | null, query: string) => void;
+  onDestinationFocusChange?: (place: Place | null | undefined) => void;
   onRequestComposed: (request: GenerateRideRequest) => void;
   onGeneratedRouteChange: (route: GeneratedRideRoute) => void;
   onStartNavigation: (options?: { muted?: boolean }) => void;
@@ -100,11 +116,13 @@ export function FindDestinationPanel({
   reversePlace = reverseGeocodePlace,
   searchPlaces,
   debounceMs,
+  destinationMapEngine,
   initialDestination = null,
   initialQuery = "",
   navigationActive = false,
   openLocationSettings = openDeviceLocationSettings,
   onDestinationChange,
+  onDestinationFocusChange,
   onRequestComposed,
   onGeneratedRouteChange,
   onStartNavigation,
@@ -115,6 +133,7 @@ export function FindDestinationPanel({
     { destination: initialDestination, destinationQuery: initialQuery },
     createDestinationSearchState,
   );
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const locateGeneration = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const startRef = useRef(state.start);
@@ -229,7 +248,12 @@ export function FindDestinationPanel({
     ) {
       return;
     }
-    if (!state.start || !state.destination) {
+    if (
+      !state.start ||
+      !state.destination ||
+      !hasValidCoordinates(state.start.coordinates) ||
+      !hasValidCoordinates(state.destination.coordinates)
+    ) {
       return;
     }
     const previousRoute = state.route;
@@ -404,23 +428,56 @@ export function FindDestinationPanel({
       <div className="mt-4">
         <PlaceSearchField
           id="find-destination"
-          label="Où voulez-vous aller?"
+          label="Adresse, ville ou code postal"
           query={state.destinationQuery}
           selectedPlace={state.destination}
-          placeholder="Nom, adresse ou lieu"
+          placeholder="125 rue Principale, Granby ou J2G 2W4"
           debounceMs={debounceMs}
+          proximity={state.start?.coordinates}
           searchPlaces={searchPlaces}
+          showSelectedStatus={false}
           onQueryChange={(query) => {
             abortRef.current?.abort();
             inFlightRef.current = false;
             dispatch({ type: "change_destination_query", query });
+            onDestinationFocusChange?.(null);
           }}
           onPlaceSelected={(place) => {
             abortRef.current?.abort();
             inFlightRef.current = false;
             dispatch({ type: "set_destination", destination: place });
+            onDestinationFocusChange?.(place);
           }}
         />
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 min-h-12 w-full text-base"
+          disabled={busy}
+          onClick={() => setMapPickerOpen(true)}
+        >
+          Choisir sur la carte
+        </Button>
+
+        {state.destination ? (
+          <DestinationSummary
+            destination={state.destination}
+            disabled={busy}
+            onEdit={() => {
+              abortRef.current?.abort();
+              inFlightRef.current = false;
+              dispatch({ type: "unselect_destination" });
+              onDestinationFocusChange?.(null);
+            }}
+            onAdjust={() => setMapPickerOpen(true)}
+            onClear={() => {
+              abortRef.current?.abort();
+              inFlightRef.current = false;
+              dispatch({ type: "clear_destination" });
+              onDestinationFocusChange?.(null);
+            }}
+          />
+        ) : null}
       </div>
 
       {busy && state.phase === "generating" ? (
@@ -516,6 +573,7 @@ export function FindDestinationPanel({
                 inFlightRef.current = false;
                 startLockRef.current = false;
                 dispatch({ type: "edit_destination" });
+                onDestinationFocusChange?.(null);
               }}
             >
               Modifier la destination
@@ -557,6 +615,78 @@ export function FindDestinationPanel({
           Retour
         </Button>
       </div>
+
+      {mapPickerOpen ? (
+        <DestinationMapPicker
+          currentPosition={state.start?.coordinates}
+          initialDestination={state.destination}
+          reversePlace={reversePlace}
+          mapEngine={destinationMapEngine}
+          onCancel={() => setMapPickerOpen(false)}
+          onConfirm={(place) => {
+            abortRef.current?.abort();
+            inFlightRef.current = false;
+            dispatch({ type: "set_destination", destination: place });
+            onDestinationFocusChange?.(place);
+            setMapPickerOpen(false);
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function DestinationSummary({
+  destination,
+  disabled,
+  onEdit,
+  onAdjust,
+  onClear,
+}: {
+  destination: Place;
+  disabled: boolean;
+  onEdit: () => void;
+  onAdjust: () => void;
+  onClear: () => void;
+}) {
+  const secondary = placeSecondaryLine(destination);
+  const precision = placePrecisionLabel(destination);
+  return (
+    <section
+      aria-label="Destination sélectionnée"
+      className="mt-3 space-y-2 rounded-xl border border-border bg-muted/40 p-3"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium">{placePrimaryName(destination)}</p>
+          {secondary ? (
+            <p className="text-sm text-muted-foreground">{secondary}</p>
+          ) : null}
+        </div>
+        <Badge variant="secondary">{placeTypeLabel(destination)}</Badge>
+      </div>
+      {precision ? (
+        <p className="text-sm text-muted-foreground">{precision}</p>
+      ) : null}
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" disabled={disabled} onClick={onEdit}>
+          Modifier
+        </Button>
+        <Button type="button" variant="ghost" disabled={disabled} onClick={onClear}>
+          Effacer
+        </Button>
+      </div>
+      {destination.precision === "approximate" ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-12 w-full"
+          disabled={disabled}
+          onClick={onAdjust}
+        >
+          Ajuster sur la carte
+        </Button>
+      ) : null}
+    </section>
   );
 }
