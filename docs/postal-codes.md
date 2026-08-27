@@ -130,9 +130,25 @@ fonctionner avec le fournisseur de géocodage.
 ## Mise à jour des données
 
 ```bash
-npm run update:postal-codes            # récupère, valide et importe
+npm run update:postal-codes                # récupère, valide et importe
 npm run update:postal-codes -- --dry-run   # valide la source sans écrire
 ```
+
+Le script lit `.env.local` s’il existe (comme `next dev`), sinon les variables
+d’environnement du shell :
+
+```bash
+# .env.local
+SUPABASE_URL=https://<projet>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<clé secrète, jamais commitée>
+```
+
+`.env.local` est déjà ignoré par git. La clé `service_role` (ou une clé secrète
+`sb_secret_…`) ne sert qu’à ce script : elle ne doit jamais être définie sur un
+build client ni dans Vercel pour l’application.
+
+`--dry-run` n’écrit rien et n’a besoin d’aucune clé : c’est la façon la plus
+sûre de vérifier la source avant un premier import.
 
 Le script :
 
@@ -160,13 +176,28 @@ L’import est refusé — sans jamais toucher aux données existantes — lorsq
 Le script n’efface jamais la table : il n’émet que des `upsert`. Une panne de
 Données Québec laisse donc la production intacte.
 
+### Exécuter sans environnement local
+
+`.github/workflows/update-postal-codes.yml` lance le même script sur GitHub
+Actions, **à la main** : onglet **Actions → Update postal codes → Run
+workflow** (une case permet de forcer `--dry-run`). Deux secrets de dépôt sont
+requis dans **Settings → Secrets and variables → Actions** : `SUPABASE_URL` et
+`SUPABASE_SERVICE_ROLE_KEY`. La clé secrète reste dans GitHub; elle n’est ni
+dans le dépôt, ni sur Vercel.
+
+Le bouton **Run workflow** n’apparaît qu’une fois le fichier présent sur la
+branche par défaut.
+
 ### Automatisation
 
-Une exécution manuelle suffit aujourd’hui. Le script est sans état et retourne
-un code de sortie exploitable : il peut être branché plus tard sur GitHub
-Actions, Supabase Cron ou Vercel Cron, avec `SUPABASE_URL` et
-`SUPABASE_SERVICE_ROLE_KEY` en secrets. Aucune infrastructure de planification
-n’est ajoutée pour l’instant.
+Aucune planification n’est active : le déclenchement est manuel. Le bloc
+`schedule` du workflow est prêt mais commenté; le script est sans état,
+idempotent et retourne un code de sortie exploitable, donc Supabase Cron ou
+Vercel Cron conviendraient tout aussi bien.
+
+Vercel n’exécute **pas** l’import : l’application déployée n’a besoin que de
+`SUPABASE_URL` et `SUPABASE_ANON_KEY`. La clé `service_role` ne doit jamais y
+être définie.
 
 ## Évolution vers d’autres provinces
 

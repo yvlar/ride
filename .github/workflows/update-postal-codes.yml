@@ -1,0 +1,37 @@
+name: Update postal codes
+
+# FR-040 — import des codes postaux (Données Québec → Supabase).
+#
+# Déclenchement MANUEL uniquement : onglet Actions → « Update postal codes »
+# → bouton « Run workflow ». Aucune planification automatique n'est active.
+# Pour une mise à jour périodique, décommenter le bloc `schedule` ci-dessous.
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY   (clé secrète, jamais dans le dépôt ni sur Vercel)
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Valider la source sans écrire dans Supabase"
+        type: boolean
+        default: false
+  # schedule:
+  #   - cron: "0 8 1 * *" # le 1er du mois à 08:00 UTC
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import des codes postaux
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run update:postal-codes ${{ inputs.dry_run && '-- --dry-run' || '' }}
