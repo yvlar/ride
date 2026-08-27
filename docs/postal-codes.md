@@ -99,6 +99,12 @@ aux rôles `anon` et `authenticated`; aucune politique d’écriture n’existe,
 privé. Seul le pipeline serveur écrit, avec la clé `service_role` qui contourne
 RLS.
 
+Les privilèges de `service_role` sont accordés **explicitement**
+(`20260827090000_postal_codes_service_role_grants.sql`) : les privilèges par
+défaut de Supabase ne survivent pas à la révocation appliquée aux rôles
+clients, et leur absence fait échouer l’import avec un `HTTP 403` dès sa
+première requête.
+
 La recherche est une égalité sur la clé primaire :
 
 ```sql

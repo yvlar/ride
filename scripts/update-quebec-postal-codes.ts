@@ -157,17 +157,24 @@ class SupabaseWriter {
     return new URL(`rest/v1/${table}`, this.baseUrl);
   }
 
+  /**
+   * Compte les lignes via un GET `limit=0` plutôt qu’un HEAD : la réponse ne
+   * transporte aucune ligne, mais une erreur garde son corps JSON, qui nomme
+   * la table et le privilège manquant.
+   */
   async countRows(table: string): Promise<number | null> {
     const url = this.endpoint(table);
     url.searchParams.set("select", "postal_code");
+    url.searchParams.set("limit", "0");
     const response = await fetch(url, {
-      method: "HEAD",
+      method: "GET",
       headers: this.headers({ Prefer: "count=exact" }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) {
+      const body = await response.text().catch(() => "");
       throw new PostalCodeImportError(
-        `Comptage Supabase impossible : HTTP ${response.status}`,
+        `Comptage Supabase impossible : HTTP ${response.status}${body ? ` — ${body.slice(0, 300)}` : ""}`,
       );
     }
     const total = response.headers.get("content-range")?.split("/")[1];
