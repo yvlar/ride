@@ -10,6 +10,9 @@ process.env.GEOCODING_API_KEY = "";
 process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.WEB_SEARCH_API_KEY = "test-web-search-key";
 process.env.WEB_SEARCH_PROVIDER = "tavily";
+// La base de codes postaux (FR-040) reste débranchée par défaut dans les tests.
+process.env.SUPABASE_URL = "";
+process.env.SUPABASE_ANON_KEY = "";
 
 installChatCompletionsTestStub();
 

@@ -45,7 +45,6 @@ Ne pas implémenter dans la première version :
 - les profils de plusieurs motos;
 - les pauses automatiques et la gestion complète de l’autonomie;
 - le partage public de trajets;
-- l’export GPX;
 - une réécriture native Swift, SwiftUI, React Native ou Expo;
 - une application Android;
 - la publication App Store ou TestFlight;
@@ -693,7 +692,7 @@ Chaque variante doit avoir une couleur accessible et un libellé, sans dépendre
 - distance et durée;
 - statistiques;
 - avertissements;
-- actions de sauvegarde. L’export GPX reste hors MVP.
+- actions de sauvegarde. L’export GPX concerne le parcours **enregistré** (`FR-041`), pas le trajet généré.
 
 ## 17. États d’interface obligatoires
 

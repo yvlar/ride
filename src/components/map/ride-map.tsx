@@ -10,6 +10,7 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
+import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
 
 export type RideMapProps = {
@@ -18,12 +19,19 @@ export type RideMapProps = {
   engine?: MapEngine;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
+  /** Live GPS recording trace, independent of the planned route (FR-041). */
+  recordedTrack?: RecordedTrackOverlay | null;
+  /** Recording owns the shared LocationWatch; no second GPS watch (FR-041, NFR-006). */
+  recordingActive?: boolean;
   expanded?: boolean;
   /** Fill the parent without enabling navigation follow-user (explorer map). */
   fill?: boolean;
+  /** FR-042 — distance ridden, to dim the portion already behind. */
+  traveledKm?: number;
   onRecenterReady?: (recenter: () => void) => void;
   onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
+  onFollowUserChange?: (following: boolean) => void;
   /** FR-038 — arm click / long-press / marker-drag destination picking. */
   pickMode?: boolean;
   /** Coordinates of the draggable destination marker, when one is placed. */
@@ -39,11 +47,15 @@ export function RideMap({
   engine,
   userLocation,
   headingDeg = null,
+  recordedTrack = null,
+  recordingActive = false,
   expanded = false,
   fill = false,
+  traveledKm = 0,
   onRecenterReady,
   onOverviewReady,
   onGeolocateReady,
+  onFollowUserChange,
   pickMode = false,
   pickMarker = null,
   onPick,
@@ -57,8 +69,12 @@ export function RideMap({
   const onRecenterReadyRef = useRef(onRecenterReady);
   const onOverviewReadyRef = useRef(onOverviewReady);
   const onGeolocateReadyRef = useRef(onGeolocateReady);
+  const onFollowUserChangeRef = useRef(onFollowUserChange);
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
+  const recordedTrackRef = useRef(recordedTrack);
+  const geolocateEnabled = !expanded && !recordingActive;
+  const geolocateEnabledRef = useRef(geolocateEnabled);
   const expandedRef = useRef(expanded);
   const onPickRef = useRef(onPick);
   const pickModeRef = useRef(pickMode);
@@ -66,8 +82,9 @@ export function RideMap({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(
-    () => (route ? toRideMapViewModel(route, overlay) : idleMapViewModel()),
-    [route, overlay],
+    () =>
+      route ? toRideMapViewModel(route, overlay, traveledKm) : idleMapViewModel(),
+    [route, overlay, traveledKm],
   );
   const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);
@@ -90,6 +107,10 @@ export function RideMap({
   }, [onGeolocateReady]);
 
   useEffect(() => {
+    onFollowUserChangeRef.current = onFollowUserChange;
+  }, [onFollowUserChange]);
+
+  useEffect(() => {
     expandedRef.current = expanded;
   }, [expanded]);
 
@@ -104,6 +125,14 @@ export function RideMap({
   useEffect(() => {
     headingDegRef.current = headingDeg;
   }, [headingDeg]);
+
+  useEffect(() => {
+    recordedTrackRef.current = recordedTrack;
+  }, [recordedTrack]);
+
+  useEffect(() => {
+    geolocateEnabledRef.current = geolocateEnabled;
+  }, [geolocateEnabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -137,6 +166,11 @@ export function RideMap({
               setWarning(message);
             }
           },
+          onFollowUserChange: (following) => {
+            if (!cancelled) {
+              onFollowUserChangeRef.current?.(following);
+            }
+          },
           onPick: (coordinates) => {
             if (!cancelled) {
               onPickRef.current?.(coordinates);
@@ -153,7 +187,8 @@ export function RideMap({
           userLocationRef.current ?? null,
           headingDegRef.current,
         );
-        handle.setGeolocateEnabled?.(!expandedRef.current);
+        handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
+        handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
         handle.setFollowUser?.(expandedRef.current);
         handle.setPickEnabled?.(pickModeRef.current);
         handle.setPickMarker?.(pickMarkerRef.current ?? null);
@@ -183,6 +218,11 @@ export function RideMap({
                 setError(message);
               }
             },
+            onFollowUserChange: (following) => {
+              if (!cancelled) {
+                onFollowUserChangeRef.current?.(following);
+              }
+            },
             onPick: (coordinates) => {
               if (!cancelled) {
                 onPickRef.current?.(coordinates);
@@ -199,7 +239,8 @@ export function RideMap({
             userLocationRef.current ?? null,
             headingDegRef.current,
           );
-          handle.setGeolocateEnabled?.(!expandedRef.current);
+          handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
+          handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
           handle.setFollowUser?.(expandedRef.current);
           handle.setPickEnabled?.(pickModeRef.current);
           handle.setPickMarker?.(pickMarkerRef.current ?? null);
@@ -241,6 +282,10 @@ export function RideMap({
   }, [userLocation, headingDeg]);
 
   useEffect(() => {
+    handleRef.current?.setRecordedTrack?.(recordedTrack ?? null);
+  }, [recordedTrack]);
+
+  useEffect(() => {
     pickModeRef.current = pickMode;
     handleRef.current?.setPickEnabled?.(pickMode);
   }, [pickMode]);
@@ -251,13 +296,13 @@ export function RideMap({
   }, [pickMarker]);
 
   useLayoutEffect(() => {
-    handleRef.current?.setGeolocateEnabled?.(!expanded);
+    handleRef.current?.setGeolocateEnabled?.(geolocateEnabled);
     handleRef.current?.setFollowUser?.(expanded);
     const frame = requestAnimationFrame(() => {
       handleRef.current?.resize?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [expanded]);
+  }, [expanded, geolocateEnabled]);
 
   return (
     <section

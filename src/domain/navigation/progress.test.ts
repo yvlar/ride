@@ -71,6 +71,17 @@ describe("selectNextStep (FR-024)", () => {
     expect(selectNextStep(steps, 0.1).nextStep?.id).toBe("turn");
     expect(selectNextStep(steps, 1.1).nextStep?.maneuverType).toBe("arrive");
   });
+
+  it("also exposes the maneuver chained after it (FR-042)", () => {
+    expect(selectNextStep(steps, 0.1).followingStep?.maneuverType).toBe(
+      "arrive",
+    );
+  });
+
+  it("has no following maneuver on the last step (FR-042)", () => {
+    expect(selectNextStep(steps, 1.1).followingStep).toBeNull();
+    expect(selectNextStep([], 0).followingStep).toBeNull();
+  });
 });
 
 describe("stabilizeProgressKm hysteresis (FR-024)", () => {

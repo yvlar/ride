@@ -17,9 +17,23 @@ type ProjectedPoint = { x: number; y: number };
  */
 export function createLightweightNavigationMapEngine(): MapEngine {
   return {
-    mount(container, initialViewModel): MapEngineHandle {
+    mount(container, initialViewModel, handlers): MapEngineHandle {
       let disposed = false;
       let followUser = false;
+      const onFollowUserChange = handlers?.onFollowUserChange;
+
+      function setFollowUserState(next: boolean) {
+        if (followUser === next) {
+          return;
+        }
+        followUser = next;
+        try {
+          onFollowUserChange?.(next);
+        } catch {
+          // A listener must never take down the map (NFR-006).
+        }
+      }
+
       let viewModel = initialViewModel;
       let lastUser: Coordinates | null = null;
       let lastHeadingDeg: number | null = null;
@@ -109,35 +123,68 @@ export function createLightweightNavigationMapEngine(): MapEngine {
         updateFollowView();
       }
 
+      function appendRouteLine(
+        line: { coordinates: Position[] },
+        next: RideMapViewModel,
+        options: { stroke: string; width: string; opacity?: string; role?: string },
+      ) {
+        const polyline = createSvgElement("polyline");
+        polyline.setAttribute("fill", "none");
+        polyline.setAttribute("stroke", options.stroke);
+        polyline.setAttribute("stroke-width", options.width);
+        polyline.setAttribute("stroke-linecap", "round");
+        polyline.setAttribute("stroke-linejoin", "round");
+        polyline.setAttribute("vector-effect", "non-scaling-stroke");
+        if (options.opacity) {
+          polyline.setAttribute("stroke-opacity", options.opacity);
+        }
+        if (options.role) {
+          polyline.setAttribute("data-line", options.role);
+        }
+        polyline.setAttribute(
+          "points",
+          samplePositions(line.coordinates)
+            .map((position) =>
+              project({ latitude: position[1], longitude: position[0] }, next),
+            )
+            .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+            .join(" "),
+        );
+        routeLayer.append(polyline);
+      }
+
       function applyViewModel(next: RideMapViewModel) {
         viewModel = next;
         routeLayer.replaceChildren();
+        // FR-042 — the ridden portion first, so the live route paints over it.
+        if (
+          !next.idle &&
+          next.traveledGeometry &&
+          next.traveledGeometry.coordinates.length >= 2
+        ) {
+          appendRouteLine(next.traveledGeometry, next, {
+            stroke: "#64748b",
+            width: "10",
+            opacity: "0.55",
+            role: "traveled",
+          });
+        }
+        const remaining =
+          next.remainingGeometry &&
+          next.remainingGeometry.coordinates.length >= 2
+            ? next.remainingGeometry
+            : next.geometry;
         const lines = next.idle
           ? []
           : next.parts && next.parts.length > 0
             ? next.parts
-            : [next.geometry];
+            : [remaining];
         for (const line of lines) {
-          const polyline = createSvgElement("polyline");
-          polyline.setAttribute("fill", "none");
-          polyline.setAttribute("stroke", "#0f766e");
-          polyline.setAttribute("stroke-width", "10");
-          polyline.setAttribute("stroke-linecap", "round");
-          polyline.setAttribute("stroke-linejoin", "round");
-          polyline.setAttribute("vector-effect", "non-scaling-stroke");
-          polyline.setAttribute(
-            "points",
-            samplePositions(line.coordinates)
-              .map((position) =>
-                project(
-                  { latitude: position[1], longitude: position[0] },
-                  next,
-                ),
-              )
-              .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
-              .join(" "),
-          );
-          routeLayer.append(polyline);
+          appendRouteLine(line, next, {
+            stroke: "#0f766e",
+            width: "10",
+            role: "remaining",
+          });
         }
         if (next.connectorGeometry) {
           const connector = createSvgElement("polyline");
@@ -210,14 +257,14 @@ export function createLightweightNavigationMapEngine(): MapEngine {
           if (disposed) {
             return;
           }
-          followUser = enabled;
+          setFollowUserState(enabled);
           updateFollowView();
         },
         recenter() {
           if (disposed) {
             return;
           }
-          followUser = true;
+          setFollowUserState(true);
           updateFollowView();
         },
         resize() {},

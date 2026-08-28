@@ -61,6 +61,8 @@ export type LocationFix = {
   accuracyMeters: number;
   headingDeg?: number;
   speedMetersPerSecond?: number;
+  /** Altitude GPS quand l'appareil la fournit, pour `<ele>` à l'export (FR-041). */
+  altitudeMeters?: number | null;
   recordedAtMs: number;
 };
 
@@ -78,6 +80,8 @@ export type NavigationProgress = {
   projection: RouteProjection;
   currentStepIndex: number;
   nextStep: NavigationStep | null;
+  /** FR-042 — the maneuver chained right after `nextStep`, shown discreetly. */
+  followingStep: NavigationStep | null;
   distanceToNextManeuverM: number;
   remainingDistanceKm: number;
   remainingDurationMinutes: number;

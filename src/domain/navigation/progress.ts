@@ -95,9 +95,13 @@ export function selectNextStep(
   steps: NavigationStep[],
   progressKm: number,
   hysteresisM = PROGRESS_HYSTERESIS_M,
-): { currentStepIndex: number; nextStep: NavigationStep | null } {
+): {
+  currentStepIndex: number;
+  nextStep: NavigationStep | null;
+  followingStep: NavigationStep | null;
+} {
   if (steps.length === 0) {
-    return { currentStepIndex: -1, nextStep: null };
+    return { currentStepIndex: -1, nextStep: null, followingStep: null };
   }
 
   const starts = stepStartProgressKm(steps);
@@ -108,6 +112,7 @@ export function selectNextStep(
       return {
         currentStepIndex: Math.max(0, index - 1),
         nextStep: steps[index]!,
+        followingStep: steps[index + 1] ?? null,
       };
     }
   }
@@ -115,6 +120,7 @@ export function selectNextStep(
   return {
     currentStepIndex: steps.length - 1,
     nextStep: steps[steps.length - 1]!,
+    followingStep: null,
   };
 }
 
@@ -165,7 +171,7 @@ export function evaluateNavigationProgress(input: {
     input.totalDistanceKm,
     input.totalDurationMinutes,
   );
-  const { currentStepIndex, nextStep } = lowAccuracy
+  const { currentStepIndex, nextStep, followingStep } = lowAccuracy
     ? selectNextStep(input.steps, input.previousProgressKm ?? progressKm)
     : selectNextStep(input.steps, progressKm);
 
@@ -178,6 +184,7 @@ export function evaluateNavigationProgress(input: {
     },
     currentStepIndex,
     nextStep,
+    followingStep,
     distanceToNextManeuverM: lowAccuracy
       ? Number.POSITIVE_INFINITY
       : distanceToNextManeuverM(input.steps, progressKm, nextStep),

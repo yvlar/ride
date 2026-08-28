@@ -7,6 +7,7 @@ import {
 import type { BoundingBox, Coordinates, LineString } from "@/domain/geo/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import { isGpxRoute } from "@/domain/gpx/types";
+import { splitLineStringAtKm } from "@/domain/navigation/route-split";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
 
 export type RideMapMarker = {
@@ -33,6 +34,14 @@ export type RideMapViewModel = {
   directionLabel: string;
   directionArrows: RideMapArrow[];
   idle?: boolean;
+  /**
+   * FR-042 — distance already ridden. Drives the dimmed "behind you" line so
+   * the rider can tell at a glance which way the route continues.
+   */
+  traveledKm?: number;
+  traveledGeometry?: LineString;
+  /** The still-to-ride portion, drawn in the live route colour. */
+  remainingGeometry?: LineString;
 };
 
 export type MapCameraFrame = {
@@ -54,6 +63,7 @@ export function mapCameraFrame(bounds: BoundingBox): MapCameraFrame {
 export function toRideMapViewModel(
   route: GeneratedRideRoute,
   overlay?: GpxMapOverlay | null,
+  traveledKm = 0,
 ): RideMapViewModel | null {
   if (route.geometry.coordinates.length < 2) {
     return null;
@@ -114,6 +124,14 @@ export function toRideMapViewModel(
       }
     : undefined;
 
+  // A GPX trace is drawn as disjoint parts; splitting it would re-join the
+  // gaps the importer deliberately kept (FR-039).
+  const splittable = !parts || parts.length === 0;
+  const traveled =
+    splittable && traveledKm > 0
+      ? splitLineStringAtKm(route.geometry, traveledKm)
+      : null;
+
   return {
     geometry: route.geometry,
     parts,
@@ -129,6 +147,9 @@ export function toRideMapViewModel(
         ? { type: "LineString", coordinates: parts.flatMap((part) => part.coordinates) }
         : route.geometry,
     ),
+    traveledKm: traveled ? traveledKm : undefined,
+    traveledGeometry: traveled?.traveled,
+    remainingGeometry: traveled?.remaining,
   };
 }
 
@@ -244,23 +265,16 @@ function interpolateAlongLine(
   };
 }
 
-export function rideRouteFeatureCollection(
-  viewModel: RideMapViewModel,
-): {
+export type RideRouteFeatureCollection = {
   type: "FeatureCollection";
   features: Array<{
     type: "Feature";
     properties: Record<string, never>;
     geometry: LineString;
   }>;
-} {
-  if (viewModel.idle) {
-    return { type: "FeatureCollection", features: [] };
-  }
-  const lines =
-    viewModel.parts && viewModel.parts.length > 0
-      ? viewModel.parts
-      : [viewModel.geometry];
+};
+
+function featureCollection(lines: LineString[]): RideRouteFeatureCollection {
   return {
     type: "FeatureCollection",
     features: lines.map((geometry) => ({
@@ -269,4 +283,36 @@ export function rideRouteFeatureCollection(
       geometry,
     })),
   };
+}
+
+export function rideRouteFeatureCollection(
+  viewModel: RideMapViewModel,
+): RideRouteFeatureCollection {
+  if (viewModel.idle) {
+    return featureCollection([]);
+  }
+  if (viewModel.parts && viewModel.parts.length > 0) {
+    return featureCollection(viewModel.parts);
+  }
+  // Once the rider has progressed, the live line covers only what is left,
+  // so the dimmed traveled line underneath stays visible (FR-042).
+  const remaining = viewModel.remainingGeometry;
+  if (remaining && remaining.coordinates.length >= 2) {
+    return featureCollection([remaining]);
+  }
+  return featureCollection([viewModel.geometry]);
+}
+
+/**
+ * FR-042 — the ridden portion, drawn dimmed beneath the live route so the two
+ * read as one line with a clear "you are here" break.
+ */
+export function rideTraveledFeatureCollection(
+  viewModel: RideMapViewModel,
+): RideRouteFeatureCollection {
+  const traveled = viewModel.traveledGeometry;
+  if (viewModel.idle || !traveled || traveled.coordinates.length < 2) {
+    return featureCollection([]);
+  }
+  return featureCollection([traveled]);
 }

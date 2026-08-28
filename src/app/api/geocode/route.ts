@@ -1,7 +1,9 @@
-import { z } from "zod";
+import { searchDestinationPlaces } from "@/application/search-destination-places";
 import { rankPlaces } from "@/domain/search/place-ranking";
 import { PLACE_SEARCH_MIN_QUERY_LENGTH } from "@/domain/search/place-search";
 import { getGeocodingProvider } from "@/infrastructure/geocoding/get-geocoding-provider";
+import { getPostalCodeProvider } from "@/infrastructure/postal-codes/get-postal-code-provider";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +17,10 @@ const coordinateSchema = z
   .transform((value) => Number(value))
   .refine((value) => Number.isFinite(value));
 
-const proximitySchema = z
-  .object({
-    latitude: coordinateSchema.refine((value) => value >= -90 && value <= 90),
-    longitude: coordinateSchema.refine(
-      (value) => value >= -180 && value <= 180,
-    ),
-  })
-  .nullable();
+const proximitySchema = z.object({
+  latitude: coordinateSchema.refine((value) => value >= -90 && value <= 90),
+  longitude: coordinateSchema.refine((value) => value >= -180 && value <= 180),
+});
 
 function jsonResponse(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: NO_STORE });
@@ -61,8 +59,13 @@ export async function GET(request: Request): Promise<Response> {
   const proximity = parsedProximity?.success ? parsedProximity.data : null;
 
   try {
-    const places = await getGeocodingProvider().search(query, locale, {
+    const places = await searchDestinationPlaces(query, locale, {
+      geocoding: getGeocodingProvider(),
+      postalCodes: getPostalCodeProvider(),
       proximity,
+      onPostalCodeFailure: (error) => {
+        console.error("[geocode] recherche de code postal indisponible", error);
+      },
     });
 
     return jsonResponse({

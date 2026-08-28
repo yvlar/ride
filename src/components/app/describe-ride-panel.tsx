@@ -24,6 +24,7 @@ import {
 import {
   formatDistanceLabel,
   formatDurationLabel,
+  formatEta,
 } from "@/components/navigation/format-navigation";
 import { requestDevicePosition } from "@/infrastructure/location/request-device-coordinates";
 import type { LocatedPosition } from "@/domain/location/types";
@@ -95,6 +96,8 @@ export type DescribeRidePanelProps = {
   onGeneratedRouteChange: (route: GeneratedRideRoute) => void;
   onStartNavigation: (options?: { muted?: boolean }) => void;
   onBack: () => void;
+  /** Injected so the arrival time is deterministic under test. */
+  now?: () => number;
 };
 
 export function DescribeRidePanel({
@@ -105,6 +108,7 @@ export function DescribeRidePanel({
   onGeneratedRouteChange,
   onStartNavigation,
   onBack,
+  now = Date.now,
 }: DescribeRidePanelProps) {
   const [distanceKm, setDistanceKm] = useState(() =>
     readStoredDescribeDistanceKm(
@@ -365,6 +369,24 @@ export function DescribeRidePanel({
     }
   }
 
+  /**
+   * FR-042 — abandon a slow generation without losing the ride already on
+   * screen. Bumping the generation id makes the in-flight result a no-op.
+   */
+  function handleCancelGeneration() {
+    if (!inFlightRef.current) {
+      return;
+    }
+    generationId.current += 1;
+    locateGeneration.current += 1;
+    inFlightRef.current = false;
+    setGenerating(false);
+    setRegenerating(false);
+    if (!startRef.current) {
+      setLocationStatus("unavailable");
+    }
+  }
+
   function handleRetry() {
     if (retryActionRef.current === "regenerate") {
       void handleRegenerate();
@@ -424,18 +446,53 @@ export function DescribeRidePanel({
       </div>
 
       {busy && (regenerating || locationStatus === "detected") ? (
-        <p role="status" className="mt-4 text-sm text-muted-foreground">
-          {regenerating
-            ? "Régénération en cours…"
-            : "L’IA prépare votre trajet moto…"}
-        </p>
+        <div className="mt-4 space-y-2">
+          <p role="status" className="text-sm text-muted-foreground">
+            {regenerating
+              ? "Régénération en cours… le trajet actuel reste affiché."
+              : "L’IA prépare votre trajet moto…"}
+          </p>
+          <div
+            role="progressbar"
+            aria-label="Génération du trajet"
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+          >
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-12 w-full text-base"
+            onClick={handleCancelGeneration}
+          >
+            Annuler la génération
+          </Button>
+        </div>
       ) : null}
 
       {activeRoute ? (
         <section aria-label="Trajet généré" className="mt-4 space-y-3">
-          <p className="text-base leading-6">
-            {formatDistanceLabel(activeRoute.distanceKm)} ·{" "}
-            {formatDurationLabel(activeRoute.durationMinutes)} ·{" "}
+          <dl className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <dd className="text-xl font-semibold leading-7 tabular-nums">
+                {formatDistanceLabel(activeRoute.distanceKm)}
+              </dd>
+              <dt className="text-xs leading-4 text-muted-foreground">distance</dt>
+            </div>
+            <div>
+              <dd className="text-xl font-semibold leading-7 tabular-nums">
+                {formatDurationLabel(activeRoute.durationMinutes)}
+              </dd>
+              <dt className="text-xs leading-4 text-muted-foreground">durée</dt>
+            </div>
+            <div>
+              <dd className="text-xl font-semibold leading-7 tabular-nums">
+                {formatEta(now(), activeRoute.durationMinutes)}
+              </dd>
+              <dt className="text-xs leading-4 text-muted-foreground">arrivée</dt>
+            </div>
+          </dl>
+          <p className="text-sm leading-6 text-muted-foreground">
             {generatedRouteTypeLabel(activeRoute.type)} ·{" "}
             {RIDE_STYLE_LABELS[activeRoute.style ?? "scenic"]}
           </p>
@@ -507,7 +564,7 @@ export function DescribeRidePanel({
 
       <div
         className={cn(
-          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card/95 px-4 pt-3",
+          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card px-4 pt-3",
           "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
         )}
         role={activeRoute ? "group" : undefined}

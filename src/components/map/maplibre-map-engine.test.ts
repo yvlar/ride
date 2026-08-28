@@ -94,9 +94,16 @@ const {
     removeControl = removeControl;
     remove = mapRemove;
     on = mapOn;
-    addSource = vi.fn();
+    // MapLibre only returns a source once it has been added: the engine relies
+    // on that to decide between addSource+addLayer and setData.
+    addedSources = new Set<string>();
+    addSource = vi.fn((id: string) => {
+      this.addedSources.add(id);
+    });
     addLayer = addLayer;
-    getSource = vi.fn(() => routeSource);
+    getSource = vi.fn((id: string) =>
+      this.addedSources.has(id) ? routeSource : undefined,
+    );
     getStyle = () => mapState.style;
     getLayer = (id: string) =>
       mapState.style.layers.find((layer) => layer.id === id);
@@ -738,6 +745,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
 
   it("does not add 3D buildings on the raster fallback (FR-024, NFR-005)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { RIDE_3D_BUILDINGS_LAYER_ID } = await import("./map-3d-buildings");
     createMapLibreEngine({ geolocate: false }).mount(
       document.createElement("div"),
       viewModel,
@@ -748,7 +756,10 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
       | undefined;
     load?.();
 
-    expect(addLayer).not.toHaveBeenCalled();
+    // The route layers still go in; only the extrusion must stay out.
+    expect(
+      addLayer.mock.calls.map((call) => (call[0] as { id?: string }).id),
+    ).not.toContain(RIDE_3D_BUILDINGS_LAYER_ID);
   });
 
   it("extrudes vector building layers during navigation follow (FR-024)", async () => {
@@ -790,6 +801,95 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
         "source-layer": "building",
       }),
     );
+  });
+
+  it("tells the host when a pan suspends the follow camera, and when it resumes (FR-042)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const onFollowUserChange = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onFollowUserChange },
+    );
+
+    handle.setFollowUser?.(true);
+    expect(onFollowUserChange).toHaveBeenLastCalledWith(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+
+    const dragstart = mapOn.mock.calls.find((call) => call[0] === "dragstart")?.[1] as
+      | ((event: { originalEvent?: Event }) => void)
+      | undefined;
+    dragstart?.({ originalEvent: new Event("mousedown") });
+    expect(onFollowUserChange).toHaveBeenLastCalledWith(false);
+
+    handle.recenter?.();
+    expect(onFollowUserChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("does not report a follow change for a programmatic camera move (FR-042)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const onFollowUserChange = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onFollowUserChange },
+    );
+
+    handle.setFollowUser?.(true);
+    onFollowUserChange.mockClear();
+
+    const dragstart = mapOn.mock.calls.find((call) => call[0] === "dragstart")?.[1] as
+      | ((event: { originalEvent?: Event }) => void)
+      | undefined;
+    // No originalEvent: this is the engine easing the camera, not the rider.
+    dragstart?.({});
+    expect(onFollowUserChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the rider's own camera when a new route arrives mid-ride (FR-042)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+
+    const dragstart = mapOn.mock.calls.find((call) => call[0] === "dragstart")?.[1] as
+      | ((event: { originalEvent?: Event }) => void)
+      | undefined;
+    dragstart?.({ originalEvent: new Event("mousedown") });
+    fitBounds.mockClear();
+
+    // A recalculation lands while the rider is reading the map: the line is
+    // replaced, the view is not yanked back to the overview.
+    handle.setViewModel?.({ ...viewModel });
+    expect(fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("draws the ridden portion under the live route (FR-042)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    const traveled = addLayer.mock.calls.find(
+      (call) => (call[0] as { id?: string }).id === "ride-traveled-line",
+    );
+    expect(traveled).toBeDefined();
+    expect(traveled?.[1]).toBe("ride-route-line");
   });
 });
 describe("MapLibre destination picking (FR-038)", () => {

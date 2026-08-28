@@ -37,9 +37,10 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 8. le visualiser sur une carte avec les statistiques essentielles;
 9. régénérer une variante sensiblement différente;
 10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`);
-11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`);
+11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`), sur un écran lisible d’un coup d’œil en roulant (`FR-042`);
 12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier;
-13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`).
+13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`);
+14. enregistrer le parcours réellement effectué et l’exporter en fichier GPX (`FR-041`).
 
 Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan sur l’iPhone, sauf exception CarPlay (`FR-028`).
 
@@ -737,7 +738,7 @@ Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive da
 
 ### FR-032 — Recherche de lieu (états et annulation)
 
-La recherche par nom, adresse ou lieu affiche un nom et une ligne secondaire (adresse, municipalité, province et pays) pour distinguer les homonymes. Deux municipalités portant le même nom — par exemple Granby au Québec et Granby au Colorado — doivent rester différenciables sans ouvrir le résultat. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
+La recherche par nom, adresse, lieu ou code postal (`FR-040`) affiche un nom et une ligne secondaire (adresse, municipalité, province et pays) pour distinguer les homonymes. Deux municipalités portant le même nom — par exemple Granby au Québec et Granby au Colorado — doivent rester différenciables sans ouvrir le résultat. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
 
 Chaque résultat indique aussi son **type** : adresse, ville, code postal ou lieu.
 
@@ -869,7 +870,7 @@ Si la permission est refusée ou si la localisation échoue : explication claire
 
 #### Destination
 
-Un seul champ principal : **Adresse, ville ou code postal**. La recherche réutilise le système existant (`FR-032`).
+Un seul champ principal : **Où voulez-vous aller?**, dont l’invite est **Adresse, ville ou code postal**. La recherche réutilise le système existant (`FR-032`).
 
 Quatre façons de définir la destination :
 
@@ -888,7 +889,9 @@ Une destination de type ville est une destination valide à part entière. Le vo
 
 Un code postal canadien est reconnu avec ou sans espace et sans tenir compte des majuscules (`J2G2W4`, `j2g 2w4`, `J2G 2W4`). Il est normalisé à l’affichage au format `A1A 1A1`.
 
-Lorsque le code désigne une **zone** plutôt qu’une adresse précise, le volet l’indique comme **emplacement approximatif**, affiche la zone sur la carte, et permet d’ajuster le marqueur avant de générer le trajet.
+Un code postal complet est d’abord résolu dans la base de référence (`FR-040`), qui en donne un point **exact**. À défaut — base non configurée, indisponible, ou code inconnu — la recherche retombe sur le fournisseur de géocodage, puis sur la **RTA** (les trois premiers caractères).
+
+Lorsque le code désigne alors une **zone** plutôt qu’une adresse précise, le volet l’indique comme **emplacement approximatif**, affiche la zone sur la carte, et permet d’ajuster le marqueur avant de générer le trajet.
 
 ##### Choisir sur la carte
 
@@ -991,6 +994,111 @@ Une sortie confirmée (`FR-026`) affiche **Hors trajet**, conserve le GPX origin
 
 **Annuler** fonctionne pendant la prévisualisation, le calcul du raccordement, `joining_gpx`, `following_gpx` et le recalcul. L’arrêt coupe le suivi et la voix, ignore les requêtes en vol, retire le GPX et le raccordement de la carte, réinitialise l’état, et permet d’importer ou de générer un autre trajet immédiatement (`FR-023`).
 
+### FR-040 — Recherche de destination par code postal canadien
+
+Le champ unique de destination (`FR-038`) accepte une **adresse**, une **ville**, un **lieu** et un **code postal canadien**. Un code postal complet, écrit `J2G 2W4` ou `J2G2W4`, en majuscules ou en minuscules, désigne la **même** destination.
+
+La chaîne saisie est normalisée : espaces, tiret et casse retirés, forme canonique `J2G2W4`. Une chaîne de six caractères quelconques n’est pas un code postal : la validation suit la forme de Postes Canada (`A1A1A1`, sans les lettres D, F, I, O, Q, U, et sans W ni Z en première position).
+
+Lorsque la chaîne est un code postal complet, le système interroge une **base de référence** de codes postaux par **égalité exacte** sur le code normalisé. Le résultat trouvé devient une destination du modèle existant : coordonnées, municipalité et libellé lisible « `J2G 2W4, Granby, QC` ». La destination se sélectionne, s’affiche sur la carte et alimente **Générer le trajet** comme n’importe quel autre lieu (`FR-038`).
+
+Repli, dans cet ordre :
+
+- code postal complet **trouvé** dans la base de référence → destination;
+- code postal complet **absent**, saisie partielle (`J2G`, `J2G 2`), adresse, ville ou POI → fournisseur de géocodage existant (`FR-032`);
+- clic sur la carte → géocodage inverse existant (`FR-017`).
+
+La base de référence est un **détail d’infrastructure** (`BR-004`, `NFR-005`) : le domaine décrit un `PostalCodeProvider` et ne connaît ni la base de données, ni la province couverte. La couverture actuelle est le Québec; l’ajout d’une autre province se fait par la couche d’infrastructure, sans changement d’interface.
+
+Une base de référence **indisponible ou non configurée** ne bloque jamais la recherche : l’erreur est journalisée côté serveur, la requête repart vers le fournisseur de géocodage, et l’utilisateur ne voit aucune erreur technique. Lorsque tous les fournisseurs échouent, l’affichage reste celui de `FR-032`.
+
+La lecture passe par le serveur (`/api/geocode`). Aucune clé privilégiée n’est exposée au navigateur, le jeu de données n’est jamais embarqué dans le bundle, et la source publique n’est jamais appelée à chaque frappe : elle ne sert qu’à la synchronisation périodique de la base de référence.
+
+### FR-041 — Enregistrement du parcours en direct et export GPX
+
+Le motocycliste peut enregistrer le parcours **réellement effectué** et l’exporter en fichier `.gpx`. L’enregistrement est **indépendant de tout trajet planifié** : il n’appelle ni l’IA (`FR-034`), ni le fournisseur de routage (`FR-011`, `BR-004`), ni la génération de trajet. Il peut se dérouler pendant une navigation (`FR-023`) sans l’interrompre.
+
+#### Flux
+
+État initial : la carte (`FR-013`) affiche une action principale **Démarrer l’enregistrement**. Au geste :
+
+1. l’autorisation de localisation est demandée si nécessaire;
+2. le **flux de localisation partagé** existant est réutilisé (`FR-022`, `FR-023`, `NFR-006`) : aucun second observateur GPS n’est ouvert;
+3. les coordonnées valides sont collectées et la trace apparaît progressivement sur la carte.
+
+Pendant l’enregistrement, l’écran affiche en permanence : un indicateur rouge **Enregistrement en cours** doublé d’un libellé texte, le temps écoulé, la distance parcourue, la position actuelle, la ligne du parcours déjà effectué, et un **gros bouton Arrêter** atteignable au pouce.
+
+À l’arrêt : la collecte cesse immédiatement, l’observateur de géolocalisation est libéré, les points déjà enregistrés sont conservés, la carte cadre tout le parcours, un marqueur **Départ** et un marqueur **Arrivée** distincts apparaissent, et deux actions sont proposées : **Sauvegarder en GPX** et **Supprimer**. Le parcours n’est **jamais** sauvegardé automatiquement.
+
+#### Sauvegarde GPX
+
+Le fichier produit est un GPX **1.1** valide, `creator="Ride"`, contenant `<metadata>` (nom, horodatage) puis une trace `<trk>` / `<trkseg>` / `<trkpt>`. Chaque `<trkpt>` conserve la latitude, la longitude et l’horodatage **ISO 8601 UTC**; l’altitude `<ele>` n’est écrite que lorsque l’appareil la fournit. Toute valeur textuelle est échappée en XML.
+
+Le nom de fichier suit la forme `ride-2026-08-25-1430.gpx` (horloge locale) et le type MIME est `application/gpx+xml`. La sortie utilise **Web Share avec fichier** lorsque l’API le supporte (iPhone, PWA), avec un **téléchargement classique** en repli. Les données ne sont supprimées qu’après la création réussie du fichier, et une confirmation claire nomme le fichier créé.
+
+#### Suppression
+
+**Supprimer** demande une confirmation explicite (action irréversible), efface tous les points du parcours courant, retire la ligne et les marqueurs de la carte, revient à l’état initial et ne laisse aucun observateur GPS actif.
+
+#### Qualité des données GPS
+
+Un point conservé porte au minimum latitude, longitude et horodatage, et facultativement altitude, précision, vitesse et cap. Les seuils de filtrage sont des **constantes documentées et testables** du domaine :
+
+- coordonnées non finies, hors bornes, sans horodatage ou nulles (`0, 0`) : ignorées;
+- doublons et horodatages non croissants : ignorés;
+- premier relevé au-delà d’un seuil de précision strict : ignoré (une puce GPS qui démarre renvoie souvent une position réseau très imprécise);
+- relevé ultérieur au-delà du seuil de précision courant : ignoré;
+- déplacement sous le seuil d’immobilité : ignoré, afin qu’un arrêt n’accumule pas de points; le filtre étant purement métrique, les **vrais changements de direction sont conservés**;
+- saut impliquant une vitesse impossible : ignoré, mais un décalage qui persiste au-delà d’un nombre fixé de relevés est accepté et resynchronise la trace, afin qu’un parcours ne se fige jamais en silence.
+
+La distance est calculée sur les seuls points conservés, par une méthode géographique (Haversine, `BR-004`).
+
+#### États et garanties
+
+Statuts : `idle`, `requesting-permission`, `recording`, `preview`, `exporting`, `error`. La machine d’état interdit deux enregistrements simultanés, deux observateurs GPS actifs, un export de moins de deux points valides, la perte silencieuse d’un parcours (un démarrage ne peut pas écraser un parcours non traité, un échec d’export ne supprime rien) et un observateur encore actif après un arrêt ou une suppression.
+
+#### Erreurs
+
+Des messages compréhensibles — jamais l’erreur technique brute — couvrent la permission refusée, la localisation désactivée, l’absence de signal GPS utilisable, un parcours trop court et l’échec de création ou de partage du fichier GPX. Une perte de signal **en cours** d’enregistrement est signalée sans interrompre la collecte.
+
+La trace est dessinée par le moteur cartographique, dans une couche distincte de celle du trajet planifié (`FR-013`, `BR-004`). La carte simplifiée de repli, utilisée seulement lorsque le contexte WebGL ne démarre pas, continue d’afficher le trajet planifié uniquement.
+
+#### Limite de suivi en arrière-plan
+
+L’enregistrement est un suivi de **premier plan** (`NFR-006`). Ride est une application web installable dans une coque Capacitor (`FR-027`) et n’utilise pas la permission de localisation **Always** ni le mode d’arrière-plan `location` : hors scène CarPlay connectée (`FR-028`), le système suspend la page lorsque l’application passe en arrière-plan ou que l’écran se verrouille, et **aucun relevé n’est garanti** pendant cette suspension. Les points déjà enregistrés sont conservés et la collecte reprend au retour au premier plan. Ride ne promet pas un suivi écran verrouillé.
+
+### FR-042 — Écran de navigation lisible en roulant
+
+Raffinement de l’expérience de navigation (`FR-023`, `FR-024`, `FR-026`, `FR-036`). Aucun second moteur de navigation : la progression, les manœuvres et le hors-trajet restent ceux du fournisseur existant.
+
+#### Carte de manœuvre
+
+En haut de l’écran, en permanence : une grande icône de direction, la distance avant la manœuvre en très gros caractères, l’instruction principale, le nom de la route, et — lorsqu’elle existe — la **manœuvre suivante** sur une ligne discrète (`NavigationProgress.followingStep`). Avant le premier relevé GPS, la distance affiche `—` et jamais `0 m`.
+
+#### Panneau de progression
+
+En bas : heure d’arrivée estimée, temps restant, distance restante, destination rappelée, plus les commandes indispensables — recentrage, guidage vocal, aperçu du trajet et **Terminer**. Terminer demande une confirmation simple, sans rendre l’action difficile d’accès.
+
+#### État toujours explicite
+
+Un seul message d’état à la fois, hiérarchisé du plus actionnable au moins urgent (`deriveNavigationStatus`) : localisation refusée, navigation suspendue, erreur, recalcul en cours, connexion indisponible, sortie de trajet, signal GPS perdu, recherche de position, arrivée, signal faible. **Aucune information n’est portée par la seule couleur** : chaque état porte sa phrase. Une erreur ne laisse jamais une carte vide ni une interface bloquée.
+
+#### Carte pendant la navigation
+
+La portion **parcourue** est visuellement distincte de la portion **restante** (`splitLineStringAtKm`). Le pilote peut déplacer ou zoomer la carte : le suivi automatique se suspend alors, l’interface le dit et propose un bouton de recentrage évident. La caméra n’est **jamais** ramenée de force pendant que le pilote consulte la carte, y compris à l’arrivée d’un itinéraire recalculé. Le trajet reste affiché pendant un recalcul, une coupure réseau ou une perte de signal.
+
+#### Prévisualisation
+
+Après génération, dans la même vue : distance totale, durée estimée, heure d’arrivée, destination visible. **Démarrer la navigation** est l’action principale; **Régénérer** et **Modifier la destination** sont secondaires. Pendant une génération, une progression est affichée avec une action **Annuler**; l’ancien trajet reste visible et une réponse arrivée en retard ne le remplace pas.
+
+#### Conflit avec une session active
+
+Demander un nouveau trajet alors qu’une navigation est en cours ouvre une confirmation explicite (**Terminer et continuer** / **Poursuivre la navigation**). Une session active n’est jamais interrompue en silence, y compris depuis le catalogue CarPlay (`FR-028`).
+
+#### Conception mobile
+
+Cibles tactiles d’au moins 48 × 48 px, contraste élevé de jour comme de nuit (`FR-037`), respect des `safe-area-inset`, portrait **et** paysage, prise en charge de `prefers-reduced-motion` jusque dans les mouvements de caméra, libellés accessibles aux lecteurs d’écran.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -1004,7 +1112,6 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029`, de l’adaptateur de routage RAG, et de la génération à la demande du flux `FR-034`);
 - profils de motos;
 - automatisation des arrêts carburant;
-- export GPX (l’import et le suivi d’une trace importée font partie du MVP, `FR-039`);
 - intégration Garmin, Google Maps ou Apple Maps;
 - localisation en arrière-plan (permission Always / mode `location`);
 - fonctionnement avec écran verrouillé **sans** scène CarPlay connectée;
@@ -1018,7 +1125,6 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - application Android;
 - publication App Store ou TestFlight (le dépôt fournit le projet Xcode);
 - partage de position;
-- enregistrement de l’historique GPS;
 - commentaires publics;
 - notes / évaluations de trajets;
 - partage de trajets;
@@ -1026,7 +1132,8 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - péages, traversiers et règles de frontières comme préférences utilisateur;
 - scores composites et comparaison simultanée de plusieurs variantes;
 - modification interactive avancée du tracé;
-- sauvegarde cloud, comptes utilisateur et historique GPS des routes parcourues.
+- sauvegarde cloud et comptes utilisateur (l’enregistrement d’un parcours et son export GPX restent **locaux à l’appareil**, `FR-041`);
+- historique persistant des parcours enregistrés (un seul parcours à la fois, exporté ou supprimé avant le suivant).
 
 Ces éléments peuvent apparaître dans `README.md` ou `CURSOR.md` comme vision élargie ou cible technique. Ils ne font pas partie du contrat fonctionnel actuel.
 
@@ -1040,10 +1147,10 @@ Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 2. seuil contractuel de chevauchement et régénération avec différence minimale chiffrée;
 3. tolérance de distance choisie par l’utilisateur;
 4. sauvegarde cloud et comptes utilisateur;
-5. export GPX et ouvertures vers des applications de navigation externes;
+5. ouvertures vers des applications de navigation externes (l’export GPX d’un parcours enregistré fait désormais partie du MVP, `FR-041`);
 6. arrêts (stations-service, points de vue, pauses);
 7. profils de moto et autonomie;
-8. historique des routes déjà parcourues;
+8. historique persistant des parcours enregistrés, au-delà du parcours courant de `FR-041`;
 9. mode « Surprise me »;
 10. comptes, synchronisation et partage;
 11. styles adventure et découverte;
@@ -1102,6 +1209,9 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-037` | Modes clair, sombre et navigation nocturne |
 | `FR-038` | Trouver une destination (position actuelle → aperçu → navigation) |
 | `FR-039` | Import GPX et navigation sur la trace |
+| `FR-040` | Recherche de destination par code postal canadien |
+| `FR-041` | Enregistrement du parcours en direct et export GPX |
+| `FR-042` | Écran de navigation lisible en roulant |
 
 ### Règles métier
 

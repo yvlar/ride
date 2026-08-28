@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/domain/geo/types";
+import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
 export const MAP_UNAVAILABLE_MESSAGE =
@@ -18,6 +19,8 @@ export type MapEngineHandle = {
   setGeolocateEnabled?: (enabled: boolean) => void;
   /** Keep the camera on the rider after GeolocateControl is torn down (FR-024). */
   setFollowUser?: (enabled: boolean) => void;
+  /** Live GPS recording trace, independent of any planned route (FR-041). */
+  setRecordedTrack?: (overlay: RecordedTrackOverlay | null) => void;
   /**
    * FR-038 — destination picking. While enabled the map reports a coordinate
    * for a desktop click, a mobile long press, and a drag of the pick marker.
@@ -31,6 +34,12 @@ export type MapEngineHandle = {
 export type MapEngineHandlers = {
   onError: (message: string) => void;
   onWarning?: (message: string) => void;
+  /**
+   * FR-042 — fires when the follow camera engages or is suspended, including
+   * when the rider pans the map themselves. Lets the UI surface an obvious
+   * recentre affordance instead of silently fighting the gesture.
+   */
+  onFollowUserChange?: (following: boolean) => void;
   /** FR-038 — a coordinate picked by click, long press, or marker drag. */
   onPick?: (coordinates: Coordinates) => void;
 };

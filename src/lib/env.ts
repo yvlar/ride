@@ -37,6 +37,8 @@ export const envSchema = z.object({
   ),
   WEB_SEARCH_API_KEY: optionalSecret,
   WEB_SEARCH_API_BASE_URL: optionalUrl,
+  SUPABASE_URL: optionalUrl,
+  SUPABASE_ANON_KEY: optionalSecret,
   NEXT_PUBLIC_MAP_STYLE_URL: optionalUrl,
 });
 
@@ -60,6 +62,8 @@ export function serverProcessEnv(): Record<string, string | undefined> {
     WEB_SEARCH_PROVIDER: process.env.WEB_SEARCH_PROVIDER,
     WEB_SEARCH_API_KEY: process.env.WEB_SEARCH_API_KEY,
     WEB_SEARCH_API_BASE_URL: process.env.WEB_SEARCH_API_BASE_URL,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
     NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
   };
 }
@@ -80,6 +84,8 @@ export function parseEnv(
     WEB_SEARCH_PROVIDER: source.WEB_SEARCH_PROVIDER,
     WEB_SEARCH_API_KEY: source.WEB_SEARCH_API_KEY,
     WEB_SEARCH_API_BASE_URL: source.WEB_SEARCH_API_BASE_URL,
+    SUPABASE_URL: source.SUPABASE_URL,
+    SUPABASE_ANON_KEY: source.SUPABASE_ANON_KEY,
     NEXT_PUBLIC_MAP_STYLE_URL: source.NEXT_PUBLIC_MAP_STYLE_URL,
   });
 }
