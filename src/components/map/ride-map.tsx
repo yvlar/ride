@@ -26,7 +26,7 @@ export type RideMapProps = {
   expanded?: boolean;
   /** Fill the parent without enabling navigation follow-user (explorer map). */
   fill?: boolean;
-  /** FR-041 — distance ridden, to dim the portion already behind. */
+  /** FR-042 — distance ridden, to dim the portion already behind. */
   traveledKm?: number;
   onRecenterReady?: (recenter: () => void) => void;
   onOverviewReady?: (overview: () => void) => void;

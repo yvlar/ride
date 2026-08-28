@@ -106,9 +106,9 @@ export type NavigationSessionProps = {
   onRecenter?: () => void;
   onOverview?: () => void;
   onGpxOverlayChange?: (overlay: GpxMapOverlay | null) => void;
-  /** FR-041 — distance ridden, so the host map can dim what is behind. */
+  /** FR-042 — distance ridden, so the host map can dim what is behind. */
   onProgressKm?: (progressKm: number) => void;
-  /** FR-041 — false while the rider is panning the host map themselves. */
+  /** FR-042 — false while the rider is panning the host map themselves. */
   followingUser?: boolean;
   wakeLock?: ScreenWakeLock;
 };
@@ -295,7 +295,7 @@ export function NavigationSession({
     speechEngine.setMuted(muted);
   }, [muted, speechEngine]);
 
-  /* FR-041 — a dropped connection must be named, not left to a frozen map. */
+  /* FR-042 — a dropped connection must be named, not left to a frozen map. */
   useEffect(() => {
     if (typeof navigator === "undefined" || typeof window === "undefined") {
       return;

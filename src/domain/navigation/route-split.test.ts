@@ -14,7 +14,7 @@ const line: LineString = {
   ],
 };
 
-describe("splitLineStringAtKm (FR-041)", () => {
+describe("splitLineStringAtKm (FR-042)", () => {
   it("returns the whole route as remaining before the rider moves", () => {
     const split = splitLineStringAtKm(line, 0);
     expect(split.traveled.coordinates).toEqual([]);

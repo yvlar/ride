@@ -35,7 +35,7 @@ export type RideMapViewModel = {
   directionArrows: RideMapArrow[];
   idle?: boolean;
   /**
-   * FR-041 — distance already ridden. Drives the dimmed "behind you" line so
+   * FR-042 — distance already ridden. Drives the dimmed "behind you" line so
    * the rider can tell at a glance which way the route continues.
    */
   traveledKm?: number;
@@ -295,7 +295,7 @@ export function rideRouteFeatureCollection(
     return featureCollection(viewModel.parts);
   }
   // Once the rider has progressed, the live line covers only what is left,
-  // so the dimmed traveled line underneath stays visible (FR-041).
+  // so the dimmed traveled line underneath stays visible (FR-042).
   const remaining = viewModel.remainingGeometry;
   if (remaining && remaining.coordinates.length >= 2) {
     return featureCollection([remaining]);
@@ -304,7 +304,7 @@ export function rideRouteFeatureCollection(
 }
 
 /**
- * FR-041 — the ridden portion, drawn dimmed beneath the live route so the two
+ * FR-042 — the ridden portion, drawn dimmed beneath the live route so the two
  * read as one line with a clear "you are here" break.
  */
 export function rideTraveledFeatureCollection(

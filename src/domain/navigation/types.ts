@@ -80,7 +80,7 @@ export type NavigationProgress = {
   projection: RouteProjection;
   currentStepIndex: number;
   nextStep: NavigationStep | null;
-  /** FR-041 — the maneuver chained right after `nextStep`, shown discreetly. */
+  /** FR-042 — the maneuver chained right after `nextStep`, shown discreetly. */
   followingStep: NavigationStep | null;
   distanceToNextManeuverM: number;
   remainingDistanceKm: number;

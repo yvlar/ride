@@ -232,7 +232,7 @@ describe("FindDestinationPanel (FR-038)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the start action usable when the host declines to navigate (FR-041)", async () => {
+  it("keeps the start action usable when the host declines to navigate (FR-042)", async () => {
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
       route,
@@ -393,7 +393,7 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("lets the rider cancel a slow generation and keeps the previous ride (FR-041)", async () => {
+  it("lets the rider cancel a slow generation and keeps the previous ride (FR-042)", async () => {
     let release: ((result: GenerateRideResult) => void) | null = null;
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
@@ -439,7 +439,7 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(screen.getByText(/118\.4 km/)).toBeInTheDocument();
   });
 
-  it("shows the estimated arrival time in the preview (FR-041)", async () => {
+  it("shows the estimated arrival time in the preview (FR-042)", async () => {
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
       route,

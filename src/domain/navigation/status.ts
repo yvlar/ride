@@ -1,7 +1,7 @@
 import { LOW_ACCURACY_LIMIT_M } from "./constants";
 
 /**
- * FR-041 — one explicit phase for the live navigation surface.
+ * FR-042 — one explicit phase for the live navigation surface.
  *
  * The session already owns the FR-036 lifecycle machine
  * (`session-state.ts`). This adds the *display* phase: what a rider glancing

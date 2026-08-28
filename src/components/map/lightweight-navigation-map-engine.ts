@@ -156,7 +156,7 @@ export function createLightweightNavigationMapEngine(): MapEngine {
       function applyViewModel(next: RideMapViewModel) {
         viewModel = next;
         routeLayer.replaceChildren();
-        // FR-041 — the ridden portion first, so the live route paints over it.
+        // FR-042 — the ridden portion first, so the live route paints over it.
         if (
           !next.idle &&
           next.traveledGeometry &&

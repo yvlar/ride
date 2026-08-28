@@ -222,7 +222,7 @@ describe("toRideMapViewModel (FR-013)", () => {
   });
 });
 
-describe("traveled / remaining split (FR-041)", () => {
+describe("traveled / remaining split (FR-042)", () => {
   it("draws the whole route as remaining before the rider moves", () => {
     const model = toRideMapViewModel(destination)!;
     expect(model.traveledGeometry).toBeUndefined();

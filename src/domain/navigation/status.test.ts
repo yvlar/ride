@@ -22,7 +22,7 @@ function input(
   };
 }
 
-describe("deriveNavigationStatus (FR-041)", () => {
+describe("deriveNavigationStatus (FR-042)", () => {
   it("stays quiet while everything is nominal", () => {
     const status = deriveNavigationStatus(input());
     expect(status.phase).toBe("navigating");

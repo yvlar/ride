@@ -209,7 +209,7 @@ export function createMapLibreEngine(
             });
           }
 
-          // FR-041 — dimmed "already ridden" line beneath the live route.
+          // FR-042 — dimmed "already ridden" line beneath the live route.
           const traveledSource = map.getSource("ride-traveled");
           const traveledData = rideTraveledFeatureCollection(next);
           if (
@@ -475,7 +475,7 @@ export function createMapLibreEngine(
           }
           // Refitting mid-ride is what made a recalculation look like the app
           // had jumped to another screen. Once the street camera is engaged,
-          // a new route replaces the line and leaves the view alone (FR-041).
+          // a new route replaces the line and leaves the view alone (FR-042).
           renderRoute(next, { fitCamera: !followUser && !streetCameraActive });
         },
         resize() {

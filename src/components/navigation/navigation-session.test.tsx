@@ -1542,7 +1542,7 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     expect(helper.native).toBe(0);
   });
 
-  it("names a weak GPS signal without dropping the route (FR-041)", async () => {
+  it("names a weak GPS signal without dropping the route (FR-042)", async () => {
     const helper = createWatch();
     render(
       <NavigationSession
@@ -1576,7 +1576,7 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     ).toBeInTheDocument();
   });
 
-  it("recovers the status once a precise fix comes back (FR-041)", async () => {
+  it("recovers the status once a precise fix comes back (FR-042)", async () => {
     const helper = createWatch();
     render(
       <NavigationSession
@@ -1616,7 +1616,7 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     });
   });
 
-  it("promotes the recentre control when the host reports a manual pan (FR-041)", () => {
+  it("promotes the recentre control when the host reports a manual pan (FR-042)", () => {
     const helper = createWatch();
     const onRecenter = vi.fn();
     const { rerender } = render(
@@ -1650,7 +1650,7 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     expect(onRecenter).toHaveBeenCalledTimes(1);
   });
 
-  it("reports the ridden distance so the host map can dim it (FR-041)", async () => {
+  it("reports the ridden distance so the host map can dim it (FR-042)", async () => {
     const helper = createWatch();
     const onProgressKm = vi.fn();
     render(

@@ -93,7 +93,7 @@ Déjà dans le dépôt : scène CarPlay, `CPMapTemplate`, `CPListTemplate` (Traj
 
 Côté web : le chrome iPhone reste la source de planification. Aucune page `/carplay` n’est une intégration véhicule.
 
-## 6. Refonte UX navigation (`FR-041`) — ce que CarPlay partage et ce qu’il ignore
+## 6. Refonte UX navigation (`FR-042`) — ce que CarPlay partage et ce qu’il ignore
 
 La refonte de l’écran de navigation iPhone **n’ajoute aucun second moteur**. Elle
 enrichit le modèle partagé, et l’afficheur véhicule reste volontairement plus

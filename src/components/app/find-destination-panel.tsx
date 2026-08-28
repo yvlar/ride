@@ -351,7 +351,7 @@ export function FindDestinationPanel({
   }
 
   /**
-   * FR-041 — a rider must be able to back out of a slow generation without
+   * FR-042 — a rider must be able to back out of a slow generation without
    * force-quitting. Aborting restores whatever preview was on screen before.
    */
   function handleCancelGeneration() {

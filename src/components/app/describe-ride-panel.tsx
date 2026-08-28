@@ -370,7 +370,7 @@ export function DescribeRidePanel({
   }
 
   /**
-   * FR-041 — abandon a slow generation without losing the ride already on
+   * FR-042 — abandon a slow generation without losing the ride already on
    * screen. Bumping the generation id makes the in-flight result a no-op.
    */
   function handleCancelGeneration() {

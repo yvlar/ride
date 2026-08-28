@@ -21,7 +21,7 @@ function emptyLine(): LineString {
 
 /**
  * Split a route at a distance along the line so the map can draw the ridden
- * portion apart from the portion still ahead (FR-041).
+ * portion apart from the portion still ahead (FR-042).
  *
  * The cut point is inserted in both halves, so the two lines stay visually
  * joined and never leave a gap under the rider puck.

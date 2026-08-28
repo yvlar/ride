@@ -52,7 +52,7 @@ function renderOverlay(
   return render(<NavigationOverlay {...props} />);
 }
 
-describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
+describe("NavigationOverlay (FR-023, FR-024, FR-042, NFR-006)", () => {
   it("shows the maneuver card and the progress panel over the map (FR-024)", () => {
     renderOverlay();
 
@@ -73,12 +73,12 @@ describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
     expect(screen.getByText("8.4 km")).toBeInTheDocument();
   });
 
-  it("shows the destination so the rider keeps their target in view (FR-041)", () => {
+  it("shows the destination so the rider keeps their target in view (FR-042)", () => {
     renderOverlay({ destinationLabel: "Magog" });
     expect(screen.getByText("Vers Magog")).toBeInTheDocument();
   });
 
-  it("shows the following maneuver discreetly when one exists (FR-041)", () => {
+  it("shows the following maneuver discreetly when one exists (FR-042)", () => {
     renderOverlay({
       followingArrow: "←",
       followingInstruction: "Tournez à gauche sur la 243",
@@ -88,7 +88,7 @@ describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
     ).toHaveTextContent("Puis ← Tournez à gauche sur la 243");
   });
 
-  it("omits the following maneuver line when the route has no next step (FR-041)", () => {
+  it("omits the following maneuver line when the route has no next step (FR-042)", () => {
     renderOverlay();
     expect(screen.queryByLabelText("Manœuvre suivante")).not.toBeInTheDocument();
   });
@@ -134,7 +134,7 @@ describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it("asks for confirmation before ending, and lets the rider back out (FR-041)", () => {
+  it("asks for confirmation before ending, and lets the rider back out (FR-042)", () => {
     const onStop = vi.fn();
     renderOverlay({ onStop });
 
@@ -176,7 +176,7 @@ describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
     );
   });
 
-  it("names every transient state instead of leaving the map silent (FR-041)", () => {
+  it("names every transient state instead of leaving the map silent (FR-042)", () => {
     const cases = [
       [{ recalculating: true }, NAVIGATION_STATUS_MESSAGES.recalculating],
       [{ offRoute: true }, NAVIGATION_STATUS_MESSAGES.offRoute],
@@ -212,7 +212,7 @@ describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
     }
   });
 
-  it("promotes the recentre control once the rider pans the map (FR-041)", () => {
+  it("promotes the recentre control once the rider pans the map (FR-042)", () => {
     const onRecenter = vi.fn();
     renderOverlay({ followingUser: false, onRecenter });
 
@@ -224,7 +224,7 @@ describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
     expect(onRecenter).toHaveBeenCalledTimes(1);
   });
 
-  it("hides the prominent recentre bar while the camera is following (FR-041)", () => {
+  it("hides the prominent recentre bar while the camera is following (FR-042)", () => {
     renderOverlay({ followingUser: true });
     expect(screen.queryByTestId("recenter-prominent")).not.toBeInTheDocument();
     expect(screen.queryByText(FOLLOW_SUSPENDED_MESSAGE)).not.toBeInTheDocument();

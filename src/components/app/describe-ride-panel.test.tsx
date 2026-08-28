@@ -798,7 +798,7 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeEnabled();
   });
 
-  it("lets the rider cancel a slow regeneration and keeps the ride on screen (FR-041)", async () => {
+  it("lets the rider cancel a slow regeneration and keeps the ride on screen (FR-042)", async () => {
     let release: ((result: GenerateRideResult) => void) | undefined;
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
@@ -841,7 +841,7 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(screen.queryByText(/102\.4 km/)).not.toBeInTheDocument();
   });
 
-  it("shows distance, duration and arrival time for the generated ride (FR-041)", async () => {
+  it("shows distance, duration and arrival time for the generated ride (FR-042)", async () => {
     renderPanel({
       generateRide: async (): Promise<GenerateRideResult> => ({
         ok: true,

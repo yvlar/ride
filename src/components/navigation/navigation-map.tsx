@@ -21,7 +21,7 @@ export type NavigationMapProps = {
   overlay?: GpxMapOverlay | null;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
-  /** FR-041 — distance ridden, to dim the portion already behind. */
+  /** FR-042 — distance ridden, to dim the portion already behind. */
   traveledKm?: number;
   engine?: NavigationMapEngine;
   onRecenterReady?: (recenter: () => void) => void;

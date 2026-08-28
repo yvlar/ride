@@ -786,7 +786,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     );
   });
 
-  it("tells the host when a pan suspends the follow camera, and when it resumes (FR-041)", async () => {
+  it("tells the host when a pan suspends the follow camera, and when it resumes (FR-042)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const onFollowUserChange = vi.fn();
     const handle = createMapLibreEngine({ geolocate: false }).mount(
@@ -809,7 +809,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     expect(onFollowUserChange).toHaveBeenLastCalledWith(true);
   });
 
-  it("does not report a follow change for a programmatic camera move (FR-041)", async () => {
+  it("does not report a follow change for a programmatic camera move (FR-042)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const onFollowUserChange = vi.fn();
     const handle = createMapLibreEngine({ geolocate: false }).mount(
@@ -829,7 +829,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     expect(onFollowUserChange).not.toHaveBeenCalled();
   });
 
-  it("keeps the rider's own camera when a new route arrives mid-ride (FR-041)", async () => {
+  it("keeps the rider's own camera when a new route arrives mid-ride (FR-042)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const handle = createMapLibreEngine({ geolocate: false }).mount(
       document.createElement("div"),
@@ -856,7 +856,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     expect(fitBounds).not.toHaveBeenCalled();
   });
 
-  it("draws the ridden portion under the live route (FR-041)", async () => {
+  it("draws the ridden portion under the live route (FR-042)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     createMapLibreEngine({ geolocate: false }).mount(
       document.createElement("div"),

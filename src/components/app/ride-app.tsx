@@ -96,7 +96,7 @@ export function RideApp(props: RideAppProps) {
   const [navProgressKm, setNavProgressKm] = useState(0);
   const [navFollowingUser, setNavFollowingUser] = useState(true);
   /**
-   * FR-041 — a request to plan a new ride while one is running is parked here
+   * FR-042 — a request to plan a new ride while one is running is parked here
    * until the rider confirms. Silently tearing down an active session was how
    * navigation appeared to "stop by itself".
    */

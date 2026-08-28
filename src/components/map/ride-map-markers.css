@@ -68,7 +68,7 @@
 }
 
 /*
- * FR-041 — MapLibre parks its attribution and scale in the bottom corners,
+ * FR-042 — MapLibre parks its attribution and scale in the bottom corners,
  * exactly where the riding controls and the iPhone home indicator live. Lift
  * them clear so nothing essential sits under a chrome bar or a fat thumb.
  */

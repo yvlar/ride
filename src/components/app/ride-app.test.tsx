@@ -328,7 +328,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       carPlayHarness.emit({ type: "catalogSelect", id: "saved:saved-1" });
     });
 
-    // FR-041 — a live session is never torn down behind the rider's back.
+    // FR-042 — a live session is never torn down behind the rider's back.
     expect(
       await screen.findByRole("alertdialog", {
         name: "Une navigation est en cours",
@@ -349,7 +349,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(screen.queryByRole("button", { name: "Terminer la navigation" })).not.toBeInTheDocument();
   });
 
-  it("keeps the live session when the rider declines a CarPlay ride switch (FR-041)", async () => {
+  it("keeps the live session when the rider declines a CarPlay ride switch (FR-042)", async () => {
     window.localStorage.setItem(
       "ride.library.v1",
       JSON.stringify({
