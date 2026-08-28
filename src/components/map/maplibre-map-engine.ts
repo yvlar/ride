@@ -22,10 +22,11 @@ import {
 } from "./recorded-track-overlay";
 import { ensureMapLibreWorkerUrl } from "./maplibre-worker-url";
 import {
-  NAVIGATION_FOLLOW_DURATION_MS,
   NAVIGATION_MAX_PITCH,
   finiteHeadingDeg,
+  followCameraDurationMs,
   navigationFollowCamera,
+  prefersReducedMotion,
 } from "./navigation-follow-camera";
 import {
   createDirectionArrowElement,
@@ -35,7 +36,12 @@ import {
   headingFromGeolocateEvent,
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
-import { mapCameraFrame, rideRouteFeatureCollection, type RideMapViewModel } from "./ride-map-view-model";
+import {
+  mapCameraFrame,
+  rideRouteFeatureCollection,
+  rideTraveledFeatureCollection,
+  type RideMapViewModel,
+} from "./ride-map-view-model";
 
 export {
   NAVIGATION_FOLLOW_DURATION_MS,
@@ -56,7 +62,11 @@ export function createMapLibreEngine(
   const geolocateAllowed = options.geolocate !== false;
 
   return {
-    mount(container, viewModel, { onError, onWarning }): MapEngineHandle {
+    mount(
+      container,
+      viewModel,
+      { onError, onWarning, onFollowUserChange },
+    ): MapEngineHandle {
       const markers: Marker[] = [];
       const recordedMarkers: Marker[] = [];
       let recordedTrack: RecordedTrackOverlay | null = null;
@@ -64,6 +74,7 @@ export function createMapLibreEngine(
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
       let lastGeolocateHeadingDeg: number | null = null;
+      const reducedMotion = prefersReducedMotion();
 
       ensureMapLibreWorkerUrl();
       let camera = mapCameraFrame(viewModel.bounds);
@@ -198,6 +209,39 @@ export function createMapLibreEngine(
             });
           }
 
+          // FR-042 — dimmed "already ridden" line beneath the live route.
+          const traveledSource = map.getSource("ride-traveled");
+          const traveledData = rideTraveledFeatureCollection(next);
+          if (
+            traveledSource &&
+            "setData" in traveledSource &&
+            typeof traveledSource.setData === "function"
+          ) {
+            traveledSource.setData(traveledData);
+          } else {
+            map.addSource("ride-traveled", {
+              type: "geojson",
+              data: traveledData,
+            });
+            map.addLayer(
+              {
+                id: "ride-traveled-line",
+                type: "line",
+                source: "ride-traveled",
+                layout: {
+                  "line-cap": "round",
+                  "line-join": "round",
+                },
+                paint: {
+                  "line-color": "#64748b",
+                  "line-width": 6,
+                  "line-opacity": 0.55,
+                },
+              },
+              "ride-route-line",
+            );
+          }
+
           const connectorSource = map.getSource("ride-connector");
           const connectorData = next.connectorGeometry
             ? {
@@ -319,10 +363,12 @@ export function createMapLibreEngine(
 
           if (recordedTrack?.fitBounds && recordedTrack.bounds) {
             const frame = mapCameraFrame(recordedTrack.bounds);
-            followUser = false;
+            // Framing the recorded track takes the camera away from the rider:
+            // report it so the UI can offer the recentre affordance (FR-042).
+            setFollowUserState(false);
             map.fitBounds(frame.bounds, {
               ...overviewFitBoundsOptions(frame),
-              duration: NAVIGATION_FOLLOW_DURATION_MS,
+              duration: followCameraDurationMs(reducedMotion),
             });
             streetCameraActive = false;
           }
@@ -359,12 +405,26 @@ export function createMapLibreEngine(
         userMarker.setRotation(headingDeg);
       }
 
+      function setFollowUserState(next: boolean) {
+        if (followUser === next) {
+          return;
+        }
+        followUser = next;
+        try {
+          onFollowUserChange?.(next);
+        } catch {
+          // A listener must never take down the map (NFR-006).
+        }
+      }
+
       function applyFollowCamera() {
         if (!followUser || !map || disposed || !lastUserCoordinates) {
           return;
         }
         map.easeTo(
-          navigationFollowCamera(lastUserCoordinates, lastHeadingDeg),
+          navigationFollowCamera(lastUserCoordinates, lastHeadingDeg, {
+            reducedMotion,
+          }),
         );
         streetCameraActive = true;
       }
@@ -375,14 +435,14 @@ export function createMapLibreEngine(
         }
         map.fitBounds(camera.bounds, {
           ...overviewFitBoundsOptions(camera),
-          duration: NAVIGATION_FOLLOW_DURATION_MS,
+          duration: followCameraDurationMs(reducedMotion),
         });
         streetCameraActive = false;
       }
 
       function onUserCameraInteraction(event?: { originalEvent?: Event }) {
         if (event?.originalEvent) {
-          followUser = false;
+          setFollowUserState(false);
         }
       }
 
@@ -413,7 +473,10 @@ export function createMapLibreEngine(
           if (disposed) {
             return;
           }
-          renderRoute(next, { fitCamera: !followUser });
+          // Refitting mid-ride is what made a recalculation look like the app
+          // had jumped to another screen. Once the street camera is engaged,
+          // a new route replaces the line and leaves the view alone (FR-042).
+          renderRoute(next, { fitCamera: !followUser && !streetCameraActive });
         },
         resize() {
           if (!map || disposed) {
@@ -478,7 +541,7 @@ export function createMapLibreEngine(
           if (disposed) {
             return;
           }
-          followUser = enabled;
+          setFollowUserState(enabled);
           try {
             if (enabled) {
               applyFollowCamera();
@@ -498,7 +561,7 @@ export function createMapLibreEngine(
             return;
           }
           try {
-            followUser = true;
+            setFollowUserState(true);
             if (lastUserCoordinates) {
               applyFollowCamera();
               return;
@@ -513,7 +576,7 @@ export function createMapLibreEngine(
             return;
           }
           try {
-            followUser = false;
+            setFollowUserState(false);
             applyOverviewCamera();
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);

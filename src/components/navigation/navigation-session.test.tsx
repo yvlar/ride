@@ -4,7 +4,7 @@ import { offsetCoordinates } from "@/domain/geo/distance";
 import type { Position } from "@/domain/geo/types";
 import { composeGpxRoute } from "@/domain/gpx/compose";
 import type { LocationWatch, LocationWatchEvent } from "@/domain/location/types";
-import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
+import { NAVIGATION_STATUS_MESSAGES } from "@/domain/navigation/status";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { CarPlayDisplay } from "@/infrastructure/carplay/carplay-display";
 import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
@@ -220,7 +220,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Muet" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Couper le guidage vocal" })[0]!);
     emit({
       type: "fix",
       fix: {
@@ -233,8 +233,8 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       expect(screen.getByText(/Tournez à droite/)).toBeInTheDocument();
     });
     expect(speech.speak).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     expect(onStop).toHaveBeenCalled();
   });
 
@@ -253,8 +253,8 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     expect(onStop).toHaveBeenCalledTimes(1);
     expect(speech.cancel).toHaveBeenCalled();
 
@@ -292,14 +292,14 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
         mapEngine={stubMapEngine()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Muet" })).toHaveClass("min-h-12");
-    expect(screen.getByRole("button", { name: "Recentrer" })).toHaveClass(
+    expect(screen.getAllByRole("button", { name: "Couper le guidage vocal" })[0]!).toHaveClass("min-h-12");
+    expect(screen.getByRole("button", { name: "Recentrer sur ma position" })).toHaveClass(
       "min-h-12",
     );
-    expect(screen.getByRole("button", { name: "Annuler la navigation" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "Terminer la navigation" })).toHaveClass(
       "min-h-12",
     );
-    expect(screen.getByText(FOREGROUND_ONLY_MESSAGE)).toBeInTheDocument();
+    
     expect(screen.getByRole("dialog", { name: "Navigation" }).parentElement).toBe(
       document.body,
     );
@@ -323,11 +323,13 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       screen.getByRole("banner", { name: "Prochaine manœuvre" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("contentinfo", { name: "Arrivée estimée" }),
+      screen.getByRole("contentinfo", { name: "Progression du trajet" }),
     ).toBeInTheDocument();
     expect(screen.getByText("2.0 km")).toBeInTheDocument();
     expect(screen.getByText("3 min")).toBeInTheDocument();
-    expect(screen.getByText("GPS en attente")).toBeInTheDocument();
+    expect(screen.getByTestId("navigation-status")).toHaveTextContent(
+      NAVIGATION_STATUS_MESSAGES.locating,
+    );
     expect(
       screen.getByRole("banner", { name: "Prochaine manœuvre" }),
     ).not.toHaveTextContent("0 m");
@@ -482,7 +484,7 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Recentrer sur ma position" }));
     expect(onRecenter).toHaveBeenCalledTimes(1);
   });
 
@@ -1331,8 +1333,8 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     await waitFor(() => {
       expect(joinRoute).toHaveBeenCalled();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     expect(onStop).toHaveBeenCalled();
     expect(speech.cancel).toHaveBeenCalled();
     await waitFor(() => {
@@ -1497,5 +1499,186 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
       expect(joiningRemainingKm).toBeCloseTo(followingRemainingKm + connectorKm, 0);
       expect(joiningRemainingMin).toBeCloseTo(followingRemainingMin + connectorMin, 0);
     });
+  });
+
+  it("keeps exactly one GPS watch across visibility flips and releases it on stop (NFR-006)", () => {
+    const helper = createWatch();
+    const subscribeSpy = vi.spyOn(helper.watch, "subscribe");
+    const { unmount } = render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    expect(subscribeSpy).toHaveBeenCalledTimes(1);
+    expect(helper.native).toBe(1);
+
+    // Backgrounding drops the watch; returning re-subscribes exactly once.
+    act(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "hidden",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(helper.native).toBe(0);
+
+    act(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(subscribeSpy).toHaveBeenCalledTimes(2);
+    expect(helper.native).toBe(1);
+
+    unmount();
+    expect(helper.native).toBe(0);
+  });
+
+  it("names a weak GPS signal without dropping the route (FR-042)", async () => {
+    const helper = createWatch();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    act(() => {
+      helper.emit({
+        type: "fix",
+        fix: {
+          coordinates: { latitude: 45.4, longitude: -72.7 },
+          accuracyMeters: 400,
+          recordedAtMs: 1,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("navigation-status")).toHaveTextContent(
+        NAVIGATION_STATUS_MESSAGES.weakGps,
+      );
+    });
+    expect(
+      screen.getByRole("contentinfo", { name: "Progression du trajet" }),
+    ).toBeInTheDocument();
+  });
+
+  it("recovers the status once a precise fix comes back (FR-042)", async () => {
+    const helper = createWatch();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    act(() => {
+      helper.emit({
+        type: "error",
+        error: { code: "POSITION_UNAVAILABLE", message: "perdu" },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("navigation-status")).toHaveTextContent(
+        NAVIGATION_STATUS_MESSAGES.gpsLost,
+      );
+    });
+
+    act(() => {
+      helper.emit({
+        type: "fix",
+        fix: {
+          coordinates: { latitude: 45.4, longitude: -72.7 },
+          accuracyMeters: 8,
+          recordedAtMs: 2,
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("navigation-status")).not.toBeInTheDocument();
+    });
+  });
+
+  it("promotes the recentre control when the host reports a manual pan (FR-042)", () => {
+    const helper = createWatch();
+    const onRecenter = vi.fn();
+    const { rerender } = render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        onRecenter={onRecenter}
+        renderMap={false}
+        followingUser
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+      />,
+    );
+    expect(screen.queryByTestId("recenter-prominent")).not.toBeInTheDocument();
+
+    rerender(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        onRecenter={onRecenter}
+        renderMap={false}
+        followingUser={false}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("recenter-prominent"));
+    expect(onRecenter).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the ridden distance so the host map can dim it (FR-042)", async () => {
+    const helper = createWatch();
+    const onProgressKm = vi.fn();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        onProgressKm={onProgressKm}
+        renderMap={false}
+        locationWatch={helper.watch}
+        speech={stubSpeech()}
+      />,
+    );
+
+    act(() => {
+      helper.emit({
+        type: "fix",
+        fix: {
+          coordinates: { latitude: 45.4, longitude: -72.69 },
+          accuracyMeters: 8,
+          recordedAtMs: 1,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(onProgressKm).toHaveBeenCalled();
+    });
+    expect(onProgressKm.mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
   });
 });

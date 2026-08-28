@@ -797,4 +797,64 @@ describe("DescribeRidePanel (FR-034)", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeEnabled();
   });
+
+  it("lets the rider cancel a slow regeneration and keeps the ride on screen (FR-042)", async () => {
+    let release: ((result: GenerateRideResult) => void) | undefined;
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: loop,
+    }));
+    const regenerateRide = vi.fn(
+      () =>
+        new Promise<GenerateRideResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    renderPanel({ generateRide, regenerateRide });
+    await screen.findByText("Position détectée");
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+    await screen.findByRole("button", { name: "Démarrer la navigation" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+    const cancel = await screen.findByRole("button", {
+      name: "Annuler la génération",
+    });
+    expect(screen.getByText(/98\.2 km/)).toBeInTheDocument();
+
+    fireEvent.click(cancel);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Annuler la génération" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+
+    // The abandoned response must not overwrite the ride the rider kept.
+    release!({ ok: true, route: variant });
+    await waitFor(() => {
+      expect(screen.getByText(/98\.2 km/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/102\.4 km/)).not.toBeInTheDocument();
+  });
+
+  it("shows distance, duration and arrival time for the generated ride (FR-042)", async () => {
+    renderPanel({
+      generateRide: async (): Promise<GenerateRideResult> => ({
+        ok: true,
+        route: loop,
+      }),
+      now: () => Date.UTC(2026, 7, 24, 16, 0, 0),
+    });
+    await screen.findByText("Position détectée");
+    fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
+
+    await screen.findByRole("button", { name: "Démarrer la navigation" });
+    expect(screen.getByText("distance")).toBeInTheDocument();
+    expect(screen.getByText("durée")).toBeInTheDocument();
+    expect(screen.getByText("arrivée")).toBeInTheDocument();
+  });
 });

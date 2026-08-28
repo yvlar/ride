@@ -181,7 +181,12 @@ describe("FindDestinationPanel (FR-038)", () => {
     }));
     const regenerateRide = vi.fn();
     const onStartNavigation = vi.fn();
-    renderPanel({ generateRide, regenerateRide, onStartNavigation });
+    const { rerender } = renderPanel({
+      generateRide,
+      regenerateRide,
+      onStartNavigation,
+      navigationActive: false,
+    });
     await screen.findByText(/Position détectée/);
     await selectTremblant();
     fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
@@ -200,6 +205,24 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(onStartNavigation).toHaveBeenCalledTimes(1);
     expect(generateRide).toHaveBeenCalledTimes(1);
     expect(regenerateRide).not.toHaveBeenCalled();
+
+    // The host owns the session: the pane follows `navigationActive`.
+    rerender(
+      <FindDestinationPanel
+        requestPosition={async () => located}
+        reversePlace={async (coordinates) => ({ ...granby, coordinates })}
+        searchPlaces={async () => [tremblant]}
+        debounceMs={0}
+        onRequestComposed={() => {}}
+        onGeneratedRouteChange={() => {}}
+        onBack={() => {}}
+        generateRide={generateRide}
+        regenerateRide={regenerateRide}
+        onStartNavigation={onStartNavigation}
+        navigationActive
+      />,
+    );
+
     expect(screen.getByTestId("destination-flow")).toHaveAttribute(
       "data-destination-flow",
       "navigating",
@@ -207,6 +230,52 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(
       screen.queryByRole("button", { name: "Démarrer la navigation" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the start action usable when the host declines to navigate (FR-042)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route,
+    }));
+    const onStartNavigation = vi.fn();
+    const { rerender } = renderPanel({
+      generateRide,
+      onStartNavigation,
+      navigationActive: false,
+    });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    const start = await screen.findByRole("button", {
+      name: "Démarrer la navigation",
+    });
+
+    fireEvent.click(start);
+    expect(onStartNavigation).toHaveBeenCalledTimes(1);
+
+    // The host stayed put (a session was already running and the rider chose
+    // to keep it). A re-render must release the debounce lock, not dead-end.
+    rerender(
+      <FindDestinationPanel
+        requestPosition={async () => located}
+        reversePlace={async (coordinates) => ({ ...granby, coordinates })}
+        searchPlaces={async () => [tremblant]}
+        debounceMs={0}
+        onRequestComposed={() => {}}
+        onGeneratedRouteChange={() => {}}
+        onBack={() => {}}
+        generateRide={generateRide}
+        onStartNavigation={onStartNavigation}
+        navigationActive={false}
+      />,
+    );
+
+    const retry = screen.getByRole("button", {
+      name: "Démarrer la navigation",
+    });
+    expect(retry).toBeEnabled();
+    fireEvent.click(retry);
+    expect(onStartNavigation).toHaveBeenCalledTimes(2);
   });
 
   it("returns to destination search after navigation is cancelled (FR-023, FR-038)", async () => {
@@ -322,5 +391,69 @@ describe("FindDestinationPanel (FR-038)", () => {
       await screen.findByText("Aucun trajet valide n’a pu être trouvé."),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("lets the rider cancel a slow generation and keeps the previous ride (FR-042)", async () => {
+    let release: ((result: GenerateRideResult) => void) | null = null;
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route,
+    }));
+    const regenerateRide = vi.fn(
+      () =>
+        new Promise<GenerateRideResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    renderPanel({ generateRide, regenerateRide });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    await screen.findByRole("button", { name: "Démarrer la navigation" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+    const cancel = await screen.findByRole("button", {
+      name: "Annuler la génération",
+    });
+
+    // The ride already on screen must survive the pending request.
+    expect(screen.getByText(/118\.4 km/)).toBeInTheDocument();
+
+    fireEvent.click(cancel);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Annuler la génération" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/118\.4 km/)).toBeInTheDocument();
+
+    // A late response for the cancelled request must not replace the preview.
+    await act(async () => {
+      release?.({ ok: true, route: laterRoute });
+    });
+    expect(screen.getByText(/118\.4 km/)).toBeInTheDocument();
+  });
+
+  it("shows the estimated arrival time in the preview (FR-042)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route,
+    }));
+    renderPanel({
+      generateRide,
+      now: () => Date.UTC(2026, 7, 24, 16, 0, 0),
+    });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+
+    await screen.findByRole("button", { name: "Démarrer la navigation" });
+    expect(screen.getByText("arrivée")).toBeInTheDocument();
+    expect(screen.getByText(/Vers Mont-Tremblant/)).toBeInTheDocument();
   });
 });

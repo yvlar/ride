@@ -5,6 +5,7 @@ import { composeDestinationRide } from "@/application/compose-destination-ride";
 import {
   formatDistanceLabel,
   formatDurationLabel,
+  formatEta,
 } from "@/components/navigation/format-navigation";
 import { PlaceSearchField } from "@/components/ride-form/place-search-field";
 import {
@@ -86,6 +87,8 @@ export type FindDestinationPanelProps = {
   initialQuery?: string;
   navigationActive?: boolean;
   openLocationSettings?: () => boolean;
+  /** Injected so the arrival time is deterministic under test. */
+  now?: () => number;
   onDestinationChange?: (place: Place | null, query: string) => void;
   onRequestComposed: (request: GenerateRideRequest) => void;
   onGeneratedRouteChange: (route: GeneratedRideRoute) => void;
@@ -104,6 +107,7 @@ export function FindDestinationPanel({
   initialQuery = "",
   navigationActive = false,
   openLocationSettings = openDeviceLocationSettings,
+  now = Date.now,
   onDestinationChange,
   onRequestComposed,
   onGeneratedRouteChange,
@@ -220,6 +224,17 @@ export function FindDestinationPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigationActive]);
 
+  /*
+   * The start lock only has to survive two taps inside one commit. Releasing
+   * it after every render means a host that declined to start navigation
+   * (a session was already running) leaves the primary action usable.
+   */
+  useEffect(() => {
+    if (!navigationActive && state.phase !== "navigating") {
+      startLockRef.current = false;
+    }
+  });
+
   async function handleGenerate(mode: "generate" | "another") {
     if (
       inFlightRef.current ||
@@ -335,6 +350,21 @@ export function FindDestinationPanel({
     }
   }
 
+  /**
+   * FR-042 — a rider must be able to back out of a slow generation without
+   * force-quitting. Aborting restores whatever preview was on screen before.
+   */
+  function handleCancelGeneration() {
+    if (state.phase !== "generating") {
+      return;
+    }
+    abortRef.current?.abort();
+    abortRef.current = null;
+    inFlightRef.current = false;
+    locateGeneration.current += 1;
+    dispatch({ type: "generate_aborted", generationId: state.generationId });
+  }
+
   function handleStartNavigation() {
     if (
       startLockRef.current ||
@@ -343,10 +373,13 @@ export function FindDestinationPanel({
     ) {
       return;
     }
+    // The lock only debounces a double tap. The phase itself is driven by the
+    // `navigationActive` prop below, so a host that declines to start (a
+    // session is already running) leaves the button usable instead of
+    // dead-ending on a phase the app never entered.
     startLockRef.current = true;
     abortRef.current?.abort();
     inFlightRef.current = false;
-    dispatch({ type: "start_navigation" });
     onStartNavigation();
   }
 
@@ -423,17 +456,60 @@ export function FindDestinationPanel({
         />
       </div>
 
-      {busy && state.phase === "generating" ? (
-        <p role="status" className="mt-4 text-sm text-muted-foreground">
-          Génération du trajet…
-        </p>
+      {state.phase === "generating" ? (
+        <div className="mt-4 space-y-2">
+          <p role="status" className="text-sm text-muted-foreground">
+            {preview
+              ? "Génération d’un nouveau trajet… le trajet actuel reste affiché."
+              : "Génération du trajet…"}
+          </p>
+          <div
+            role="progressbar"
+            aria-label="Génération du trajet"
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+          >
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-12 w-full text-base"
+            onClick={handleCancelGeneration}
+          >
+            Annuler la génération
+          </Button>
+        </div>
       ) : null}
 
       {preview ? (
         <section aria-label="Trajet généré" className="mt-4 space-y-3">
-          <p className="text-base leading-6">
-            {formatDistanceLabel(preview.distanceKm)} ·{" "}
-            {formatDurationLabel(preview.durationMinutes)} ·{" "}
+          {/* Keep the target in view: it is what the rider is deciding about. */}
+          {state.destination ? (
+            <p className="truncate text-base font-medium leading-6">
+              Vers {state.destination.label}
+            </p>
+          ) : null}
+          <dl className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <dd className="text-xl font-semibold leading-7 tabular-nums">
+                {formatDistanceLabel(preview.distanceKm)}
+              </dd>
+              <dt className="text-xs leading-4 text-muted-foreground">distance</dt>
+            </div>
+            <div>
+              <dd className="text-xl font-semibold leading-7 tabular-nums">
+                {formatDurationLabel(preview.durationMinutes)}
+              </dd>
+              <dt className="text-xs leading-4 text-muted-foreground">durée</dt>
+            </div>
+            <div>
+              <dd className="text-xl font-semibold leading-7 tabular-nums">
+                {formatEta(now(), preview.durationMinutes)}
+              </dd>
+              <dt className="text-xs leading-4 text-muted-foreground">arrivée</dt>
+            </div>
+          </dl>
+          <p className="text-sm leading-6 text-muted-foreground">
             {generatedRouteTypeLabel(preview.type)} ·{" "}
             {RIDE_STYLE_LABELS[preview.style ?? "scenic"]}
           </p>
@@ -485,7 +561,7 @@ export function FindDestinationPanel({
 
       <div
         className={cn(
-          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card/95 px-4 pt-3",
+          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card px-4 pt-3",
           "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
         )}
         role={preview ? "group" : undefined}
@@ -504,33 +580,35 @@ export function FindDestinationPanel({
             >
               Démarrer la navigation
             </Button>
-            <Button
-              key="find-destination-edit"
-              type="button"
-              variant="outline"
-              size="lg"
-              className="min-h-12 w-full text-base"
-              disabled={busy}
-              onClick={() => {
-                abortRef.current?.abort();
-                inFlightRef.current = false;
-                startLockRef.current = false;
-                dispatch({ type: "edit_destination" });
-              }}
-            >
-              Modifier la destination
-            </Button>
-            <Button
-              key="find-destination-another"
-              type="button"
-              variant="outline"
-              size="lg"
-              className="min-h-12 w-full text-base"
-              disabled={busy || !canGenerate}
-              onClick={() => void handleGenerate("another")}
-            >
-              Générer un autre trajet
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                key="find-destination-another"
+                type="button"
+                variant="outline"
+                size="lg"
+                className="min-h-12 w-full text-base"
+                disabled={busy || !canGenerate}
+                onClick={() => void handleGenerate("another")}
+              >
+                Régénérer
+              </Button>
+              <Button
+                key="find-destination-edit"
+                type="button"
+                variant="outline"
+                size="lg"
+                className="min-h-12 w-full text-base"
+                disabled={busy}
+                onClick={() => {
+                  abortRef.current?.abort();
+                  inFlightRef.current = false;
+                  startLockRef.current = false;
+                  dispatch({ type: "edit_destination" });
+                }}
+              >
+                Modifier la destination
+              </Button>
+            </div>
           </>
         ) : (
           <Button

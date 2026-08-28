@@ -68,6 +68,9 @@ export function createNavigationMapEngine(
         recenter() {
           handle.recenter?.();
         },
+        overview() {
+          handle.overview?.();
+        },
         setViewModel(next) {
           handle.setViewModel?.(next);
         },

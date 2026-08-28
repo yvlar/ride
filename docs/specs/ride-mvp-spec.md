@@ -37,7 +37,7 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 8. le visualiser sur une carte avec les statistiques essentielles;
 9. régénérer une variante sensiblement différente;
 10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`);
-11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`);
+11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`), sur un écran lisible d’un coup d’œil en roulant (`FR-042`);
 12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier;
 13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`);
 14. enregistrer le parcours réellement effectué et l’exporter en fichier GPX (`FR-041`).
@@ -1020,6 +1020,38 @@ La trace est dessinée par le moteur cartographique, dans une couche distincte d
 
 L’enregistrement est un suivi de **premier plan** (`NFR-006`). Ride est une application web installable dans une coque Capacitor (`FR-027`) et n’utilise pas la permission de localisation **Always** ni le mode d’arrière-plan `location` : hors scène CarPlay connectée (`FR-028`), le système suspend la page lorsque l’application passe en arrière-plan ou que l’écran se verrouille, et **aucun relevé n’est garanti** pendant cette suspension. Les points déjà enregistrés sont conservés et la collecte reprend au retour au premier plan. Ride ne promet pas un suivi écran verrouillé.
 
+### FR-042 — Écran de navigation lisible en roulant
+
+Raffinement de l’expérience de navigation (`FR-023`, `FR-024`, `FR-026`, `FR-036`). Aucun second moteur de navigation : la progression, les manœuvres et le hors-trajet restent ceux du fournisseur existant.
+
+#### Carte de manœuvre
+
+En haut de l’écran, en permanence : une grande icône de direction, la distance avant la manœuvre en très gros caractères, l’instruction principale, le nom de la route, et — lorsqu’elle existe — la **manœuvre suivante** sur une ligne discrète (`NavigationProgress.followingStep`). Avant le premier relevé GPS, la distance affiche `—` et jamais `0 m`.
+
+#### Panneau de progression
+
+En bas : heure d’arrivée estimée, temps restant, distance restante, destination rappelée, plus les commandes indispensables — recentrage, guidage vocal, aperçu du trajet et **Terminer**. Terminer demande une confirmation simple, sans rendre l’action difficile d’accès.
+
+#### État toujours explicite
+
+Un seul message d’état à la fois, hiérarchisé du plus actionnable au moins urgent (`deriveNavigationStatus`) : localisation refusée, navigation suspendue, erreur, recalcul en cours, connexion indisponible, sortie de trajet, signal GPS perdu, recherche de position, arrivée, signal faible. **Aucune information n’est portée par la seule couleur** : chaque état porte sa phrase. Une erreur ne laisse jamais une carte vide ni une interface bloquée.
+
+#### Carte pendant la navigation
+
+La portion **parcourue** est visuellement distincte de la portion **restante** (`splitLineStringAtKm`). Le pilote peut déplacer ou zoomer la carte : le suivi automatique se suspend alors, l’interface le dit et propose un bouton de recentrage évident. La caméra n’est **jamais** ramenée de force pendant que le pilote consulte la carte, y compris à l’arrivée d’un itinéraire recalculé. Le trajet reste affiché pendant un recalcul, une coupure réseau ou une perte de signal.
+
+#### Prévisualisation
+
+Après génération, dans la même vue : distance totale, durée estimée, heure d’arrivée, destination visible. **Démarrer la navigation** est l’action principale; **Régénérer** et **Modifier la destination** sont secondaires. Pendant une génération, une progression est affichée avec une action **Annuler**; l’ancien trajet reste visible et une réponse arrivée en retard ne le remplace pas.
+
+#### Conflit avec une session active
+
+Demander un nouveau trajet alors qu’une navigation est en cours ouvre une confirmation explicite (**Terminer et continuer** / **Poursuivre la navigation**). Une session active n’est jamais interrompue en silence, y compris depuis le catalogue CarPlay (`FR-028`).
+
+#### Conception mobile
+
+Cibles tactiles d’au moins 48 × 48 px, contraste élevé de jour comme de nuit (`FR-037`), respect des `safe-area-inset`, portrait **et** paysage, prise en charge de `prefers-reduced-motion` jusque dans les mouvements de caméra, libellés accessibles aux lecteurs d’écran.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -1132,6 +1164,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-039` | Import GPX et navigation sur la trace |
 | `FR-040` | Recherche de destination par code postal canadien |
 | `FR-041` | Enregistrement du parcours en direct et export GPX |
+| `FR-042` | Écran de navigation lisible en roulant |
 
 ### Règles métier
 
