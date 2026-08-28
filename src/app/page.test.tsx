@@ -16,8 +16,9 @@ describe("Home explorer (FR-014, FR-031)", () => {
     renderHome();
 
     expect(
-      screen.getByRole("heading", { name: "Où veux-tu rouler?" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Où veux-tu rouler?" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Explorer" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Rechercher une destination" }),
     ).toBeEnabled();
@@ -84,6 +85,34 @@ describe("Home explorer (FR-014, FR-031)", () => {
     expect(
       screen.getByRole("navigation", { name: "Navigation principale" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps recents and the locate button off the explorer home (FR-031)", () => {
+    window.localStorage.setItem(
+      "ride.library.v1",
+      JSON.stringify({
+        recents: [
+          {
+            label: "Granby, QC",
+            coordinates: { latitude: 45.4, longitude: -72.73 },
+          },
+        ],
+        saved: [],
+      }),
+    );
+
+    try {
+      renderHome();
+      expect(screen.queryByText("Destinations récentes")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Granby, QC" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Ma position" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem("ride.library.v1");
+    }
   });
 
   it("does not request GPS automatically on load (FR-017, FR-022)", () => {
