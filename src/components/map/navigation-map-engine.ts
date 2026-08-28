@@ -80,6 +80,9 @@ export function createNavigationMapEngine(
         setFollowUser(enabled) {
           handle.setFollowUser?.(enabled);
         },
+        setRecordedTrack(overlay) {
+          handle.setRecordedTrack?.(overlay);
+        },
       };
     },
   };

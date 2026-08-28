@@ -43,3 +43,14 @@ export const GPX_OFF_ROUTE_ACCURACY_MULTIPLIER = 2;
 export const GPX_OFF_ROUTE_CONSECUTIVE_FIXES = 3;
 export const GPX_OFF_ROUTE_MIN_DURATION_MS = 8_000;
 export const GPX_REJOIN_COOLDOWN_MS = 15_000;
+
+/** FR-041 — export d'un parcours enregistré. */
+export const GPX_EXPORT_MIME_TYPE = "application/gpx+xml";
+export const GPX_EXPORT_CREATOR = "Ride";
+export const GPX_EXPORT_VERSION = "1.1";
+export const GPX_EXPORT_NAMESPACE = "http://www.topografix.com/GPX/1/1";
+export const GPX_EXPORT_SCHEMA_LOCATION =
+  "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd";
+/** ~1 cm : au-delà, seul le bruit GPS gagne des décimales. */
+export const GPX_EXPORT_COORDINATE_DECIMALS = 7;
+export const GPX_EXPORT_ELEVATION_DECIMALS = 1;

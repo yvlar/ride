@@ -48,6 +48,11 @@ function toFix(position: CapacitorPosition): LocationWatchEvent {
         position.coords.speed == null || Number.isNaN(position.coords.speed)
           ? undefined
           : position.coords.speed,
+      altitudeMeters:
+        position.coords.altitude == null ||
+        Number.isNaN(position.coords.altitude)
+          ? null
+          : position.coords.altitude,
       recordedAtMs: position.timestamp,
     },
   };

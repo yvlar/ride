@@ -10,6 +10,7 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
+import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
 
 export type RideMapProps = {
@@ -18,6 +19,10 @@ export type RideMapProps = {
   engine?: MapEngine;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
+  /** Live GPS recording trace, independent of the planned route (FR-041). */
+  recordedTrack?: RecordedTrackOverlay | null;
+  /** Recording owns the shared LocationWatch; no second GPS watch (FR-041, NFR-006). */
+  recordingActive?: boolean;
   expanded?: boolean;
   /** Fill the parent without enabling navigation follow-user (explorer map). */
   fill?: boolean;
@@ -32,6 +37,8 @@ export function RideMap({
   engine,
   userLocation,
   headingDeg = null,
+  recordedTrack = null,
+  recordingActive = false,
   expanded = false,
   fill = false,
   onRecenterReady,
@@ -48,6 +55,9 @@ export function RideMap({
   const onGeolocateReadyRef = useRef(onGeolocateReady);
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
+  const recordedTrackRef = useRef(recordedTrack);
+  const geolocateEnabled = !expanded && !recordingActive;
+  const geolocateEnabledRef = useRef(geolocateEnabled);
   const expandedRef = useRef(expanded);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -86,6 +96,14 @@ export function RideMap({
   useEffect(() => {
     headingDegRef.current = headingDeg;
   }, [headingDeg]);
+
+  useEffect(() => {
+    recordedTrackRef.current = recordedTrack;
+  }, [recordedTrack]);
+
+  useEffect(() => {
+    geolocateEnabledRef.current = geolocateEnabled;
+  }, [geolocateEnabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -130,7 +148,8 @@ export function RideMap({
           userLocationRef.current ?? null,
           headingDegRef.current,
         );
-        handle.setGeolocateEnabled?.(!expandedRef.current);
+        handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
+        handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
         handle.setFollowUser?.(expandedRef.current);
         onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onOverviewReadyRef.current?.(() => handle?.overview?.());
@@ -169,7 +188,8 @@ export function RideMap({
             userLocationRef.current ?? null,
             headingDegRef.current,
           );
-          handle.setGeolocateEnabled?.(!expandedRef.current);
+          handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
+          handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
           handle.setFollowUser?.(expandedRef.current);
           onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onOverviewReadyRef.current?.(() => handle?.overview?.());
@@ -208,14 +228,18 @@ export function RideMap({
     handleRef.current?.setUserLocation?.(userLocation ?? null, headingDeg);
   }, [userLocation, headingDeg]);
 
+  useEffect(() => {
+    handleRef.current?.setRecordedTrack?.(recordedTrack ?? null);
+  }, [recordedTrack]);
+
   useLayoutEffect(() => {
-    handleRef.current?.setGeolocateEnabled?.(!expanded);
+    handleRef.current?.setGeolocateEnabled?.(geolocateEnabled);
     handleRef.current?.setFollowUser?.(expanded);
     const frame = requestAnimationFrame(() => {
       handleRef.current?.resize?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [expanded]);
+  }, [expanded, geolocateEnabled]);
 
   return (
     <section
