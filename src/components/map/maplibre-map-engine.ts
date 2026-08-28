@@ -15,6 +15,7 @@ import {
   type MapEngineHandle,
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
+import { createLongPressRecognizer } from "./long-press";
 import {
   RECORDED_TRACK_END_LABEL,
   RECORDED_TRACK_START_LABEL,
@@ -30,6 +31,7 @@ import {
 } from "./navigation-follow-camera";
 import {
   createDirectionArrowElement,
+  createPickMarkerElement,
   createPlaceMarkerElement,
   createUserPuckElement,
   enhanceGeolocateDotWithMotorcycle,
@@ -65,7 +67,7 @@ export function createMapLibreEngine(
     mount(
       container,
       viewModel,
-      { onError, onWarning, onFollowUserChange },
+      { onError, onWarning, onFollowUserChange, onPick },
     ): MapEngineHandle {
       const markers: Marker[] = [];
       const recordedMarkers: Marker[] = [];
@@ -451,10 +453,88 @@ export function createMapLibreEngine(
       map.on("rotatestart", onUserCameraInteraction);
       map.on("pitchstart", onUserCameraInteraction);
 
+      // FR-038 — destination picking. Everything below is inert until
+      // setPickEnabled(true); the preview and navigation maps never arm it.
+      let pickEnabled = false;
+      let pickMarker: Marker | undefined;
+
+      function reportPick(lngLat: { lng: number; lat: number }) {
+        if (disposed || !pickEnabled) {
+          return;
+        }
+        onPick?.({ latitude: lngLat.lat, longitude: lngLat.lng });
+      }
+
+      const longPress = createLongPressRecognizer({
+        onLongPress(point) {
+          if (!map || disposed || !pickEnabled) {
+            return;
+          }
+          try {
+            reportPick(map.unproject([point.x, point.y]));
+          } catch {
+            // An unprojectable point simply drops the press.
+          }
+        },
+      });
+
+      function touchPoint(event: TouchEvent): { x: number; y: number } | null {
+        const touch = event.touches.item(0) ?? event.changedTouches.item(0);
+        if (!touch) {
+          return null;
+        }
+        const rect = container.getBoundingClientRect();
+        return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+      }
+
+      function onTouchStart(event: TouchEvent) {
+        if (!pickEnabled || event.touches.length !== 1) {
+          longPress.cancel();
+          return;
+        }
+        const point = touchPoint(event);
+        if (point) {
+          longPress.start(point);
+        }
+      }
+
+      function onTouchMove(event: TouchEvent) {
+        const point = touchPoint(event);
+        if (point) {
+          longPress.move(point);
+        }
+      }
+
+      function onTouchEnd() {
+        longPress.cancel();
+      }
+
+      container.addEventListener("touchstart", onTouchStart, { passive: true });
+      container.addEventListener("touchmove", onTouchMove, { passive: true });
+      container.addEventListener("touchend", onTouchEnd);
+      container.addEventListener("touchcancel", onTouchEnd);
+
+      map.on("click", (event) => {
+        // MapLibre synthesizes a click for a tap too; the long press already
+        // covers touch, so only a real mouse click drops a pin here.
+        const original = event.originalEvent as PointerEvent | undefined;
+        if (original && "pointerType" in original && original.pointerType === "touch") {
+          return;
+        }
+        reportPick(event.lngLat);
+      });
+
       return {
         destroy() {
           disposed = true;
+          longPress.cancel();
+          container.removeEventListener("touchstart", onTouchStart);
+          container.removeEventListener("touchmove", onTouchMove);
+          container.removeEventListener("touchend", onTouchEnd);
+          container.removeEventListener("touchcancel", onTouchEnd);
           detachGeolocateControl();
+          pickMarker?.remove();
+          pickMarker = undefined;
           userMarker?.remove();
           userMarker = undefined;
           for (const marker of markers) {
@@ -552,6 +632,49 @@ export function createMapLibreEngine(
             if (streetCameraActive) {
               applyOverviewCamera();
             }
+          } catch {
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+          }
+        },
+        setPickEnabled(enabled) {
+          if (disposed) {
+            return;
+          }
+          pickEnabled = enabled;
+          if (!enabled) {
+            longPress.cancel();
+          }
+        },
+        setPickMarker(coordinates) {
+          if (!map || disposed) {
+            return;
+          }
+          try {
+            if (!coordinates) {
+              pickMarker?.remove();
+              pickMarker = undefined;
+              return;
+            }
+            const position = coordinatesToPosition(coordinates);
+            if (!pickMarker) {
+              pickMarker = new Marker({
+                element: createPickMarkerElement(),
+                anchor: "bottom",
+                draggable: true,
+              })
+                .setLngLat(position)
+                .addTo(map);
+              // Dragging the marker is the second way to adjust a pick
+              // (FR-038); it reports through the same callback.
+              pickMarker.on("dragend", () => {
+                const dragged = pickMarker?.getLngLat();
+                if (dragged) {
+                  reportPick(dragged);
+                }
+              });
+              return;
+            }
+            pickMarker.setLngLat(position);
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }

@@ -738,9 +738,17 @@ Le formulaire de composition (`FR-014`) s’ouvre par divulgation progressive da
 
 ### FR-032 — Recherche de lieu (états et annulation)
 
-La recherche par nom, adresse, lieu ou code postal (`FR-040`) affiche un nom et une ligne secondaire (adresse ou localité) pour distinguer les homonymes. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
+La recherche par nom, adresse, lieu ou code postal (`FR-040`) affiche un nom et une ligne secondaire (adresse, municipalité, province et pays) pour distinguer les homonymes. Deux municipalités portant le même nom — par exemple Granby au Québec et Granby au Colorado — doivent rester différenciables sans ouvrir le résultat. Les états à gérer : vide, saisie, chargement, résultats, aucun résultat, hors réseau, erreur fournisseur, lieu sélectionné, requête annulée.
 
-Une recherche plus récente **annule** la précédente. Un résultat obsolète ne doit jamais remplacer l’affichage d’une requête plus récente. L’intelligence artificielle ne fournit pas de coordonnées inventées.
+Chaque résultat indique aussi son **type** : adresse, ville, code postal ou lieu.
+
+La recherche se déclenche après environ **300 ms** d’inactivité. Une recherche plus récente **annule** la précédente. Un résultat obsolète ne doit jamais remplacer l’affichage d’une requête plus récente. L’intelligence artificielle ne fournit pas de coordonnées inventées.
+
+Le premier résultat n’est **jamais** présélectionné : lorsque plusieurs lieux correspondent, l’utilisateur choisit.
+
+Les résultats proches de la position actuelle sont favorisés, et le Québec puis le Canada sont priorisés. Cette priorité est un **classement**, jamais un filtre : une destination hors Canada reste accessible.
+
+Une erreur réseau ou fournisseur affiche un message clair et une action **Réessayer**. La liste est utilisable au clavier (flèches, `Début`, `Fin`, `Entrée`, `Échap`) et au toucher, avec des cibles d’au moins 44 × 44 pt (`NFR-001`, `NFR-006`).
 
 ### FR-033 — Écran avant le départ
 
@@ -862,7 +870,44 @@ Si la permission est refusée ou si la localisation échoue : explication claire
 
 #### Destination
 
-Un seul champ principal : **Où voulez-vous aller?**, dont l’invite est **Adresse, ville ou code postal**. La recherche réutilise le système existant (`FR-032`) et reconnaît un code postal canadien complet (`FR-040`). **Générer le trajet** n’est actif que si une destination valide **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération et la navigation.
+Un seul champ principal : **Où voulez-vous aller?**, dont l’invite est **Adresse, ville ou code postal**. La recherche réutilise le système existant (`FR-032`).
+
+Quatre façons de définir la destination :
+
+- une **adresse complète** (par ex. `125 rue Principale, Granby, Québec`);
+- une **ville ou municipalité** (par ex. `Roxton Pond`, `Sherbrooke, QC`);
+- un **code postal** canadien (par ex. `J2G 2W4`);
+- un **point choisi sur la carte**.
+
+La destination n’est **jamais** transmise au moteur de routage sous forme de texte. Elle est d’abord géocodée et possède des coordonnées valides. Une seule représentation sert à tous les cas : le `Place` du domaine, enrichi de la municipalité, de la province, du pays, du code postal, du type et de la précision.
+
+##### Villes
+
+Une destination de type ville est une destination valide à part entière. Le volet affiche la municipalité, la province et le pays, utilise les coordonnées officielles retournées par le géocodeur, et distingue clairement deux villes homonymes.
+
+##### Codes postaux
+
+Un code postal canadien est reconnu avec ou sans espace et sans tenir compte des majuscules (`J2G2W4`, `j2g 2w4`, `J2G 2W4`). Il est normalisé à l’affichage au format `A1A 1A1`.
+
+Un code postal complet est d’abord résolu dans la base de référence (`FR-040`), qui en donne un point **exact**. À défaut — base non configurée, indisponible, ou code inconnu — la recherche retombe sur le fournisseur de géocodage, puis sur la **RTA** (les trois premiers caractères).
+
+Lorsque le code désigne alors une **zone** plutôt qu’une adresse précise, le volet l’indique comme **emplacement approximatif**, affiche la zone sur la carte, et permet d’ajuster le marqueur avant de générer le trajet.
+
+##### Choisir sur la carte
+
+Sous le champ, un bouton **Choisir sur la carte** ouvre une carte plein écran adaptée au téléphone. L’utilisateur peut déplacer et zoomer la carte, voir sa position actuelle, placer la destination par **appui long** (mobile) ou par **clic** (ordinateur), puis déplacer le marqueur.
+
+Après le placement du marqueur, un géocodage inverse cherche l’adresse correspondante. S’il n’en trouve aucune, le libellé **« Point sélectionné sur la carte »** accompagné des coordonnées est utilisé. **Un échec du géocodage inverse n’empêche jamais la sélection.** Une réponse tardive pour une position abandonnée ne remplace pas le libellé du marqueur courant.
+
+**Utiliser cette destination** confirme le point. **Annuler** ferme la carte sans perdre la destination précédemment sélectionnée.
+
+##### Destination sélectionnée
+
+Une fois la destination confirmée, les résultats sont remplacés par une carte récapitulative : nom ou adresse, ville et province, type de destination, **Modifier** et **Effacer la destination**. Un emplacement approximatif offre en plus **Ajuster sur la carte**.
+
+Si l’utilisateur modifie le texte après avoir sélectionné une destination, l’ancienne sélection est **invalidée**. **Générer le trajet** n’utilise jamais silencieusement les anciennes coordonnées, et ne déclenche jamais de génération à partir du texte encore présent dans le champ.
+
+**Générer le trajet** n’est actif que si une destination explicitement sélectionnée ou confirmée, avec des coordonnées valides, **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération, la navigation et tant que la carte de sélection est ouverte.
 
 #### Génération
 
@@ -900,6 +945,8 @@ Ensuite :
 - aucune génération n’est relancée automatiquement.
 
 États à prévoir, exclusifs : `idle`, `locating`, `destinationReady`, `generating`, `routePreview`, `navigating`, `cancelling`, `error`.
+
+Le champ de destination gère en parallèle ses propres états (`FR-032`) : champ vide, saisie en cours, recherche en cours, résultats disponibles, aucun résultat, erreur réseau, destination sélectionnée. La carte de sélection ajoute : sélection sur la carte, géocodage inverse en cours, géocodage inverse échoué. L’indisponibilité du GPS et le refus de permission sont couverts par la section **Position de départ automatique**.
 
 ### FR-039 — Import GPX et navigation sur la trace
 

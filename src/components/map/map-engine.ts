@@ -21,6 +21,14 @@ export type MapEngineHandle = {
   setFollowUser?: (enabled: boolean) => void;
   /** Live GPS recording trace, independent of any planned route (FR-041). */
   setRecordedTrack?: (overlay: RecordedTrackOverlay | null) => void;
+  /**
+   * FR-038 — destination picking. While enabled the map reports a coordinate
+   * for a desktop click, a mobile long press, and a drag of the pick marker.
+   * Disabled by default, so the preview and navigation maps are untouched.
+   */
+  setPickEnabled?: (enabled: boolean) => void;
+  /** Shows (or clears) the draggable destination marker (FR-038). */
+  setPickMarker?: (coordinates: Coordinates | null) => void;
 };
 
 export type MapEngineHandlers = {
@@ -32,6 +40,8 @@ export type MapEngineHandlers = {
    * recentre affordance instead of silently fighting the gesture.
    */
   onFollowUserChange?: (following: boolean) => void;
+  /** FR-038 — a coordinate picked by click, long press, or marker drag. */
+  onPick?: (coordinates: Coordinates) => void;
 };
 
 export type MapEngine = {

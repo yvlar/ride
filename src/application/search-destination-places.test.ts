@@ -53,6 +53,11 @@ describe("searchDestinationPlaces (FR-040)", () => {
         name: "J2G 2W4",
         locality: "Granby",
         region: "QC",
+        // FR-038 — the recap card and the result badge read these.
+        kind: "postal_code",
+        precision: "exact",
+        source: "search",
+        postalCode: "J2G 2W4",
       },
     ]);
     expect(postalCodes.find).toHaveBeenCalledWith("J2G2W4");
@@ -85,7 +90,9 @@ describe("searchDestinationPlaces (FR-040)", () => {
     });
 
     expect(places).toEqual([GEOCODED]);
-    expect(geocoding.search).toHaveBeenCalledWith("K1A 0B1", "fr");
+    expect(geocoding.search).toHaveBeenCalledWith("K1A 0B1", "fr", {
+      proximity: undefined,
+    });
   });
 
   it("journalise puis retombe sur le géocodage quand la base échoue", async () => {
@@ -104,7 +111,9 @@ describe("searchDestinationPlaces (FR-040)", () => {
 
     expect(places).toEqual([GEOCODED]);
     expect(onPostalCodeFailure).toHaveBeenCalledWith(failure);
-    expect(geocoding.search).toHaveBeenCalledWith("J2G2W4", "fr");
+    expect(geocoding.search).toHaveBeenCalledWith("J2G2W4", "fr", {
+      proximity: undefined,
+    });
   });
 
   it("laisse les adresses, villes et POI au fournisseur de géocodage", async () => {
@@ -131,6 +140,8 @@ describe("searchDestinationPlaces (FR-040)", () => {
     });
 
     expect(places).toEqual([GEOCODED]);
-    expect(geocoding.search).toHaveBeenCalledWith("J2G2W4", "fr");
+    expect(geocoding.search).toHaveBeenCalledWith("J2G2W4", "fr", {
+      proximity: undefined,
+    });
   });
 });

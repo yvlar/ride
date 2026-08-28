@@ -89,4 +89,39 @@ describe("GET /api/geocode/reverse (FR-017)", () => {
     expect(serialized).not.toContain("45.4001");
     expect(serialized).not.toContain("-72.7342");
   });
+  it("keeps the descriptive fields the map picker needs (FR-038)", async () => {
+    reverse.mockResolvedValue({
+      label: "125 Rue Principale, Granby, Québec, Canada",
+      name: "125 Rue Principale",
+      addressLine: "125 Rue Principale",
+      locality: "Granby",
+      region: "Québec",
+      postalCode: "J2G 2W4",
+      country: "Canada",
+      kind: "address",
+      precision: "exact",
+      coordinates: { latitude: 45.4, longitude: -72.73 },
+    });
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/geocode/reverse?latitude=45.4001&longitude=-72.7342",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.place).toMatchObject({
+      name: "125 Rue Principale",
+      locality: "Granby",
+      region: "Québec",
+      postalCode: "J2G 2W4",
+      country: "Canada",
+      kind: "address",
+      precision: "exact",
+      // The requested point always wins over the geocoder's echo.
+      coordinates: { latitude: 45.4001, longitude: -72.7342 },
+    });
+  });
 });

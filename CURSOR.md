@@ -358,13 +358,26 @@ Si le fournisseur ne permet pas de pénaliser des segments, l’adaptateur doit 
 ### Géocodage
 
 ```ts
+type GeocodeSearchOptions = {
+  proximity?: Coordinates | null;
+  limit?: number;
+};
+
 interface GeocodingProvider {
-  search(query: string, locale: string): Promise<Place[]>;
+  search(
+    query: string,
+    locale: string,
+    options?: GeocodeSearchOptions,
+  ): Promise<Place[]>;
   reverse(coordinates: Coordinates, locale: string): Promise<Place>;
 }
 ```
 
-Ajouter un délai de saisie, annuler les requêtes obsolètes et limiter le nombre de résultats.
+Ajouter un délai de saisie (environ 300 ms), annuler les requêtes obsolètes et limiter le nombre de résultats.
+
+`proximity` est un **biais**, pas un filtre : l’adaptateur l’utilise pour orienter le fournisseur, mais le classement final (Québec, puis Canada, puis distance) reste dans le domaine (`rankPlaces`). Un filtre pays exclusif comme `countrycodes` ne doit jamais servir à « prioriser » une région, car il supprime les autres.
+
+Le `Place` retourné porte, lorsque le fournisseur les expose, la municipalité, la province, le pays, le code postal, le type (`address`, `city`, `postal_code`, `place`) et la précision (`exact`, `approximate`). Un résultat approximatif désigne une zone : l’interface doit permettre d’ajuster le point.
 
 ## 10. API interne
 

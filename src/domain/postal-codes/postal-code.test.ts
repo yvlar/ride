@@ -18,6 +18,11 @@ describe("postalCodePlace (FR-040, FR-032)", () => {
       name: "J2G 2W4",
       locality: "Granby",
       region: "QC",
+      // FR-038 — the reference base gives a real point, not a zone centroid.
+      kind: "postal_code",
+      precision: "exact",
+      source: "search",
+      postalCode: "J2G 2W4",
     });
   });
 

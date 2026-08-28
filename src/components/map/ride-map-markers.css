@@ -101,3 +101,19 @@
     transition: none !important;
   }
 }
+
+/* FR-038 — the draggable pin the rider places and adjusts on the map. */
+.ride-map-pick-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px 999px 999px 0;
+  transform: rotate(-45deg);
+  background: #f97316;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+  cursor: grab;
+}
+
+.ride-map-pick-marker:active {
+  cursor: grabbing;
+}

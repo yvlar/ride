@@ -35,6 +35,12 @@ export function postalCodePlace(location: PostalCodeLocation): Place {
       longitude: location.longitude,
     },
     name,
+    // FR-038 — the reference base resolves a full postal code to a real point,
+    // so this is an exact destination, not a zone centroid.
+    kind: "postal_code",
+    precision: "exact",
+    source: "search",
+    postalCode: name,
     ...(locality ? { locality } : {}),
     ...(region ? { region } : {}),
   };

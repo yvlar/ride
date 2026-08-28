@@ -1,4 +1,4 @@
-import type { Place } from "@/domain/geo/types";
+import type { Coordinates, Place } from "@/domain/geo/types";
 import { normalizeCanadianPostalCode } from "@/domain/postal-codes/normalize-postal-code";
 import { postalCodePlace } from "@/domain/postal-codes/postal-code";
 import type { PostalCodeProvider } from "@/domain/postal-codes/postal-code-provider";
@@ -8,6 +8,11 @@ export type SearchDestinationPlacesDependencies = {
   geocoding: GeocodingProvider;
   /** Absent lorsque la base de codes postaux n’est pas configurée. */
   postalCodes?: PostalCodeProvider | null;
+  /**
+   * Position actuelle, lorsqu’elle est connue. Transmise au géocodeur comme
+   * biais souple; le classement final reste dans le domaine (`FR-032`).
+   */
+  proximity?: Coordinates | null;
   /** Journalisation serveur d’une panne de la base de référence. */
   onPostalCodeFailure?: (error: unknown) => void;
 };
@@ -28,7 +33,8 @@ export async function searchDestinationPlaces(
   locale: string,
   dependencies: SearchDestinationPlacesDependencies,
 ): Promise<Place[]> {
-  const { geocoding, postalCodes, onPostalCodeFailure } = dependencies;
+  const { geocoding, postalCodes, proximity, onPostalCodeFailure } =
+    dependencies;
   const postalCode = normalizeCanadianPostalCode(query);
 
   if (postalCode && postalCodes) {
@@ -42,5 +48,5 @@ export async function searchDestinationPlaces(
     }
   }
 
-  return geocoding.search(query, locale);
+  return geocoding.search(query, locale, { proximity });
 }

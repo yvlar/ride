@@ -9,8 +9,10 @@ import {
   ROUTE_PREFERENCES_STORAGE_KEY,
   writeStoredRoutePreferences,
 } from "@/domain/ride/stored-route-preferences";
-import type { Place } from "@/domain/geo/types";
+import type { Coordinates, Place } from "@/domain/geo/types";
+import type { MapEngine, MapEngineHandlers } from "@/components/map/map-engine";
 import type {
+  GenerateRideRequest,
   GenerateRideResult,
   GeneratedDestinationRoute,
 } from "@/domain/ride/types";
@@ -54,6 +56,27 @@ const laterRoute: GeneratedDestinationRoute = {
   id: "route-2",
   distanceKm: 122.1,
 };
+
+/** Map stub that lets a test drop a pin without MapLibre. */
+function stubPickerEngine() {
+  let pick: ((coordinates: Coordinates) => void) | undefined;
+  const engine: MapEngine = {
+    mount: vi.fn((_container, _viewModel, handlers: MapEngineHandlers) => {
+      pick = handlers.onPick;
+      return {
+        destroy: vi.fn(),
+        setPickEnabled: vi.fn(),
+        setPickMarker: vi.fn(),
+      };
+    }),
+  };
+  return {
+    engine,
+    drop(coordinates: Coordinates) {
+      pick?.(coordinates);
+    },
+  };
+}
 
 function renderPanel(overrides: Partial<FindDestinationPanelProps> = {}) {
   return render(
@@ -154,7 +177,8 @@ describe("FindDestinationPanel (FR-038)", () => {
       expect.objectContaining({
         type: "destination",
         start: granby,
-        destination: tremblant,
+        // The destination records how it was chosen (FR-038).
+        destination: { ...tremblant, source: "search" },
         style: "scenic",
         preferences: {
           avoidHighways: false,
@@ -310,9 +334,14 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(
       await screen.findByRole("button", { name: "Générer le trajet" }),
     ).toBeEnabled();
-    expect(screen.getByRole("combobox", { name: "Où voulez-vous aller?" })).toHaveValue(
+    // The previous destination stays visible and editable (FR-038).
+    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
       "Mont-Tremblant",
     );
+    fireEvent.click(screen.getByRole("button", { name: "Modifier" }));
+    expect(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+    ).toHaveValue("Mont-Tremblant");
     expect(
       screen.queryByRole("button", { name: "Démarrer la navigation" }),
     ).not.toBeInTheDocument();
@@ -333,6 +362,7 @@ describe("FindDestinationPanel (FR-038)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
     await waitFor(() => expect(generateRide).toHaveBeenCalledTimes(1));
 
+    fireEvent.click(screen.getByRole("button", { name: "Modifier" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Où voulez-vous aller?" }), {
       target: { value: "Mont" },
     });
@@ -455,5 +485,266 @@ describe("FindDestinationPanel (FR-038)", () => {
     await screen.findByRole("button", { name: "Démarrer la navigation" });
     expect(screen.getByText("arrivée")).toBeInTheDocument();
     expect(screen.getByText(/Vers Mont-Tremblant/)).toBeInTheDocument();
+  });
+
+  it("finds a destination by full address, by city and by postal code (FR-038)", async () => {
+    const address: Place = {
+      label: "125 Rue Principale, Granby, Québec, Canada",
+      name: "125 Rue Principale",
+      locality: "Granby",
+      region: "Québec",
+      country: "Canada",
+      kind: "address",
+      precision: "exact",
+      coordinates: { latitude: 45.4008, longitude: -72.7311 },
+    };
+    const city: Place = {
+      label: "Roxton Pond, Québec, Canada",
+      name: "Roxton Pond",
+      locality: "Roxton Pond",
+      region: "Québec",
+      country: "Canada",
+      kind: "city",
+      precision: "approximate",
+      coordinates: { latitude: 45.4833, longitude: -72.6333 },
+    };
+    const postal: Place = {
+      label: "J2G 2W4, Granby, Québec, Canada",
+      name: "J2G 2W4",
+      locality: "Granby",
+      region: "Québec",
+      postalCode: "J2G 2W4",
+      country: "Canada",
+      kind: "postal_code",
+      precision: "approximate",
+      coordinates: { latitude: 45.4004, longitude: -72.7325 },
+    };
+    const byQuery: Record<string, Place[]> = {
+      "125 rue Principale, Granby": [address],
+      "Roxton Pond": [city],
+      "j2g 2w4": [postal],
+    };
+
+    renderPanel({
+      searchPlaces: async (query: string) => byQuery[query] ?? [],
+    });
+    await screen.findByText(/Position détectée/);
+
+    const field = () =>
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" });
+
+    for (const [query, expected] of Object.entries(byQuery)) {
+      fireEvent.change(field(), { target: { value: query } });
+      const option = await screen.findByRole("option", {
+        name: expected[0]!.label,
+      });
+      // The type of each result is visible in the list.
+      expect(option).toHaveTextContent(
+        expected[0]!.kind === "address"
+          ? "Adresse"
+          : expected[0]!.kind === "city"
+            ? "Ville"
+            : "Code postal",
+      );
+      fireEvent.click(option);
+
+      expect(screen.getByTestId("selected-destination")).toHaveTextContent(
+        expected[0]!.name!,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Modifier" }));
+    }
+  });
+
+  it("distinguishes two municipalities that share a name (FR-032, FR-038)", async () => {
+    const granbyQc: Place = {
+      label: "Granby, Québec, Canada",
+      name: "Granby",
+      locality: "Granby",
+      region: "Québec",
+      country: "Canada",
+      kind: "city",
+      precision: "approximate",
+      coordinates: { latitude: 45.4001, longitude: -72.7342 },
+    };
+    const granbyCo: Place = {
+      label: "Granby, Colorado, États-Unis",
+      name: "Granby",
+      locality: "Granby",
+      region: "Colorado",
+      country: "États-Unis",
+      kind: "city",
+      precision: "approximate",
+      coordinates: { latitude: 40.0866, longitude: -105.9372 },
+    };
+
+    renderPanel({ searchPlaces: async () => [granbyQc, granbyCo] });
+    await screen.findByText(/Position détectée/);
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+      { target: { value: "Granby" } },
+    );
+
+    const options = await screen.findAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveTextContent("Québec");
+    expect(options[0]).toHaveTextContent("Canada");
+    expect(options[1]).toHaveTextContent("Colorado");
+    expect(options[1]).toHaveTextContent("États-Unis");
+    // Neither is preselected: the rider must choose (FR-032).
+    expect(options[0]).toHaveAttribute("aria-selected", "false");
+    expect(options[1]).toHaveAttribute("aria-selected", "false");
+    expect(
+      screen.queryByTestId("selected-destination"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks an approximate postal-code destination and offers to adjust it (FR-038)", async () => {
+    const postal: Place = {
+      label: "J2G, Granby, Québec, Canada",
+      name: "J2G 2W4",
+      locality: "Granby",
+      region: "Québec",
+      postalCode: "J2G 2W4",
+      country: "Canada",
+      kind: "postal_code",
+      precision: "approximate",
+      coordinates: { latitude: 45.4004, longitude: -72.7325 },
+    };
+
+    renderPanel({ searchPlaces: async () => [postal] });
+    await screen.findByText(/Position détectée/);
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+      { target: { value: "J2G2W4" } },
+    );
+    fireEvent.click(await screen.findByRole("option", { name: postal.label }));
+
+    const card = screen.getByTestId("selected-destination");
+    expect(card).toHaveAttribute("data-precision", "approximate");
+    expect(card).toHaveTextContent("Emplacement approximatif");
+    expect(
+      screen.getByRole("button", { name: "Ajuster sur la carte" }),
+    ).toBeEnabled();
+  });
+
+  it("invalidates the destination as soon as the text changes (FR-038)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route,
+    }));
+    renderPanel({ generateRide });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    expect(
+      screen.getByRole("button", { name: "Générer le trajet" }),
+    ).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Modifier" }));
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+      { target: { value: "Mont-Trembl" } },
+    );
+
+    // The stale coordinates must never be reused silently.
+    expect(
+      screen.getByRole("button", { name: "Générer le trajet" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByTestId("selected-destination"),
+    ).not.toBeInTheDocument();
+    expect(generateRide).not.toHaveBeenCalled();
+  });
+
+  it("picks a destination on the map and sends its coordinates to routing (FR-038)", async () => {
+    const picked = { latitude: 45.9, longitude: -73.1 };
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route,
+    }));
+    const map = stubPickerEngine();
+
+    renderPanel({
+      generateRide,
+      mapEngine: map.engine,
+      reversePlace: async (coordinates) => ({ ...granby, coordinates }),
+    });
+    await screen.findByText(/Position détectée/);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choisir sur la carte" }),
+    );
+    expect(await screen.findByTestId("destination-map-picker")).toBeInTheDocument();
+
+    map.drop(picked);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Utiliser cette destination" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("destination-map-picker"),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("selected-destination")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    await waitFor(() => expect(generateRide).toHaveBeenCalledTimes(1));
+
+    const request = generateRide.mock.calls.at(0)?.at(0) as unknown as
+      GenerateRideRequest & { destination: Place; start: Place };
+    expect(request.destination.coordinates).toEqual(picked);
+    expect(request.destination.source).toBe("map");
+    expect(request.start.coordinates).toEqual(located.coordinates);
+  });
+
+  it("keeps the previous destination when the map picker is cancelled (FR-038)", async () => {
+    const map = stubPickerEngine();
+    renderPanel({ mapEngine: map.engine });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
+      "Mont-Tremblant",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Modifier" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choisir sur la carte" }),
+    );
+    await screen.findByTestId("destination-map-picker");
+    map.drop({ latitude: 40, longitude: -100 });
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("destination-map-picker"),
+      ).not.toBeInTheDocument();
+    });
+    // Cancelling discards the draft, never the confirmed destination.
+    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
+      "Mont-Tremblant",
+    );
+    expect(
+      screen.getByRole("button", { name: "Générer le trajet" }),
+    ).toBeEnabled();
+  });
+
+  it("clears the destination and disables generation (FR-038)", async () => {
+    renderPanel();
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Effacer la destination" }),
+    );
+
+    expect(
+      screen.queryByTestId("selected-destination"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+    ).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Générer le trajet" }),
+    ).toBeDisabled();
   });
 });

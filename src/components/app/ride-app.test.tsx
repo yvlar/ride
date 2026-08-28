@@ -721,7 +721,9 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     ).toBeInTheDocument();
     expect(unsubscribeWatch).toHaveBeenCalled();
     expect(speech.cancel).toHaveBeenCalled();
-    expect(screen.getByRole("combobox", { name: "Où voulez-vous aller?" })).toHaveValue(
+    // The previous destination survives the cancellation, in the recap card
+    // that replaces the results once confirmed (FR-038).
+    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
       "Mont-Tremblant",
     );
     await waitFor(() => {

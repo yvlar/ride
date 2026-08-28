@@ -13,13 +13,20 @@ export function placePrimaryName(place: Place): string {
 }
 
 /**
- * FR-032 — secondary line (address / locality) so similar places stay distinct.
+ * FR-032 / FR-038 — secondary line so similar places stay distinct.
+ *
+ * The country is included whenever the provider supplies it: two municipalities
+ * can share a name *and* a province abbreviation, and "Granby, Québec, Canada"
+ * versus "Granby, Colorado, États-Unis" is the only thing that tells them
+ * apart in the list.
  */
 export function placeSecondaryLine(place: Place): string | null {
+  const name = place.name?.trim();
   const parts = [
     place.addressLine?.trim(),
     place.locality?.trim(),
     place.region?.trim(),
+    place.country?.trim(),
   ].filter((part): part is string => Boolean(part));
 
   if (parts.length === 0) {
@@ -32,7 +39,7 @@ export function placeSecondaryLine(place: Place): string | null {
   }
 
   const unique = parts.filter(
-    (part, index) => parts.indexOf(part) === index && part !== place.name?.trim(),
+    (part, index) => parts.indexOf(part) === index && part !== name,
   );
   return unique.length > 0 ? unique.join(", ") : null;
 }

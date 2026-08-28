@@ -32,6 +32,13 @@ export type RideMapProps = {
   onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
   onFollowUserChange?: (following: boolean) => void;
+  /** FR-038 — arm click / long-press / marker-drag destination picking. */
+  pickMode?: boolean;
+  /** Coordinates of the draggable destination marker, when one is placed. */
+  pickMarker?: Coordinates | null;
+  onPick?: (coordinates: Coordinates) => void;
+  /** Accessible name, so a picker map is not announced as the route map. */
+  label?: string;
 };
 
 export function RideMap({
@@ -49,6 +56,10 @@ export function RideMap({
   onOverviewReady,
   onGeolocateReady,
   onFollowUserChange,
+  pickMode = false,
+  pickMarker = null,
+  onPick,
+  label = "Carte du trajet",
 }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
@@ -65,6 +76,9 @@ export function RideMap({
   const geolocateEnabled = !expanded && !recordingActive;
   const geolocateEnabledRef = useRef(geolocateEnabled);
   const expandedRef = useRef(expanded);
+  const onPickRef = useRef(onPick);
+  const pickModeRef = useRef(pickMode);
+  const pickMarkerRef = useRef(pickMarker);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(
@@ -99,6 +113,10 @@ export function RideMap({
   useEffect(() => {
     expandedRef.current = expanded;
   }, [expanded]);
+
+  useEffect(() => {
+    onPickRef.current = onPick;
+  }, [onPick]);
 
   useEffect(() => {
     userLocationRef.current = userLocation;
@@ -153,6 +171,11 @@ export function RideMap({
               onFollowUserChangeRef.current?.(following);
             }
           },
+          onPick: (coordinates) => {
+            if (!cancelled) {
+              onPickRef.current?.(coordinates);
+            }
+          },
         });
         handleRef.current = handle;
         const latest = viewModelRef.current ?? initial;
@@ -167,6 +190,8 @@ export function RideMap({
         handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
         handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
         handle.setFollowUser?.(expandedRef.current);
+        handle.setPickEnabled?.(pickModeRef.current);
+        handle.setPickMarker?.(pickMarkerRef.current ?? null);
         onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onOverviewReadyRef.current?.(() => handle?.overview?.());
         onGeolocateReadyRef.current?.((enabled) => {
@@ -198,6 +223,11 @@ export function RideMap({
                 onFollowUserChangeRef.current?.(following);
               }
             },
+            onPick: (coordinates) => {
+              if (!cancelled) {
+                onPickRef.current?.(coordinates);
+              }
+            },
           });
           handleRef.current = handle;
           const latest = viewModelRef.current ?? initial;
@@ -212,6 +242,8 @@ export function RideMap({
           handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
           handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
           handle.setFollowUser?.(expandedRef.current);
+          handle.setPickEnabled?.(pickModeRef.current);
+          handle.setPickMarker?.(pickMarkerRef.current ?? null);
           onRecenterReadyRef.current?.(() => handle?.recenter?.());
         onOverviewReadyRef.current?.(() => handle?.overview?.());
           onGeolocateReadyRef.current?.((enabled) => {
@@ -253,6 +285,16 @@ export function RideMap({
     handleRef.current?.setRecordedTrack?.(recordedTrack ?? null);
   }, [recordedTrack]);
 
+  useEffect(() => {
+    pickModeRef.current = pickMode;
+    handleRef.current?.setPickEnabled?.(pickMode);
+  }, [pickMode]);
+
+  useEffect(() => {
+    pickMarkerRef.current = pickMarker;
+    handleRef.current?.setPickMarker?.(pickMarker ?? null);
+  }, [pickMarker]);
+
   useLayoutEffect(() => {
     handleRef.current?.setGeolocateEnabled?.(geolocateEnabled);
     handleRef.current?.setFollowUser?.(expanded);
@@ -264,7 +306,7 @@ export function RideMap({
 
   return (
     <section
-      aria-label="Carte du trajet"
+      aria-label={label}
       className={cn(fillContainer ? "relative h-full w-full" : "space-y-2")}
     >
       {viewModel && !fillContainer && !viewModel.idle ? (

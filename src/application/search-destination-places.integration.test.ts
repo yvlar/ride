@@ -63,7 +63,10 @@ describe("recherche de destination par code postal (FR-040)", () => {
       dependencies(),
     );
 
-    expect(city[0]?.label).toBe("Sherbrooke, QC");
+    // The mock fixtures carry the municipality, region and country so
+    // same-name places stay distinguishable (FR-032, FR-038).
+    expect(city[0]?.label).toBe("Sherbrooke, Québec, Canada");
+    expect(city[0]?.kind).toBe("city");
     expect(unknownPostalCode).toEqual([]);
   });
 });

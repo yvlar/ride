@@ -40,7 +40,13 @@ const {
   const easeTo = vi.fn();
   const fitBounds = vi.fn();
   const addLayer = vi.fn();
-  const createdMarkers: { element?: HTMLElement }[] = [];
+  const createdMarkers: {
+    element?: HTMLElement;
+    draggable?: boolean;
+    lngLat?: { lng: number; lat: number };
+    setLngLat?: (value: { lng: number; lat: number }) => unknown;
+    fire?: (event: string) => void;
+  }[] = [];
   const rasterStyle = {
     version: 8 as const,
     sources: {
@@ -104,6 +110,7 @@ const {
     fitBounds = fitBounds;
     easeTo = easeTo;
     isStyleLoaded = () => true;
+    unproject = ([x, y]: [number, number]) => ({ lng: x / 100, lat: y / 100 });
 
     constructor(options: Record<string, unknown>) {
       mapState.lastOptions = options;
@@ -116,9 +123,19 @@ const {
     rotation = 0;
     element: HTMLElement | undefined;
     hasLngLat = false;
-    constructor(options?: { element?: HTMLElement }) {
+    draggable = false;
+    handlers = new Map<string, () => void>();
+    constructor(options?: { element?: HTMLElement; draggable?: boolean }) {
       this.element = options?.element;
+      this.draggable = options?.draggable ?? false;
       createdMarkers.push(this);
+    }
+    on(event: string, handler: () => void) {
+      this.handlers.set(event, handler);
+      return this;
+    }
+    fire(event: string) {
+      this.handlers.get(event)?.();
     }
     setLngLat(value: { lng?: number; lat?: number } | [number, number]) {
       this.hasLngLat = true;
@@ -873,5 +890,93 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
     );
     expect(traveled).toBeDefined();
     expect(traveled?.[1]).toBe("ride-route-line");
+  });
+});
+describe("MapLibre destination picking (FR-038)", () => {
+  beforeEach(() => {
+    mapOn.mockReset();
+    markerRemove.mockReset();
+    createdMarkers.length = 0;
+    mapState.painterAvailable = true;
+    mapState.markerThrows = false;
+  });
+
+  async function mountPicker() {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const container = document.createElement("div");
+    const onPick = vi.fn();
+    const handle = createMapLibreEngine().mount(container, viewModel, {
+      onError: vi.fn(),
+      onPick,
+    });
+    const clickHandler = mapOn.mock.calls.find(
+      (call) => call[0] === "click",
+    )?.[1] as ((event: unknown) => void) | undefined;
+    return { container, handle, onPick, clickHandler };
+  }
+
+  it("ignores map clicks until picking is armed", async () => {
+    const { handle, onPick, clickHandler } = await mountPicker();
+
+    clickHandler?.({ lngLat: { lng: -72.7342, lat: 45.4001 }, originalEvent: {} });
+    expect(onPick).not.toHaveBeenCalled();
+
+    handle.setPickEnabled?.(true);
+    clickHandler?.({ lngLat: { lng: -72.7342, lat: 45.4001 }, originalEvent: {} });
+    expect(onPick).toHaveBeenCalledWith({
+      latitude: 45.4001,
+      longitude: -72.7342,
+    });
+
+    handle.destroy();
+  });
+
+  it("leaves taps to the long press rather than the synthesized click", async () => {
+    const { handle, onPick, clickHandler } = await mountPicker();
+    handle.setPickEnabled?.(true);
+
+    clickHandler?.({
+      lngLat: { lng: -72.7342, lat: 45.4001 },
+      originalEvent: { pointerType: "touch" },
+    });
+
+    expect(onPick).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("places a draggable marker and reports where it is dropped", async () => {
+    const { handle, onPick } = await mountPicker();
+    handle.setPickEnabled?.(true);
+    createdMarkers.length = 0;
+
+    handle.setPickMarker?.({ latitude: 45.4001, longitude: -72.7342 });
+    const marker = createdMarkers.at(-1);
+    expect(marker?.draggable).toBe(true);
+    expect(marker?.lngLat).toEqual({ lng: -72.7342, lat: 45.4001 });
+
+    // Moving the marker reports through the same callback.
+    marker?.setLngLat?.({ lng: -72.7, lat: 45.5 });
+    marker?.fire?.("dragend");
+    expect(onPick).toHaveBeenCalledWith({ latitude: 45.5, longitude: -72.7 });
+
+    // Re-setting the marker moves the existing one instead of adding another.
+    const created = createdMarkers.length;
+    handle.setPickMarker?.({ latitude: 46, longitude: -73 });
+    expect(createdMarkers.length).toBe(created);
+    expect(marker?.lngLat).toEqual({ lng: -73, lat: 46 });
+
+    handle.destroy();
+  });
+
+  it("removes the marker when the pick is cleared", async () => {
+    const { handle } = await mountPicker();
+    handle.setPickEnabled?.(true);
+    handle.setPickMarker?.({ latitude: 45.4001, longitude: -72.7342 });
+    const before = markerRemove.mock.calls.length;
+
+    handle.setPickMarker?.(null);
+
+    expect(markerRemove.mock.calls.length).toBeGreaterThan(before);
+    handle.destroy();
   });
 });
