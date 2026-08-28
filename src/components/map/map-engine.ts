@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/domain/geo/types";
+import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
 export const MAP_UNAVAILABLE_MESSAGE =
@@ -18,6 +19,8 @@ export type MapEngineHandle = {
   setGeolocateEnabled?: (enabled: boolean) => void;
   /** Keep the camera on the rider after GeolocateControl is torn down (FR-024). */
   setFollowUser?: (enabled: boolean) => void;
+  /** Live GPS recording trace, independent of any planned route (FR-041). */
+  setRecordedTrack?: (overlay: RecordedTrackOverlay | null) => void;
 };
 
 export type MapEngineHandlers = {

@@ -228,7 +228,7 @@ La première version doit rester volontairement simple.
 
 ### Versions suivantes
 
-- export GPX et intégrations de navigation;
+- intégrations de navigation externes;
 - profils de motos;
 - historique des routes parcourues;
 - recommandation de routes inédites;
@@ -255,7 +255,7 @@ Le champ de destination accepte aussi un code postal canadien (`FR-040`) : `J2G 
 
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
-La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Un fichier GPX importé (`FR-039`) reste la référence : Ride guide d’abord jusqu’au point d’entrée projeté sur la polyligne, puis suit la trace. Sur le web et l’iPhone, la navigation exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). La localisation en arrière-plan (permission Always), la navigation hors ligne, Android Auto et l’export GPX restent hors périmètre.
+La navigation virage par virage (`FR-023` à `FR-026`) démarre après **Démarrer la navigation** : instructions visuelles, guidage vocal et recalcul hors trajet. Un fichier GPX importé (`FR-039`) reste la référence : Ride guide d’abord jusqu’au point d’entrée projeté sur la polyligne, puis suit la trace. Sur le web et l’iPhone, la navigation exige que l’application reste ouverte au premier plan. Sur un écran Apple CarPlay connecté, la même session s’affiche avec un chrome type carte de navigation (`FR-028`). L’enregistrement du parcours réellement effectué et son export GPX (`FR-041`) sont disponibles depuis l’explorateur : ils réutilisent le même flux de localisation de premier plan, restent indépendants de tout trajet planifié et n’appellent ni l’IA ni le moteur de routage. La localisation en arrière-plan (permission Always), la navigation hors ligne et Android Auto restent hors périmètre : un parcours n’est pas enregistré tant que l’application est suspendue ou l’écran verrouillé, hors scène CarPlay connectée.
 
 La coque iOS Capacitor (`FR-027`) encapsule la même application web. Le domaine et les API Next.js ne changent pas. Ce dépôt fournit le projet Xcode dans `ios/` ; la compilation, le simulateur et TestFlight exigent macOS et Xcode. Cet environnement Linux ne produit pas d’IPA.
 

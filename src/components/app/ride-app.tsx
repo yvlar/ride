@@ -33,6 +33,12 @@ import {
 } from "@/domain/navigation/session-copy";
 import { ImportGpxPanel } from "@/components/gpx/import-gpx-panel";
 import { NavigationSession } from "@/components/navigation/navigation-session";
+import { TrackRecorderControl } from "@/components/recording/track-recorder-control";
+import {
+  useTrackRecorder,
+  type TrackRecorderDeps,
+} from "@/components/recording/use-track-recorder";
+import { recordedPointCoordinates } from "@/domain/recording/types";
 import { createCarPlayDisplay } from "@/infrastructure/carplay/create-carplay-display";
 import {
   findRecentPlaceByCatalogId,
@@ -53,7 +59,12 @@ import { formatDistanceLabel, formatDurationLabel } from "@/components/navigatio
 
 type ExplorerSheet = "home" | "search" | "describe" | "planner" | "gpx";
 
-export function RideApp(props: RideRequestFormProps) {
+export type RideAppProps = RideRequestFormProps & {
+  /** FR-041 — coutures de test de l'enregistrement de parcours. */
+  recording?: Pick<TrackRecorderDeps, "now" | "exportFile">;
+};
+
+export function RideApp(props: RideAppProps) {
   const library = useMemo(() => {
     const storage = typeof window === "undefined" ? null : window.localStorage;
     return createLocalRideLibrary(storage);
@@ -118,6 +129,16 @@ export function RideApp(props: RideRequestFormProps) {
   const locationWatch = props.navigation?.locationWatch ?? ownedLocationWatch;
   const speechEngine = props.navigation?.speech ?? ownedSpeech;
   const carPlay = useMemo(() => createCarPlayDisplay(), []);
+  const recorder = useTrackRecorder({
+    locationWatch,
+    now: props.recording?.now,
+    exportFile: props.recording?.exportFile,
+  });
+  const recorderBusy = recorder.state.status !== "idle";
+  const recordingFix =
+    recorder.state.status === "recording"
+      ? (recorder.state.points[recorder.state.points.length - 1] ?? null)
+      : null;
   const plannerOwnsMap = navigating && sheet === "planner";
   const explorerOwnsNavigation =
     navigating && (sheet === "describe" || sheet === "search" || sheet === "gpx");
@@ -460,8 +481,23 @@ export function RideApp(props: RideRequestFormProps) {
               engine={props.mapEngine}
               fill
               expanded={explorerOwnsNavigation}
-              userLocation={explorerOwnsNavigation ? navUserLocation : null}
-              headingDeg={explorerOwnsNavigation ? navHeadingDeg : null}
+              recordedTrack={recorder.overlay}
+              recordingActive={recorderBusy}
+              userLocation={
+                explorerOwnsNavigation
+                  ? navUserLocation
+                  : recordingFix
+                    ? recordedPointCoordinates(recordingFix)
+                    : null
+              }
+              headingDeg={
+                explorerOwnsNavigation
+                  ? navHeadingDeg
+                  : typeof recordingFix?.heading === "number" &&
+                      Number.isFinite(recordingFix.heading)
+                    ? recordingFix.heading
+                    : null
+              }
               traveledKm={explorerOwnsNavigation ? navProgressKm : 0}
               onFollowUserChange={setNavFollowingUser}
               onRecenterReady={(recenter) => {
@@ -797,6 +833,17 @@ export function RideApp(props: RideRequestFormProps) {
           />
         ) : null}
       </div>
+      {tab === "explore" || recorderBusy ? (
+        <div
+          className={
+            navigating
+              ? "relative z-30 border-t border-border bg-card/95 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+              : "relative z-30 border-t border-border bg-card/95 px-3 py-2 backdrop-blur-md"
+          }
+        >
+          <TrackRecorderControl recorder={recorder} now={props.recording?.now} />
+        </div>
+      ) : null}
       {pendingRideIntent ? (
         <div
           role="alertdialog"

@@ -39,7 +39,8 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 10. suivre sa position actuelle sur la carte, uniquement au premier plan et après une action volontaire (`FR-022`);
 11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`);
 12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier;
-13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`).
+13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`);
+14. enregistrer le parcours réellement effectué et l’exporter en fichier GPX (`FR-041`).
 
 Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan sur l’iPhone, sauf exception CarPlay (`FR-028`).
 
@@ -966,6 +967,59 @@ Une base de référence **indisponible ou non configurée** ne bloque jamais la 
 
 La lecture passe par le serveur (`/api/geocode`). Aucune clé privilégiée n’est exposée au navigateur, le jeu de données n’est jamais embarqué dans le bundle, et la source publique n’est jamais appelée à chaque frappe : elle ne sert qu’à la synchronisation périodique de la base de référence.
 
+### FR-041 — Enregistrement du parcours en direct et export GPX
+
+Le motocycliste peut enregistrer le parcours **réellement effectué** et l’exporter en fichier `.gpx`. L’enregistrement est **indépendant de tout trajet planifié** : il n’appelle ni l’IA (`FR-034`), ni le fournisseur de routage (`FR-011`, `BR-004`), ni la génération de trajet. Il peut se dérouler pendant une navigation (`FR-023`) sans l’interrompre.
+
+#### Flux
+
+État initial : la carte (`FR-013`) affiche une action principale **Démarrer l’enregistrement**. Au geste :
+
+1. l’autorisation de localisation est demandée si nécessaire;
+2. le **flux de localisation partagé** existant est réutilisé (`FR-022`, `FR-023`, `NFR-006`) : aucun second observateur GPS n’est ouvert;
+3. les coordonnées valides sont collectées et la trace apparaît progressivement sur la carte.
+
+Pendant l’enregistrement, l’écran affiche en permanence : un indicateur rouge **Enregistrement en cours** doublé d’un libellé texte, le temps écoulé, la distance parcourue, la position actuelle, la ligne du parcours déjà effectué, et un **gros bouton Arrêter** atteignable au pouce.
+
+À l’arrêt : la collecte cesse immédiatement, l’observateur de géolocalisation est libéré, les points déjà enregistrés sont conservés, la carte cadre tout le parcours, un marqueur **Départ** et un marqueur **Arrivée** distincts apparaissent, et deux actions sont proposées : **Sauvegarder en GPX** et **Supprimer**. Le parcours n’est **jamais** sauvegardé automatiquement.
+
+#### Sauvegarde GPX
+
+Le fichier produit est un GPX **1.1** valide, `creator="Ride"`, contenant `<metadata>` (nom, horodatage) puis une trace `<trk>` / `<trkseg>` / `<trkpt>`. Chaque `<trkpt>` conserve la latitude, la longitude et l’horodatage **ISO 8601 UTC**; l’altitude `<ele>` n’est écrite que lorsque l’appareil la fournit. Toute valeur textuelle est échappée en XML.
+
+Le nom de fichier suit la forme `ride-2026-08-25-1430.gpx` (horloge locale) et le type MIME est `application/gpx+xml`. La sortie utilise **Web Share avec fichier** lorsque l’API le supporte (iPhone, PWA), avec un **téléchargement classique** en repli. Les données ne sont supprimées qu’après la création réussie du fichier, et une confirmation claire nomme le fichier créé.
+
+#### Suppression
+
+**Supprimer** demande une confirmation explicite (action irréversible), efface tous les points du parcours courant, retire la ligne et les marqueurs de la carte, revient à l’état initial et ne laisse aucun observateur GPS actif.
+
+#### Qualité des données GPS
+
+Un point conservé porte au minimum latitude, longitude et horodatage, et facultativement altitude, précision, vitesse et cap. Les seuils de filtrage sont des **constantes documentées et testables** du domaine :
+
+- coordonnées non finies, hors bornes, sans horodatage ou nulles (`0, 0`) : ignorées;
+- doublons et horodatages non croissants : ignorés;
+- premier relevé au-delà d’un seuil de précision strict : ignoré (une puce GPS qui démarre renvoie souvent une position réseau très imprécise);
+- relevé ultérieur au-delà du seuil de précision courant : ignoré;
+- déplacement sous le seuil d’immobilité : ignoré, afin qu’un arrêt n’accumule pas de points; le filtre étant purement métrique, les **vrais changements de direction sont conservés**;
+- saut impliquant une vitesse impossible : ignoré, mais un décalage qui persiste au-delà d’un nombre fixé de relevés est accepté et resynchronise la trace, afin qu’un parcours ne se fige jamais en silence.
+
+La distance est calculée sur les seuls points conservés, par une méthode géographique (Haversine, `BR-004`).
+
+#### États et garanties
+
+Statuts : `idle`, `requesting-permission`, `recording`, `preview`, `exporting`, `error`. La machine d’état interdit deux enregistrements simultanés, deux observateurs GPS actifs, un export de moins de deux points valides, la perte silencieuse d’un parcours (un démarrage ne peut pas écraser un parcours non traité, un échec d’export ne supprime rien) et un observateur encore actif après un arrêt ou une suppression.
+
+#### Erreurs
+
+Des messages compréhensibles — jamais l’erreur technique brute — couvrent la permission refusée, la localisation désactivée, l’absence de signal GPS utilisable, un parcours trop court et l’échec de création ou de partage du fichier GPX. Une perte de signal **en cours** d’enregistrement est signalée sans interrompre la collecte.
+
+La trace est dessinée par le moteur cartographique, dans une couche distincte de celle du trajet planifié (`FR-013`, `BR-004`). La carte simplifiée de repli, utilisée seulement lorsque le contexte WebGL ne démarre pas, continue d’afficher le trajet planifié uniquement.
+
+#### Limite de suivi en arrière-plan
+
+L’enregistrement est un suivi de **premier plan** (`NFR-006`). Ride est une application web installable dans une coque Capacitor (`FR-027`) et n’utilise pas la permission de localisation **Always** ni le mode d’arrière-plan `location` : hors scène CarPlay connectée (`FR-028`), le système suspend la page lorsque l’application passe en arrière-plan ou que l’écran se verrouille, et **aucun relevé n’est garanti** pendant cette suspension. Les points déjà enregistrés sont conservés et la collecte reprend au retour au premier plan. Ride ne promet pas un suivi écran verrouillé.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -979,7 +1033,6 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029`, de l’adaptateur de routage RAG, et de la génération à la demande du flux `FR-034`);
 - profils de motos;
 - automatisation des arrêts carburant;
-- export GPX (l’import et le suivi d’une trace importée font partie du MVP, `FR-039`);
 - intégration Garmin, Google Maps ou Apple Maps;
 - localisation en arrière-plan (permission Always / mode `location`);
 - fonctionnement avec écran verrouillé **sans** scène CarPlay connectée;
@@ -993,7 +1046,6 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - application Android;
 - publication App Store ou TestFlight (le dépôt fournit le projet Xcode);
 - partage de position;
-- enregistrement de l’historique GPS;
 - commentaires publics;
 - notes / évaluations de trajets;
 - partage de trajets;
@@ -1001,7 +1053,8 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - péages, traversiers et règles de frontières comme préférences utilisateur;
 - scores composites et comparaison simultanée de plusieurs variantes;
 - modification interactive avancée du tracé;
-- sauvegarde cloud, comptes utilisateur et historique GPS des routes parcourues.
+- sauvegarde cloud et comptes utilisateur (l’enregistrement d’un parcours et son export GPX restent **locaux à l’appareil**, `FR-041`);
+- historique persistant des parcours enregistrés (un seul parcours à la fois, exporté ou supprimé avant le suivant).
 
 Ces éléments peuvent apparaître dans `README.md` ou `CURSOR.md` comme vision élargie ou cible technique. Ils ne font pas partie du contrat fonctionnel actuel.
 
@@ -1015,10 +1068,10 @@ Après le MVP, les évolutions possibles incluent, sans ordre d’engagement :
 2. seuil contractuel de chevauchement et régénération avec différence minimale chiffrée;
 3. tolérance de distance choisie par l’utilisateur;
 4. sauvegarde cloud et comptes utilisateur;
-5. export GPX et ouvertures vers des applications de navigation externes;
+5. ouvertures vers des applications de navigation externes (l’export GPX d’un parcours enregistré fait désormais partie du MVP, `FR-041`);
 6. arrêts (stations-service, points de vue, pauses);
 7. profils de moto et autonomie;
-8. historique des routes déjà parcourues;
+8. historique persistant des parcours enregistrés, au-delà du parcours courant de `FR-041`;
 9. mode « Surprise me »;
 10. comptes, synchronisation et partage;
 11. styles adventure et découverte;
@@ -1078,6 +1131,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-038` | Trouver une destination (position actuelle → aperçu → navigation) |
 | `FR-039` | Import GPX et navigation sur la trace |
 | `FR-040` | Recherche de destination par code postal canadien |
+| `FR-041` | Enregistrement du parcours en direct et export GPX |
 
 ### Règles métier
 

@@ -68,6 +68,9 @@ export function createNavigationMapEngine(
         recenter() {
           handle.recenter?.();
         },
+        overview() {
+          handle.overview?.();
+        },
         setViewModel(next) {
           handle.setViewModel?.(next);
         },
@@ -79,6 +82,9 @@ export function createNavigationMapEngine(
         },
         setFollowUser(enabled) {
           handle.setFollowUser?.(enabled);
+        },
+        setRecordedTrack(overlay) {
+          handle.setRecordedTrack?.(overlay);
         },
       };
     },

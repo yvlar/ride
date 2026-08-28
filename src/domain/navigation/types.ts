@@ -61,6 +61,8 @@ export type LocationFix = {
   accuracyMeters: number;
   headingDeg?: number;
   speedMetersPerSecond?: number;
+  /** Altitude GPS quand l'appareil la fournit, pour `<ele>` à l'export (FR-041). */
+  altitudeMeters?: number | null;
   recordedAtMs: number;
 };
 

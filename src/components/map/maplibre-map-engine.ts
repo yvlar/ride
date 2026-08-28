@@ -15,6 +15,11 @@ import {
   type MapEngineHandle,
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
+import {
+  RECORDED_TRACK_END_LABEL,
+  RECORDED_TRACK_START_LABEL,
+  type RecordedTrackOverlay,
+} from "./recorded-track-overlay";
 import { ensureMapLibreWorkerUrl } from "./maplibre-worker-url";
 import {
   NAVIGATION_MAX_PITCH,
@@ -63,6 +68,8 @@ export function createMapLibreEngine(
       { onError, onWarning, onFollowUserChange },
     ): MapEngineHandle {
       const markers: Marker[] = [];
+      const recordedMarkers: Marker[] = [];
+      let recordedTrack: RecordedTrackOverlay | null = null;
       let map: MapLibreMap | undefined;
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
@@ -309,6 +316,67 @@ export function createMapLibreEngine(
         }
       }
 
+      /** FR-041 — live recording trace, drawn above the planned route. */
+      function renderRecordedTrack() {
+        if (!map || disposed || !map.isStyleLoaded()) {
+          return;
+        }
+        try {
+          const data = {
+            type: "Feature" as const,
+            properties: {},
+            geometry:
+              recordedTrack?.geometry ??
+              ({ type: "LineString" as const, coordinates: [] }),
+          };
+          const source = map.getSource("ride-recording");
+          if (source && "setData" in source && typeof source.setData === "function") {
+            source.setData(data);
+          } else {
+            map.addSource("ride-recording", { type: "geojson", data });
+            map.addLayer({
+              id: "ride-recording-line",
+              type: "line",
+              source: "ride-recording",
+              layout: { "line-cap": "round", "line-join": "round" },
+              paint: {
+                "line-color": "#ef4444",
+                "line-width": 5,
+              },
+            });
+          }
+
+          for (const marker of recordedMarkers) {
+            marker.remove();
+          }
+          recordedMarkers.length = 0;
+          if (recordedTrack?.startPoint) {
+            recordedMarkers.push(
+              placeMarker(map, RECORDED_TRACK_START_LABEL, recordedTrack.startPoint),
+            );
+          }
+          if (recordedTrack?.endPoint) {
+            recordedMarkers.push(
+              placeMarker(map, RECORDED_TRACK_END_LABEL, recordedTrack.endPoint),
+            );
+          }
+
+          if (recordedTrack?.fitBounds && recordedTrack.bounds) {
+            const frame = mapCameraFrame(recordedTrack.bounds);
+            // Framing the recorded track takes the camera away from the rider:
+            // report it so the UI can offer the recentre affordance (FR-042).
+            setFollowUserState(false);
+            map.fitBounds(frame.bounds, {
+              ...overviewFitBoundsOptions(frame),
+              duration: followCameraDurationMs(reducedMotion),
+            });
+            streetCameraActive = false;
+          }
+        } catch {
+          onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+        }
+      }
+
       map.on("load", () => {
         if (disposed || !map) {
           return;
@@ -319,6 +387,7 @@ export function createMapLibreEngine(
           // Optional 3D buildings must not take down the street map (NFR-005).
         }
         renderRoute(currentViewModel);
+        renderRecordedTrack();
       });
 
       let userMarker: Marker | undefined;
@@ -392,6 +461,10 @@ export function createMapLibreEngine(
             marker.remove();
           }
           markers.length = 0;
+          for (const marker of recordedMarkers) {
+            marker.remove();
+          }
+          recordedMarkers.length = 0;
           const mapToRemove = map;
           map = undefined;
           removeMapSafely(mapToRemove);
@@ -446,6 +519,13 @@ export function createMapLibreEngine(
           } catch {
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
+        },
+        setRecordedTrack(overlay) {
+          if (disposed) {
+            return;
+          }
+          recordedTrack = overlay;
+          renderRecordedTrack();
         },
         setGeolocateEnabled(enabled) {
           if (disposed) {
