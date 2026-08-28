@@ -7,6 +7,7 @@ import { gpxFileInputAccept } from "@/domain/gpx/file-accept";
 import type { GenerateRideRequest, GenerateRideResult, GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { MapEngine } from "@/components/map/map-engine";
 import type { LocationWatch } from "@/domain/location/types";
+import { NAVIGATION_STATUS_MESSAGES } from "@/domain/navigation/status";
 import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
 import { RIDE_SESSION_STORAGE_KEY } from "@/domain/ride/session-snapshot";
 
@@ -208,7 +209,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Annuler la navigation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Terminer la navigation" })).not.toBeInTheDocument();
   });
 
   it("opens pre-departure from CarPlay resume of a composed route (FR-033)", async () => {
@@ -243,7 +244,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Annuler la navigation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Terminer la navigation" })).not.toBeInTheDocument();
   });
 
   it("restores mute and RAG preferences from the session (FR-035)", async () => {
@@ -320,18 +321,86 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     );
-    expect(screen.getByRole("button", { name: "Annuler la navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Terminer la navigation" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Explorer" })).not.toBeInTheDocument();
 
     act(() => {
       carPlayHarness.emit({ type: "catalogSelect", id: "saved:saved-1" });
     });
 
+    // FR-041 — a live session is never torn down behind the rider's back.
+    expect(
+      await screen.findByRole("alertdialog", {
+        name: "Une navigation est en cours",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Terminer la navigation" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Terminer et continuer" }),
+    );
+
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Explorer" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Annuler la navigation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Terminer la navigation" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the live session when the rider declines a CarPlay ride switch (FR-041)", async () => {
+    window.localStorage.setItem(
+      "ride.library.v1",
+      JSON.stringify({
+        recents: [],
+        saved: [
+          {
+            id: "saved-1",
+            name: "Boucle · Granby, QC",
+            savedAtMs: 1,
+            request: {
+              type: "loop",
+              start: granby,
+              targetDistanceKm: 80,
+              style: "curvy",
+            } satisfies GenerateRideRequest,
+            route: loop,
+          },
+        ],
+      }),
+    );
+
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          generateRide={async (): Promise<GenerateRideResult> => ({
+            ok: true,
+            route: loop,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrés" }));
+    fireEvent.click(screen.getByRole("button", { name: "Démarrer" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Démarrer la navigation" }),
+    );
+
+    act(() => {
+      carPlayHarness.emit({ type: "catalogSelect", id: "saved:saved-1" });
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Poursuivre la navigation" }),
+    );
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Terminer la navigation" }),
+    ).toBeInTheDocument();
   });
 
   it("generates an AI loop in place from the distance slider (FR-034, FR-011)", async () => {
@@ -475,8 +544,8 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       screen.queryByRole("heading", { name: "Composer le trajet" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     expect(
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     ).toBeEnabled();
@@ -573,9 +642,9 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       await screen.findByRole("button", { name: "Démarrer la navigation" }),
     );
 
-    expect(
-      await screen.findByText("L’autorisation de localisation a été refusée."),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("navigation-status")).toHaveTextContent(
+      NAVIGATION_STATUS_MESSAGES.gpsDenied,
+    );
   });
 
   it("generates, starts, cancels and generates again without reload (FR-038)", async () => {
@@ -645,8 +714,8 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(locationWatch.start).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole("dialog", { name: "Navigation" })).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     expect(
       await screen.findByRole("heading", { name: "Trouver une destination" }),
     ).toBeInTheDocument();

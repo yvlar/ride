@@ -32,7 +32,9 @@ export function AppTabBar({
   return (
     <nav
       aria-label="Navigation principale"
-      className="grid grid-cols-4 border-t border-border bg-card/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur-md"
+      /* `relative z-30`: the map is absolutely positioned and would otherwise
+         paint its attribution control over this bar (FR-041). */
+      className="relative z-30 grid grid-cols-4 border-t border-border bg-card/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur-md"
     >
       {TABS.map((tab) => {
         const Icon = tab.icon;

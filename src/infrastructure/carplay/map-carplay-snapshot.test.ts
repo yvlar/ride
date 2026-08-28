@@ -34,6 +34,7 @@ const progress: NavigationProgress = {
   },
   currentStepIndex: 0,
   nextStep: step,
+  followingStep: null,
   distanceToNextManeuverM: 250,
   remainingDistanceKm: 1.9,
   remainingDurationMinutes: 2.8,

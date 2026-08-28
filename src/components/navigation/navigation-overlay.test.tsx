@@ -1,11 +1,31 @@
 import type { ComponentProps } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { FOREGROUND_ONLY_MESSAGE } from "@/domain/navigation/session-copy";
+import {
+  FOLLOW_SUSPENDED_MESSAGE,
+  RECENTER_LABEL,
+  STOP_NAVIGATION_LABEL,
+} from "@/domain/navigation/session-copy";
+import {
+  deriveNavigationStatus,
+  NAVIGATION_STATUS_MESSAGES,
+} from "@/domain/navigation/status";
 import { NavigationOverlay } from "./navigation-overlay";
 import { formatEta } from "./format-navigation";
 
 const nowMs = Date.UTC(2026, 7, 24, 16, 0, 0);
+
+const NAVIGATING_STATUS = deriveNavigationStatus({
+  hasFix: true,
+  suspended: false,
+  online: true,
+  recalculating: false,
+  offRoute: false,
+  gpsErrorCode: null,
+  accuracyMeters: 8,
+  errorMessage: null,
+  arrived: false,
+});
 
 function renderOverlay(
   overrides: Partial<ComponentProps<typeof NavigationOverlay>> = {},
@@ -19,8 +39,7 @@ function renderOverlay(
     remainingMinutes: 12,
     nowMs,
     accuracyMeters: 8,
-    gpsError: null,
-    recalculating: false,
+    status: NAVIGATING_STATUS,
     hidden: false,
     muted: false,
     recalcError: null,
@@ -33,15 +52,15 @@ function renderOverlay(
   return render(<NavigationOverlay {...props} />);
 }
 
-describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
-  it("shows the Google Maps-style overlay chrome without sandwiching the map (FR-024)", () => {
+describe("NavigationOverlay (FR-023, FR-024, FR-041, NFR-006)", () => {
+  it("shows the maneuver card and the progress panel over the map (FR-024)", () => {
     renderOverlay();
 
     expect(
       screen.getByRole("banner", { name: "Prochaine manœuvre" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("contentinfo", { name: "Arrivée estimée" }),
+      screen.getByRole("contentinfo", { name: "Progression du trajet" }),
     ).toBeInTheDocument();
     expect(screen.getByText("250 m")).toBeInTheDocument();
     expect(
@@ -52,23 +71,40 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     expect(screen.getByText(formatEta(nowMs, 12))).toBeInTheDocument();
     expect(screen.getByText("12 min")).toBeInTheDocument();
     expect(screen.getByText("8.4 km")).toBeInTheDocument();
-    expect(screen.getByText("±8 m")).toBeInTheDocument();
-    expect(screen.getByText(FOREGROUND_ONLY_MESSAGE)).toBeInTheDocument();
+  });
+
+  it("shows the destination so the rider keeps their target in view (FR-041)", () => {
+    renderOverlay({ destinationLabel: "Magog" });
+    expect(screen.getByText("Vers Magog")).toBeInTheDocument();
+  });
+
+  it("shows the following maneuver discreetly when one exists (FR-041)", () => {
+    renderOverlay({
+      followingArrow: "←",
+      followingInstruction: "Tournez à gauche sur la 243",
+    });
+    expect(
+      screen.getByLabelText("Manœuvre suivante"),
+    ).toHaveTextContent("Puis ← Tournez à gauche sur la 243");
+  });
+
+  it("omits the following maneuver line when the route has no next step (FR-041)", () => {
+    renderOverlay();
+    expect(screen.queryByLabelText("Manœuvre suivante")).not.toBeInTheDocument();
   });
 
   it("uses 48px floating controls (NFR-006)", () => {
     renderOverlay();
-    expect(screen.getByRole("button", { name: "Muet" })).toHaveClass(
+    expect(
+      screen.getAllByRole("button", { name: "Couper le guidage vocal" })[0],
+    ).toHaveClass("min-h-12", "min-w-12");
+    expect(screen.getByRole("button", { name: RECENTER_LABEL })).toHaveClass(
       "min-h-12",
       "min-w-12",
     );
-    expect(screen.getByRole("button", { name: "Recentrer" })).toHaveClass(
-      "min-h-12",
-      "min-w-12",
-    );
-    expect(screen.getByRole("button", { name: "Annuler la navigation" })).toHaveClass(
-      "min-h-12",
-    );
+    expect(
+      screen.getByRole("button", { name: STOP_NAVIGATION_LABEL }),
+    ).toHaveClass("min-h-12");
     expect(screen.getByRole("button", { name: "Aperçu du trajet" })).toHaveClass(
       "min-h-12",
       "min-w-12",
@@ -82,11 +118,15 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     const onStop = vi.fn();
     renderOverlay({ onMuteToggle, onRecenter, onOverview, onStop });
 
-    fireEvent.click(screen.getByRole("button", { name: "Muet" }));
-    fireEvent.click(screen.getByRole("button", { name: "Recentrer" }));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Couper le guidage vocal" })[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: RECENTER_LABEL }));
     fireEvent.click(screen.getByRole("button", { name: "Aperçu du trajet" }));
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: STOP_NAVIGATION_LABEL }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
 
     expect(onMuteToggle).toHaveBeenCalledTimes(1);
     expect(onRecenter).toHaveBeenCalledTimes(1);
@@ -94,19 +134,100 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it("asks for confirmation before ending, and lets the rider back out (FR-041)", () => {
+    const onStop = vi.fn();
+    renderOverlay({ onStop });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: STOP_NAVIGATION_LABEL }),
+    );
+    expect(
+      screen.getByRole("alertdialog", { name: STOP_NAVIGATION_LABEL }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(onStop).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
   it("does not show 0 m as the maneuver distance before a GPS fix (FR-024)", () => {
     renderOverlay({
       instruction: "Recherche de la position…",
       distanceToManeuverKm: 0,
       accuracyMeters: null,
-      gpsError: null,
+      status: deriveNavigationStatus({
+        hasFix: false,
+        suspended: false,
+        online: true,
+        recalculating: false,
+        offRoute: false,
+        gpsErrorCode: null,
+        accuracyMeters: null,
+        errorMessage: null,
+        arrived: false,
+      }),
     });
 
     const banner = screen.getByRole("banner", { name: "Prochaine manœuvre" });
     expect(banner).toHaveTextContent("—");
     expect(banner).not.toHaveTextContent("0 m");
-    expect(screen.getByText("GPS en attente")).toBeInTheDocument();
-    expect(screen.getByText("Recherche de la position…")).toBeInTheDocument();
+    expect(screen.getByTestId("navigation-status")).toHaveTextContent(
+      NAVIGATION_STATUS_MESSAGES.locating,
+    );
+  });
+
+  it("names every transient state instead of leaving the map silent (FR-041)", () => {
+    const cases = [
+      [{ recalculating: true }, NAVIGATION_STATUS_MESSAGES.recalculating],
+      [{ offRoute: true }, NAVIGATION_STATUS_MESSAGES.offRoute],
+      [{ online: false }, NAVIGATION_STATUS_MESSAGES.offline],
+      [{ accuracyMeters: 400 }, NAVIGATION_STATUS_MESSAGES.weakGps],
+      [
+        { gpsErrorCode: "PERMISSION_DENIED" as const },
+        NAVIGATION_STATUS_MESSAGES.gpsDenied,
+      ],
+      [
+        { gpsErrorCode: "POSITION_UNAVAILABLE" as const },
+        NAVIGATION_STATUS_MESSAGES.gpsLost,
+      ],
+    ] as const;
+
+    for (const [overrides, message] of cases) {
+      const { unmount } = renderOverlay({
+        status: deriveNavigationStatus({
+          hasFix: true,
+          suspended: false,
+          online: true,
+          recalculating: false,
+          offRoute: false,
+          gpsErrorCode: null,
+          accuracyMeters: 8,
+          errorMessage: null,
+          arrived: false,
+          ...overrides,
+        }),
+      });
+      expect(screen.getByTestId("navigation-status")).toHaveTextContent(message);
+      unmount();
+    }
+  });
+
+  it("promotes the recentre control once the rider pans the map (FR-041)", () => {
+    const onRecenter = vi.fn();
+    renderOverlay({ followingUser: false, onRecenter });
+
+    expect(screen.getByText(FOLLOW_SUSPENDED_MESSAGE)).toBeInTheDocument();
+    const prominent = screen.getByTestId("recenter-prominent");
+    expect(prominent).toHaveClass("min-h-14");
+
+    fireEvent.click(prominent);
+    expect(onRecenter).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the prominent recentre bar while the camera is following (FR-041)", () => {
+    renderOverlay({ followingUser: true });
+    expect(screen.queryByTestId("recenter-prominent")).not.toBeInTheDocument();
+    expect(screen.queryByText(FOLLOW_SUSPENDED_MESSAGE)).not.toBeInTheDocument();
   });
 
   it("keeps a retry action when recalculation fails (FR-026)", () => {
@@ -123,7 +244,9 @@ describe("NavigationOverlay (FR-023, FR-024, NFR-006)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Aucun corridor disponible.",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Réessayer le recalcul" }),
+    );
     expect(onRetryRecalculate).toHaveBeenCalledTimes(1);
   });
 

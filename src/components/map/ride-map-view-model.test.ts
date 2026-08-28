@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { Place } from "@/domain/geo/types";
+import type { LineString, Place } from "@/domain/geo/types";
 import type { GeneratedGpxRoute } from "@/domain/gpx/types";
 import type {
   GeneratedDestinationRoute,
   GeneratedLoopRoute,
   GeneratedRoundTripRoute,
 } from "@/domain/ride/types";
-import { idleMapViewModel, mapCameraFrame, rideRouteFeatureCollection, toRideMapViewModel } from "./ride-map-view-model";
+import {
+  idleMapViewModel,
+  mapCameraFrame,
+  rideRouteFeatureCollection,
+  rideTraveledFeatureCollection,
+  toRideMapViewModel,
+} from "./ride-map-view-model";
+import { lineStringLengthKm } from "@/domain/geo/distance";
 
 const granby: Place = {
   label: "Granby, QC",
@@ -212,5 +219,93 @@ describe("toRideMapViewModel (FR-013)", () => {
         geometry: { type: "LineString", coordinates: [] },
       }),
     ).toBeNull();
+  });
+});
+
+describe("traveled / remaining split (FR-041)", () => {
+  it("draws the whole route as remaining before the rider moves", () => {
+    const model = toRideMapViewModel(destination)!;
+    expect(model.traveledGeometry).toBeUndefined();
+    expect(rideTraveledFeatureCollection(model).features).toHaveLength(0);
+    expect(rideRouteFeatureCollection(model).features[0]!.geometry).toEqual(
+      destination.geometry,
+    );
+  });
+
+  it("splits the line at the ridden distance so both portions are drawable", () => {
+    const total = lineStringLengthKm(destination.geometry);
+    const model = toRideMapViewModel(destination, null, total / 2)!;
+
+    expect(lineStringLengthKm(model.traveledGeometry!)).toBeCloseTo(total / 2, 3);
+    expect(lineStringLengthKm(model.remainingGeometry!)).toBeCloseTo(total / 2, 3);
+    expect(rideTraveledFeatureCollection(model).features).toHaveLength(1);
+
+    // The live line covers only what is left, so the dimmed line stays visible.
+    expect(rideRouteFeatureCollection(model).features[0]!.geometry).toEqual(
+      model.remainingGeometry,
+    );
+  });
+
+  it("leaves a multi-part GPX trace unsplit so its gaps survive (FR-039)", () => {
+    const parts: LineString[] = [
+      {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-73.0, 45.6],
+        ],
+      },
+      {
+        type: "LineString",
+        coordinates: [
+          [-74.0, 46.0],
+          [-74.5962, 46.1185],
+        ],
+      },
+    ];
+    const gpx: GeneratedGpxRoute = {
+      id: "gpx-split",
+      type: "gpx",
+      source: "gpx",
+      name: "Cantons",
+      start: granby,
+      destination: tremblant,
+      style: "touring",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-74.5962, 46.1185],
+        ],
+      },
+      parts,
+      gapBeforeVertex: [2],
+      segments: [],
+      distanceKm: 140,
+      durationMinutes: 110,
+      warnings: [],
+      isClosedLoop: false,
+      trackKind: "track",
+      originalGeometry: {
+        type: "LineString",
+        coordinates: [
+          [-72.7342, 45.4001],
+          [-74.5962, 46.1185],
+        ],
+      },
+      originalParts: parts,
+    };
+    const model = toRideMapViewModel(gpx, null, 5)!;
+    expect(model.traveledGeometry).toBeUndefined();
+    expect(rideTraveledFeatureCollection(model).features).toHaveLength(0);
+    expect(rideRouteFeatureCollection(model).features).toHaveLength(2);
+  });
+
+  it("never emits a one-point traveled line the renderer cannot draw", () => {
+    const model = toRideMapViewModel(destination, null, 0.000001)!;
+    expect(rideTraveledFeatureCollection(model).features.length).toBeLessThanOrEqual(1);
+    for (const feature of rideTraveledFeatureCollection(model).features) {
+      expect(feature.geometry.coordinates.length).toBeGreaterThanOrEqual(2);
+    }
   });
 });

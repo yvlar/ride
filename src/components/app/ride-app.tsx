@@ -27,6 +27,10 @@ import type {
 import { isGpxRoute } from "@/domain/gpx/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import { plannerRideType } from "@/domain/ride/summarize-request";
+import {
+  NAVIGATION_ACTIVE_BLOCK_MESSAGE,
+  NAVIGATION_ACTIVE_BLOCK_TITLE,
+} from "@/domain/navigation/session-copy";
 import { ImportGpxPanel } from "@/components/gpx/import-gpx-panel";
 import { NavigationSession } from "@/components/navigation/navigation-session";
 import { createCarPlayDisplay } from "@/infrastructure/carplay/create-carplay-display";
@@ -78,6 +82,16 @@ export function RideApp(props: RideRequestFormProps) {
     null,
   );
   const [navHeadingDeg, setNavHeadingDeg] = useState<number | null>(null);
+  const [navProgressKm, setNavProgressKm] = useState(0);
+  const [navFollowingUser, setNavFollowingUser] = useState(true);
+  /**
+   * FR-041 — a request to plan a new ride while one is running is parked here
+   * until the rider confirms. Silently tearing down an active session was how
+   * navigation appeared to "stop by itself".
+   */
+  const [pendingRideIntent, setPendingRideIntent] = useState<
+    (() => void) | null
+  >(null);
   const [gpxOverlay, setGpxOverlay] = useState<GpxMapOverlay | null>(null);
   const [gpxSession, setGpxSession] = useState(0);
   const [describeMuted, setDescribeMuted] = useState(false);
@@ -229,6 +243,8 @@ export function RideApp(props: RideRequestFormProps) {
     navigatingRef.current = false;
     setNavigating(false);
     setNavUserLocation(null);
+    setNavProgressKm(0);
+    setNavFollowingUser(true);
     setNavHeadingDeg(null);
     setSearchSession((value) => value + 1);
     setSheet("search");
@@ -242,6 +258,8 @@ export function RideApp(props: RideRequestFormProps) {
     navigatingRef.current = false;
     setNavigating(false);
     setNavUserLocation(null);
+    setNavProgressKm(0);
+    setNavFollowingUser(true);
     setNavHeadingDeg(null);
     setGpxOverlay(null);
   }
@@ -287,6 +305,8 @@ export function RideApp(props: RideRequestFormProps) {
       // Follow-user camera still starts with the overlay (FR-023).
     }
     setDescribeMuted(Boolean(options?.muted));
+    setNavProgressKm(0);
+    setNavFollowingUser(true);
     setNavigating(true);
   }
 
@@ -295,11 +315,36 @@ export function RideApp(props: RideRequestFormProps) {
     setNavigating(false);
     setNavUserLocation(null);
     setNavHeadingDeg(null);
+    setNavProgressKm(0);
+    setNavFollowingUser(true);
     setGpxOverlay(null);
     if (routeRef.current && isGpxRoute(routeRef.current)) {
       discardActiveGpxRide();
       setSheet("home");
     }
+  }
+
+  /**
+   * Run `intent` now, or ask first when a navigation session is live.
+   * Returns true when the action was carried out immediately.
+   */
+  function withNavigationGuard(intent: () => void): boolean {
+    if (!navigatingRef.current) {
+      intent();
+      return true;
+    }
+    setPendingRideIntent(() => intent);
+    return false;
+  }
+
+  function confirmPendingRideIntent() {
+    const intent = pendingRideIntent;
+    setPendingRideIntent(null);
+    if (!intent) {
+      return;
+    }
+    stopGuidedNavigation();
+    intent();
   }
 
   function remember(place: Place) {
@@ -343,13 +388,13 @@ export function RideApp(props: RideRequestFormProps) {
           event.id,
         );
         if (place) {
-          openFindDestination(place);
+          withNavigationGuard(() => openFindDestination(place));
         }
         return;
       }
       const item = savedRef.current.find((ride) => ride.id === parsed.id);
       if (item) {
-        openRide(item.request, item.route);
+        withNavigationGuard(() => openRide(item.request, item.route));
       }
     });
     /* Catalog handlers close over the latest openRide; resubscribing on each
@@ -417,6 +462,8 @@ export function RideApp(props: RideRequestFormProps) {
               expanded={explorerOwnsNavigation}
               userLocation={explorerOwnsNavigation ? navUserLocation : null}
               headingDeg={explorerOwnsNavigation ? navHeadingDeg : null}
+              traveledKm={explorerOwnsNavigation ? navProgressKm : 0}
+              onFollowUserChange={setNavFollowingUser}
               onRecenterReady={(recenter) => {
                 mapRecenterRef.current = recenter;
               }}
@@ -446,6 +493,8 @@ export function RideApp(props: RideRequestFormProps) {
             onRecenter={() => mapRecenterRef.current()}
             onOverview={() => mapOverviewRef.current()}
             onStop={stopGuidedNavigation}
+            onProgressKm={setNavProgressKm}
+            followingUser={navFollowingUser}
             onGpxOverlayChange={setGpxOverlay}
             onRouteChange={(next) => {
               const composed = requestRef.current;
@@ -748,6 +797,42 @@ export function RideApp(props: RideRequestFormProps) {
           />
         ) : null}
       </div>
+      {pendingRideIntent ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={NAVIGATION_ACTIVE_BLOCK_TITLE}
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
+          <div className="w-full max-w-md space-y-3 rounded-2xl bg-card p-4 text-card-foreground shadow-xl">
+            <h2 className="text-lg font-semibold">
+              {NAVIGATION_ACTIVE_BLOCK_TITLE}
+            </h2>
+            <p className="text-base leading-6">
+              {NAVIGATION_ACTIVE_BLOCK_MESSAGE}
+            </p>
+            <div className="grid gap-2">
+              <Button
+                type="button"
+                size="lg"
+                className="min-h-12 w-full text-base"
+                onClick={confirmPendingRideIntent}
+              >
+                Terminer et continuer
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="min-h-12 w-full text-base"
+                onClick={() => setPendingRideIntent(null)}
+              >
+                Poursuivre la navigation
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <AppTabBar value={tab} onChange={setTab} hidden={navigating} />
     </div>
   );

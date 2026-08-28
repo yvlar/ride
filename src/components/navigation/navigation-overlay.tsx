@@ -1,39 +1,62 @@
 "use client";
 
-import { useState } from "react";
-import { LocateFixed, Maximize2, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  CornerUpLeft,
+  LocateFixed,
+  Map as MapIcon,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import {
   CARPLAY_ACTIVE_MESSAGE,
-  FOREGROUND_ONLY_MESSAGE,
+  FOLLOW_SUSPENDED_MESSAGE,
   HIDDEN_WITHOUT_CARPLAY_MESSAGE,
+  RECENTER_LABEL,
+  STOP_NAVIGATION_CONFIRM,
+  STOP_NAVIGATION_LABEL,
 } from "@/domain/navigation/session-copy";
+import type { NavigationStatus } from "@/domain/navigation/status";
 import type { RideGenerationError } from "@/domain/ride/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  formatAccuracyLabel,
   formatDistanceLabel,
   formatDurationLabel,
   formatEta,
   formatManeuverDistanceLabel,
 } from "./format-navigation";
 
+/** Riding gloves need a generous target; 48 px is the floor, not the goal. */
 const TOUCH_TARGET = "min-h-12 min-w-12 size-12 rounded-full";
+
+const STATUS_TONE_CLASS: Record<NavigationStatus["tone"], string> = {
+  neutral: "bg-card text-card-foreground ring-foreground/10",
+  info: "bg-sky-600 text-white ring-sky-900/20",
+  warning: "bg-amber-500 text-black ring-amber-900/30",
+  danger: "bg-destructive text-white ring-black/20",
+};
 
 export type NavigationOverlayProps = {
   arrow: string;
   instruction: string;
   nextRoad?: string;
+  /** The maneuver chained after this one, shown discreetly. */
+  followingArrow?: string | null;
+  followingInstruction?: string | null;
   distanceToManeuverKm: number;
   remainingDistanceKm: number;
   remainingMinutes: number;
   nowMs: number;
   accuracyMeters: number | null;
-  gpsError: string | null;
-  recalculating: boolean;
+  status: NavigationStatus;
   hidden: boolean;
   carPlayConnected?: boolean;
   muted: boolean;
+  /** False while the rider is panning the map themselves. */
+  followingUser?: boolean;
+  destinationLabel?: string | null;
   recalcError: RideGenerationError | null;
   statusLabel?: string | null;
   onMuteToggle: () => void;
@@ -47,16 +70,19 @@ export function NavigationOverlay({
   arrow,
   instruction,
   nextRoad,
+  followingArrow = null,
+  followingInstruction = null,
   distanceToManeuverKm,
   remainingDistanceKm,
   remainingMinutes,
   nowMs,
   accuracyMeters,
-  gpsError,
-  recalculating,
+  status,
   hidden,
   carPlayConnected = false,
   muted,
+  followingUser = true,
+  destinationLabel = null,
   recalcError,
   statusLabel = null,
   onMuteToggle,
@@ -66,135 +92,257 @@ export function NavigationOverlay({
   onRetryRecalculate,
 }: NavigationOverlayProps) {
   const [confirmStop, setConfirmStop] = useState(false);
-  const gpsStatus = gpsError ?? formatAccuracyLabel(accuracyMeters);
+  const confirmRef = useRef<HTMLButtonElement>(null);
   const etaLabel = formatEta(nowMs, remainingMinutes);
+  const showStatus = status.message.length > 0;
+
+  useEffect(() => {
+    if (confirmStop) {
+      confirmRef.current?.focus();
+    }
+  }, [confirmStop]);
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
-      <div className="pt-[max(0.75rem,env(safe-area-inset-top,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))]">
+    <div
+      data-navigation-status={status.phase}
+      className={cn(
+        "pointer-events-none absolute inset-0 z-10 flex flex-col",
+        "landscape:flex-row landscape:items-stretch landscape:justify-between landscape:gap-3",
+      )}
+    >
+      {/* ── Prochaine manœuvre ─────────────────────────────────────── */}
+      <div
+        className={cn(
+          "pt-[max(0.75rem,env(safe-area-inset-top,0px))]",
+          "pr-[max(0.75rem,env(safe-area-inset-right,0px))]",
+          "pl-[max(0.75rem,env(safe-area-inset-left,0px))]",
+          "landscape:w-[min(26rem,46vw)] landscape:shrink-0 landscape:pr-0",
+        )}
+      >
         <header
           aria-label="Prochaine manœuvre"
-          className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-primary px-3 py-3 text-primary-foreground shadow-lg"
+          className="pointer-events-auto rounded-2xl bg-primary text-primary-foreground shadow-lg"
         >
-          <p
-            aria-hidden="true"
-            className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15 text-3xl leading-none"
-          >
-            {arrow}
-          </p>
-          <div className="min-w-0 flex-1">
-            <p className="text-3xl font-semibold leading-none tracking-tight tabular-nums">
-              {formatManeuverDistanceLabel(distanceToManeuverKm, accuracyMeters)}
+          <div className="flex items-center gap-3 px-3 py-3">
+            <p
+              aria-hidden="true"
+              className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15 text-4xl leading-none"
+            >
+              {arrow}
             </p>
-            {nextRoad ? (
-              <p className="mt-1 truncate text-base font-medium leading-6">
-                {nextRoad}
+            <div className="min-w-0 flex-1">
+              <p className="text-4xl font-semibold leading-none tracking-tight tabular-nums">
+                {formatManeuverDistanceLabel(distanceToManeuverKm, accuracyMeters)}
               </p>
-            ) : null}
-            <p className="truncate text-sm leading-6 text-primary-foreground/80">
-              {instruction}
-            </p>
-            {statusLabel ? (
-              <p className="truncate text-sm font-medium leading-6">
-                {statusLabel}
+              <p className="mt-1 truncate text-lg font-medium leading-6">
+                {instruction}
               </p>
-            ) : null}
+              {nextRoad ? (
+                <p className="truncate text-base leading-6 text-primary-foreground/85">
+                  {nextRoad}
+                </p>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={
+                muted ? "Activer le guidage vocal" : "Couper le guidage vocal"
+              }
+              aria-pressed={muted}
+              className={cn(
+                TOUCH_TARGET,
+                "shrink-0 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground",
+              )}
+              onClick={onMuteToggle}
+            >
+              {muted ? (
+                <VolumeX aria-hidden="true" className="size-7" />
+              ) : (
+                <Volume2 aria-hidden="true" className="size-7" />
+              )}
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            aria-label={muted ? "Son" : "Muet"}
-            aria-pressed={muted}
-            className={cn(
-              TOUCH_TARGET,
-              "shrink-0 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground",
-            )}
-            onClick={onMuteToggle}
-          >
-            {muted ? (
-              <VolumeX aria-hidden="true" className="size-6" />
-            ) : (
-              <Volume2 aria-hidden="true" className="size-6" />
-            )}
-          </Button>
+
+          {followingInstruction ? (
+            <p
+              aria-label="Manœuvre suivante"
+              className="flex items-center gap-2 border-t border-primary-foreground/20 px-3 py-2 text-sm leading-5 text-primary-foreground/85"
+            >
+              <CornerUpLeft aria-hidden="true" className="size-4 shrink-0" />
+              <span className="truncate">
+                Puis {followingArrow ? `${followingArrow} ` : ""}
+                {followingInstruction}
+              </span>
+            </p>
+          ) : null}
         </header>
+
+        {/* Never colour-only: every state carries its own sentence. */}
+        {showStatus ? (
+          <p
+            role="status"
+            data-testid="navigation-status"
+            className={cn(
+              "pointer-events-auto mt-2 rounded-xl px-3 py-2 text-base font-medium leading-6 shadow-lg ring-1",
+              STATUS_TONE_CLASS[status.tone],
+            )}
+          >
+            {status.message}
+          </p>
+        ) : null}
+
+        {statusLabel ? (
+          <p
+            role="status"
+            className="pointer-events-auto mt-2 rounded-xl bg-card px-3 py-2 text-base leading-6 text-card-foreground shadow-lg ring-1 ring-foreground/10"
+          >
+            {statusLabel}
+          </p>
+        ) : null}
       </div>
 
-      <div className="mt-auto flex flex-col gap-3 pr-[max(0.75rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))]">
-        <Button
-          type="button"
-          variant="secondary"
-          aria-label="Aperçu du trajet"
-          className={cn(
-            "pointer-events-auto min-h-12 min-w-12 gap-1 self-end rounded-full px-3 shadow-lg",
-          )}
-          onClick={onOverview}
-        >
-          <Maximize2 aria-hidden="true" className="size-6" />
-          <span className="pr-1 text-xs font-medium">Aperçu</span>
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          aria-label="Recentrer"
-          className={cn(
-            "pointer-events-auto min-h-12 min-w-12 gap-1 self-end rounded-full px-3 shadow-lg",
-          )}
-          onClick={onRecenter}
-        >
-          <LocateFixed aria-hidden="true" className="size-6" />
-          <span className="pr-1 text-xs font-medium">Centre</span>
-        </Button>
+      {/* ── Panneau bas ─────────────────────────────────────────────── */}
+      <div
+        className={cn(
+          "mt-auto flex flex-col gap-2",
+          "pr-[max(0.75rem,env(safe-area-inset-right,0px))]",
+          "pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]",
+          "pl-[max(0.75rem,env(safe-area-inset-left,0px))]",
+          "landscape:mt-0 landscape:w-[min(26rem,46vw)] landscape:shrink-0",
+          "landscape:justify-end landscape:pl-0",
+          "landscape:pt-[max(0.75rem,env(safe-area-inset-top,0px))]",
+        )}
+      >
+        {/* The recentre affordance grows into a labelled bar the moment the
+            rider takes the camera, and stays a small pill otherwise. */}
+        {followingUser ? (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              aria-label="Aperçu du trajet"
+              className="pointer-events-auto min-h-12 min-w-12 gap-1 rounded-full px-3 shadow-lg"
+              onClick={onOverview}
+            >
+              <MapIcon aria-hidden="true" className="size-6" />
+              <span className="pr-1 text-sm font-medium">Aperçu</span>
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                aria-label="Aperçu du trajet"
+                className="pointer-events-auto min-h-12 min-w-12 gap-1 rounded-full px-3 shadow-lg"
+                onClick={onOverview}
+              >
+                <MapIcon aria-hidden="true" className="size-6" />
+                <span className="pr-1 text-sm font-medium">Aperçu</span>
+              </Button>
+            </div>
+            <Button
+              type="button"
+              data-testid="recenter-prominent"
+              aria-label={RECENTER_LABEL}
+              className="pointer-events-auto min-h-14 w-full gap-2 rounded-2xl text-base font-semibold shadow-lg"
+              onClick={onRecenter}
+            >
+              <LocateFixed aria-hidden="true" className="size-6" />
+              {RECENTER_LABEL}
+            </Button>
+            <p className="text-center text-sm leading-5 text-muted-foreground">
+              {FOLLOW_SUSPENDED_MESSAGE}
+            </p>
+          </div>
+        )}
 
         <footer
-          aria-label="Arrivée estimée"
+          aria-label="Progression du trajet"
           className="pointer-events-auto w-full space-y-2 rounded-2xl bg-card px-3 py-3 text-card-foreground shadow-lg ring-1 ring-foreground/10"
         >
-          <div className="flex items-center gap-2">
-            <div className="grid min-w-0 flex-1 grid-cols-3 text-center">
-              <div className="min-w-0">
-                <p className="truncate text-xl font-semibold leading-7 tabular-nums">
-                  {etaLabel}
-                </p>
-                <p className="text-xs leading-4 text-muted-foreground">arrivée</p>
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-xl font-semibold leading-7 tabular-nums">
-                  {formatDurationLabel(remainingMinutes)}
-                </p>
-                <p className="text-xs leading-4 text-muted-foreground">restant</p>
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-xl font-semibold leading-7 tabular-nums">
-                  {formatDistanceLabel(remainingDistanceKm)}
-                </p>
-                <p className="text-xs leading-4 text-muted-foreground">distance</p>
-              </div>
+          {destinationLabel ? (
+            <p className="truncate text-sm leading-5 text-muted-foreground">
+              Vers {destinationLabel}
+            </p>
+          ) : null}
+
+          {/* Sized to fit "1 h 34 min" in a third of a 393 px screen: these
+              numbers are the whole point of the panel and must never clip. */}
+          <div className="grid grid-cols-3 gap-1 text-center">
+            <div className="min-w-0">
+              <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
+                {etaLabel}
+              </p>
+              <p className="text-xs leading-4 text-muted-foreground">arrivée</p>
+            </div>
+            <div className="min-w-0">
+              <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
+                {formatDurationLabel(remainingMinutes)}
+              </p>
+              <p className="text-xs leading-4 text-muted-foreground">restant</p>
+            </div>
+            <div className="min-w-0">
+              <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
+                {formatDistanceLabel(remainingDistanceKm)}
+              </p>
+              <p className="text-xs leading-4 text-muted-foreground">distance</p>
             </div>
           </div>
 
-          <Button
-            type="button"
-            variant="destructive"
-            aria-label="Annuler la navigation"
-            className="min-h-12 w-full text-base"
-            onClick={() => setConfirmStop(true)}
-          >
-            Annuler la navigation
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              aria-label={RECENTER_LABEL}
+              className={cn(TOUCH_TARGET, "shrink-0")}
+              onClick={onRecenter}
+            >
+              <LocateFixed aria-hidden="true" className="size-6" />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              aria-label={
+                muted ? "Activer le guidage vocal" : "Couper le guidage vocal"
+              }
+              aria-pressed={muted}
+              className={cn(TOUCH_TARGET, "shrink-0")}
+              onClick={onMuteToggle}
+            >
+              {muted ? (
+                <VolumeX aria-hidden="true" className="size-6" />
+              ) : (
+                <Volume2 aria-hidden="true" className="size-6" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              aria-label={STOP_NAVIGATION_LABEL}
+              className="min-h-12 flex-1 gap-2 text-base"
+              onClick={() => setConfirmStop(true)}
+            >
+              <X aria-hidden="true" className="size-5" />
+              Terminer
+            </Button>
+          </div>
 
           {confirmStop ? (
             <div
               role="alertdialog"
-              aria-label="Annuler la navigation"
-              className="space-y-2"
+              aria-label={STOP_NAVIGATION_LABEL}
+              className="space-y-2 rounded-xl bg-muted/60 p-2"
             >
-              <p className="text-sm">Annuler la navigation ?</p>
+              <p className="text-base font-medium">{STOP_NAVIGATION_CONFIRM}</p>
               <div className="grid grid-cols-2 gap-2">
                 <Button
+                  ref={confirmRef}
                   type="button"
                   variant="outline"
-                  className="min-h-12"
+                  className="min-h-12 text-base"
                   onClick={() => setConfirmStop(false)}
                 >
                   Continuer
@@ -202,40 +350,35 @@ export function NavigationOverlay({
                 <Button
                   type="button"
                   variant="destructive"
-                  className="min-h-12"
+                  className="min-h-12 text-base"
                   onClick={onStop}
                 >
-                  Oui, annuler
+                  Oui, terminer
                 </Button>
               </div>
             </div>
           ) : null}
-          <p className="text-sm leading-6" role="status">
-            {gpsStatus}
-            {recalculating ? " · Recalcul du trajet…" : ""}
-          </p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            {FOREGROUND_ONLY_MESSAGE}
-          </p>
+
           {hidden && !carPlayConnected ? (
-            <p role="status" className="text-sm text-destructive">
+            <p role="status" className="text-sm leading-5 text-destructive">
               {HIDDEN_WITHOUT_CARPLAY_MESSAGE}
             </p>
           ) : null}
           {hidden && carPlayConnected ? (
-            <p role="status" className="text-sm">
+            <p role="status" className="text-sm leading-5">
               {CARPLAY_ACTIVE_MESSAGE}
             </p>
           ) : null}
+
           {recalcError ? (
             <div role="alert" className="space-y-2 text-sm">
               <p className="text-destructive">{recalcError.message}</p>
               <Button
                 type="button"
-                className="min-h-12 min-w-12"
+                className="min-h-12 w-full"
                 onClick={onRetryRecalculate}
               >
-                Réessayer
+                Réessayer le recalcul
               </Button>
             </div>
           ) : null}

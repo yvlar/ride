@@ -21,8 +21,12 @@ export type NavigationMapProps = {
   overlay?: GpxMapOverlay | null;
   userLocation?: Coordinates | null;
   headingDeg?: number | null;
+  /** FR-041 — distance ridden, to dim the portion already behind. */
+  traveledKm?: number;
   engine?: NavigationMapEngine;
   onRecenterReady?: (recenter: () => void) => void;
+  onOverviewReady?: (overview: () => void) => void;
+  onFollowUserChange?: (following: boolean) => void;
 };
 
 export function NavigationMap({
@@ -30,17 +34,22 @@ export function NavigationMap({
   overlay = null,
   userLocation,
   headingDeg = null,
+  traveledKm = 0,
   engine,
   onRecenterReady,
+  onOverviewReady,
+  onFollowUserChange,
 }: NavigationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<NavigationMapHandle | undefined>(undefined);
   const onRecenterReadyRef = useRef(onRecenterReady);
+  const onOverviewReadyRef = useRef(onOverviewReady);
+  const onFollowUserChangeRef = useRef(onFollowUserChange);
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
   const viewModel = useMemo(
-    () => toRideMapViewModel(route, overlay),
-    [route, overlay],
+    () => toRideMapViewModel(route, overlay, traveledKm),
+    [route, overlay, traveledKm],
   );
   const viewModelRef = useRef(viewModel);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +72,14 @@ export function NavigationMap({
   }, [onRecenterReady]);
 
   useEffect(() => {
+    onOverviewReadyRef.current = onOverviewReady;
+  }, [onOverviewReady]);
+
+  useEffect(() => {
+    onFollowUserChangeRef.current = onFollowUserChange;
+  }, [onFollowUserChange]);
+
+  useEffect(() => {
     const container = containerRef.current;
     const initial = viewModelRef.current;
     if (!container || !initial) {
@@ -78,12 +95,18 @@ export function NavigationMap({
           setError(message);
         }
       },
+      onFollowUserChange: (following) => {
+        if (!cancelled) {
+          onFollowUserChangeRef.current?.(following);
+        }
+      },
     };
 
     const resolved = engine ?? createNavigationMapEngine();
     const handle = resolved.mount(container, initial, handlers);
     handleRef.current = handle;
     onRecenterReadyRef.current?.(() => handle.recenter());
+    onOverviewReadyRef.current?.(() => handle.overview?.());
     handle.setFollowUser?.(true);
     handle.setUserLocation(
       userLocationRef.current ?? null,

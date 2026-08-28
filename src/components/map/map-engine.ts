@@ -23,6 +23,12 @@ export type MapEngineHandle = {
 export type MapEngineHandlers = {
   onError: (message: string) => void;
   onWarning?: (message: string) => void;
+  /**
+   * FR-041 — fires when the follow camera engages or is suspended, including
+   * when the rider pans the map themselves. Lets the UI surface an obvious
+   * recentre affordance instead of silently fighting the gesture.
+   */
+  onFollowUserChange?: (following: boolean) => void;
 };
 
 export type MapEngine = {

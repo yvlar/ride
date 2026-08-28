@@ -21,9 +21,12 @@ export type RideMapProps = {
   expanded?: boolean;
   /** Fill the parent without enabling navigation follow-user (explorer map). */
   fill?: boolean;
+  /** FR-041 — distance ridden, to dim the portion already behind. */
+  traveledKm?: number;
   onRecenterReady?: (recenter: () => void) => void;
   onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
+  onFollowUserChange?: (following: boolean) => void;
 };
 
 export function RideMap({
@@ -34,9 +37,11 @@ export function RideMap({
   headingDeg = null,
   expanded = false,
   fill = false,
+  traveledKm = 0,
   onRecenterReady,
   onOverviewReady,
   onGeolocateReady,
+  onFollowUserChange,
 }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
@@ -46,14 +51,16 @@ export function RideMap({
   const onRecenterReadyRef = useRef(onRecenterReady);
   const onOverviewReadyRef = useRef(onOverviewReady);
   const onGeolocateReadyRef = useRef(onGeolocateReady);
+  const onFollowUserChangeRef = useRef(onFollowUserChange);
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
   const expandedRef = useRef(expanded);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const viewModel = useMemo(
-    () => (route ? toRideMapViewModel(route, overlay) : idleMapViewModel()),
-    [route, overlay],
+    () =>
+      route ? toRideMapViewModel(route, overlay, traveledKm) : idleMapViewModel(),
+    [route, overlay, traveledKm],
   );
   const mountedViewModelRef = useRef(viewModel);
   const hasViewModel = Boolean(viewModel);
@@ -74,6 +81,10 @@ export function RideMap({
   useEffect(() => {
     onGeolocateReadyRef.current = onGeolocateReady;
   }, [onGeolocateReady]);
+
+  useEffect(() => {
+    onFollowUserChangeRef.current = onFollowUserChange;
+  }, [onFollowUserChange]);
 
   useEffect(() => {
     expandedRef.current = expanded;
@@ -119,6 +130,11 @@ export function RideMap({
               setWarning(message);
             }
           },
+          onFollowUserChange: (following) => {
+            if (!cancelled) {
+              onFollowUserChangeRef.current?.(following);
+            }
+          },
         });
         handleRef.current = handle;
         const latest = viewModelRef.current ?? initial;
@@ -156,6 +172,11 @@ export function RideMap({
             onError: (message) => {
               if (!cancelled) {
                 setError(message);
+              }
+            },
+            onFollowUserChange: (following) => {
+              if (!cancelled) {
+                onFollowUserChangeRef.current?.(following);
               }
             },
           });

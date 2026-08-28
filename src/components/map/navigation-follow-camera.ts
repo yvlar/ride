@@ -29,6 +29,25 @@ export type NavigationFollowCamera = {
   essential: true;
 };
 
+/**
+ * NFR-008 — riders who asked the OS to reduce motion get an instant cut
+ * instead of an eased camera sweep.
+ */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+export function followCameraDurationMs(reducedMotion: boolean): number {
+  return reducedMotion ? 0 : NAVIGATION_FOLLOW_DURATION_MS;
+}
+
 export function wrapHeadingDeg(headingDeg: number): number {
   return ((headingDeg % 360) + 360) % 360;
 }
@@ -63,13 +82,14 @@ export function navigationFollowCenter(
 export function navigationFollowCamera(
   coordinates: Coordinates,
   headingDeg: number | null,
+  options: { reducedMotion?: boolean } = {},
 ): NavigationFollowCamera {
   const camera: NavigationFollowCamera = {
     center: navigationFollowCenter(coordinates, headingDeg),
     zoom: NAVIGATION_FOLLOW_ZOOM,
     pitch: NAVIGATION_FOLLOW_PITCH,
     padding: NAVIGATION_FOLLOW_PADDING,
-    duration: NAVIGATION_FOLLOW_DURATION_MS,
+    duration: followCameraDurationMs(Boolean(options.reducedMotion)),
     essential: true,
   };
   if (headingDeg != null) {

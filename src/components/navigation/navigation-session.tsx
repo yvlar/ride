@@ -16,7 +16,12 @@ import {
 } from "@/domain/navigation/off-route";
 import { decideAnnouncement, emptyVoiceMemory, resetVoiceMemory } from "@/domain/navigation/voice";
 import { formatFrenchInstruction, roadLabel } from "@/domain/navigation/instructions";
+import {
+  deriveNavigationStatus,
+  type NavigationStatus,
+} from "@/domain/navigation/status";
 import type { Coordinates } from "@/domain/geo/types";
+import type { LocationPermissionError } from "@/domain/location/types";
 import type { LocationFix, NavigationProgress } from "@/domain/navigation/types";
 import type { GenerateRideRequest, GeneratedRideRoute, RideGenerationError } from "@/domain/ride/types";
 import type { CarPlayDisplay } from "@/infrastructure/carplay/carplay-display";
@@ -101,6 +106,10 @@ export type NavigationSessionProps = {
   onRecenter?: () => void;
   onOverview?: () => void;
   onGpxOverlayChange?: (overlay: GpxMapOverlay | null) => void;
+  /** FR-041 — distance ridden, so the host map can dim what is behind. */
+  onProgressKm?: (progressKm: number) => void;
+  /** FR-041 — false while the rider is panning the host map themselves. */
+  followingUser?: boolean;
   wakeLock?: ScreenWakeLock;
 };
 
@@ -122,6 +131,8 @@ export function NavigationSession({
   onRecenter,
   onOverview,
   onGpxOverlayChange,
+  onProgressKm,
+  followingUser: followingUserProp,
   wakeLock,
   initialMuted = false,
   onMutedChange,
@@ -137,19 +148,32 @@ export function NavigationSession({
   );
   const [arrow, setArrow] = useState("↑");
   const [nextRoad, setNextRoad] = useState<string | undefined>();
+  const [followingArrow, setFollowingArrow] = useState<string | null>(null);
+  const [followingInstruction, setFollowingInstruction] = useState<string | null>(
+    null,
+  );
   const [distanceToManeuverKm, setDistanceToManeuverKm] = useState(0);
   const [remainingDistanceKm, setRemainingDistanceKm] = useState(route.distanceKm);
   const [remainingMinutes, setRemainingMinutes] = useState(route.durationMinutes);
-  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [gpsErrorCode, setGpsErrorCode] = useState<
+    LocationPermissionError["code"] | null
+  >(null);
   const [recalcError, setRecalcError] = useState<RideGenerationError | null>(null);
   const [recalculating, setRecalculating] = useState(false);
+  const [offRoute, setOffRoute] = useState(false);
+  const [hasFix, setHasFix] = useState(false);
+  const [online, setOnline] = useState(true);
   const [hidden, setHidden] = useState(false);
   const [carPlayConnected, setCarPlayConnected] = useState(false);
+  const [ownFollowingUser, setOwnFollowingUser] = useState(true);
+  const followingUser = followingUserProp ?? ownFollowingUser;
   const recenterRef = useRef<() => void>(() => {});
+  const overviewRef = useRef<() => void>(() => {});
   const onUserLocationRef = useRef(onUserLocation);
   const onRecenterRef = useRef(onRecenter);
   const onOverviewPropRef = useRef(onOverview);
   const onGpxOverlayChangeRef = useRef(onGpxOverlayChange);
+  const onProgressKmRef = useRef(onProgressKm);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -201,6 +225,16 @@ export function NavigationSession({
     () => carPlay ?? createCarPlayDisplay(),
     [carPlay],
   );
+  /**
+   * NFR-006 — one GPS subscription for the whole session. Creating the
+   * fallback watch inside the subscribe effect spawned a fresh native
+   * watchPosition() on every re-run (visibility flips, CarPlay connect), so
+   * two watches briefly overlapped while the old one was still being cleared.
+   */
+  const activeLocationWatch = useMemo(
+    () => locationWatch ?? createForegroundLocationWatch(),
+    [locationWatch],
+  );
 
   useEffect(() => {
     routeRef.current = currentRoute;
@@ -239,6 +273,9 @@ export function NavigationSession({
   useEffect(() => {
     onGpxOverlayChangeRef.current = onGpxOverlayChange;
   }, [onGpxOverlayChange]);
+  useEffect(() => {
+    onProgressKmRef.current = onProgressKm;
+  }, [onProgressKm]);
 
   useEffect(() => {
     if (!isGpxRoute(route)) {
@@ -257,6 +294,21 @@ export function NavigationSession({
   useEffect(() => {
     speechEngine.setMuted(muted);
   }, [muted, speechEngine]);
+
+  /* FR-041 — a dropped connection must be named, not left to a frozen map. */
+  useEffect(() => {
+    if (typeof navigator === "undefined" || typeof window === "undefined") {
+      return;
+    }
+    const sync = () => setOnline(navigator.onLine !== false);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
 
   useEffect(() => {
     if (hidden) {
@@ -400,12 +452,18 @@ export function NavigationSession({
     }
 
     setRecalcError(null);
+    setOffRoute(false);
+    offRouteRef.current = emptyOffRouteTracker();
     setCurrentRoute(result.route);
     routeRef.current = result.route;
     progressRef.current = 0;
     progressSnapshotRef.current = null;
+    setProgressKm(0);
+    onProgressKmRef.current?.(0);
     remainingDistanceRef.current = result.route.distanceKm;
     remainingMinutesRef.current = result.route.durationMinutes;
+    setRemainingDistanceKm(result.route.distanceKm);
+    setRemainingMinutes(result.route.durationMinutes);
     onRouteChange?.(result.route);
     pushCarPlay(null);
   }, [now, onRouteChange, pushCarPlay, recalculate, request, speechEngine, useKnowledgeRouting]);
@@ -593,17 +651,18 @@ export function NavigationSession({
     if (!shouldWatch) {
       return;
     }
-    const watch = locationWatch ?? createForegroundLocationWatch();
+    const watch = activeLocationWatch;
     const unsubscribe = watch.subscribe((event) => {
       try {
         if (stoppedRef.current) {
           return;
         }
         if (event.type === "error") {
-          setGpsError(event.error.message);
+          setGpsErrorCode(event.error.code);
           return;
         }
-        setGpsError(null);
+        setGpsErrorCode(null);
+        setHasFix(true);
         setAccuracyMeters(event.fix.accuracyMeters);
 
         if (gpxRuntimeRef.current) {
@@ -651,6 +710,7 @@ export function NavigationSession({
           tracker: offRouteRef.current,
         });
         offRouteRef.current = off.tracker;
+        setOffRoute(off.decision.offRoute);
         if (off.decision.shouldRecalculate) {
           void runRecalculateRef.current(
             event.fix.coordinates,
@@ -688,10 +748,19 @@ export function NavigationSession({
       remainingDistanceRef.current = evaluated.remainingDistanceKm;
       remainingMinutesRef.current = evaluated.remainingDurationMinutes;
       setProgressKm(evaluated.projection.progressKm);
+      onProgressKmRef.current?.(evaluated.projection.progressKm);
       setRemainingDistanceKm(evaluated.remainingDistanceKm);
       setRemainingMinutes(evaluated.remainingDurationMinutes);
       setArrow(maneuverArrow(evaluated.nextStep));
       setNextRoad(evaluated.nextStep ? roadLabel(evaluated.nextStep) : undefined);
+      setFollowingArrow(
+        evaluated.followingStep ? maneuverArrow(evaluated.followingStep) : null,
+      );
+      setFollowingInstruction(
+        evaluated.followingStep
+          ? formatFrenchInstruction(evaluated.followingStep)
+          : null,
+      );
       setDistanceToManeuverKm(
         Number.isFinite(evaluated.distanceToNextManeuverM)
           ? evaluated.distanceToNextManeuverM / 1_000
@@ -820,6 +889,7 @@ export function NavigationSession({
           accuracyMultiplier: GPX_OFF_ROUTE_ACCURACY_MULTIPLIER,
         });
         offRouteRef.current = off.tracker;
+        setOffRoute(off.decision.offRoute);
         if (off.decision.shouldRecalculate && runtime.entry) {
           const entry = runtime.entry;
           runtime = { ...runtime, offRoute: true };
@@ -888,6 +958,7 @@ export function NavigationSession({
         accuracyMultiplier: GPX_OFF_ROUTE_ACCURACY_MULTIPLIER,
       });
       offRouteRef.current = off.tracker;
+      setOffRoute(off.decision.offRoute);
       if (off.decision.shouldRecalculate) {
         const rejoin = selectGpxRejoinPoint({
           geometry: runtime.followRoute.geometry,
@@ -920,7 +991,35 @@ export function NavigationSession({
       abortRef.current?.abort();
       speechEngine.cancel();
     };
-  }, [carPlayDisplay, locationWatch, now, publishGpxOverlay, pushCarPlay, shouldWatch, speechEngine]);
+  }, [
+    activeLocationWatch,
+    carPlayDisplay,
+    now,
+    publishGpxOverlay,
+    pushCarPlay,
+    shouldWatch,
+    speechEngine,
+  ]);
+
+  const arrived =
+    hasFix && remainingDistanceKm <= 0.05 && !recalculating && !offRoute;
+
+  const status: NavigationStatus = deriveNavigationStatus({
+    hasFix,
+    suspended: hidden && !carPlayConnected,
+    online,
+    recalculating,
+    offRoute,
+    gpsErrorCode,
+    accuracyMeters,
+    // A recoverable recalculation failure gets its own retry block below;
+    // the banner stays free for the live state.
+    errorMessage: null,
+    arrived,
+  });
+
+  const destinationLabel =
+    currentRoute.type === "loop" ? null : currentRoute.destination.label;
 
   const session = (
     <div
@@ -940,10 +1039,15 @@ export function NavigationSession({
             overlay={gpxOverlay}
             userLocation={userLocation}
             headingDeg={headingDeg}
+            traveledKm={progressKm}
             engine={mapEngine}
             onRecenterReady={(recenter) => {
               recenterRef.current = recenter;
             }}
+            onOverviewReady={(overview) => {
+              overviewRef.current = overview;
+            }}
+            onFollowUserChange={setOwnFollowingUser}
           />
         </div>
       ) : null}
@@ -952,16 +1056,19 @@ export function NavigationSession({
         arrow={arrow}
         instruction={instruction}
         nextRoad={nextRoad}
+        followingArrow={followingArrow}
+        followingInstruction={followingInstruction}
         distanceToManeuverKm={distanceToManeuverKm}
         remainingDistanceKm={remainingDistanceKm}
         remainingMinutes={remainingMinutes}
         nowMs={now()}
         accuracyMeters={accuracyMeters}
-        gpsError={gpsError}
-        recalculating={recalculating}
+        status={status}
         hidden={hidden}
         carPlayConnected={carPlayConnected}
         muted={muted}
+        followingUser={followingUser}
+        destinationLabel={destinationLabel}
         recalcError={recalcError}
         statusLabel={statusLabel}
         onMuteToggle={() => {
@@ -981,6 +1088,7 @@ export function NavigationSession({
         }}
         onOverview={() => {
           onOverviewPropRef.current?.();
+          overviewRef.current();
         }}
         onStop={handleStop}
         onRetryRecalculate={() => {

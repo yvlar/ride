@@ -93,7 +93,43 @@ Déjà dans le dépôt : scène CarPlay, `CPMapTemplate`, `CPListTemplate` (Traj
 
 Côté web : le chrome iPhone reste la source de planification. Aucune page `/carplay` n’est une intégration véhicule.
 
-## 6. Ce que Ride ne prétend pas
+## 6. Refonte UX navigation (`FR-041`) — ce que CarPlay partage et ce qu’il ignore
+
+La refonte de l’écran de navigation iPhone **n’ajoute aucun second moteur**. Elle
+enrichit le modèle partagé, et l’afficheur véhicule reste volontairement plus
+pauvre que le téléphone (interactions limitées en roulant).
+
+| Donnée | iPhone | CarPlay |
+| --- | --- | --- |
+| Prochaine manœuvre + distance | oui | oui (`CPManeuver`) |
+| Manœuvre suivante (`NavigationProgress.followingStep`) | oui, en ligne discrète | **non** — une seule manœuvre à l’écran |
+| Heure d’arrivée / temps / distance restants | oui | oui (`CPTravelEstimates`) |
+| Portion parcourue vs restante (`splitLineStringAtKm`) | oui, tracé estompé | **non** — MapKit dessine le `CPTrip` complet |
+| Bandeau d’état (`deriveNavigationStatus`) | oui | **non** — CarPlay garde ses alertes système |
+| Suivi caméra suspendu / recentrage | oui | bouton natif « Recentrer » déjà présent |
+| Muet / Terminer | oui | oui (déjà ponté) |
+
+`followingStep` transite donc dans le domaine mais **n’est pas** ajouté à
+`CarPlaySessionSnapshot` : l’ajouter afficherait deux manœuvres sur un écran
+véhicule, ce que la revue Apple et la sécurité en mouvement déconseillent.
+
+Le démarrage et l’arrêt restent synchronisés par le même `CarPlayDisplay`
+(`start` / `update` / `stop`, événements `connection` / `mute` / `stop`). Une
+demande de nouveau trajet pendant une session active passe désormais par une
+confirmation explicite côté iPhone plutôt que par un arrêt silencieux.
+
+### Limites restantes (inchangées, à valider sur macOS)
+
+Rien dans cette refonte n’a pu être compilé ni testé sur un appareil ou un
+simulateur CarPlay : ce dépôt n’a pas d’environnement macOS/Xcode. Restent donc
+non vérifiés côté natif :
+
+1. le rendu réel de `CPManeuver` / `CPTravelEstimates` avec les nouveaux libellés;
+2. la demande d’entitlement CarPlay Maps auprès d’Apple (section 4);
+3. les tests simulateur CarPlay (Hardware → CarPlay);
+4. la revue App Store.
+
+## 7. Ce que Ride ne prétend pas
 
 - La PWA n’est pas compatible CarPlay.
 - Le verrouillage iPhone sans scène CarPlay n’entretient pas le GPS (`NFR-006`).

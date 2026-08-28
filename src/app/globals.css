@@ -153,4 +153,18 @@ html.night {
   html {
     @apply font-sans;
   }
+
+  /* NFR-008 — riders who asked the OS to reduce motion get no sweeping
+     transitions. The MapLibre camera honours the same query in
+     navigation-follow-camera.ts. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

@@ -808,8 +808,8 @@ describe("RideRequestForm (FR-014)", () => {
       screen.queryByRole("region", { name: "Carte de navigation" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Annuler la navigation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oui, annuler" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     await waitFor(() => {
       expect(
         screen.queryByRole("dialog", { name: "Navigation" }),

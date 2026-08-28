@@ -304,7 +304,7 @@ export function ImportGpxPanel({
 
       <div
         className={cn(
-          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card/95 px-4 pt-3",
+          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card px-4 pt-3",
           "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
         )}
         role={route ? "group" : undefined}
