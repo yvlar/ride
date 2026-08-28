@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 
 export function MapBottomPanel({
   title,
+  titleHidden,
   children,
   className,
 }: {
   title?: string;
+  /** Keeps the panel's accessible name while dropping the visible heading. */
+  titleHidden?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -19,7 +22,9 @@ export function MapBottomPanel({
       )}
     >
       <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted-foreground/40" />
-      {title ? <h1 className="mb-3 text-xl font-semibold tracking-tight">{title}</h1> : null}
+      {title && !titleHidden ? (
+        <h1 className="mb-3 text-xl font-semibold tracking-tight">{title}</h1>
+      ) : null}
       {children}
     </section>
   );

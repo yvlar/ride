@@ -9,9 +9,6 @@ import {
   RideRequestForm,
   type RideRequestFormProps,
 } from "@/components/ride-form/ride-request-form";
-import {
-  LocateButton,
-} from "@/components/ride-form/place-search-field";
 import { Button } from "@/components/ui/button";
 import { AppTabBar, type AppTab } from "@/components/shell/app-tab-bar";
 import { MapBottomPanel } from "@/components/shell/map-bottom-panel";
@@ -88,7 +85,6 @@ export function RideApp(props: RideAppProps) {
   const [searchPlace, setSearchPlace] = useState<Place | null>(null);
   const [searchSession, setSearchSession] = useState(0);
   const [gpsLabel, setGpsLabel] = useState("Position non demandée");
-  const [gpsPlace, setGpsPlace] = useState<Place | null>(null);
   const [navUserLocation, setNavUserLocation] = useState<Coordinates | null>(
     null,
   );
@@ -430,7 +426,6 @@ export function RideApp(props: RideAppProps) {
       chrome="plain"
       hideMap={!navigating}
       initialType={plannerType}
-      initialStart={plannerDraft?.startQuery ? null : gpsPlace}
       initialDestination={searchPlace}
       initialDraft={plannerDraft}
       seed={seed}
@@ -596,21 +591,7 @@ export function RideApp(props: RideAppProps) {
             }
           >
             {sheet === "home" ? (
-              <MapBottomPanel title="Où veux-tu rouler?">
-                <p className="mb-2 text-sm text-muted-foreground">{gpsLabel}</p>
-                <div className="mb-3">
-                  <LocateButton
-                    requestCoordinates={props.requestCoordinates}
-                    reversePlace={props.reversePlace}
-                    onLocated={(place, warning) => {
-                      setGpsPlace(place);
-                      setGpsLabel(warning ?? place.label);
-                    }}
-                    onError={(message) => {
-                      setGpsLabel(message);
-                    }}
-                  />
-                </div>
+              <MapBottomPanel title="Explorer" titleHidden>
                 <div className="grid gap-2">
                   <Button
                     type="button"
@@ -654,22 +635,6 @@ export function RideApp(props: RideAppProps) {
                     </Button>
                   ) : null}
                 </div>
-                {recents.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    <h2 className="text-sm font-medium">Destinations récentes</h2>
-                    {recents.map((place) => (
-                      <Button
-                        key={`${place.label}-${place.coordinates.latitude}`}
-                        type="button"
-                        variant="ghost"
-                        className="min-h-12 w-full justify-start text-base"
-                        onClick={() => openFindDestination(place)}
-                      >
-                        {place.label}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
                 {saved.length > 0 ? (
                   <div className="mt-4 space-y-2">
                     <h2 className="text-sm font-medium">Trajets favoris</h2>

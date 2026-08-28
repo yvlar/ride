@@ -720,11 +720,16 @@ L’interface téléphone est **carte d’abord**. La navigation principale comp
 
 L’explorateur montre d’abord :
 
-- « Où veux-tu rouler ? »;
-- l’état de la position (sans demander le GPS tout seul sur l’accueil, `FR-017`);
 - Rechercher une destination, Décrire mon trajet, Importer un fichier GPX (`FR-039`);
 - Reprendre la navigation, s’il existe un trajet en mémoire;
-- les destinations récentes et les trajets favoris (`FR-035`).
+- les trajets favoris (`FR-035`).
+
+L’accueil ne porte ni titre visible, ni indicateur d’état GPS, ni bouton « Ma position » :
+il n’expose que ces actions. Les destinations récentes restent conservées (`FR-035`) et
+proposées sur CarPlay (`FR-028`), mais ne sont plus listées sur l’accueil téléphone.
+L’accueil ne demande toujours aucune position de lui-même (`FR-017`) : la position n’est
+sollicitée qu’à l’ouverture d’un flux, automatiquement pour **Trouver une destination**
+(`FR-038`) et **Décrire mon trajet** (`FR-034`), ou par le contrôle GPS de la carte.
 
 **Rechercher une destination** ouvre le volet **Trouver une destination** (`FR-038`) : position actuelle automatique, champ unique de destination, génération et prévisualisation, puis navigation. Ce n’est pas le formulaire de composition (`FR-014`).
 
