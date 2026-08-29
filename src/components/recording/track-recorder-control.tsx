@@ -65,15 +65,22 @@ export function TrackRecorderControl({
 
   if (state.status === "idle") {
     return (
-      <section aria-label="Enregistrement du parcours" className={className}>
+      <section
+        aria-label="Enregistrement du parcours"
+        className={cn("pointer-events-auto flex justify-center", className)}
+      >
         <Button
           type="button"
-          variant="outline"
-          className="min-h-12 w-full justify-center gap-2 text-base"
+          variant="ghost"
+          aria-label={RECORDING_START_LABEL}
+          title={RECORDING_START_LABEL}
+          className="relative size-[clamp(3.75rem,16vw,4.5rem)] rounded-full border-[3px] border-white/55 bg-slate-950/35 p-1.5 shadow-[0_0_1.25rem_rgba(239,68,68,0.35)] backdrop-blur-md hover:bg-slate-950/50 focus-visible:border-white/80 supports-[backdrop-filter]:bg-slate-950/25"
           onClick={recorder.start}
         >
-          <Circle aria-hidden="true" className="size-4 fill-destructive text-destructive" />
-          {RECORDING_START_LABEL}
+          <span
+            aria-hidden="true"
+            className="size-full rounded-full bg-red-500/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_0.75rem_rgba(239,68,68,0.65)]"
+          />
         </Button>
       </section>
     );
@@ -83,47 +90,58 @@ export function TrackRecorderControl({
     return (
       <section
         aria-label="Enregistrement du parcours"
-        className={cn("space-y-2", className)}
+        className={cn(
+          "pointer-events-auto flex max-w-sm flex-col items-center gap-2",
+          className,
+        )}
       >
-        <p role="status" className="flex items-center gap-2 text-sm font-medium">
-          <Circle
-            aria-hidden="true"
-            className={cn(
-              "size-3 shrink-0 text-destructive",
-              state.status === "recording" ? "animate-pulse fill-destructive" : undefined,
-            )}
-          />
+        <p role="status" className="sr-only">
           {state.status === "recording"
             ? RECORDING_ACTIVE_LABEL
             : RECORDING_ACQUIRING_LABEL}
         </p>
-        <dl className="grid grid-cols-2 gap-2 text-center">
-          <div>
-            <dd className="text-2xl font-semibold leading-8 tabular-nums">
+        <dl className="flex items-center gap-3 rounded-full border border-white/20 bg-slate-950/55 px-3 py-1.5 text-center text-xs font-semibold text-white shadow-lg shadow-black/20 backdrop-blur-md supports-[backdrop-filter]:bg-slate-950/45">
+          <Circle
+            aria-hidden="true"
+            className={cn(
+              "size-2.5 shrink-0 text-red-400",
+              state.status === "recording" ? "animate-pulse fill-red-500" : undefined,
+            )}
+          />
+          <div className="flex items-baseline gap-1">
+            <dt className="sr-only">temps écoulé</dt>
+            <dd className="tabular-nums">
               {formatElapsedLabel(elapsedMs)}
             </dd>
-            <dt className="text-xs leading-4 text-muted-foreground">temps écoulé</dt>
           </div>
-          <div>
-            <dd className="text-2xl font-semibold leading-8 tabular-nums">
+          <span aria-hidden="true" className="text-white/45">·</span>
+          <div className="flex items-baseline gap-1">
+            <dt className="sr-only">distance</dt>
+            <dd className="tabular-nums">
               {formatDistanceLabel(state.distanceKm)}
             </dd>
-            <dt className="text-xs leading-4 text-muted-foreground">distance</dt>
           </div>
         </dl>
         {state.error ? (
-          <p role="status" className="text-sm leading-6 text-muted-foreground">
+          <p
+            role="status"
+            className="rounded-2xl border border-white/20 bg-slate-950/70 px-3 py-2 text-center text-sm leading-5 text-white shadow-lg backdrop-blur-md"
+          >
             {state.error.message}
           </p>
         ) : null}
         <Button
           type="button"
-          variant="destructive"
-          className="min-h-14 w-full gap-2 text-base font-semibold"
+          variant="ghost"
+          aria-label={RECORDING_STOP_LABEL}
+          title={RECORDING_STOP_LABEL}
+          className="relative size-[clamp(3.75rem,16vw,4.5rem)] rounded-full border-[3px] border-red-100/70 bg-red-600/35 p-0 text-white shadow-[0_0_1.5rem_rgba(239,68,68,0.75)] backdrop-blur-md before:absolute before:inset-[-0.4rem] before:animate-pulse before:rounded-full before:border before:border-red-400/50 hover:bg-red-600/50 focus-visible:border-white"
           onClick={recorder.stop}
         >
-          <Square aria-hidden="true" className="size-5" />
-          {RECORDING_STOP_LABEL}
+          <Square
+            aria-hidden="true"
+            className="size-6 fill-white text-white drop-shadow-sm"
+          />
         </Button>
       </section>
     );
@@ -137,7 +155,10 @@ export function TrackRecorderControl({
   return (
     <section
       aria-label="Enregistrement du parcours"
-      className={cn("space-y-2", className)}
+      className={cn(
+        "pointer-events-auto w-full max-w-sm space-y-2 rounded-3xl border border-white/20 bg-slate-950/75 p-3 text-white shadow-xl shadow-black/30 backdrop-blur-xl supports-[backdrop-filter]:bg-slate-950/65",
+        className,
+      )}
     >
       <p className="text-sm font-medium">
         {state.status === "error" ? "Enregistrement interrompu" : RECORDING_PREVIEW_LABEL}
@@ -182,7 +203,7 @@ export function TrackRecorderControl({
             <Button
               type="button"
               variant="outline"
-              className="min-h-12 text-base"
+              className="min-h-12 border-white/25 bg-white/10 text-base text-white hover:bg-white/20 hover:text-white"
               onClick={() => setConfirmDelete(false)}
             >
               {RECORDING_KEEP_LABEL}
@@ -221,7 +242,12 @@ export function TrackRecorderControl({
             variant={
               state.exportedFileName || nothingToDelete ? "outline" : "destructive"
             }
-            className="min-h-12 w-full gap-2 text-base"
+            className={cn(
+              "min-h-12 w-full gap-2 text-base",
+              state.exportedFileName || nothingToDelete
+                ? "border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                : undefined,
+            )}
             disabled={exporting}
             onClick={() => {
               // Un parcours déjà exporté n'a plus rien à perdre : on le ferme

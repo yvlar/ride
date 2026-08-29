@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AppTabBar, type AppTab } from "@/components/shell/app-tab-bar";
 import { MapBottomPanel } from "@/components/shell/map-bottom-panel";
+import { MapQuickActions } from "@/components/shell/map-quick-actions";
 import { useAppearance } from "@/components/theme/appearance-provider";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { SavedRide } from "@/domain/library/types";
@@ -145,6 +146,10 @@ export function RideApp(props: RideAppProps) {
     exportFile: props.recording?.exportFile,
   });
   const recorderBusy = recorder.state.status !== "idle";
+  const recorderNeedsReview =
+    recorder.state.status !== "idle" &&
+    recorder.state.status !== "recording" &&
+    recorder.state.status !== "requesting-permission";
   const recordingFix =
     recorder.state.status === "recording"
       ? (recorder.state.points[recorder.state.points.length - 1] ?? null)
@@ -619,6 +624,38 @@ export function RideApp(props: RideAppProps) {
           />
         ) : null}
 
+        {tab === "explore" && sheet === "home" && !navigating ? (
+          <div
+            data-testid="map-home-controls"
+            className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
+          >
+            {recorderNeedsReview ? null : (
+              <MapQuickActions
+                onSearch={() => openFindDestination()}
+                onDescribe={() => setSheet("describe")}
+                onCatalog={openRouteCatalog}
+                onImportGpx={openGpxImporter}
+                onResume={
+                  route && request ? () => openRide(request, route) : undefined
+                }
+              />
+            )}
+            <TrackRecorderControl
+              recorder={recorder}
+              now={props.recording?.now}
+            />
+          </div>
+        ) : null}
+
+        {recorderBusy && (sheet !== "home" || tab !== "explore" || navigating) ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex justify-center px-3">
+            <TrackRecorderControl
+              recorder={recorder}
+              now={props.recording?.now}
+            />
+          </div>
+        ) : null}
+
         {tab === "explore" && sheet === "planner" ? (
           <div
             className={
@@ -665,79 +702,6 @@ export function RideApp(props: RideAppProps) {
                 : "pointer-events-none absolute inset-x-0 bottom-0 z-10"
             }
           >
-            {sheet === "home" ? (
-              <MapBottomPanel title="Explorer" titleHidden>
-                <div className="grid gap-2">
-                  <Button
-                    type="button"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => openFindDestination()}
-                  >
-                    Rechercher une destination
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => setSheet("describe")}
-                  >
-                    Décrire mon trajet
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => openRouteCatalog()}
-                  >
-                    Découvrir des trajets moto
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => openGpxImporter()}
-                  >
-                    Importer un fichier GPX
-                  </Button>
-                  {route && request ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="lg"
-                      className="min-h-12 w-full text-base"
-                      onClick={() =>
-                        request && route
-                          ? openRide(request, route)
-                          : undefined
-                      }
-                    >
-                      Reprendre la navigation
-                    </Button>
-                  ) : null}
-                </div>
-                {saved.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    <h2 className="text-sm font-medium">Trajets favoris</h2>
-                    {saved.slice(0, 3).map((item) => (
-                      <Button
-                        key={item.id}
-                        type="button"
-                        variant="ghost"
-                        className="min-h-12 w-full justify-start text-base"
-                        onClick={() => openRide(item.request, item.route)}
-                      >
-                        {item.name}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
-              </MapBottomPanel>
-            ) : null}
-
             {sheet === "search" ? (
               <MapBottomPanel
                 title="Trouver une destination"
@@ -903,17 +867,6 @@ export function RideApp(props: RideAppProps) {
           />
         ) : null}
       </div>
-      {tab === "explore" || recorderBusy ? (
-        <div
-          className={
-            navigating
-              ? "relative z-30 border-t border-border bg-card/95 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md"
-              : "relative z-30 border-t border-border bg-card/95 px-3 py-2 backdrop-blur-md"
-          }
-        >
-          <TrackRecorderControl recorder={recorder} now={props.recording?.now} />
-        </div>
-      ) : null}
       {pendingRideIntent ? (
         <div
           role="alertdialog"
