@@ -126,6 +126,12 @@ describe("parseEnv", () => {
     expect(env.RADAR_API_KEY).toBeUndefined();
   });
 
+  it("accepts the Canadian radar service (FR-043)", () => {
+    expect(parseEnv({ RADAR_PROVIDER: "geomet" }).RADAR_PROVIDER).toBe(
+      "geomet",
+    );
+  });
+
   it("accepts offline weather and radar providers (FR-043)", () => {
     const env = parseEnv({ WEATHER_PROVIDER: "mock", RADAR_PROVIDER: "mock" });
 

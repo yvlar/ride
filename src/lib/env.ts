@@ -40,7 +40,7 @@ export const envSchema = z.object({
   WEATHER_API_KEY: optionalSecret,
   RADAR_PROVIDER: z.preprocess(
     emptyToUndefined,
-    z.enum(["rainviewer", "mock"]).default("rainviewer"),
+    z.enum(["rainviewer", "geomet", "mock"]).default("rainviewer"),
   ),
   RADAR_API_BASE_URL: optionalUrl,
   RADAR_API_KEY: optionalSecret,

@@ -5,6 +5,10 @@ import {
   OpenMeteoWeatherProvider,
 } from "./open-meteo-weather-provider";
 import {
+  GEOMET_BASE_URL,
+  GeoMetRadarProvider,
+} from "./geomet-radar-provider";
+import {
   RAINVIEWER_BASE_URL,
   RainViewerRadarProvider,
 } from "./rainviewer-radar-provider";
@@ -36,7 +40,12 @@ export function createWeatherProvider(
   );
 }
 
-/** FR-043 — RainViewer is keyless too; `RADAR_PROVIDER=mock` drops imagery. */
+/**
+ * FR-043 — RainViewer is keyless too and covers the whole world, so it stays
+ * the default. `RADAR_PROVIDER=geomet` trades that reach for the Meteorological
+ * Service of Canada's 1 km North American composite: sharper at riding zoom,
+ * observations only. `mock` drops imagery entirely.
+ */
 export function createRadarProvider(
   source?: Record<string, string | undefined>,
 ): RadarProvider {
@@ -44,6 +53,13 @@ export function createRadarProvider(
 
   if (env.RADAR_PROVIDER === "mock") {
     return mockRadarProvider;
+  }
+
+  if (env.RADAR_PROVIDER === "geomet") {
+    return new GeoMetRadarProvider(
+      env.RADAR_API_BASE_URL ?? GEOMET_BASE_URL,
+      fetch,
+    );
   }
 
   if (env.RADAR_PROVIDER === "rainviewer") {
@@ -55,6 +71,6 @@ export function createRadarProvider(
   }
 
   throw new Error(
-    `Le fournisseur radar « ${env.RADAR_PROVIDER} » n’est pas branché. Utilisez RADAR_PROVIDER=rainviewer ou mock.`,
+    `Le fournisseur radar « ${env.RADAR_PROVIDER} » n’est pas branché. Utilisez RADAR_PROVIDER=rainviewer, geomet ou mock.`,
   );
 }
