@@ -5,6 +5,7 @@ import type { GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/rid
 import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "./geolocate-control-options";
 import { MAP_UNAVAILABLE_MESSAGE, type MapEngine } from "./map-engine";
 import { RideMap } from "./ride-map";
+import type { WeatherMapOverlay } from "./weather-overlay";
 
 const granby: Place = {
   label: "Granby, QC",
@@ -246,5 +247,54 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
       "Sens : boucle depuis Granby, QC",
     );
+  });
+
+  it("hands the weather overlay to the engine and follows it (FR-043)", async () => {
+    const setWeather = vi.fn();
+    const mount = vi.fn(() => ({ destroy: vi.fn(), setWeather }));
+    const weather: WeatherMapOverlay = {
+      radarTileUrlTemplate: "https://tiles.test/{z}/{x}/{y}.png",
+      radarOpacity: 0.6,
+      radarMaxZoom: 7,
+      attribution: "Images radar © Test",
+      clouds: [
+        {
+          id: "cloud-1",
+          coordinates: { latitude: 45.2, longitude: -73.1 },
+          level: "rain",
+          probability: 72,
+          label: "Pluie, 72 % de risque de pluie",
+        },
+      ],
+    };
+
+    const view = render(
+      <RideMap route={loop} engine={{ mount } as MapEngine} weather={null} />,
+    );
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    expect(setWeather).toHaveBeenCalledWith(null);
+
+    view.rerender(
+      <RideMap route={loop} engine={{ mount } as MapEngine} weather={weather} />,
+    );
+
+    await waitFor(() => {
+      expect(setWeather).toHaveBeenLastCalledWith(weather);
+    });
+  });
+
+  it("mounts without a weather layer on an engine that has none (FR-043)", async () => {
+    const mount = vi.fn(() => ({ destroy: vi.fn() }));
+
+    render(<RideMap route={loop} engine={{ mount } as MapEngine} />);
+
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      screen.getByRole("region", { name: "Carte du trajet" }),
+    ).toBeInTheDocument();
   });
 });

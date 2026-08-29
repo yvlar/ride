@@ -44,6 +44,8 @@ import {
   rideTraveledFeatureCollection,
   type RideMapViewModel,
 } from "./ride-map-view-model";
+import { createCloudMarkerElement } from "./weather-markers";
+import { RADAR_LAYER_OPACITY, type WeatherMapOverlay } from "./weather-overlay";
 
 export {
   NAVIGATION_FOLLOW_DURATION_MS,
@@ -52,6 +54,12 @@ export {
   NAVIGATION_FOLLOW_ZOOM,
   NAVIGATION_MAX_PITCH,
 } from "./navigation-follow-camera";
+
+export const RADAR_SOURCE_ID = "ride-radar";
+export const RADAR_LAYER_ID = "ride-radar-tiles";
+
+/** Radar has to sit under the route: a cell must never hide the road. */
+const ROUTE_LAYER_IDS = ["ride-traveled-line", "ride-route-line"] as const;
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -71,7 +79,12 @@ export function createMapLibreEngine(
     ): MapEngineHandle {
       const markers: Marker[] = [];
       const recordedMarkers: Marker[] = [];
+      const cloudMarkers: Marker[] = [];
       let recordedTrack: RecordedTrackOverlay | null = null;
+      /** A frame asked for while the style was still loading (see renderRoute). */
+      let pendingFitCamera = false;
+      let weather: WeatherMapOverlay | null = null;
+      let radarTemplate: string | null = null;
       let map: MapLibreMap | undefined;
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
@@ -183,6 +196,10 @@ export function createMapLibreEngine(
         currentViewModel = next;
         camera = mapCameraFrame(next.bounds);
         if (!map || disposed || !map.isStyleLoaded()) {
+          // A route restored from a session, or one that simply beat the tiles,
+          // must still be framed: remember the request for the load event
+          // instead of dropping it with the render.
+          pendingFitCamera = pendingFitCamera || options.fitCamera === true;
           return;
         }
 
@@ -311,6 +328,7 @@ export function createMapLibreEngine(
           // The constructor already frames the first view. A second fitBounds
           // during load can throw inside MapLibre's camera ease (NFR-006).
           if (options.fitCamera) {
+            pendingFitCamera = false;
             map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
           }
         } catch {
@@ -379,6 +397,123 @@ export function createMapLibreEngine(
         }
       }
 
+      /**
+       * FR-043 — radar imagery below the route, cloud markers above it. The
+       * whole layer is optional: a failure here warns and leaves the map, and
+       * the route, exactly as they were.
+       */
+      function renderWeather() {
+        if (!map || disposed) {
+          return;
+        }
+        try {
+          // Clouds are DOM markers: they need no style, so a map still
+          // waiting on its tiles shows the sky rather than nothing.
+          renderClouds(map);
+          if (map.isStyleLoaded()) {
+            renderRadar(map);
+          }
+        } catch {
+          onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+        }
+      }
+
+      function renderRadar(target: MapLibreMap) {
+        const template = weather?.radarTileUrlTemplate ?? null;
+        if (!template) {
+          removeRadar(target);
+          return;
+        }
+
+        const source = target.getSource(RADAR_SOURCE_ID);
+        if (source && template !== radarTemplate) {
+          if ("setTiles" in source && typeof source.setTiles === "function") {
+            source.setTiles([template]);
+          } else {
+            // An older raster source cannot be retargeted; rebuild it so
+            // stepping to another frame still changes the picture.
+            removeRadar(target);
+          }
+        }
+
+        if (!target.getSource(RADAR_SOURCE_ID)) {
+          target.addSource(RADAR_SOURCE_ID, {
+            type: "raster",
+            tiles: [template],
+            tileSize: 256,
+            // Without this the map requests zooms the provider does not serve
+            // and paints its placeholder image over the route.
+            ...(weather?.radarMaxZoom ? { maxzoom: weather.radarMaxZoom } : {}),
+            ...(weather?.attribution
+              ? { attribution: weather.attribution }
+              : {}),
+          });
+          target.addLayer(
+            {
+              id: RADAR_LAYER_ID,
+              type: "raster",
+              source: RADAR_SOURCE_ID,
+              paint: {
+                "raster-opacity": weather?.radarOpacity ?? RADAR_LAYER_OPACITY,
+              },
+            },
+            radarBeforeLayerId(target),
+          );
+        } else if (typeof target.setPaintProperty === "function") {
+          target.setPaintProperty(
+            RADAR_LAYER_ID,
+            "raster-opacity",
+            weather?.radarOpacity ?? RADAR_LAYER_OPACITY,
+          );
+        }
+
+        radarTemplate = template;
+      }
+
+      function removeRadar(target: MapLibreMap) {
+        radarTemplate = null;
+        if (
+          target.getLayer?.(RADAR_LAYER_ID) &&
+          typeof target.removeLayer === "function"
+        ) {
+          target.removeLayer(RADAR_LAYER_ID);
+        }
+        if (
+          target.getSource(RADAR_SOURCE_ID) &&
+          typeof target.removeSource === "function"
+        ) {
+          target.removeSource(RADAR_SOURCE_ID);
+        }
+      }
+
+      function renderClouds(target: MapLibreMap) {
+        for (const marker of cloudMarkers) {
+          marker.remove();
+        }
+        cloudMarkers.length = 0;
+        for (const cloud of weather?.clouds ?? []) {
+          cloudMarkers.push(
+            new Marker({
+              element: createCloudMarkerElement(cloud),
+              anchor: "center",
+            })
+              .setLngLat(coordinatesToPosition(cloud.coordinates))
+              .addTo(target),
+          );
+        }
+      }
+
+      // A style that settles late (slow or failing tiles) would otherwise leave
+      // the radar undrawn: retry once it is ready, and only while it is
+      // pending, so applying it does not feed itself another event.
+      map.on("styledata", () => {
+        const template = weather?.radarTileUrlTemplate;
+        if (!template || template === radarTemplate) {
+          return;
+        }
+        renderWeather();
+      });
+
       map.on("load", () => {
         if (disposed || !map) {
           return;
@@ -390,7 +525,31 @@ export function createMapLibreEngine(
         }
         renderRoute(currentViewModel);
         renderRecordedTrack();
+        renderWeather();
+        applyPendingFrame();
       });
+
+      /**
+       * Frame a route that could not be framed when it arrived. Deferred by a
+       * frame: fitting while the constructor's own ease is still running can
+       * throw inside MapLibre's camera (NFR-006).
+       */
+      function applyPendingFrame() {
+        if (!pendingFitCamera || !map || disposed) {
+          return;
+        }
+        pendingFitCamera = false;
+        requestAnimationFrame(() => {
+          if (!map || disposed || followUser || streetCameraActive) {
+            return;
+          }
+          try {
+            map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
+          } catch {
+            // The route is drawn either way; the rider can still frame it.
+          }
+        });
+      }
 
       let userMarker: Marker | undefined;
       let followUser = false;
@@ -545,6 +704,10 @@ export function createMapLibreEngine(
             marker.remove();
           }
           recordedMarkers.length = 0;
+          for (const marker of cloudMarkers) {
+            marker.remove();
+          }
+          cloudMarkers.length = 0;
           const mapToRemove = map;
           map = undefined;
           removeMapSafely(mapToRemove);
@@ -606,6 +769,13 @@ export function createMapLibreEngine(
           }
           recordedTrack = overlay;
           renderRecordedTrack();
+        },
+        setWeather(overlay) {
+          if (disposed) {
+            return;
+          }
+          weather = overlay;
+          renderWeather();
         },
         setGeolocateEnabled(enabled) {
           if (disposed) {
@@ -708,6 +878,30 @@ export function createMapLibreEngine(
       };
     },
   };
+}
+
+/**
+ * Where to slip the radar in. Under the first label layer when the style has
+ * one, so place names stay readable through a cell; otherwise under the route,
+ * which must never be hidden either way.
+ */
+function radarBeforeLayerId(map: MapLibreMap): string | undefined {
+  try {
+    const labels = map.getStyle?.()?.layers?.find(
+      (layer) => layer.type === "symbol",
+    );
+    if (labels) {
+      return labels.id;
+    }
+  } catch {
+    // A style that cannot be read just means the route decides the order.
+  }
+  for (const id of ROUTE_LAYER_IDS) {
+    if (map.getLayer?.(id)) {
+      return id;
+    }
+  }
+  return undefined;
 }
 
 function removeMapSafely(map: MapLibreMap | undefined): void {
