@@ -56,8 +56,10 @@ describe("RainViewerRadarProvider (FR-043)", () => {
   it("builds a MapLibre raster template from the host and path", async () => {
     const frames = await provider(maps).frames();
 
+    // The 512 variant of the same tile: twice the detail once the map has to
+    // stretch it past RainViewer's zoom ceiling.
     expect(frames.frames[0]!.tileUrlTemplate).toBe(
-      "https://tilecache.rainviewer.test/v2/radar/1772000600/256/{z}/{x}/{y}/2/1_1.png",
+      "https://tilecache.rainviewer.test/v2/radar/1772000600/512/{z}/{x}/{y}/2/1_1.png",
     );
   });
 

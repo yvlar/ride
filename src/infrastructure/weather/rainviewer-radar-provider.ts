@@ -6,8 +6,14 @@ export const RADAR_REQUEST_TIMEOUT_MS = 7_000;
 export const RAINVIEWER_BASE_URL = "https://api.rainviewer.com/public/";
 export const RAINVIEWER_ATTRIBUTION = "Images radar © RainViewer";
 
-/** Tile size / colour scheme / smoothing + snow, RainViewer's own defaults. */
-const TILE_SUFFIX = "256/{z}/{x}/{y}/2/1_1.png";
+/**
+ * Tile size / colour scheme / smoothing + snow. The 512 variant is the same
+ * tile at twice the resolution — same coverage, same number of requests — so
+ * it halves the blur when the map stretches it past the zoom ceiling below.
+ * The colour segment is inert on the public endpoint (every scheme returns
+ * the identical image); smoothing, the last segment, does apply.
+ */
+const TILE_SUFFIX = "512/{z}/{x}/{y}/2/1_1.png";
 
 /**
  * RainViewer's public tiles stop at zoom 7: deeper requests answer 200 with a
