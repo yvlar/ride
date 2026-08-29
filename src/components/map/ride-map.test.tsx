@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Place } from "@/domain/geo/types";
 import type { GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
+import type { WeatherOverlay } from "@/domain/weather/types";
 import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "./geolocate-control-options";
 import { MAP_UNAVAILABLE_MESSAGE, type MapEngine } from "./map-engine";
 import { RideMap } from "./ride-map";
@@ -246,5 +247,75 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(screen.getByRole("region", { name: "Carte du trajet" })).not.toHaveTextContent(
       "Sens : boucle depuis Granby, QC",
     );
+  });
+});
+
+describe("RideMap weather overlay (FR-043)", () => {
+  const overlay: WeatherOverlay = {
+    center: granby.coordinates,
+    radiusKm: 60,
+    observedAt: "2026-08-29T14:00:00.000Z",
+    samples: [
+      {
+        coordinates: granby.coordinates,
+        precipitationProbability: 70,
+        precipitationMmPerHour: 1.2,
+        temperatureC: 17,
+        windKph: 15,
+      },
+    ],
+  };
+
+  it("passes the overlay to the engine on mount and on every refresh", async () => {
+    const setWeatherOverlay = vi.fn();
+    const mount = vi.fn(() => ({ destroy: vi.fn(), setWeatherOverlay }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = render(
+      <RideMap route={loop} engine={engine} weather={overlay} />,
+    );
+    await waitFor(() => {
+      expect(setWeatherOverlay).toHaveBeenCalledWith(overlay);
+    });
+
+    const refreshed = { ...overlay, observedAt: "2026-08-29T14:10:00.000Z" };
+    rerender(<RideMap route={loop} engine={engine} weather={refreshed} />);
+    await waitFor(() => {
+      expect(setWeatherOverlay).toHaveBeenLastCalledWith(refreshed);
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the layer when the rider hides the weather", async () => {
+    const setWeatherOverlay = vi.fn();
+    const engine: MapEngine = {
+      mount: vi.fn(() => ({ destroy: vi.fn(), setWeatherOverlay })),
+    };
+
+    const { rerender } = render(
+      <RideMap route={loop} engine={engine} weather={overlay} />,
+    );
+    await waitFor(() => {
+      expect(setWeatherOverlay).toHaveBeenCalledWith(overlay);
+    });
+
+    rerender(<RideMap route={loop} engine={engine} weather={null} />);
+    await waitFor(() => {
+      expect(setWeatherOverlay).toHaveBeenLastCalledWith(null);
+    });
+  });
+
+  it("keeps working with an engine that has no weather support", async () => {
+    const mount = vi.fn(() => ({ destroy: vi.fn() }));
+    const engine: MapEngine = { mount };
+
+    render(<RideMap route={loop} engine={engine} weather={overlay} />);
+
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      screen.getByRole("region", { name: "Carte du trajet" }),
+    ).toBeInTheDocument();
   });
 });

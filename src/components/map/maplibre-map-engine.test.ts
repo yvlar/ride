@@ -980,3 +980,107 @@ describe("MapLibre destination picking (FR-038)", () => {
     handle.destroy();
   });
 });
+
+describe("MapLibre weather overlay (FR-043)", () => {
+  beforeEach(() => {
+    mapOn.mockReset();
+    markerRemove.mockReset();
+    createdMarkers.length = 0;
+    mapState.painterAvailable = true;
+    mapState.markerThrows = false;
+  });
+
+  async function mountWeatherMap() {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const container = document.createElement("div");
+    const onWarning = vi.fn();
+    const handle = createMapLibreEngine().mount(container, viewModel, {
+      onError: vi.fn(),
+      onWarning,
+    });
+    return { handle, onWarning };
+  }
+
+  function overlay(samples: { lat: number; lon: number; probability: number }[]) {
+    return {
+      center: { latitude: 45.4001, longitude: -72.7342 },
+      radiusKm: 60,
+      observedAt: "2026-08-29T14:00:00.000Z",
+      samples: samples.map((entry) => ({
+        coordinates: { latitude: entry.lat, longitude: entry.lon },
+        precipitationProbability: entry.probability,
+        precipitationMmPerHour: null,
+        temperatureC: 18,
+        windKph: 12,
+      })),
+    };
+  }
+
+  it("pose un nuage par relevé, à la coordonnée demandée", async () => {
+    const { handle } = await mountWeatherMap();
+    createdMarkers.length = 0;
+
+    handle.setWeatherOverlay?.(
+      overlay([
+        { lat: 45.4001, lon: -72.7342, probability: 10 },
+        { lat: 45.9, lon: -72.2, probability: 90 },
+      ]),
+    );
+
+    const clouds = createdMarkers.filter((marker) =>
+      marker.element?.classList.contains("ride-map-cloud"),
+    );
+    expect(clouds).toHaveLength(2);
+    expect(clouds[0]?.lngLat).toEqual({ lng: -72.7342, lat: 45.4001 });
+    expect(clouds[1]?.element?.dataset.rainLevel).toBe("certain");
+  });
+
+  it("remplace la nappe précédente au lieu de l’empiler", async () => {
+    const { handle } = await mountWeatherMap();
+    handle.setWeatherOverlay?.(
+      overlay([{ lat: 45.4, lon: -72.7, probability: 10 }]),
+    );
+    createdMarkers.length = 0;
+    const removedBefore = markerRemove.mock.calls.length;
+
+    handle.setWeatherOverlay?.(
+      overlay([{ lat: 45.5, lon: -72.6, probability: 80 }]),
+    );
+
+    expect(markerRemove.mock.calls.length).toBeGreaterThan(removedBefore);
+    expect(
+      createdMarkers.filter((marker) =>
+        marker.element?.classList.contains("ride-map-cloud"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("retire la couche quand la météo est masquée", async () => {
+    const { handle } = await mountWeatherMap();
+    handle.setWeatherOverlay?.(
+      overlay([{ lat: 45.4, lon: -72.7, probability: 10 }]),
+    );
+    const removedBefore = markerRemove.mock.calls.length;
+    createdMarkers.length = 0;
+
+    handle.setWeatherOverlay?.(null);
+
+    expect(markerRemove.mock.calls.length).toBeGreaterThan(removedBefore);
+    expect(createdMarkers).toHaveLength(0);
+  });
+
+  it("laisse la carte debout si un nuage ne peut pas être posé", async () => {
+    const { handle, onWarning } = await mountWeatherMap();
+    mapState.markerThrows = true;
+
+    expect(() =>
+      handle.setWeatherOverlay?.(
+        overlay([{ lat: 45.4, lon: -72.7, probability: 50 }]),
+      ),
+    ).not.toThrow();
+    expect(onWarning).toHaveBeenCalledWith(MAP_UNAVAILABLE_MESSAGE);
+
+    mapState.markerThrows = false;
+    handle.destroy();
+  });
+});

@@ -117,3 +117,68 @@
 .ride-map-pick-marker:active {
   cursor: grabbing;
 }
+
+/*
+ * FR-043 — nuages météo. Ils informent, ils ne se manipulent pas : sans
+ * `pointer-events: none`, un nuage avalerait le clic qui pose une destination
+ * sur la carte (FR-038).
+ */
+.ride-map-cloud {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 0.55));
+}
+
+.ride-map-cloud-icon {
+  width: 30px;
+  height: 32px;
+  stroke: currentColor;
+}
+
+.ride-map-cloud-body {
+  fill: currentColor;
+  fill-opacity: 0.85;
+}
+
+.ride-map-cloud-drop {
+  stroke: #38bdf8;
+  stroke-width: 2.5;
+}
+
+.ride-map-cloud-value {
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.85);
+  color: #f8fafc;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.ride-map-cloud--clear {
+  color: #cbd5e1;
+  opacity: 0.75;
+}
+
+.ride-map-cloud--possible {
+  color: #94a3b8;
+}
+
+.ride-map-cloud--likely {
+  color: #64748b;
+}
+
+.ride-map-cloud--certain {
+  color: #334155;
+}
+
+/* Le palier le plus arrosé est aussi le seul à porter un liseré clair : il
+   doit rester repérable sur une carte sombre comme sur une carte claire. */
+.ride-map-cloud--certain .ride-map-cloud-body {
+  stroke: #e2e8f0;
+  fill-opacity: 0.95;
+}

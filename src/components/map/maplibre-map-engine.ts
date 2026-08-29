@@ -16,6 +16,8 @@ import {
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
 import { createLongPressRecognizer } from "./long-press";
+import type { WeatherOverlay } from "@/domain/weather/types";
+import { createWeatherCloudElement } from "./weather-markers";
 import {
   RECORDED_TRACK_END_LABEL,
   RECORDED_TRACK_START_LABEL,
@@ -71,7 +73,9 @@ export function createMapLibreEngine(
     ): MapEngineHandle {
       const markers: Marker[] = [];
       const recordedMarkers: Marker[] = [];
+      const weatherMarkers: Marker[] = [];
       let recordedTrack: RecordedTrackOverlay | null = null;
+      let weatherOverlay: WeatherOverlay | null = null;
       let map: MapLibreMap | undefined;
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
@@ -379,6 +383,40 @@ export function createMapLibreEngine(
         }
       }
 
+      /**
+       * FR-043 — les nuages sont des marqueurs et non une couche de style :
+       * ils survivent ainsi à un changement de fond de carte et restent lisibles
+       * caméra inclinée, sans jamais toucher au tracé du trajet.
+       */
+      function renderWeather() {
+        for (const marker of weatherMarkers) {
+          marker.remove();
+        }
+        weatherMarkers.length = 0;
+        if (!map || disposed || !weatherOverlay) {
+          return;
+        }
+        try {
+          for (const sample of weatherOverlay.samples) {
+            weatherMarkers.push(
+              new Marker({
+                element: createWeatherCloudElement(sample),
+                anchor: "center",
+                // Un nuage se lit à l'endroit, quelle que soit l'inclinaison
+                // ou le cap de la caméra de navigation (FR-042).
+                rotationAlignment: "viewport",
+                pitchAlignment: "viewport",
+              })
+                .setLngLat(coordinatesToPosition(sample.coordinates))
+                .addTo(map),
+            );
+          }
+        } catch {
+          // Une surcouche météo ne doit jamais emporter la carte (NFR-005).
+          onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+        }
+      }
+
       map.on("load", () => {
         if (disposed || !map) {
           return;
@@ -545,6 +583,10 @@ export function createMapLibreEngine(
             marker.remove();
           }
           recordedMarkers.length = 0;
+          for (const marker of weatherMarkers) {
+            marker.remove();
+          }
+          weatherMarkers.length = 0;
           const mapToRemove = map;
           map = undefined;
           removeMapSafely(mapToRemove);
@@ -606,6 +648,13 @@ export function createMapLibreEngine(
           }
           recordedTrack = overlay;
           renderRecordedTrack();
+        },
+        setWeatherOverlay(overlay) {
+          if (disposed) {
+            return;
+          }
+          weatherOverlay = overlay;
+          renderWeather();
         },
         setGeolocateEnabled(enabled) {
           if (disposed) {

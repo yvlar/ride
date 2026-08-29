@@ -40,6 +40,15 @@ export const envSchema = z.object({
   SUPABASE_URL: optionalUrl,
   SUPABASE_ANON_KEY: optionalSecret,
   NEXT_PUBLIC_MAP_STYLE_URL: optionalUrl,
+  /**
+   * FR-043 — la météo par défaut est le fournisseur réel : une prévision
+   * inventée enverrait un pilote sous l'orage. Le mock est explicite.
+   */
+  WEATHER_PROVIDER: z.preprocess(
+    emptyToUndefined,
+    z.enum(["open-meteo", "mock"]).default("open-meteo"),
+  ),
+  WEATHER_API_BASE_URL: optionalUrl,
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
@@ -65,6 +74,8 @@ export function serverProcessEnv(): Record<string, string | undefined> {
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
     NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
+    WEATHER_PROVIDER: process.env.WEATHER_PROVIDER,
+    WEATHER_API_BASE_URL: process.env.WEATHER_API_BASE_URL,
   };
 }
 
@@ -87,5 +98,7 @@ export function parseEnv(
     SUPABASE_URL: source.SUPABASE_URL,
     SUPABASE_ANON_KEY: source.SUPABASE_ANON_KEY,
     NEXT_PUBLIC_MAP_STYLE_URL: source.NEXT_PUBLIC_MAP_STYLE_URL,
+    WEATHER_PROVIDER: source.WEATHER_PROVIDER,
+    WEATHER_API_BASE_URL: source.WEATHER_API_BASE_URL,
   });
 }

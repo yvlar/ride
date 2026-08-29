@@ -32,7 +32,8 @@ Le MVP doit permettre de :
 - demander une autre route sensiblement différente;
 - démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet;
 - importer un fichier GPX et suivre sa trace (raccordement puis guidage, sans remplacer la géométrie importée);
-- sauvegarder localement une ride.
+- sauvegarder localement une ride;
+- afficher la pluie attendue autour du pilote et la direction à éviter (`FR-043`).
 
 ## 3. Hors périmètre du MVP
 
@@ -41,7 +42,6 @@ Ne pas implémenter dans la première version :
 - la localisation en arrière-plan, le fonctionnement écran verrouillé et la navigation hors ligne;
 - un réseau social;
 - les paiements ou abonnements;
-- la météo en temps réel;
 - les profils de plusieurs motos;
 - les pauses automatiques et la gestion complète de l’autonomie;
 - le partage public de trajets;
