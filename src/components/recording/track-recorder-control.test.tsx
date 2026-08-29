@@ -92,9 +92,15 @@ describe("TrackRecorderControl (FR-041)", () => {
   it("offers a single start action before any recording", () => {
     const harness = createFakeWatch();
     render(<Harness watch={harness.watch} />);
+    const startButton = screen.getByRole("button", {
+      name: /Démarrer l’enregistrement/,
+    });
+    expect(startButton).toBeInTheDocument();
+    expect(startButton).toHaveAttribute("title", "Démarrer l’enregistrement");
+    expect(startButton).toHaveClass("rounded-full");
     expect(
-      screen.getByRole("button", { name: /Démarrer l’enregistrement/ }),
-    ).toBeInTheDocument();
+      screen.queryByText("Démarrer l’enregistrement"),
+    ).not.toBeInTheDocument();
     expect(harness.listenerCount()).toBe(0);
   });
 
@@ -118,6 +124,11 @@ describe("TrackRecorderControl (FR-041)", () => {
     startRecording(harness);
 
     expect(screen.getByText("Enregistrement en cours")).toBeInTheDocument();
+    const stopButton = screen.getByRole("button", {
+      name: /Arrêter l’enregistrement/,
+    });
+    expect(stopButton).toHaveAttribute("title", "Arrêter l’enregistrement");
+    expect(stopButton).toHaveClass("rounded-full");
     expect(screen.getByTestId("recorded-points")).toHaveTextContent("2");
     expect(screen.getByTestId("overlay-points")).toHaveTextContent("2");
     expect(screen.getByText("60 m")).toBeInTheDocument();
