@@ -57,6 +57,15 @@ Exemple :
 > Fichier : cantons.gpx
 > Navigation : rejoindre le tracé, puis le suivre
 
+### Catalogue de trajets
+
+L'action **Découvrir des trajets moto** parcourt les collections publiées selon
+le chemin pays → province/État → région. Le GPX choisi est chargé sur demande,
+affiché sur la carte, puis suivi par le même moteur que l'import local. Le
+catalogue commence avec 10 trajets du Québec et accepte les futurs ajouts de
+l'Ontario et des États-Unis sans changer d'API. Architecture et procédure
+d'import : [`docs/route-catalog.md`](docs/route-catalog.md).
+
 ## Paramètres de génération
 
 ### Distance ou durée
@@ -258,8 +267,13 @@ Le champ de destination accepte aussi un code postal canadien (`FR-040`) : `J2G 
 La base de référence donne un point **exact** pour un code postal qu’elle connaît. Le repli sur le fournisseur de géocodage est moins précis, et trois limites valent d’être connues :
 
 - OpenStreetMap couvre mal les codes postaux canadiens complets. Lorsque la base de référence ne répond pas ou ignore le code, la recherche interroge le fournisseur avec le code complet puis se rabat sur la **RTA** (les trois premiers caractères). Un résultat de RTA est marqué **approximatif**, affiché comme une zone, et le marqueur reste ajustable sur la carte avant la génération (`FR-038`).
-- Nominatim n’offre pas de biais de proximité pondéré. `viewbox` sans `bounded` n’est qu’une indication, d’où le reclassement (`Québec`, puis `Canada`, puis distance) effectué côté serveur dans le domaine.
-- `countrycodes` est un filtre **exclusif**. Il n’est donc pas utilisé pour « prioriser » le Canada, ce qui bloquerait les destinations étrangères.
+- Nominatim n'offre pas de biais de proximité pondéré. `viewbox` sans `bounded` n'est qu'une indication, d'où le reclassement (`Québec`, puis `Canada`, puis distance) effectué côté serveur dans le domaine.
+- `countrycodes` est un filtre **exclusif**. Il n'est donc pas utilisé pour « prioriser » le Canada, ce qui bloquerait les destinations étrangères.
+
+Ces mêmes variables serveur donnent accès au catalogue public de trajets. Les
+composants React passent par `/api/route-catalog`; aucune clé Supabase n'est
+exposée au navigateur. Les ajouts sont validés puis importés avec
+`npm run import:route-catalog`. Voir [`docs/route-catalog.md`](docs/route-catalog.md).
 
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 
@@ -279,6 +293,7 @@ Commandes utiles :
 | `npm test` | Tests Vitest |
 | `npm run build` | Build de production |
 | `npm run update:postal-codes` | Importe les codes postaux (Données Québec → Supabase) |
+| `npm run import:route-catalog` | Valide et importe une collection de trajets GPX |
 | `npm run cap:sync` | Copie la config Capacitor vers le projet iOS |
 | `npm run cap:ios` | Ouvre le projet dans Xcode (macOS uniquement) |
 

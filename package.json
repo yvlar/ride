@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "update:postal-codes": "tsx --env-file-if-exists=.env.local scripts/update-quebec-postal-codes.ts",
+    "import:route-catalog": "tsx --env-file-if-exists=.env.local scripts/import-route-catalog.ts",
     "cap:sync": "npx cap sync ios",
     "cap:ios": "npx cap open ios"
   },
