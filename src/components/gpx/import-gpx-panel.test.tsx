@@ -118,7 +118,7 @@ describe("ImportGpxPanel (FR-039)", () => {
     );
     upload(MULTI);
     await waitFor(() => {
-      expect(screen.getAllByText(/plusieurs trajets/i).length).toBeGreaterThan(0);
+      expect(screen.getByRole("radio", { name: /Trace A/ })).toBeInTheDocument();
     });
     expect(screen.getByRole("radio", { name: /Trace A/ })).toHaveAttribute(
       "aria-checked",
@@ -154,7 +154,6 @@ describe("ImportGpxPanel (FR-039)", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/moteur de routage/i);
     });
-    expect(screen.getAllByText(/plusieurs trajets/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("radio", { name: /Route A/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Route B/ })).toBeInTheDocument();
     expect(

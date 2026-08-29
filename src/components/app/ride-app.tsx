@@ -744,6 +744,7 @@ export function RideApp(props: RideAppProps) {
             {sheet === "gpx" ? (
               <MapBottomPanel
                 title="Importer un fichier GPX"
+                titleHidden
                 className={route ? "max-h-[58dvh]" : undefined}
               >
                 <ImportGpxPanel

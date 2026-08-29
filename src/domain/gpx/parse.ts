@@ -218,11 +218,6 @@ export function parseGpxDocument(
     );
   }
 
-  if (trips.length > 1) {
-    warnings.push(
-      "Ce fichier contient plusieurs trajets. Choisissez celui que vous voulez suivre.",
-    );
-  }
   if (outOfBounds > 0) {
     warnings.push(
       "Certains points hors limites ont été ignorés.",
