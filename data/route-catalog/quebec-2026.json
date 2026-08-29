@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "name": "quebec-scenic-routes-2026-08",
+  "country": {
+    "code": "CA",
+    "slug": "canada",
+    "nameFr": "Canada",
+    "nameEn": "Canada",
+    "sortOrder": 10
+  },
+  "subdivisions": [
+    {
+      "code": "CA-QC",
+      "countryCode": "CA",
+      "slug": "quebec",
+      "type": "province",
+      "nameFr": "Québec",
+      "nameEn": "Quebec",
+      "sortOrder": 10
+    }
+  ],
+  "regions": [
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "mauricie",
+      "nameFr": "Mauricie",
+      "nameEn": "Mauricie",
+      "sortOrder": 10
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "capitale-nationale",
+      "nameFr": "Capitale-Nationale",
+      "nameEn": "Capitale-Nationale",
+      "sortOrder": 20
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "laurentides",
+      "nameFr": "Laurentides",
+      "nameEn": "Laurentides",
+      "sortOrder": 30
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "lanaudiere",
+      "nameFr": "Lanaudière",
+      "nameEn": "Lanaudière",
+      "sortOrder": 40
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "saguenay-lac-saint-jean",
+      "nameFr": "Saguenay–Lac-Saint-Jean",
+      "nameEn": "Saguenay–Lac-Saint-Jean",
+      "sortOrder": 50
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "estrie",
+      "nameFr": "Estrie",
+      "nameEn": "Eastern Townships",
+      "sortOrder": 60
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "gaspesie",
+      "nameFr": "Gaspésie",
+      "nameEn": "Gaspésie",
+      "sortOrder": 70
+    },
+    {
+      "subdivisionCode": "CA-QC",
+      "slug": "cote-nord",
+      "nameFr": "Côte-Nord",
+      "nameEn": "Côte-Nord",
+      "sortOrder": 80
+    }
+  ],
+  "routes": [
+    {
+      "slug": "mauricie-route-155",
+      "file": "01-mauricie-route-155.gpx",
+      "primaryRegionKey": "CA-QC/mauricie",
+      "regionKeys": ["CA-QC/mauricie", "CA-QC/saguenay-lac-saint-jean"],
+      "routeType": "point_to_point",
+      "difficulty": "moderate",
+      "surface": "paved",
+      "distanceKm": 265.52,
+      "durationMinutes": 255,
+      "recommendedDays": { "min": 1, "max": 1 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["river", "forest", "curves", "scenic"],
+      "sourceName": "Québec Le Mag — Road trip au Québec à moto",
+      "sourceUrl": "https://www.quebeclemag.com/road-trip-quebec-a-moto/",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "charlevoix-route-381",
+      "file": "02-charlevoix-route-381.gpx",
+      "primaryRegionKey": "CA-QC/capitale-nationale",
+      "regionKeys": ["CA-QC/capitale-nationale", "CA-QC/saguenay-lac-saint-jean"],
+      "routeType": "point_to_point",
+      "difficulty": "moderate",
+      "surface": "paved",
+      "distanceKm": 124.6,
+      "durationMinutes": 112,
+      "recommendedDays": { "min": 1, "max": 1 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["mountains", "park", "curves", "scenic"],
+      "sourceName": "Québec Le Mag — Road trip au Québec à moto",
+      "sourceUrl": "https://www.quebeclemag.com/road-trip-quebec-a-moto/",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "laurentides-route-329",
+      "file": "03-laurentides-route-329.gpx",
+      "primaryRegionKey": "CA-QC/laurentides",
+      "regionKeys": ["CA-QC/laurentides", "CA-QC/lanaudiere"],
+      "routeType": "point_to_point",
+      "difficulty": "moderate",
+      "surface": "paved",
+      "distanceKm": 105.14,
+      "durationMinutes": 126,
+      "recommendedDays": { "min": 1, "max": 1 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["lakes", "hills", "curves", "villages"],
+      "sourceName": "Québec Le Mag — Road trip au Québec à moto",
+      "sourceUrl": "https://www.quebeclemag.com/road-trip-quebec-a-moto/",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "route-du-fjord",
+      "file": "04-route-du-fjord.gpx",
+      "primaryRegionKey": "CA-QC/saguenay-lac-saint-jean",
+      "regionKeys": ["CA-QC/saguenay-lac-saint-jean", "CA-QC/cote-nord"],
+      "routeType": "point_to_point",
+      "difficulty": "moderate",
+      "surface": "paved",
+      "distanceKm": 235.06,
+      "durationMinutes": 241,
+      "recommendedDays": { "min": 1, "max": 1 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["fjord", "viewpoints", "villages", "scenic"],
+      "sourceName": "Bonjour Québec — La Route du Fjord",
+      "sourceUrl": "https://www.bonjourquebec.com/fr-ca/ou-aller/itineraires-et-routes/la-route-du-fjord",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "tour-lac-saint-jean",
+      "file": "05-tour-lac-saint-jean.gpx",
+      "primaryRegionKey": "CA-QC/saguenay-lac-saint-jean",
+      "regionKeys": ["CA-QC/saguenay-lac-saint-jean"],
+      "routeType": "loop",
+      "difficulty": "easy",
+      "surface": "paved",
+      "distanceKm": 246.19,
+      "durationMinutes": 271,
+      "recommendedDays": { "min": 1, "max": 2 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["lake", "beaches", "villages", "scenic"],
+      "sourceName": "Bonjour Québec — Tour du Lac Saint-Jean",
+      "sourceUrl": "https://www.bonjourquebec.com/fr-ca/ou-aller/itineraires-et-routes/route-tour-du-lac-saint-jean",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "route-des-sommets-estrie",
+      "file": "06-route-des-sommets-estrie.gpx",
+      "primaryRegionKey": "CA-QC/estrie",
+      "regionKeys": ["CA-QC/estrie"],
+      "routeType": "point_to_point",
+      "difficulty": "moderate",
+      "surface": "paved",
+      "distanceKm": 207.11,
+      "durationMinutes": 265,
+      "recommendedDays": { "min": 1, "max": 1 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["mountains", "lakes", "dark-sky", "scenic"],
+      "sourceName": "Tourisme Mégantic — La Route des Sommets",
+      "sourceUrl": "https://www.tourisme-megantic.com/fr/quoi-faire/la-route-des-sommets",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "tour-de-la-gaspesie",
+      "file": "07-tour-de-la-gaspesie.gpx",
+      "primaryRegionKey": "CA-QC/gaspesie",
+      "regionKeys": ["CA-QC/gaspesie"],
+      "routeType": "loop",
+      "difficulty": "challenging",
+      "surface": "paved",
+      "distanceKm": 873.21,
+      "durationMinutes": 819,
+      "recommendedDays": { "min": 3, "max": 5 },
+      "season": { "startMonth": 6, "endMonth": 10 },
+      "tags": ["coast", "cliffs", "forillon", "long-distance"],
+      "sourceName": "Québec maritime — Le tour de la Gaspésie en moto",
+      "sourceUrl": "https://www.quebecmaritime.ca/blogue/le-tour-de-la-gaspesie-en-moto",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "route-des-baleines-cote-nord",
+      "file": "08-route-des-baleines-cote-nord.gpx",
+      "primaryRegionKey": "CA-QC/cote-nord",
+      "regionKeys": ["CA-QC/cote-nord"],
+      "routeType": "point_to_point",
+      "difficulty": "challenging",
+      "surface": "paved",
+      "distanceKm": 853.87,
+      "durationMinutes": 732,
+      "recommendedDays": { "min": 3, "max": 5 },
+      "season": { "startMonth": 6, "endMonth": 9 },
+      "tags": ["coast", "whales", "remote", "long-distance"],
+      "sourceName": "Québec maritime — Mototourisme en Côte-Nord",
+      "sourceUrl": "https://www.quebecmaritime.ca/quoi-faire/mototourisme",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "chemin-du-roy",
+      "file": "09-chemin-du-roy.gpx",
+      "primaryRegionKey": "CA-QC/mauricie",
+      "regionKeys": ["CA-QC/lanaudiere", "CA-QC/mauricie", "CA-QC/capitale-nationale"],
+      "routeType": "point_to_point",
+      "difficulty": "easy",
+      "surface": "paved",
+      "distanceKm": 263.43,
+      "durationMinutes": 301,
+      "recommendedDays": { "min": 1, "max": 2 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["heritage", "river", "villages", "scenic"],
+      "sourceName": "Bonjour Québec — Le Chemin du Roy",
+      "sourceUrl": "https://www.bonjourquebec.com/fr/ou-aller/itineraires-et-routes/le-chemin-du-roy",
+      "sourceRetrievedAt": "2026-08-28"
+    },
+    {
+      "slug": "boucle-estrie-roxton-pond",
+      "file": "10-boucle-estrie-roxton-pond.gpx",
+      "primaryRegionKey": "CA-QC/estrie",
+      "regionKeys": ["CA-QC/estrie"],
+      "routeType": "loop",
+      "difficulty": "moderate",
+      "surface": "paved",
+      "distanceKm": 247.15,
+      "durationMinutes": 278,
+      "recommendedDays": { "min": 1, "max": 1 },
+      "season": { "startMonth": 5, "endMonth": 10 },
+      "tags": ["lakes", "mountains", "curves", "scenic"],
+      "sourceName": "Bonjour Québec — Le Chemin des Cantons",
+      "sourceUrl": "https://www.bonjourquebec.com/fr-ca/ou-aller/itineraires-et-routes/le-chemin-des-cantons",
+      "sourceRetrievedAt": "2026-08-28"
+    }
+  ]
+}

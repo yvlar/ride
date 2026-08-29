@@ -29,6 +29,7 @@ import {
   NAVIGATION_ACTIVE_BLOCK_TITLE,
 } from "@/domain/navigation/session-copy";
 import { ImportGpxPanel } from "@/components/gpx/import-gpx-panel";
+import { RouteCatalogPanel } from "@/components/route-catalog/route-catalog-panel";
 import { NavigationSession } from "@/components/navigation/navigation-session";
 import { TrackRecorderControl } from "@/components/recording/track-recorder-control";
 import {
@@ -54,7 +55,13 @@ import {
 import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
 
-type ExplorerSheet = "home" | "search" | "describe" | "planner" | "gpx";
+type ExplorerSheet =
+  | "home"
+  | "search"
+  | "describe"
+  | "planner"
+  | "catalog"
+  | "gpx";
 
 export type RideAppProps = RideRequestFormProps & {
   /** FR-041 — coutures de test de l'enregistrement de parcours. */
@@ -137,7 +144,11 @@ export function RideApp(props: RideAppProps) {
       : null;
   const plannerOwnsMap = navigating && sheet === "planner";
   const explorerOwnsNavigation =
-    navigating && (sheet === "describe" || sheet === "search" || sheet === "gpx");
+    navigating &&
+    (sheet === "describe" ||
+      sheet === "search" ||
+      sheet === "catalog" ||
+      sheet === "gpx");
 
   useEffect(() => {
     requestRef.current = request;
@@ -271,6 +282,18 @@ export function RideApp(props: RideAppProps) {
   function openGpxImporter() {
     setGpxSession((value) => value + 1);
     setSheet("gpx");
+    setTab("explore");
+    navigatingRef.current = false;
+    setNavigating(false);
+    setNavUserLocation(null);
+    setNavProgressKm(0);
+    setNavFollowingUser(true);
+    setNavHeadingDeg(null);
+    setGpxOverlay(null);
+  }
+
+  function openRouteCatalog() {
+    setSheet("catalog");
     setTab("explore");
     navigatingRef.current = false;
     setNavigating(false);
@@ -615,6 +638,15 @@ export function RideApp(props: RideAppProps) {
                     variant="outline"
                     size="lg"
                     className="min-h-12 w-full text-base"
+                    onClick={() => openRouteCatalog()}
+                  >
+                    Découvrir des trajets moto
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="min-h-12 w-full text-base"
                     onClick={() => openGpxImporter()}
                   >
                     Importer un fichier GPX
@@ -762,6 +794,25 @@ export function RideApp(props: RideAppProps) {
                   onStartNavigation={startGuidedNavigation}
                   onBack={() => setSheet("home")}
                   navigationActive={navigating && sheet === "gpx"}
+                />
+              </MapBottomPanel>
+            ) : null}
+
+            {sheet === "catalog" ? (
+              <MapBottomPanel
+                title="Découvrir des trajets moto"
+                className={route ? "max-h-[68dvh]" : "max-h-[76dvh]"}
+              >
+                <RouteCatalogPanel
+                  onPreview={(next, composed) => {
+                    requestRef.current = composed;
+                    setRequest(composed);
+                    rememberGeneratedRoute(next, composed);
+                    props.onRequestComposed?.(composed);
+                  }}
+                  onStartNavigation={startGuidedNavigation}
+                  onBack={() => setSheet("home")}
+                  navigationActive={navigating && sheet === "catalog"}
                 />
               </MapBottomPanel>
             ) : null}

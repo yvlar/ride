@@ -122,6 +122,9 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       screen.getByRole("button", { name: "Importer un fichier GPX" }),
     ).toBeEnabled();
     expect(
+      screen.getByRole("button", { name: "Découvrir des trajets moto" }),
+    ).toBeEnabled();
+    expect(
       screen.getByRole("button", { name: "Rechercher une destination" }),
     ).toBeEnabled();
   });
