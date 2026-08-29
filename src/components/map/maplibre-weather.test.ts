@@ -1,0 +1,337 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RideMapViewModel } from "./ride-map-view-model";
+import type { WeatherMapOverlay } from "./weather-overlay";
+
+const {
+  mapState,
+  addLayer,
+  removeLayer,
+  removeSource,
+  setPaintProperty,
+  createdMarkers,
+  FakeMap,
+  FakeMarker,
+} = vi.hoisted(() => {
+  const addLayer = vi.fn();
+  const removeLayer = vi.fn();
+  const removeSource = vi.fn();
+  const setPaintProperty = vi.fn();
+  const createdMarkers: { element?: HTMLElement; removed: boolean }[] = [];
+  const mapState = {
+    sources: new Map<string, Record<string, unknown>>(),
+    layers: new Set<string>(),
+    loadHandlers: [] as Array<() => void>,
+    /** MapLibre 5 raster sources can be retargeted; older ones cannot. */
+    rasterSetTiles: true,
+    reset() {
+      this.sources.clear();
+      this.layers.clear();
+      this.loadHandlers.length = 0;
+      this.rasterSetTiles = true;
+    },
+  };
+
+  class FakeMap {
+    painter = {};
+    addControl = vi.fn();
+    removeControl = vi.fn();
+    remove = vi.fn();
+    fitBounds = vi.fn();
+    easeTo = vi.fn();
+    isStyleLoaded = () => true;
+    on(event: string, handler: () => void) {
+      if (event === "load") {
+        mapState.loadHandlers.push(handler);
+      }
+    }
+    addSource(id: string, source: Record<string, unknown>) {
+      mapState.sources.set(id, {
+        ...source,
+        ...(source.type === "raster" && mapState.rasterSetTiles
+          ? { setTiles: vi.fn((tiles: string[]) => {
+              mapState.sources.set(id, {
+                ...(mapState.sources.get(id) ?? {}),
+                tiles,
+              });
+            }) }
+          : { setData: vi.fn() }),
+      });
+    }
+    getSource(id: string) {
+      return mapState.sources.get(id);
+    }
+    removeSource(id: string) {
+      removeSource(id);
+      mapState.sources.delete(id);
+    }
+    addLayer(layer: { id: string }, beforeId?: string) {
+      addLayer(layer, beforeId);
+      mapState.layers.add(layer.id);
+    }
+    removeLayer(id: string) {
+      removeLayer(id);
+      mapState.layers.delete(id);
+    }
+    getLayer(id: string) {
+      return mapState.layers.has(id) ? { id } : undefined;
+    }
+    setPaintProperty = setPaintProperty;
+    getStyle() {
+      return { version: 8, sources: {}, layers: [] };
+    }
+  }
+
+  class FakeMarker {
+    element: HTMLElement | undefined;
+    removed = false;
+    constructor(options?: { element?: HTMLElement }) {
+      this.element = options?.element;
+      createdMarkers.push(this);
+    }
+    setLngLat() {
+      return this;
+    }
+    setRotation() {
+      return this;
+    }
+    setRotationAlignment() {
+      return this;
+    }
+    setPitchAlignment() {
+      return this;
+    }
+    addTo() {
+      return this;
+    }
+    remove() {
+      this.removed = true;
+    }
+  }
+
+  return {
+    mapState,
+    addLayer,
+    removeLayer,
+    removeSource,
+    setPaintProperty,
+    createdMarkers,
+    FakeMap,
+    FakeMarker,
+  };
+});
+
+vi.mock("maplibre-gl", () => ({
+  Map: FakeMap,
+  Marker: FakeMarker,
+  GeolocateControl: class {
+    on() {}
+    onRemove() {}
+  },
+}));
+
+vi.mock("./maplibre-worker-url", () => ({
+  ensureMapLibreWorkerUrl: () => undefined,
+}));
+
+vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
+
+const viewModel: RideMapViewModel = {
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [-72.75, 45.5],
+      [-72.7, 45.55],
+    ],
+  },
+  bounds: { west: -72.8, south: 45.45, east: -72.65, north: 45.6 },
+  start: {
+    kind: "start",
+    label: "Départ",
+    placeLabel: "Granby",
+    coordinates: { latitude: 45.5, longitude: -72.75 },
+  },
+  directionLabel: "Sens : boucle depuis Granby",
+  directionArrows: [],
+};
+
+const overlay: WeatherMapOverlay = {
+  radarTileUrlTemplate: "https://tiles.test/latest/{z}/{x}/{y}.png",
+  radarOpacity: 0.6,
+  attribution: "Images radar © Test",
+  clouds: [
+    {
+      id: "cloud-1",
+      coordinates: { latitude: 45.2, longitude: -73.1 },
+      level: "rain",
+      probability: 72,
+      label: "Pluie, 72 % de risque de pluie",
+    },
+    {
+      id: "cloud-2",
+      coordinates: { latitude: 45.8, longitude: -72.4 },
+      level: "cloudy",
+      probability: 10,
+      label: "Nuageux, 10 % de risque de pluie",
+    },
+  ],
+};
+
+async function mountEngine() {
+  const { createMapLibreEngine } = await import("./maplibre-map-engine");
+  const handle = createMapLibreEngine().mount(
+    document.createElement("div"),
+    viewModel,
+    { onError: vi.fn(), onWarning: vi.fn() },
+  );
+  for (const handler of mapState.loadHandlers) {
+    handler();
+  }
+  return handle;
+}
+
+beforeEach(() => {
+  mapState.reset();
+  createdMarkers.length = 0;
+  addLayer.mockClear();
+  removeLayer.mockClear();
+  removeSource.mockClear();
+  setPaintProperty.mockClear();
+});
+
+describe("MapLibre weather layer (FR-043)", () => {
+  it("draws no radar until the rider turns the layer on", async () => {
+    await mountEngine();
+
+    expect(mapState.sources.has("ride-radar")).toBe(false);
+    expect(cloudElements()).toHaveLength(0);
+  });
+
+  it("adds the radar tiles under the route line", async () => {
+    const handle = await mountEngine();
+
+    handle.setWeather?.(overlay);
+
+    expect(mapState.sources.get("ride-radar")).toMatchObject({
+      type: "raster",
+      tiles: ["https://tiles.test/latest/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "Images radar © Test",
+    });
+    const radarLayer = addLayer.mock.calls.find(
+      ([layer]) => layer.id === "ride-radar-tiles",
+    );
+    expect(radarLayer?.[0].paint).toEqual({ "raster-opacity": 0.6 });
+    expect(radarLayer?.[1]).toBe("ride-traveled-line");
+  });
+
+  it("puts one accessible cloud marker on each wet sample", async () => {
+    const handle = await mountEngine();
+
+    handle.setWeather?.(overlay);
+
+    const labels = cloudElements().map((element) =>
+      element.getAttribute("aria-label"),
+    );
+    expect(labels).toEqual([
+      "Pluie, 72 % de risque de pluie",
+      "Nuageux, 10 % de risque de pluie",
+    ]);
+  });
+
+  it("retargets the same source when the rider steps to another frame", async () => {
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+
+    handle.setWeather?.({
+      ...overlay,
+      radarTileUrlTemplate: "https://tiles.test/next/{z}/{x}/{y}.png",
+    });
+
+    expect(mapState.sources.get("ride-radar")).toMatchObject({
+      tiles: ["https://tiles.test/next/{z}/{x}/{y}.png"],
+    });
+    expect(removeSource).not.toHaveBeenCalled();
+  });
+
+  it("rebuilds the source when it cannot be retargeted", async () => {
+    mapState.rasterSetTiles = false;
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+
+    handle.setWeather?.({
+      ...overlay,
+      radarTileUrlTemplate: "https://tiles.test/next/{z}/{x}/{y}.png",
+    });
+
+    expect(removeLayer).toHaveBeenCalledWith("ride-radar-tiles");
+    expect(removeSource).toHaveBeenCalledWith("ride-radar");
+    expect(mapState.sources.get("ride-radar")).toMatchObject({
+      tiles: ["https://tiles.test/next/{z}/{x}/{y}.png"],
+    });
+  });
+
+  it("clears radar and clouds when the layer goes off", async () => {
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    const drawn = cloudMarkers();
+
+    handle.setWeather?.(null);
+
+    expect(mapState.sources.has("ride-radar")).toBe(false);
+    expect(mapState.layers.has("ride-radar-tiles")).toBe(false);
+    expect(drawn.every((marker) => marker.removed)).toBe(true);
+    expect(cloudElements()).toHaveLength(0);
+  });
+
+  it("keeps the clouds when the provider has no imagery", async () => {
+    const handle = await mountEngine();
+
+    handle.setWeather?.({ ...overlay, radarTileUrlTemplate: null });
+
+    expect(mapState.sources.has("ride-radar")).toBe(false);
+    expect(cloudElements()).toHaveLength(2);
+  });
+
+  it("replaces the previous clouds on each refresh", async () => {
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    const first = cloudMarkers();
+
+    handle.setWeather?.({ ...overlay, clouds: [overlay.clouds[0]!] });
+
+    expect(first.every((marker) => marker.removed)).toBe(true);
+    expect(cloudElements()).toHaveLength(1);
+  });
+
+  it("takes the clouds down with the map", async () => {
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    const drawn = cloudMarkers();
+
+    handle.destroy();
+
+    expect(drawn.every((marker) => marker.removed)).toBe(true);
+  });
+
+  it("ignores a weather update once the map is gone", async () => {
+    const handle = await mountEngine();
+    handle.destroy();
+
+    handle.setWeather?.(overlay);
+
+    expect(cloudElements()).toHaveLength(0);
+  });
+});
+
+function cloudMarkers() {
+  return createdMarkers.filter((marker) =>
+    marker.element?.classList.contains("ride-map-cloud"),
+  );
+}
+
+function cloudElements(): HTMLElement[] {
+  return cloudMarkers()
+    .filter((marker) => !marker.removed)
+    .map((marker) => marker.element!)
+    .filter(Boolean);
+}

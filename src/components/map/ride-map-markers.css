@@ -117,3 +117,48 @@
 .ride-map-pick-marker:active {
   cursor: grabbing;
 }
+
+/*
+ * FR-043 — weather clouds. The colour carries the level and the badge carries
+ * the number, so the marker stays readable through a visor at a glance.
+ */
+.ride-map-cloud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 0.55));
+}
+
+.ride-map-cloud-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.ride-map-cloud-badge {
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.85);
+  color: #f8fafc;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.ride-map-cloud--cloudy .ride-map-cloud-icon {
+  color: #cbd5e1;
+}
+
+.ride-map-cloud--showers .ride-map-cloud-icon {
+  color: #7dd3fc;
+}
+
+.ride-map-cloud--rain .ride-map-cloud-icon {
+  color: #38bdf8;
+}
+
+.ride-map-cloud--storm .ride-map-cloud-icon {
+  color: #c084fc;
+}

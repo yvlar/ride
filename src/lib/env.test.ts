@@ -114,4 +114,33 @@ describe("parseEnv", () => {
       }),
     ).toThrow();
   });
+
+  it("defaults weather and radar to their keyless public providers (FR-043)", () => {
+    const env = parseEnv({});
+
+    expect(env.WEATHER_PROVIDER).toBe("open-meteo");
+    expect(env.RADAR_PROVIDER).toBe("rainviewer");
+    expect(env.WEATHER_API_BASE_URL).toBeUndefined();
+    expect(env.WEATHER_API_KEY).toBeUndefined();
+    expect(env.RADAR_API_BASE_URL).toBeUndefined();
+    expect(env.RADAR_API_KEY).toBeUndefined();
+  });
+
+  it("accepts offline weather and radar providers (FR-043)", () => {
+    const env = parseEnv({ WEATHER_PROVIDER: "mock", RADAR_PROVIDER: "mock" });
+
+    expect(env.WEATHER_PROVIDER).toBe("mock");
+    expect(env.RADAR_PROVIDER).toBe("mock");
+  });
+
+  it("reads the weather configuration through static process.env access (FR-043)", () => {
+    const fromProcess = serverProcessEnv();
+
+    expect(fromProcess).toHaveProperty("WEATHER_PROVIDER");
+    expect(fromProcess).toHaveProperty("WEATHER_API_BASE_URL");
+    expect(fromProcess).toHaveProperty("WEATHER_API_KEY");
+    expect(fromProcess).toHaveProperty("RADAR_PROVIDER");
+    expect(fromProcess).toHaveProperty("RADAR_API_BASE_URL");
+    expect(fromProcess).toHaveProperty("RADAR_API_KEY");
+  });
 });

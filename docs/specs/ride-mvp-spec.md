@@ -1106,6 +1106,40 @@ Cibles tactiles d’au moins 48 × 48 px, contraste élevé de jour comme de nui
 
 ---
 
+### FR-043 — Météo et radar sur la carte
+
+La carte porte le ciel autant que la route. Objectif : savoir **en temps réel dans quelle direction éviter le mauvais temps**, sans quitter la carte ni interpréter un bulletin.
+
+#### Activation
+
+Un bouton **Météo** superposé à la carte (cible ≥ 44 px, état `aria-pressed`) allume et éteint la couche. Elle est **éteinte au démarrage** : aucune requête météo n’est émise tant que le pilote ne la demande pas. Une fois allumée, elle reste disponible pendant la navigation, où l’information sert le plus.
+
+#### Échantillonnage
+
+Le ciel est échantillonné autour du pilote : sa position, puis deux anneaux de huit points à la moitié et à la totalité du rayon (17 points, un seul appel fournisseur). Rayon par défaut 45 km, borné à 5–200 km. La position est arrondie à une cellule d’environ 0,1° avant l’appel, de sorte qu’un relevé GPS ne déclenche pas une nouvelle requête; la couche se rafraîchit d’elle-même toutes les dix minutes.
+
+#### Nuages
+
+Chaque point non dégagé porte un nuage dont la teinte et les traits suivent le niveau — **nuageux**, **averses**, **pluie**, **orage** — déduit de la probabilité de précipitation, de l’intensité en mm/h, de la couverture nuageuse et du code orage du fournisseur. Le pourcentage de risque accompagne le nuage : **aucune information n’est portée par la seule couleur**, et chaque marqueur porte un nom accessible (« Pluie, 72 % de risque de pluie »). Un ciel dégagé ne reçoit aucun marqueur.
+
+#### Images radar
+
+Les tuiles radar sont dessinées **sous** le tracé du trajet, jamais au-dessus : une cellule ne masque pas la route. Le pilote peut passer d’une image observée à la prévision immédiate (« Maintenant », « +20 min »), qui est ce qui montre **où va** la cellule. L’attribution du fournisseur d’imagerie est affichée avec la couche.
+
+#### Direction à éviter
+
+À partir du champ échantillonné, l’application calcule pour chacun des huit secteurs (N à NO) le **pire** risque observé — une moyenne laisserait un point sec lointain annuler une cellule proche — et en tire deux phrases : la direction du mauvais temps et la direction encore ouverte (« Mauvais temps vers le sud-ouest (78 %). Évitez le sud-ouest. Le ciel reste ouvert vers le nord-est (12 %). »). À risque égal, la direction proposée est la plus opposée à la cellule. Aucune échappée n’est proposée lorsqu’aucune direction n’est nettement plus dégagée; la couche le dit alors explicitement. L’avis est recalculé depuis la **position exacte** du pilote, même si l’échantillonnage a été fait pour la cellule.
+
+#### États et dégradation
+
+États explicites, comme partout ailleurs (`FR-042`) : couche éteinte, lecture en cours, données affichées, service indisponible. Une panne de l’**imagerie radar** n’empêche pas les nuages ni l’avis de direction : la couche se replie sur les prévisions et le dit. Une panne du fournisseur de **prévisions** est annoncée; elle ne vide jamais la carte ni n’interrompt la navigation.
+
+#### Fournisseurs
+
+Les fournisseurs sont remplaçables (`NFR-005`, `BR-004`) : le domaine ne connaît que des échantillons et des trames. Les fournisseurs par défaut sont publics et sans clé; un mode hors ligne déterministe reste disponible pour le développement et les tests.
+
+---
+
 ## 15. Hors périmètre du MVP
 
 Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implémentées tant que cette spécification ne les a pas promu au contrat fonctionnel.
@@ -1217,6 +1251,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-040` | Recherche de destination par code postal canadien |
 | `FR-041` | Enregistrement du parcours en direct et export GPX |
 | `FR-042` | Écran de navigation lisible en roulant |
+| `FR-043` | Météo et radar sur la carte |
 
 ### Règles métier
 

@@ -1,6 +1,7 @@
 import type { Coordinates } from "@/domain/geo/types";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
+import type { WeatherMapOverlay } from "./weather-overlay";
 
 export const MAP_UNAVAILABLE_MESSAGE =
   "Le service de cartographie ne répond pas. Les informations du trajet restent disponibles.";
@@ -21,6 +22,11 @@ export type MapEngineHandle = {
   setFollowUser?: (enabled: boolean) => void;
   /** Live GPS recording trace, independent of any planned route (FR-041). */
   setRecordedTrack?: (overlay: RecordedTrackOverlay | null) => void;
+  /**
+   * FR-043 — radar imagery and cloud markers. Optional, so an engine without
+   * raster support (the lightweight fallback) simply never shows the sky.
+   */
+  setWeather?: (overlay: WeatherMapOverlay | null) => void;
   /**
    * FR-038 — destination picking. While enabled the map reports a coordinate
    * for a desktop click, a mobile long press, and a drag of the pick marker.

@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RideMap } from "@/components/map/ride-map";
+import { DEFAULT_EXPLORER_CENTER } from "@/components/map/ride-map-view-model";
+import { toWeatherMapOverlay } from "@/components/map/weather-overlay";
+import { WeatherMapControl } from "@/components/weather/weather-map-control";
+import { useWeatherWatch } from "@/components/weather/use-weather-watch";
 import { DescribeRidePanel } from "@/components/app/describe-ride-panel";
 import { FindDestinationPanel } from "@/components/app/find-destination-panel";
 import { RoutePreferenceSettings } from "@/components/app/route-preference-settings";
@@ -116,6 +120,9 @@ export function RideApp(props: RideAppProps) {
   const [sessionRides, setSessionRides] = useState<SavedRide[]>([]);
   const [formKey, setFormKey] = useState(0);
   const [voiceMuted, setVoiceMuted] = useState(false);
+  /** FR-043 — the weather layer is off until the rider asks for it. */
+  const [weatherActive, setWeatherActive] = useState(false);
+  const [radarFrameId, setRadarFrameId] = useState<string | null>(null);
   const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(false);
   const requestRef = useRef(request);
   const routeRef = useRef(route);
@@ -142,6 +149,30 @@ export function RideApp(props: RideAppProps) {
     recorder.state.status === "recording"
       ? (recorder.state.points[recorder.state.points.length - 1] ?? null)
       : null;
+  /**
+   * FR-043 — the sky is read where the rider is: the live fix while riding or
+   * recording, the start of the planned ride otherwise.
+   */
+  const weatherCenter = useMemo<Coordinates>(() => {
+    if (navUserLocation) {
+      return navUserLocation;
+    }
+    if (recordingFix) {
+      return recordedPointCoordinates(recordingFix);
+    }
+    if (route) {
+      return route.start.coordinates;
+    }
+    return DEFAULT_EXPLORER_CENTER;
+  }, [navUserLocation, recordingFix, route]);
+  const weather = useWeatherWatch({
+    enabled: weatherActive,
+    center: weatherCenter,
+  });
+  const weatherOverlay = useMemo(
+    () => toWeatherMapOverlay(weather.report, { frameId: radarFrameId }),
+    [radarFrameId, weather.report],
+  );
   const plannerOwnsMap = navigating && sheet === "planner";
   const explorerOwnsNavigation =
     navigating &&
@@ -492,43 +523,64 @@ export function RideApp(props: RideAppProps) {
     <div className="relative flex h-dvh min-h-dvh flex-col bg-background text-foreground">
       <div className="relative min-h-0 flex-1">
         {tab === "explore" && !plannerOwnsMap ? (
-          <div className="absolute inset-0">
-            <RideMap
-              route={route}
-              overlay={gpxOverlay}
-              engine={props.mapEngine}
-              fill
-              expanded={explorerOwnsNavigation}
-              recordedTrack={recorder.overlay}
-              recordingActive={recorderBusy}
-              userLocation={
-                explorerOwnsNavigation
-                  ? navUserLocation
-                  : recordingFix
-                    ? recordedPointCoordinates(recordingFix)
-                    : null
-              }
-              headingDeg={
-                explorerOwnsNavigation
-                  ? navHeadingDeg
-                  : typeof recordingFix?.heading === "number" &&
-                      Number.isFinite(recordingFix.heading)
-                    ? recordingFix.heading
-                    : null
-              }
-              traveledKm={explorerOwnsNavigation ? navProgressKm : 0}
-              onFollowUserChange={setNavFollowingUser}
-              onRecenterReady={(recenter) => {
-                mapRecenterRef.current = recenter;
-              }}
-              onOverviewReady={(overview) => {
-                mapOverviewRef.current = overview;
-              }}
-              onGeolocateReady={(setEnabled) => {
-                setMapGeolocateEnabledRef.current = setEnabled;
-              }}
-            />
-          </div>
+          <>
+            <div className="absolute inset-0">
+              <RideMap
+                route={route}
+                overlay={gpxOverlay}
+                engine={props.mapEngine}
+                fill
+                expanded={explorerOwnsNavigation}
+                recordedTrack={recorder.overlay}
+                recordingActive={recorderBusy}
+                userLocation={
+                  explorerOwnsNavigation
+                    ? navUserLocation
+                    : recordingFix
+                      ? recordedPointCoordinates(recordingFix)
+                      : null
+                }
+                headingDeg={
+                  explorerOwnsNavigation
+                    ? navHeadingDeg
+                    : typeof recordingFix?.heading === "number" &&
+                        Number.isFinite(recordingFix.heading)
+                      ? recordingFix.heading
+                      : null
+                }
+                traveledKm={explorerOwnsNavigation ? navProgressKm : 0}
+                onFollowUserChange={setNavFollowingUser}
+                onRecenterReady={(recenter) => {
+                  mapRecenterRef.current = recenter;
+                }}
+                onOverviewReady={(overview) => {
+                  mapOverviewRef.current = overview;
+                }}
+                onGeolocateReady={(setEnabled) => {
+                  setMapGeolocateEnabledRef.current = setEnabled;
+                }}
+                weather={weatherOverlay}
+              />
+            </div>
+            <div className="pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 z-20 flex w-[min(22rem,calc(100%-1.5rem))]">
+              <WeatherMapControl
+                active={weatherActive}
+                onToggle={(next) => {
+                  setWeatherActive(next);
+                  if (!next) {
+                    setRadarFrameId(null);
+                  }
+                }}
+                status={weather.status}
+                report={weather.report}
+                advice={weather.advice}
+                error={weather.error}
+                frameId={radarFrameId}
+                onFrameChange={setRadarFrameId}
+                className="w-full"
+              />
+            </div>
+          </>
         ) : null}
 
         {explorerOwnsNavigation && route && request ? (

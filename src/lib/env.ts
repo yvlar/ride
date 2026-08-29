@@ -28,6 +28,22 @@ export const envSchema = z.object({
   ),
   GEOCODING_API_BASE_URL: optionalUrl,
   GEOCODING_API_KEY: optionalSecret,
+  /**
+   * FR-043 — Open-Meteo and RainViewer are keyless public endpoints, so the
+   * weather layer works out of the box. `mock` keeps a rider offline.
+   */
+  WEATHER_PROVIDER: z.preprocess(
+    emptyToUndefined,
+    z.enum(["open-meteo", "mock"]).default("open-meteo"),
+  ),
+  WEATHER_API_BASE_URL: optionalUrl,
+  WEATHER_API_KEY: optionalSecret,
+  RADAR_PROVIDER: z.preprocess(
+    emptyToUndefined,
+    z.enum(["rainviewer", "mock"]).default("rainviewer"),
+  ),
+  RADAR_API_BASE_URL: optionalUrl,
+  RADAR_API_KEY: optionalSecret,
   OPENAI_API_KEY: optionalSecret,
   OPENAI_API_BASE_URL: optionalUrl,
   OPENAI_MODEL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
@@ -56,6 +72,12 @@ export function serverProcessEnv(): Record<string, string | undefined> {
     GEOCODING_PROVIDER: process.env.GEOCODING_PROVIDER,
     GEOCODING_API_BASE_URL: process.env.GEOCODING_API_BASE_URL,
     GEOCODING_API_KEY: process.env.GEOCODING_API_KEY,
+    WEATHER_PROVIDER: process.env.WEATHER_PROVIDER,
+    WEATHER_API_BASE_URL: process.env.WEATHER_API_BASE_URL,
+    WEATHER_API_KEY: process.env.WEATHER_API_KEY,
+    RADAR_PROVIDER: process.env.RADAR_PROVIDER,
+    RADAR_API_BASE_URL: process.env.RADAR_API_BASE_URL,
+    RADAR_API_KEY: process.env.RADAR_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_API_BASE_URL: process.env.OPENAI_API_BASE_URL,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
@@ -78,6 +100,12 @@ export function parseEnv(
     GEOCODING_PROVIDER: source.GEOCODING_PROVIDER,
     GEOCODING_API_BASE_URL: source.GEOCODING_API_BASE_URL,
     GEOCODING_API_KEY: source.GEOCODING_API_KEY,
+    WEATHER_PROVIDER: source.WEATHER_PROVIDER,
+    WEATHER_API_BASE_URL: source.WEATHER_API_BASE_URL,
+    WEATHER_API_KEY: source.WEATHER_API_KEY,
+    RADAR_PROVIDER: source.RADAR_PROVIDER,
+    RADAR_API_BASE_URL: source.RADAR_API_BASE_URL,
+    RADAR_API_KEY: source.RADAR_API_KEY,
     OPENAI_API_KEY: source.OPENAI_API_KEY,
     OPENAI_API_BASE_URL: source.OPENAI_API_BASE_URL,
     OPENAI_MODEL: source.OPENAI_MODEL,

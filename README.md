@@ -262,6 +262,8 @@ Pour le géocodage inverse de « Ma position », `GEOCODING_PROVIDER=mock` reste
 
 Le champ de destination accepte aussi un code postal canadien (`FR-040`) : `J2G 2W4` et `J2G2W4` désignent la même destination. La recherche exacte lit une base de référence Supabase alimentée par Données Québec (CP Territoires) via `npm run update:postal-codes`. `SUPABASE_URL` et `SUPABASE_ANON_KEY` restent côté serveur (jamais `NEXT_PUBLIC_`) ; sans elles, la recherche continue de fonctionner avec le seul fournisseur de géocodage. Détails et garde-fous : [`docs/postal-codes.md`](docs/postal-codes.md).
 
+La couche **Météo** de la carte (`FR-043`) est allumée par le bouton du même nom et n’émet aucune requête tant qu’elle est éteinte. Ses deux fournisseurs sont publics et **sans clé**, donc branchés par défaut : `WEATHER_PROVIDER=open-meteo` pour les prévisions (nuages, probabilité de pluie, direction à éviter) et `RADAR_PROVIDER=rainviewer` pour les images radar. `WEATHER_API_BASE_URL` permet de viser une instance Open-Meteo dédiée, `WEATHER_API_KEY` et `RADAR_API_KEY` restent facultatives et côté serveur. `WEATHER_PROVIDER=mock` et `RADAR_PROVIDER=mock` donnent un ciel déterministe hors ligne pour le développement et les tests. Les appels passent uniquement par `/api/weather`.
+
 #### Limites du géocodage
 
 La base de référence donne un point **exact** pour un code postal qu’elle connaît. Le repli sur le fournisseur de géocodage est moins précis, et trois limites valent d’être connues :
