@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { composeGpxRoute, gpxRideRequestFromRoute } from "@/domain/gpx/compose";
 import { GPX_MAX_FILE_BYTES } from "@/domain/gpx/constants";
-import { GPX_MULTI_TRIP_MESSAGE, GPX_SNAPPING_MESSAGE } from "@/domain/gpx/copy";
+import { GPX_SNAPPING_MESSAGE } from "@/domain/gpx/copy";
 import { gpxFileInputAccept, isAcceptableGpxFile } from "@/domain/gpx/file-accept";
 import { parseGpxDocument, tripNeedsRoutingSnap } from "@/domain/gpx/parse";
 import type {
@@ -210,14 +210,6 @@ export function ImportGpxPanel({
         onChange={handleInputChange}
       />
 
-      <p className="text-sm text-muted-foreground">
-        Importez une trace ou une route GPX. Le fichier est lu sur cet appareil.
-      </p>
-
-      {fileName ? (
-        <p className="mt-2 text-sm">Fichier : {fileName}</p>
-      ) : null}
-
       {busy ? (
         <p role="status" className="mt-3 text-sm text-muted-foreground">
           {GPX_SNAPPING_MESSAGE}
@@ -225,8 +217,7 @@ export function ImportGpxPanel({
       ) : null}
 
       {trips.length > 1 ? (
-        <fieldset className="mt-4 space-y-2">
-          <legend className="text-sm font-medium">{GPX_MULTI_TRIP_MESSAGE}</legend>
+        <fieldset className="mt-4 space-y-2" aria-label="Trajets du fichier GPX">
           {trips.map((trip) => (
             <button
               key={trip.id}

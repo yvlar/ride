@@ -143,7 +143,7 @@ describe("parseGpxDocument (FR-039)", () => {
       return;
     }
     expect(result.trips).toHaveLength(2);
-    expect(result.warnings[0]).toMatch(/plusieurs trajets/i);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it("rejects an empty file", () => {

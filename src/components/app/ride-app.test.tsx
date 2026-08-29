@@ -827,7 +827,7 @@ describe("RideApp GPX import (FR-039)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Importer un fichier GPX" }));
     expect(
-      screen.getByRole("heading", { name: "Importer un fichier GPX" }),
+      screen.getByRole("region", { name: "Importer un fichier GPX" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("gpx-file-input")).toHaveAttribute(
       "accept",
