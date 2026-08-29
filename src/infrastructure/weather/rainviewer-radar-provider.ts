@@ -9,6 +9,13 @@ export const RAINVIEWER_ATTRIBUTION = "Images radar © RainViewer";
 /** Tile size / colour scheme / smoothing + snow, RainViewer's own defaults. */
 const TILE_SUFFIX = "256/{z}/{x}/{y}/2/1_1.png";
 
+/**
+ * RainViewer's public tiles stop at zoom 7: deeper requests answer 200 with a
+ * "Zoom Level Not Supported" image, which would paint grey banners over the
+ * route. Declaring the ceiling makes the map upscale the last real tile.
+ */
+export const RAINVIEWER_MAX_TILE_ZOOM = 7;
+
 /** Two observations back is enough to read the drift without a slideshow. */
 const MAX_PAST_FRAMES = 3;
 const MAX_FORECAST_FRAMES = 3;
@@ -91,6 +98,7 @@ export class RainViewerRadarProvider implements RadarProvider {
         ...forecast.map((frame) => toFrame(host, frame, "forecast")),
       ],
       attribution: RAINVIEWER_ATTRIBUTION,
+      maxZoom: RAINVIEWER_MAX_TILE_ZOOM,
     };
   }
 }

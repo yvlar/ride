@@ -55,6 +55,12 @@ export type RadarFrame = {
 export type RadarFrames = {
   frames: RadarFrame[];
   attribution: string | null;
+  /**
+   * Deepest zoom the provider actually serves. Past it the map has to upscale
+   * the last real tile: asking for more returns a placeholder image, not
+   * imagery. Null when the provider serves every zoom.
+   */
+  maxZoom: number | null;
 };
 
 /** FR-043 — everything the map needs for one weather refresh. */

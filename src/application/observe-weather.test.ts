@@ -33,6 +33,7 @@ const radar: RadarProvider = {
       },
     ],
     attribution: "Images radar © Test",
+    maxZoom: 7,
   }),
 };
 
@@ -80,14 +81,22 @@ describe("observeWeather (FR-043)", () => {
     });
 
     expect(observation.field.samples).toHaveLength(17);
-    expect(observation.radar).toEqual({ frames: [], attribution: null });
+    expect(observation.radar).toEqual({
+      frames: [],
+      attribution: null,
+      maxZoom: null,
+    });
     expect(onRadarFailure).toHaveBeenCalledOnce();
   });
 
   it("answers without imagery when no radar provider is configured", async () => {
     const observation = await observeWeather({ center, weather });
 
-    expect(observation.radar).toEqual({ frames: [], attribution: null });
+    expect(observation.radar).toEqual({
+      frames: [],
+      attribution: null,
+      maxZoom: null,
+    });
   });
 
   it("propagates a forecast failure: there is nothing to draw", async () => {

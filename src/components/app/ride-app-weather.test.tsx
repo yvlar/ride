@@ -37,7 +37,7 @@ const report = {
         },
       ],
     },
-    radar: { frames: [], attribution: null },
+    radar: { frames: [], attribution: null, maxZoom: null },
     advice: {
       localRisk: 0,
       localLevel: "clear",

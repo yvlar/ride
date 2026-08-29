@@ -29,7 +29,7 @@ function reportFor(anchor: Coordinates): WeatherReport {
       samples,
       observedAtIso: "2026-08-29T15:00:00.000Z",
     },
-    radar: { frames: [], attribution: null },
+    radar: { frames: [], attribution: null, maxZoom: null },
     advice: {
       localRisk: 0,
       localLevel: "clear",

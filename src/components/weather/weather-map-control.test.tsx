@@ -54,6 +54,7 @@ const report: WeatherReport = {
       },
     ],
     attribution: "Images radar © Test",
+    maxZoom: 7,
   },
   advice,
 };
@@ -176,7 +177,10 @@ describe("WeatherMapControl (FR-043)", () => {
 
   it("explains a forecast-only sky when there is no imagery", () => {
     renderControl({
-      report: { ...report, radar: { frames: [], attribution: null } },
+      report: {
+        ...report,
+        radar: { frames: [], attribution: null, maxZoom: null },
+      },
     });
 
     expect(screen.getByText(WEATHER_NO_RADAR_MESSAGE)).toBeInTheDocument();

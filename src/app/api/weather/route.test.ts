@@ -57,6 +57,7 @@ beforeEach(() => {
         },
       ],
       attribution: "Images radar © Test",
+      maxZoom: 7,
     }),
   };
 });

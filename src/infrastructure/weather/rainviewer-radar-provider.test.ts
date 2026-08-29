@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   RAINVIEWER_ATTRIBUTION,
   RAINVIEWER_BASE_URL,
+  RAINVIEWER_MAX_TILE_ZOOM,
   RainViewerRadarProvider,
 } from "./rainviewer-radar-provider";
 
@@ -69,6 +70,14 @@ describe("RainViewerRadarProvider (FR-043)", () => {
     expect(frames.frames[0]!.id).toBe("past-1772000600");
   });
 
+  it("declares the deepest zoom it actually serves", async () => {
+    const frames = await provider(maps).frames();
+
+    // Deeper than this RainViewer answers 200 with a placeholder image.
+    expect(frames.maxZoom).toBe(RAINVIEWER_MAX_TILE_ZOOM);
+    expect(RAINVIEWER_MAX_TILE_ZOOM).toBe(7);
+  });
+
   it("still answers when the provider has no nowcast", async () => {
     const frames = await provider({
       host: maps.host,
@@ -82,6 +91,7 @@ describe("RainViewerRadarProvider (FR-043)", () => {
     const frames = await provider({ host: maps.host, radar: {} }).frames();
 
     expect(frames.frames).toEqual([]);
+    expect(frames.maxZoom).toBe(RAINVIEWER_MAX_TILE_ZOOM);
   });
 
   it("reports an HTTP failure in French", async () => {

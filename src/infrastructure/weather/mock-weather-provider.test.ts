@@ -66,6 +66,7 @@ describe("mockRadarProvider (FR-043)", () => {
     expect(await mockRadarProvider.frames()).toEqual({
       frames: [],
       attribution: null,
+      maxZoom: null,
     });
   });
 });

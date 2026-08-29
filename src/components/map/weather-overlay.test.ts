@@ -57,7 +57,7 @@ function observation(
         },
       ],
     },
-    radar: { frames, attribution: "Images radar © Test" },
+    radar: { frames, attribution: "Images radar © Test", maxZoom: 7 },
     ...overrides,
   };
 }
@@ -109,7 +109,7 @@ describe("toWeatherMapOverlay (FR-043)", () => {
 
   it("keeps the clouds when there is no imagery at all", () => {
     const overlay = toWeatherMapOverlay(
-      observation({ radar: { frames: [], attribution: null } }),
+      observation({ radar: { frames: [], attribution: null, maxZoom: null } }),
     );
 
     expect(overlay?.radarTileUrlTemplate).toBeNull();

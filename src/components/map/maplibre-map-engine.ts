@@ -81,6 +81,8 @@ export function createMapLibreEngine(
       const recordedMarkers: Marker[] = [];
       const cloudMarkers: Marker[] = [];
       let recordedTrack: RecordedTrackOverlay | null = null;
+      /** A frame asked for while the style was still loading (see renderRoute). */
+      let pendingFitCamera = false;
       let weather: WeatherMapOverlay | null = null;
       let radarTemplate: string | null = null;
       let map: MapLibreMap | undefined;
@@ -194,6 +196,10 @@ export function createMapLibreEngine(
         currentViewModel = next;
         camera = mapCameraFrame(next.bounds);
         if (!map || disposed || !map.isStyleLoaded()) {
+          // A route restored from a session, or one that simply beat the tiles,
+          // must still be framed: remember the request for the load event
+          // instead of dropping it with the render.
+          pendingFitCamera = pendingFitCamera || options.fitCamera === true;
           return;
         }
 
@@ -322,6 +328,7 @@ export function createMapLibreEngine(
           // The constructor already frames the first view. A second fitBounds
           // during load can throw inside MapLibre's camera ease (NFR-006).
           if (options.fitCamera) {
+            pendingFitCamera = false;
             map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
           }
         } catch {
@@ -434,6 +441,9 @@ export function createMapLibreEngine(
             type: "raster",
             tiles: [template],
             tileSize: 256,
+            // Without this the map requests zooms the provider does not serve
+            // and paints its placeholder image over the route.
+            ...(weather?.radarMaxZoom ? { maxzoom: weather.radarMaxZoom } : {}),
             ...(weather?.attribution
               ? { attribution: weather.attribution }
               : {}),
@@ -447,7 +457,7 @@ export function createMapLibreEngine(
                 "raster-opacity": weather?.radarOpacity ?? RADAR_LAYER_OPACITY,
               },
             },
-            routeLayerId(target),
+            radarBeforeLayerId(target),
           );
         } else if (typeof target.setPaintProperty === "function") {
           target.setPaintProperty(
@@ -516,7 +526,30 @@ export function createMapLibreEngine(
         renderRoute(currentViewModel);
         renderRecordedTrack();
         renderWeather();
+        applyPendingFrame();
       });
+
+      /**
+       * Frame a route that could not be framed when it arrived. Deferred by a
+       * frame: fitting while the constructor's own ease is still running can
+       * throw inside MapLibre's camera (NFR-006).
+       */
+      function applyPendingFrame() {
+        if (!pendingFitCamera || !map || disposed) {
+          return;
+        }
+        pendingFitCamera = false;
+        requestAnimationFrame(() => {
+          if (!map || disposed || followUser || streetCameraActive) {
+            return;
+          }
+          try {
+            map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
+          } catch {
+            // The route is drawn either way; the rider can still frame it.
+          }
+        });
+      }
 
       let userMarker: Marker | undefined;
       let followUser = false;
@@ -847,8 +880,22 @@ export function createMapLibreEngine(
   };
 }
 
-/** The first route layer present, so radar can be inserted beneath it. */
-function routeLayerId(map: MapLibreMap): string | undefined {
+/**
+ * Where to slip the radar in. Under the first label layer when the style has
+ * one, so place names stay readable through a cell; otherwise under the route,
+ * which must never be hidden either way.
+ */
+function radarBeforeLayerId(map: MapLibreMap): string | undefined {
+  try {
+    const labels = map.getStyle?.()?.layers?.find(
+      (layer) => layer.type === "symbol",
+    );
+    if (labels) {
+      return labels.id;
+    }
+  } catch {
+    // A style that cannot be read just means the route decides the order.
+  }
   for (const id of ROUTE_LAYER_IDS) {
     if (map.getLayer?.(id)) {
       return id;

@@ -21,12 +21,14 @@ const {
     sources: new Map<string, Record<string, unknown>>(),
     layers: new Set<string>(),
     loadHandlers: [] as Array<() => void>,
+    styleLayers: [] as Array<{ id: string; type: string }>,
     /** MapLibre 5 raster sources can be retargeted; older ones cannot. */
     rasterSetTiles: true,
     reset() {
       this.sources.clear();
       this.layers.clear();
       this.loadHandlers.length = 0;
+      this.styleLayers = [];
       this.rasterSetTiles = true;
     },
   };
@@ -77,7 +79,7 @@ const {
     }
     setPaintProperty = setPaintProperty;
     getStyle() {
-      return { version: 8, sources: {}, layers: [] };
+      return { version: 8, sources: {}, layers: mapState.styleLayers };
     }
   }
 
@@ -157,6 +159,7 @@ const viewModel: RideMapViewModel = {
 const overlay: WeatherMapOverlay = {
   radarTileUrlTemplate: "https://tiles.test/latest/{z}/{x}/{y}.png",
   radarOpacity: 0.6,
+  radarMaxZoom: 7,
   attribution: "Images radar © Test",
   clouds: [
     {
@@ -215,6 +218,9 @@ describe("MapLibre weather layer (FR-043)", () => {
       type: "raster",
       tiles: ["https://tiles.test/latest/{z}/{x}/{y}.png"],
       tileSize: 256,
+      // Past the provider's deepest zoom the map upscales instead of asking
+      // for tiles that come back as a "not supported" placeholder.
+      maxzoom: 7,
       attribution: "Images radar © Test",
     });
     const radarLayer = addLayer.mock.calls.find(
@@ -222,6 +228,23 @@ describe("MapLibre weather layer (FR-043)", () => {
     );
     expect(radarLayer?.[0].paint).toEqual({ "raster-opacity": 0.6 });
     expect(radarLayer?.[1]).toBe("ride-traveled-line");
+  });
+
+  it("slips the radar under the labels when the style has some", async () => {
+    mapState.styleLayers = [
+      { id: "background", type: "background" },
+      { id: "roads", type: "line" },
+      { id: "place-labels", type: "symbol" },
+    ];
+    const handle = await mountEngine();
+
+    handle.setWeather?.(overlay);
+
+    const radarLayer = addLayer.mock.calls.find(
+      ([layer]) => layer.id === "ride-radar-tiles",
+    );
+    // Under the labels keeps street names readable through a cell.
+    expect(radarLayer?.[1]).toBe("place-labels");
   });
 
   it("puts one accessible cloud marker on each wet sample", async () => {
@@ -281,6 +304,14 @@ describe("MapLibre weather layer (FR-043)", () => {
     expect(mapState.layers.has("ride-radar-tiles")).toBe(false);
     expect(drawn.every((marker) => marker.removed)).toBe(true);
     expect(cloudElements()).toHaveLength(0);
+  });
+
+  it("lets the map request every zoom when the provider caps none", async () => {
+    const handle = await mountEngine();
+
+    handle.setWeather?.({ ...overlay, radarMaxZoom: null });
+
+    expect(mapState.sources.get("ride-radar")).not.toHaveProperty("maxzoom");
   });
 
   it("keeps the clouds when the provider has no imagery", async () => {

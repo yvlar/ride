@@ -46,6 +46,6 @@ export const mockWeatherProvider: WeatherProvider = {
 /** FR-043 — no imagery offline; the cloud markers still carry the field. */
 export const mockRadarProvider: RadarProvider = {
   async frames(): Promise<RadarFrames> {
-    return { frames: [], attribution: null };
+    return { frames: [], attribution: null, maxZoom: null };
   },
 };

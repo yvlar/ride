@@ -25,6 +25,8 @@ export type WeatherMapOverlay = {
   /** MapLibre raster template for the selected radar frame, when there is one. */
   radarTileUrlTemplate: string | null;
   radarOpacity: number;
+  /** Deepest zoom the imagery exists at; the map upscales past it. */
+  radarMaxZoom: number | null;
   clouds: WeatherCloudMarker[];
   attribution: string | null;
 };
@@ -55,6 +57,7 @@ export function toWeatherMapOverlay(
   return {
     radarTileUrlTemplate: frame?.tileUrlTemplate ?? null,
     radarOpacity: RADAR_LAYER_OPACITY,
+    radarMaxZoom: observation.radar.maxZoom,
     attribution: observation.radar.attribution,
     clouds: observation.field.samples.flatMap((sample, index) => {
       const level = precipitationLevel(sample);

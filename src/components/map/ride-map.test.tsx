@@ -255,6 +255,7 @@ describe("RideMap (FR-013, NFR-001)", () => {
     const weather: WeatherMapOverlay = {
       radarTileUrlTemplate: "https://tiles.test/{z}/{x}/{y}.png",
       radarOpacity: 0.6,
+      radarMaxZoom: 7,
       attribution: "Images radar © Test",
       clouds: [
         {

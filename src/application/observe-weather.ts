@@ -10,7 +10,7 @@ import type {
   WeatherProvider,
 } from "@/infrastructure/weather/weather-provider";
 
-const NO_RADAR: RadarFrames = { frames: [], attribution: null };
+const NO_RADAR: RadarFrames = { frames: [], attribution: null, maxZoom: null };
 
 export type ObserveWeatherOptions = {
   center: Coordinates;
