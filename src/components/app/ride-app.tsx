@@ -32,6 +32,9 @@ import { ImportGpxPanel } from "@/components/gpx/import-gpx-panel";
 import { RouteCatalogPanel } from "@/components/route-catalog/route-catalog-panel";
 import { NavigationSession } from "@/components/navigation/navigation-session";
 import { TrackRecorderControl } from "@/components/recording/track-recorder-control";
+import { WeatherMapControl } from "@/components/weather/weather-map-control";
+import { useWeatherOverlay } from "@/components/weather/use-weather-overlay";
+import type { RequestWeatherOverlay } from "@/components/weather/request-weather-overlay";
 import {
   useTrackRecorder,
   type TrackRecorderDeps,
@@ -44,6 +47,7 @@ import {
   toCarPlayCatalog,
 } from "@/infrastructure/carplay/map-carplay-catalog";
 import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
+import { requestDeviceCoordinates } from "@/infrastructure/location/request-device-coordinates";
 import { createLocalRideLibrary } from "@/infrastructure/persistence/local-ride-library";
 import { createRideSessionStore } from "@/infrastructure/persistence/ride-session-store";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
@@ -66,6 +70,8 @@ type ExplorerSheet =
 export type RideAppProps = RideRequestFormProps & {
   /** FR-041 — coutures de test de l'enregistrement de parcours. */
   recording?: Pick<TrackRecorderDeps, "now" | "exportFile">;
+  /** FR-043 — couture de test de la nappe météo. */
+  weather?: { request?: RequestWeatherOverlay; now?: () => number };
 };
 
 export function RideApp(props: RideAppProps) {
@@ -117,6 +123,9 @@ export function RideApp(props: RideAppProps) {
   const [formKey, setFormKey] = useState(0);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(false);
+  /** FR-043 — la couche météo est éteinte tant que le pilote ne l'allume pas. */
+  const [weatherEnabled, setWeatherEnabled] = useState(false);
+  const [weatherFix, setWeatherFix] = useState<Coordinates | null>(null);
   const requestRef = useRef(request);
   const routeRef = useRef(route);
   const recentsRef = useRef(recents);
@@ -142,6 +151,22 @@ export function RideApp(props: RideAppProps) {
     recorder.state.status === "recording"
       ? (recorder.state.points[recorder.state.points.length - 1] ?? null)
       : null;
+  /**
+   * FR-043 — d'où la météo est relevée : la position en direct pendant la
+   * navigation ou un enregistrement, sinon la position demandée à l'allumage de
+   * la couche, sinon le départ du trajet affiché.
+   */
+  const weatherCenter =
+    navUserLocation ??
+    (recordingFix ? recordedPointCoordinates(recordingFix) : null) ??
+    weatherFix ??
+    route?.start.coordinates ??
+    null;
+  const weather = useWeatherOverlay({
+    enabled: weatherEnabled,
+    center: weatherCenter,
+    request: props.weather?.request,
+  });
   const plannerOwnsMap = navigating && sheet === "planner";
   const explorerOwnsNavigation =
     navigating &&
@@ -239,6 +264,31 @@ export function RideApp(props: RideAppProps) {
       queueMicrotask(() => {
         mapOverviewRef.current();
       });
+    }
+  }
+
+  /**
+   * FR-043 — allumer la couche météo est une action du pilote : c'est le seul
+   * moment où la position est demandée pour elle, et seulement si aucune n'est
+   * déjà connue (FR-035).
+   */
+  async function toggleWeather(next: boolean) {
+    setWeatherEnabled(next);
+    if (!next || weatherCenter) {
+      return;
+    }
+    try {
+      if (props.requestPosition) {
+        setWeatherFix((await props.requestPosition()).coordinates);
+        return;
+      }
+      if (props.requestCoordinates) {
+        setWeatherFix(await props.requestCoordinates());
+        return;
+      }
+      setWeatherFix(await requestDeviceCoordinates());
+    } catch {
+      // Sans position, le bandeau l'explique plutôt que d'inventer un secteur.
     }
   }
 
@@ -501,6 +551,7 @@ export function RideApp(props: RideAppProps) {
               expanded={explorerOwnsNavigation}
               recordedTrack={recorder.overlay}
               recordingActive={recorderBusy}
+              weather={weather.overlay}
               userLocation={
                 explorerOwnsNavigation
                   ? navUserLocation
@@ -528,6 +579,21 @@ export function RideApp(props: RideAppProps) {
                 setMapGeolocateEnabledRef.current = setEnabled;
               }}
             />
+            {/* FR-043 — pendant la navigation, les nuages restent sur la carte
+                mais le bandeau s'efface : le haut de l'écran appartient à la
+                prochaine manœuvre (FR-042). */}
+            {navigating ? null : (
+              <WeatherMapControl
+                enabled={weatherEnabled}
+                onEnabledChange={(next) => {
+                  void toggleWeather(next);
+                }}
+                state={weather}
+                hasCenter={Boolean(weatherCenter)}
+                now={props.weather?.now}
+                className="absolute top-[max(0.75rem,env(safe-area-inset-top,0px))] left-[max(0.75rem,env(safe-area-inset-left,0px))] z-20"
+              />
+            )}
           </div>
         ) : null}
 

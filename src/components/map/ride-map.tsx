@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Coordinates } from "@/domain/geo/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
+import type { WeatherOverlay } from "@/domain/weather/types";
 import { cn } from "@/lib/utils";
 import {
   MAP_UNAVAILABLE_MESSAGE,
@@ -23,6 +24,8 @@ export type RideMapProps = {
   recordedTrack?: RecordedTrackOverlay | null;
   /** Recording owns the shared LocationWatch; no second GPS watch (FR-041, NFR-006). */
   recordingActive?: boolean;
+  /** FR-043 — nuages de pluie posés autour du pilote. `null` masque la couche. */
+  weather?: WeatherOverlay | null;
   expanded?: boolean;
   /** Fill the parent without enabling navigation follow-user (explorer map). */
   fill?: boolean;
@@ -49,6 +52,7 @@ export function RideMap({
   headingDeg = null,
   recordedTrack = null,
   recordingActive = false,
+  weather = null,
   expanded = false,
   fill = false,
   traveledKm = 0,
@@ -73,6 +77,7 @@ export function RideMap({
   const userLocationRef = useRef(userLocation);
   const headingDegRef = useRef(headingDeg);
   const recordedTrackRef = useRef(recordedTrack);
+  const weatherRef = useRef(weather);
   const geolocateEnabled = !expanded && !recordingActive;
   const geolocateEnabledRef = useRef(geolocateEnabled);
   const expandedRef = useRef(expanded);
@@ -129,6 +134,10 @@ export function RideMap({
   useEffect(() => {
     recordedTrackRef.current = recordedTrack;
   }, [recordedTrack]);
+
+  useEffect(() => {
+    weatherRef.current = weather;
+  }, [weather]);
 
   useEffect(() => {
     geolocateEnabledRef.current = geolocateEnabled;
@@ -188,6 +197,7 @@ export function RideMap({
           headingDegRef.current,
         );
         handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
+        handle.setWeatherOverlay?.(weatherRef.current ?? null);
         handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
         handle.setFollowUser?.(expandedRef.current);
         handle.setPickEnabled?.(pickModeRef.current);
@@ -240,6 +250,7 @@ export function RideMap({
             headingDegRef.current,
           );
           handle.setRecordedTrack?.(recordedTrackRef.current ?? null);
+        handle.setWeatherOverlay?.(weatherRef.current ?? null);
           handle.setGeolocateEnabled?.(geolocateEnabledRef.current);
           handle.setFollowUser?.(expandedRef.current);
           handle.setPickEnabled?.(pickModeRef.current);
@@ -284,6 +295,10 @@ export function RideMap({
   useEffect(() => {
     handleRef.current?.setRecordedTrack?.(recordedTrack ?? null);
   }, [recordedTrack]);
+
+  useEffect(() => {
+    handleRef.current?.setWeatherOverlay?.(weather ?? null);
+  }, [weather]);
 
   useEffect(() => {
     pickModeRef.current = pickMode;

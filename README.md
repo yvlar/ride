@@ -131,6 +131,16 @@ La carte interactive affiche le tracé, le sens du trajet, les étapes, les arr�
 
 L’action **Une autre route** doit produire une variante réellement différente, par exemple en évitant au moins 70 % du trajet précédent, tout en conservant les critères sélectionnés.
 
+## Météo sur la carte
+
+Le bouton **Météo** pose sur la carte un nuage par relevé, autour du pilote. Plus la pluie est probable, plus le nuage est sombre et plus il porte de gouttes; le pourcentage est écrit à côté, jamais porté par la seule couleur.
+
+Les relevés sont répartis sur les huit directions de la rose des vents, ce qui donne la phrase qui décide :
+
+> Pluie vers le sud-ouest (88 %) · Meilleure direction : nord-est (8 %)
+
+La couche est éteinte par défaut et ne demande la position qu'au moment où le pilote l'allume. Elle se rafraîchit dès qu'il s'est déplacé d'une vingtaine de kilomètres, et de toute façon toutes les dix minutes; chaque affichage date le relevé et cite sa source. Pendant la navigation, les nuages restent sur la carte mais le bandeau s'efface : le haut de l'écran appartient à la prochaine manœuvre. Une météo indisponible n'empêche jamais de rouler — le trajet et la carte restent intacts. Détail du contrat : `FR-043`.
+
 ## Arrêts et autonomie
 
 L’application peut intégrer automatiquement des points d’intérêt :
@@ -274,6 +284,8 @@ Ces mêmes variables serveur donnent accès au catalogue public de trajets. Les
 composants React passent par `/api/route-catalog`; aucune clé Supabase n'est
 exposée au navigateur. Les ajouts sont validés puis importés avec
 `npm run import:route-catalog`. Voir [`docs/route-catalog.md`](docs/route-catalog.md).
+
+La couche météo (`FR-043`) interroge Open-Meteo par le serveur (`/api/weather`), sans clé : `WEATHER_PROVIDER=open-meteo` est la valeur par défaut, `WEATHER_API_BASE_URL` pointe au besoin vers une instance auto-hébergée. `WEATHER_PROVIDER=mock` sert une nappe déterministe pour le travail hors ligne et les tests; ce n'est jamais la valeur par défaut, car une prévision inventée enverrait un pilote sous l'orage. Une seule requête couvre les dix-sept points de la grille, et le navigateur ne parle jamais au fournisseur directement.
 
 Le suivi GPS de la carte (`FR-022`) est volontaire, limité au premier plan, et n’est pas à lui seul une navigation virage par virage. Aucune position n’est conservée ni demandée en arrière-plan.
 

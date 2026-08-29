@@ -40,7 +40,8 @@ Le MVP se limite au **flux central de génération de trajet**. Un utilisateur d
 11. démarrer une navigation virage par virage de premier plan, avec instructions, guidage vocal et recalcul hors trajet (`FR-023`, `FR-024`, `FR-025`, `FR-026`), sur un écran lisible d’un coup d’œil en roulant (`FR-042`);
 12. ouvrir le même flux depuis une coque iOS installable (`FR-027`), sans changer les règles métier;
 13. poursuivre la même navigation sur Apple CarPlay lorsqu’un écran véhicule est connecté (`FR-028`);
-14. enregistrer le parcours réellement effectué et l’exporter en fichier GPX (`FR-041`).
+14. enregistrer le parcours réellement effectué et l’exporter en fichier GPX (`FR-041`);
+15. voir la pluie attendue autour de lui sur la carte et savoir de quel côté rouler pour l’éviter (`FR-043`).
 
 Le succès du MVP se mesure à la capacité de produire un trajet compréhensible, conforme aux contraintes autant que le réseau routier le permet, avant le départ. La navigation assistée, une fois le trajet généré, reste limitée au premier plan sur l’iPhone, sauf exception CarPlay (`FR-028`).
 
@@ -1104,6 +1105,32 @@ Demander un nouveau trajet alors qu’une navigation est en cours ouvre une conf
 
 Cibles tactiles d’au moins 48 × 48 px, contraste élevé de jour comme de nuit (`FR-037`), respect des `safe-area-inset`, portrait **et** paysage, prise en charge de `prefers-reduced-motion` jusque dans les mouvements de caméra, libellés accessibles aux lecteurs d’écran.
 
+### FR-043 — Couche météo et direction à éviter
+
+Le motocycliste peut afficher, **sur la carte** (`FR-013`), la pluie attendue autour de lui, et en déduire de quel côté rouler. La météo est une **surcouche** : elle ne modifie ni la génération de trajet (`FR-011`), ni la navigation (`FR-023`), ni le routage. Une météo indisponible n’empêche jamais de rouler.
+
+#### Affichage
+
+La couche est **éteinte par défaut** et s’allume par une action explicite (bouton **Météo**). Allumée, elle pose un **nuage** par relevé : plus la probabilité de pluie est élevée, plus le nuage est sombre et plus il porte de gouttes. Quatre paliers seulement — ciel dégagé, averses possibles, pluie probable, pluie. Le **pourcentage est écrit à côté de chaque nuage** et le libellé accessible le répète en toutes lettres : aucune information n’est portée par la seule couleur (`FR-037`).
+
+Les nuages restent affichés pendant la navigation; le bandeau de conseil, lui, s’efface pour laisser le haut de l’écran à la prochaine manœuvre (`FR-042`).
+
+#### Direction à éviter
+
+Les relevés sont répartis sur les **huit secteurs de la rose des vents** autour du pilote. Chaque secteur porte sa probabilité moyenne et son pire relevé; le secteur retenu comme **meilleure direction** est celui qui est sec de bout en bout, pas celui dont la moyenne est la plus basse — une cellule orageuse isolée disqualifie une direction. Le bandeau nomme la direction à éviter et la direction à privilégier, chiffres à l’appui, par exemple : *Pluie vers le sud-ouest (88 %) · Meilleure direction : nord-est (8 %)*. La pluie sur la position courante est annoncée séparément des directions.
+
+#### Relevés et fraîcheur
+
+La grille interrogée est le point du pilote plus deux couronnes de huit points (dix-sept relevés, une seule requête au fournisseur, `NFR-006`), dans un rayon par défaut de 60 km. Le relevé est repris lorsque le pilote s’est déplacé d’au moins 20 km, et de toute façon toutes les dix minutes. Chaque affichage **date le relevé** et en cite la source; au-delà de trente minutes, il est annoncé comme **périmé** plutôt que présenté comme la météo du moment.
+
+#### Position et vie privée
+
+La position n’est demandée pour la météo qu’au moment où le pilote allume la couche, et seulement si aucune position n’est déjà connue (`FR-022`, `FR-035`). Sans position, l’interface le dit au lieu de deviner un secteur.
+
+#### Erreurs
+
+Une panne du fournisseur conserve le dernier relevé, le date, et propose **Réessayer**; elle n’efface ni le trajet ni la carte. Un relevé sans probabilité exploitable laisse un trou dans la nappe : aucune valeur n’est inventée. Le fournisseur est un **détail d’infrastructure** (`BR-004`, `NFR-005`) : le domaine ne connaît qu’un `WeatherProvider`, l’appel passe par le serveur (`/api/weather`), et le fournisseur de démonstration doit être demandé explicitement.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -1113,7 +1140,6 @@ Les capacités suivantes sont **hors du MVP**. Elles ne doivent pas être implé
 - réseau social;
 - sorties de groupe;
 - suivi de motocyclistes;
-- météo;
 - recommandations de trajets par intelligence artificielle (suggestion de sorties à l’utilisateur, distincte de l’option `FR-029`, de l’adaptateur de routage RAG, et de la génération à la demande du flux `FR-034`);
 - profils de motos;
 - automatisation des arrêts carburant;
@@ -1217,6 +1243,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-040` | Recherche de destination par code postal canadien |
 | `FR-041` | Enregistrement du parcours en direct et export GPX |
 | `FR-042` | Écran de navigation lisible en roulant |
+| `FR-043` | Couche météo et direction à éviter |
 
 ### Règles métier
 

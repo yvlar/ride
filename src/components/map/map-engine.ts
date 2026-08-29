@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/domain/geo/types";
+import type { WeatherOverlay } from "@/domain/weather/types";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
@@ -29,6 +30,11 @@ export type MapEngineHandle = {
   setPickEnabled?: (enabled: boolean) => void;
   /** Shows (or clears) the draggable destination marker (FR-038). */
   setPickMarker?: (coordinates: Coordinates | null) => void;
+  /**
+   * FR-043 — nappe de nuages autour du pilote. `null` retire la couche : la
+   * météo est une surcouche, jamais une condition d'affichage du trajet.
+   */
+  setWeatherOverlay?: (overlay: WeatherOverlay | null) => void;
 };
 
 export type MapEngineHandlers = {
