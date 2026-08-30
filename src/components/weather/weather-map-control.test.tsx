@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { WeatherEscapeAdvice } from "@/domain/weather/escape-direction";
 import type { WeatherReport } from "./request-weather";
 import {
+  WEATHER_COLLAPSE_LABEL,
+  WEATHER_EXPAND_LABEL,
   WEATHER_LOADING_MESSAGE,
   WEATHER_NO_RADAR_MESSAGE,
   WEATHER_TOGGLE_LABEL,
@@ -167,6 +169,43 @@ describe("WeatherMapControl (FR-043)", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("folds everything but the headline away, over the sky it covers", () => {
+    renderControl();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: WEATHER_COLLAPSE_LABEL }),
+    );
+
+    expect(screen.getByText(advice.headline)).toBeInTheDocument();
+    expect(screen.queryByText(advice.detail)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "Image radar" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Images radar © Test")).not.toBeInTheDocument();
+  });
+
+  it("brings the details back", () => {
+    renderControl();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: WEATHER_COLLAPSE_LABEL }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: WEATHER_EXPAND_LABEL }));
+
+    expect(screen.getByText(advice.detail)).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Image radar" }),
+    ).toBeInTheDocument();
+  });
+
+  it("states whether the details are showing", () => {
+    renderControl();
+
+    expect(
+      screen.getByRole("button", { name: WEATHER_COLLAPSE_LABEL }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 
   it("credits the imagery it shows", () => {
