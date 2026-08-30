@@ -74,7 +74,7 @@ export function TrackRecorderControl({
           variant="ghost"
           aria-label={RECORDING_START_LABEL}
           title={RECORDING_START_LABEL}
-          className="relative size-[clamp(3.75rem,16vw,4.5rem)] rounded-full border-[3px] border-white/55 bg-slate-950/35 p-1.5 shadow-[0_0_1.25rem_rgba(239,68,68,0.35)] backdrop-blur-md hover:bg-slate-950/50 focus-visible:border-white/80 supports-[backdrop-filter]:bg-slate-950/25"
+          className="ride-glass relative size-[clamp(3.75rem,16vw,4.5rem)] rounded-full border-[3px] border-white/55 p-1.5 shadow-[0_0_1.25rem_rgba(239,68,68,0.35)] hover:bg-ride-glass-strong focus-visible:border-white/80"
           onClick={recorder.start}
         >
           <span
@@ -100,7 +100,7 @@ export function TrackRecorderControl({
             ? RECORDING_ACTIVE_LABEL
             : RECORDING_ACQUIRING_LABEL}
         </p>
-        <dl className="flex items-center gap-3 rounded-full border border-white/20 bg-slate-950/55 px-3 py-1.5 text-center text-xs font-semibold text-white shadow-lg shadow-black/20 backdrop-blur-md supports-[backdrop-filter]:bg-slate-950/45">
+        <dl className="ride-glass flex items-center gap-3 rounded-full px-3 py-1.5 text-center text-xs font-semibold text-white">
           <Circle
             aria-hidden="true"
             className={cn(
@@ -125,7 +125,7 @@ export function TrackRecorderControl({
         {state.error ? (
           <p
             role="status"
-            className="rounded-2xl border border-white/20 bg-slate-950/70 px-3 py-2 text-center text-sm leading-5 text-white shadow-lg backdrop-blur-md"
+            className="ride-glass-strong rounded-2xl px-3 py-2 text-center text-sm leading-5 text-white"
           >
             {state.error.message}
           </p>
@@ -156,7 +156,7 @@ export function TrackRecorderControl({
     <section
       aria-label="Enregistrement du parcours"
       className={cn(
-        "pointer-events-auto w-full max-w-sm space-y-2 rounded-3xl border border-white/20 bg-slate-950/75 p-3 text-white shadow-xl shadow-black/30 backdrop-blur-xl supports-[backdrop-filter]:bg-slate-950/65",
+        "ride-map-panel ride-glass-strong pointer-events-auto w-full max-w-sm space-y-2 rounded-3xl p-3",
         className,
       )}
     >

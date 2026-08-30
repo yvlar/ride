@@ -51,7 +51,6 @@ import type {
   GeneratedRideRoute,
   RideGenerationError,
 } from "@/domain/ride/types";
-import { cn } from "@/lib/utils";
 
 const GENERATION_UNAVAILABLE: RideGenerationError = {
   code: "PROVIDER_ERROR",
@@ -399,7 +398,7 @@ export function DescribeRidePanel({
     <div aria-busy={busy}>
       <p
         role="status"
-        className="text-sm text-muted-foreground"
+        className="rounded-2xl bg-card/65 px-3 py-2 text-sm text-muted-foreground"
         data-start-latitude={
           start ? String(start.coordinates.latitude) : undefined
         }
@@ -430,7 +429,7 @@ export function DescribeRidePanel({
         />
       </div>
 
-      <div className="mt-3 flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+      <div className="ride-control-row mt-3 flex items-center justify-between gap-3">
         <div>
           <Label htmlFor="describe-loop" className="text-base">
             Boucle
@@ -496,7 +495,7 @@ export function DescribeRidePanel({
             {generatedRouteTypeLabel(activeRoute.type)} ·{" "}
             {RIDE_STYLE_LABELS[activeRoute.style ?? "scenic"]}
           </p>
-          <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+          <div className="ride-control-row flex items-center justify-between gap-3">
             <Label htmlFor="describe-voice" className="text-base">
               Guidage vocal {voiceMuted ? "(désactivé)" : "(activé)"}
             </Label>
@@ -563,10 +562,7 @@ export function DescribeRidePanel({
       ) : null}
 
       <div
-        className={cn(
-          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card px-4 pt-3",
-          "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
-        )}
+        className="ride-panel-actions"
         role={activeRoute ? "group" : undefined}
         aria-label={activeRoute ? "Actions du trajet" : undefined}
       >

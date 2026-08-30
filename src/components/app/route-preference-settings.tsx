@@ -16,7 +16,7 @@ export function RoutePreferenceSettings({
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">Préférences de route</legend>
-      <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+      <div className="ride-control-row flex items-center justify-between gap-3">
         <Label htmlFor={`${idPrefix}-avoid-highways`} className="text-base">
           Éviter les autoroutes
         </Label>
@@ -28,7 +28,7 @@ export function RoutePreferenceSettings({
           }
         />
       </div>
-      <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+      <div className="ride-control-row flex items-center justify-between gap-3">
         <Label htmlFor={`${idPrefix}-avoid-unpaved`} className="text-base">
           Éviter les routes non pavées
         </Label>
@@ -40,7 +40,7 @@ export function RoutePreferenceSettings({
           }
         />
       </div>
-      <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+      <div className="ride-control-row flex items-center justify-between gap-3">
         <Label htmlFor={`${idPrefix}-stay-in-canada`} className="text-base">
           Canada seulement
         </Label>
