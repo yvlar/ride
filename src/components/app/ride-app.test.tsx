@@ -127,6 +127,17 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     expect(
       screen.getByRole("button", { name: "Rechercher une destination" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("region", { name: "Actions principales" }),
+    ).toHaveClass("grid-cols-2");
+    expect(
+      screen.queryByRole("region", { name: "Explorer" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("map-home-controls")).toHaveClass(
+      "bottom-[max(0.75rem,env(safe-area-inset-bottom))]",
+      "pl-[max(0.75rem,env(safe-area-inset-left))]",
+      "pr-[max(0.75rem,env(safe-area-inset-right))]",
+    );
   });
 
   it("starts a saved ride in three interactions", async () => {
@@ -204,7 +215,8 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       </AppearanceProvider>,
     );
 
-    await screen.findByRole("button", { name: "Boucle · Granby, QC" });
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrés" }));
+    await screen.findByText("Boucle · Granby, QC");
     act(() => {
       carPlayHarness.emit({ type: "catalogSelect", id: "saved:saved-1" });
     });

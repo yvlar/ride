@@ -61,18 +61,18 @@ export function WeatherMapControl({
     >
       <Button
         type="button"
-        variant={active ? "default" : "outline"}
+        variant={active ? "default" : "ride"}
         size="lg"
         aria-pressed={active}
         title={WEATHER_TOGGLE_HINT}
-        className="min-h-12 min-w-12 px-4 text-base shadow-lg"
+        className="min-h-12 min-w-12 rounded-2xl px-4 text-base shadow-lg"
         onClick={() => onToggle(!active)}
       >
         {WEATHER_TOGGLE_LABEL}
       </Button>
 
       {active ? (
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card/95 px-3 py-2 text-card-foreground shadow-lg backdrop-blur-md">
+        <div className="ride-map-panel ride-glass-strong w-full max-w-sm rounded-3xl p-3">
           {status === "loading" && !advice ? (
             <p role="status" className="text-sm leading-6">
               {WEATHER_LOADING_MESSAGE}

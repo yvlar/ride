@@ -18,7 +18,12 @@ describe("Home explorer (FR-014, FR-031)", () => {
     expect(
       screen.queryByRole("heading", { name: "Où veux-tu rouler?" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Explorer" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Actions principales" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Explorer" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Rechercher une destination" }),
     ).toBeEnabled();
@@ -73,7 +78,7 @@ describe("Home explorer (FR-014, FR-031)", () => {
     expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
   });
 
-  it("keeps primary actions at 48px on a phone viewport (NFR-001)", () => {
+  it("keeps primary actions above 48px on a phone viewport (NFR-001)", () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 390,
@@ -81,7 +86,10 @@ describe("Home explorer (FR-014, FR-031)", () => {
     renderHome();
     expect(
       screen.getByRole("button", { name: "Rechercher une destination" }),
-    ).toHaveClass("min-h-12");
+    ).toHaveClass("min-h-[clamp(4.5rem,11dvh,5.5rem)]");
+    expect(
+      screen.getByRole("button", { name: "Démarrer l’enregistrement" }),
+    ).toHaveClass("size-[clamp(3.75rem,16vw,4.5rem)]");
     expect(
       screen.getByRole("navigation", { name: "Navigation principale" }),
     ).toBeInTheDocument();

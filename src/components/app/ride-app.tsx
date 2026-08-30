@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AppTabBar, type AppTab } from "@/components/shell/app-tab-bar";
 import { MapBottomPanel } from "@/components/shell/map-bottom-panel";
+import { MapQuickActions } from "@/components/shell/map-quick-actions";
 import { useAppearance } from "@/components/theme/appearance-provider";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { SavedRide } from "@/domain/library/types";
@@ -58,6 +59,7 @@ import {
 } from "@/domain/ride/stored-route-preferences";
 import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
+import { cn } from "@/lib/utils";
 
 type ExplorerSheet =
   | "home"
@@ -145,6 +147,10 @@ export function RideApp(props: RideAppProps) {
     exportFile: props.recording?.exportFile,
   });
   const recorderBusy = recorder.state.status !== "idle";
+  const recorderNeedsReview =
+    recorder.state.status !== "idle" &&
+    recorder.state.status !== "recording" &&
+    recorder.state.status !== "requesting-permission";
   const recordingFix =
     recorder.state.status === "recording"
       ? (recorder.state.points[recorder.state.points.length - 1] ?? null)
@@ -619,6 +625,38 @@ export function RideApp(props: RideAppProps) {
           />
         ) : null}
 
+        {tab === "explore" && sheet === "home" && !navigating ? (
+          <div
+            data-testid="map-home-controls"
+            className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
+          >
+            {recorderNeedsReview ? null : (
+              <MapQuickActions
+                onSearch={() => openFindDestination()}
+                onDescribe={() => setSheet("describe")}
+                onCatalog={openRouteCatalog}
+                onImportGpx={openGpxImporter}
+                onResume={
+                  route && request ? () => openRide(request, route) : undefined
+                }
+              />
+            )}
+            <TrackRecorderControl
+              recorder={recorder}
+              now={props.recording?.now}
+            />
+          </div>
+        ) : null}
+
+        {recorderBusy && (sheet !== "home" || tab !== "explore" || navigating) ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex justify-center px-3">
+            <TrackRecorderControl
+              recorder={recorder}
+              now={props.recording?.now}
+            />
+          </div>
+        ) : null}
+
         {tab === "explore" && sheet === "planner" ? (
           <div
             className={
@@ -631,7 +669,7 @@ export function RideApp(props: RideAppProps) {
               className={
                 navigating
                   ? "h-full"
-                  : "pointer-events-auto max-h-[85dvh] overflow-y-auto rounded-t-3xl border border-border bg-card/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lg"
+                  : "ride-map-panel ride-glass-strong pointer-events-auto max-h-[85dvh] overflow-y-auto rounded-t-[2rem] px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
               }
             >
               {navigating ? null : (
@@ -665,82 +703,10 @@ export function RideApp(props: RideAppProps) {
                 : "pointer-events-none absolute inset-x-0 bottom-0 z-10"
             }
           >
-            {sheet === "home" ? (
-              <MapBottomPanel title="Explorer" titleHidden>
-                <div className="grid gap-2">
-                  <Button
-                    type="button"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => openFindDestination()}
-                  >
-                    Rechercher une destination
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => setSheet("describe")}
-                  >
-                    Décrire mon trajet
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => openRouteCatalog()}
-                  >
-                    Découvrir des trajets moto
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="min-h-12 w-full text-base"
-                    onClick={() => openGpxImporter()}
-                  >
-                    Importer un fichier GPX
-                  </Button>
-                  {route && request ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="lg"
-                      className="min-h-12 w-full text-base"
-                      onClick={() =>
-                        request && route
-                          ? openRide(request, route)
-                          : undefined
-                      }
-                    >
-                      Reprendre la navigation
-                    </Button>
-                  ) : null}
-                </div>
-                {saved.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    <h2 className="text-sm font-medium">Trajets favoris</h2>
-                    {saved.slice(0, 3).map((item) => (
-                      <Button
-                        key={item.id}
-                        type="button"
-                        variant="ghost"
-                        className="min-h-12 w-full justify-start text-base"
-                        onClick={() => openRide(item.request, item.route)}
-                      >
-                        {item.name}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
-              </MapBottomPanel>
-            ) : null}
-
             {sheet === "search" ? (
               <MapBottomPanel
                 title="Trouver une destination"
+                variant="floating"
                 className={route ? "max-h-[58dvh]" : undefined}
               >
                 <FindDestinationPanel
@@ -903,17 +869,6 @@ export function RideApp(props: RideAppProps) {
           />
         ) : null}
       </div>
-      {tab === "explore" || recorderBusy ? (
-        <div
-          className={
-            navigating
-              ? "relative z-30 border-t border-border bg-card/95 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-md"
-              : "relative z-30 border-t border-border bg-card/95 px-3 py-2 backdrop-blur-md"
-          }
-        >
-          <TrackRecorderControl recorder={recorder} now={props.recording?.now} />
-        </div>
-      ) : null}
       {pendingRideIntent ? (
         <div
           role="alertdialog"
@@ -921,7 +876,7 @@ export function RideApp(props: RideAppProps) {
           aria-label={NAVIGATION_ACTIVE_BLOCK_TITLE}
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
         >
-          <div className="w-full max-w-md space-y-3 rounded-2xl bg-card p-4 text-card-foreground shadow-xl">
+          <div className="ride-map-panel ride-glass-strong w-full max-w-md space-y-3 rounded-3xl p-4">
             <h2 className="text-lg font-semibold">
               {NAVIGATION_ACTIVE_BLOCK_TITLE}
             </h2>
@@ -969,7 +924,7 @@ function LibraryList({
   onRemove?: (item: SavedRide) => void;
 }) {
   return (
-    <div className="absolute inset-0 z-10 overflow-y-auto bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
+    <div className="ride-page absolute inset-0 z-10 overflow-y-auto">
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       {items.length === 0 ? (
         <p className="mt-4 text-muted-foreground">{empty}</p>
@@ -978,7 +933,7 @@ function LibraryList({
           {items.map((item) => (
             <li
               key={item.id}
-              className="rounded-xl border border-border px-3 py-3"
+              className="rounded-2xl border border-border bg-card/82 px-3 py-3 shadow-sm"
             >
               <p className="font-medium">{item.name}</p>
               <p className="text-sm text-muted-foreground">
@@ -1039,7 +994,7 @@ function SettingsPanel({
   }
 
   return (
-    <div className="absolute inset-0 z-10 overflow-y-auto bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
+    <div className="ride-page absolute inset-0 z-10 overflow-y-auto">
       <h1 className="text-2xl font-semibold tracking-tight">Réglages</h1>
       <fieldset className="mt-4 space-y-2">
         <legend className="text-sm font-medium">Apparence</legend>
@@ -1056,7 +1011,10 @@ function SettingsPanel({
             type="button"
             role="radio"
             aria-checked={mode === value}
-            className="flex min-h-12 w-full items-center rounded-lg border border-border px-3 text-left text-base"
+            className={cn(
+              "ride-control-row flex w-full items-center text-left text-base",
+              mode === value && "border-primary bg-primary text-primary-foreground",
+            )}
             onClick={() => onMode(value)}
           >
             {label}

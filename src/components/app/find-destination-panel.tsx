@@ -47,7 +47,6 @@ import type {
 } from "@/domain/ride/types";
 import { requestDevicePosition } from "@/infrastructure/location/request-device-coordinates";
 import { openDeviceLocationSettings } from "@/infrastructure/location/open-location-settings";
-import { cn } from "@/lib/utils";
 
 const GENERATION_UNAVAILABLE: RideGenerationError = {
   code: "PROVIDER_ERROR",
@@ -425,7 +424,7 @@ export function FindDestinationPanel({
         state.start ? String(state.start.coordinates.longitude) : undefined
       }
     >
-      <p role="status" className="text-sm text-muted-foreground">
+      <p role="status" className="ride-glass rounded-2xl px-4 py-3 text-sm text-white/85">
         {locationStatusMessage(state.locationStatus)}
         {state.start && state.locationStatus === "detected"
           ? ` · ${state.start.label}`
@@ -457,7 +456,7 @@ export function FindDestinationPanel({
         </div>
       ) : null}
 
-      <div className="mt-4">
+      <div className="mt-3">
         {showDestinationCard && state.destination ? (
           <SelectedDestinationCard
             destination={state.destination}
@@ -483,7 +482,7 @@ export function FindDestinationPanel({
             footer={
               <Button
                 type="button"
-                variant="outline"
+                variant="ride"
                 className="min-h-12 w-full text-base"
                 disabled={destinationLocked}
                 onClick={() => dispatch({ type: "open_map_picker" })}
@@ -627,10 +626,7 @@ export function FindDestinationPanel({
       ) : null}
 
       <div
-        className={cn(
-          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card px-4 pt-3",
-          "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
-        )}
+        className="ride-panel-actions"
         role={preview ? "group" : undefined}
         aria-label={preview ? "Actions du trajet" : undefined}
       >
