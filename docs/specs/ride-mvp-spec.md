@@ -1138,6 +1138,8 @@ Les tuiles radar sont dessinées **sous** le tracé du trajet, jamais au-dessus 
 
 Les fournisseurs sont remplaçables (`NFR-005`, `BR-004`) : le domaine ne connaît que des échantillons et des trames. Les fournisseurs par défaut sont publics et sans clé; un mode hors ligne déterministe reste disponible pour le développement et les tests.
 
+Un fournisseur d’imagerie déclare le zoom au-delà duquel il ne sert plus rien : la carte agrandit alors sa dernière image plutôt que de demander des tuiles qui reviendraient en image de remplacement. Deux services sont branchés — l’un mondial avec prévision immédiate mais plafonné en zoom, l’autre nord-américain à 1 km rendu à la demande, sans plafond mais sans prévision. Le choix est une variable d’environnement, jamais une décision du domaine.
+
 ---
 
 ## 15. Hors périmètre du MVP

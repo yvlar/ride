@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { radarFrameLabel, selectRadarFrame } from "@/components/map/weather-overlay";
 import type { WeatherEscapeAdvice } from "@/domain/weather/escape-direction";
@@ -12,6 +14,8 @@ export const WEATHER_TOGGLE_HINT = "Afficher la météo et le radar sur la carte
 export const WEATHER_LOADING_MESSAGE = "Lecture du ciel en cours…";
 export const WEATHER_NO_RADAR_MESSAGE =
   "Aucune image radar disponible : les nuages proviennent des prévisions.";
+export const WEATHER_COLLAPSE_LABEL = "Réduire les détails météo";
+export const WEATHER_EXPAND_LABEL = "Afficher les détails météo";
 
 export type WeatherMapControlProps = {
   active: boolean;
@@ -44,6 +48,11 @@ export function WeatherMapControl({
 }: WeatherMapControlProps) {
   const frames = report?.radar.frames ?? [];
   const selected = selectRadarFrame(frames, frameId);
+  /**
+   * FR-043 — the panel sits over the very sky it describes. The headline is
+   * what a rider reads at a glance, so everything else folds away behind it.
+   */
+  const [expanded, setExpanded] = useState(true);
 
   return (
     <section
@@ -77,19 +86,41 @@ export function WeatherMapControl({
           ) : null}
 
           {advice ? (
-            <>
-              <p className="text-base leading-6 font-medium">{advice.headline}</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {advice.detail}
+            <div className="flex items-start gap-2">
+              <p className="flex-1 text-base leading-6 font-medium">
+                {advice.headline}
               </p>
-            </>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-expanded={expanded}
+                aria-label={
+                  expanded ? WEATHER_COLLAPSE_LABEL : WEATHER_EXPAND_LABEL
+                }
+                className="-mr-1 min-h-9 shrink-0 px-2 text-base"
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {expanded ? (
+                  <ChevronUpIcon aria-hidden="true" />
+                ) : (
+                  <ChevronDownIcon aria-hidden="true" />
+                )}
+              </Button>
+            </div>
           ) : null}
 
-          {frames.length > 0 ? (
+          {advice && expanded ? (
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {advice.detail}
+            </p>
+          ) : null}
+
+          {expanded && frames.length > 0 ? (
             <div
               role="group"
               aria-label="Image radar"
-              className="mt-3 flex flex-wrap gap-1"
+              className="mt-2 flex flex-wrap items-center gap-1"
             >
               {frames.map((frame) => (
                 <Button
@@ -107,14 +138,14 @@ export function WeatherMapControl({
             </div>
           ) : null}
 
-          {report && frames.length === 0 ? (
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          {expanded && report && frames.length === 0 ? (
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {WEATHER_NO_RADAR_MESSAGE}
             </p>
           ) : null}
 
-          {report?.radar.attribution ? (
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          {expanded && report?.radar.attribution ? (
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {report.radar.attribution}
             </p>
           ) : null}

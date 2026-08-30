@@ -3,6 +3,7 @@ import {
   createRadarProvider,
   createWeatherProvider,
 } from "./create-weather-provider";
+import { GeoMetRadarProvider } from "./geomet-radar-provider";
 import { mockRadarProvider, mockWeatherProvider } from "./mock-weather-provider";
 import { OpenMeteoWeatherProvider } from "./open-meteo-weather-provider";
 import { RainViewerRadarProvider } from "./rainviewer-radar-provider";
@@ -42,6 +43,21 @@ describe("createRadarProvider (FR-043)", () => {
     expect(createRadarProvider({ RADAR_PROVIDER: "mock" })).toBe(
       mockRadarProvider,
     );
+  });
+
+  it("switches to the Canadian service on request (FR-043)", () => {
+    expect(createRadarProvider({ RADAR_PROVIDER: "geomet" })).toBeInstanceOf(
+      GeoMetRadarProvider,
+    );
+  });
+
+  it("points the Canadian service at a configured host", () => {
+    expect(
+      createRadarProvider({
+        RADAR_PROVIDER: "geomet",
+        RADAR_API_BASE_URL: "https://geomet.example.test/wms",
+      }),
+    ).toBeInstanceOf(GeoMetRadarProvider);
   });
 
   it("rejects an unknown provider by name", () => {
