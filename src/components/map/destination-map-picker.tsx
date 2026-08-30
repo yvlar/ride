@@ -86,7 +86,7 @@ export function DestinationMapPicker({
       data-testid="destination-map-picker"
       data-pick-status={state.status}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+      <header className="ride-glass-strong ride-map-panel flex items-center justify-between gap-2 rounded-b-3xl px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <h2 className="text-base font-medium">{MAP_PICKER_TITLE}</h2>
         <Button
           type="button"
@@ -111,7 +111,7 @@ export function DestinationMapPicker({
         />
       </div>
 
-      <div className="space-y-2 border-t border-border px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      <div className="ride-map-panel ride-glass-strong space-y-2 rounded-t-3xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
         {state.point ? (
           <div>
             <p className="text-base font-medium">

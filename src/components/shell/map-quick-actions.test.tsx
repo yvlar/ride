@@ -44,10 +44,11 @@ describe("MapQuickActions", () => {
     expect(handlers.onImportGpx).toHaveBeenCalledOnce();
     for (const button of buttons) {
       expect(button).toHaveClass(
-        "backdrop-blur-md",
-        "min-h-[clamp(3.5rem,10dvh,4.5rem)]",
+        "ride-glass",
+        "min-h-[clamp(4.5rem,11dvh,5.5rem)]",
         "min-w-0",
         "w-full",
+        "justify-start",
       );
     }
   });

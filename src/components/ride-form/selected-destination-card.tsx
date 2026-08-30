@@ -36,7 +36,7 @@ export function SelectedDestinationCard({
       aria-label="Destination sélectionnée"
       data-testid="selected-destination"
       data-precision={destination.precision}
-      className="rounded-lg border border-border bg-card p-3"
+      className="rounded-2xl border border-border bg-card/82 p-3 shadow-sm backdrop-blur-md"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">

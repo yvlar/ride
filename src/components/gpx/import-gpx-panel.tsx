@@ -225,7 +225,7 @@ export function ImportGpxPanel({
               role="radio"
               aria-checked={trip.id === selectedId}
               className={cn(
-                "flex min-h-12 w-full items-center rounded-lg border border-border px-3 text-left text-base",
+                "ride-control-row flex w-full items-center text-left text-base",
                 trip.id === selectedId ? "bg-muted" : "",
               )}
               disabled={busy}
@@ -294,10 +294,7 @@ export function ImportGpxPanel({
       ) : null}
 
       <div
-        className={cn(
-          "sticky bottom-0 z-20 -mx-4 mt-3 space-y-2 border-t border-border bg-card px-4 pt-3",
-          "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
-        )}
+        className="ride-panel-actions"
         role={route ? "group" : undefined}
         aria-label={route ? "Actions du trajet GPX" : undefined}
       >

@@ -2,7 +2,10 @@ import { Compass, FileUp, Navigation, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const glassButtonClassName =
-  "min-h-[clamp(3.5rem,10dvh,4.5rem)] min-w-0 w-full flex-col gap-1 rounded-2xl border border-white/20 bg-slate-950/55 px-2 py-2 text-center text-xs font-semibold leading-tight whitespace-normal text-white shadow-lg shadow-black/20 backdrop-blur-md hover:bg-slate-950/70 hover:text-white supports-[backdrop-filter]:bg-slate-950/45";
+  "ride-glass min-h-[clamp(4.5rem,11dvh,5.5rem)] min-w-0 w-full justify-start gap-2 rounded-3xl px-2.5 py-2 text-left text-[clamp(0.78rem,3.3vw,1rem)] font-semibold leading-tight whitespace-normal text-white hover:bg-ride-glass-strong hover:text-white";
+
+const iconClassName =
+  "ride-icon-well size-[clamp(2.75rem,12vw,3.5rem)] [&_svg]:size-[clamp(1.3rem,5vw,1.65rem)]";
 
 export function MapQuickActions({
   onSearch,
@@ -29,8 +32,8 @@ export function MapQuickActions({
         className={glassButtonClassName}
         onClick={onSearch}
       >
-        <Search aria-hidden="true" className="size-5" />
-        <span>Rechercher destination</span>
+        <span className={iconClassName}><Search aria-hidden="true" /></span>
+        <span>Rechercher une destination</span>
       </Button>
       <Button
         type="button"
@@ -39,7 +42,7 @@ export function MapQuickActions({
         className={glassButtonClassName}
         onClick={onDescribe}
       >
-        <Sparkles aria-hidden="true" className="size-5" />
+        <span className={iconClassName}><Sparkles aria-hidden="true" /></span>
         <span>Décrire mon trajet</span>
       </Button>
       <Button
@@ -49,8 +52,8 @@ export function MapQuickActions({
         className={glassButtonClassName}
         onClick={onCatalog}
       >
-        <Compass aria-hidden="true" className="size-5" />
-        <span>Découvrir trajets moto</span>
+        <span className={iconClassName}><Compass aria-hidden="true" /></span>
+        <span>Découvrir des trajets moto</span>
       </Button>
       <Button
         type="button"
@@ -59,14 +62,14 @@ export function MapQuickActions({
         className={glassButtonClassName}
         onClick={onImportGpx}
       >
-        <FileUp aria-hidden="true" className="size-5" />
-        <span>Importer GPX</span>
+        <span className={iconClassName}><FileUp aria-hidden="true" /></span>
+        <span>Importer un fichier GPX</span>
       </Button>
       {onResume ? (
         <Button
           type="button"
-          variant="ghost"
-          className="col-span-2 min-h-12 rounded-2xl border border-white/20 bg-slate-950/55 text-sm font-semibold text-white shadow-lg shadow-black/20 backdrop-blur-md hover:bg-slate-950/70 hover:text-white supports-[backdrop-filter]:bg-slate-950/45"
+          variant="ride"
+          className="col-span-2 min-h-12 rounded-2xl text-sm"
           onClick={onResume}
         >
           <Navigation aria-hidden="true" className="size-5" />

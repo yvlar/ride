@@ -234,7 +234,7 @@ export function PlaceSearchField({
           id={listId}
           role="listbox"
           aria-label={`Suggestions pour ${label}`}
-          className="overflow-hidden rounded-lg border border-border bg-card"
+          className="overflow-hidden rounded-2xl border border-border bg-card/95 shadow-lg backdrop-blur-xl"
         >
           {suggestions.map((place, index) => {
             const secondary = placeSecondaryLine(place);
