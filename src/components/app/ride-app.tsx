@@ -59,6 +59,7 @@ import {
 } from "@/domain/ride/stored-route-preferences";
 import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
+import { cn } from "@/lib/utils";
 
 type ExplorerSheet =
   | "home"
@@ -668,7 +669,7 @@ export function RideApp(props: RideAppProps) {
               className={
                 navigating
                   ? "h-full"
-                  : "pointer-events-auto max-h-[85dvh] overflow-y-auto rounded-t-3xl border border-border bg-card/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lg"
+                  : "ride-map-panel ride-glass-strong pointer-events-auto max-h-[85dvh] overflow-y-auto rounded-t-[2rem] px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
               }
             >
               {navigating ? null : (
@@ -705,6 +706,7 @@ export function RideApp(props: RideAppProps) {
             {sheet === "search" ? (
               <MapBottomPanel
                 title="Trouver une destination"
+                variant="floating"
                 className={route ? "max-h-[58dvh]" : undefined}
               >
                 <FindDestinationPanel
@@ -874,7 +876,7 @@ export function RideApp(props: RideAppProps) {
           aria-label={NAVIGATION_ACTIVE_BLOCK_TITLE}
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
         >
-          <div className="w-full max-w-md space-y-3 rounded-2xl bg-card p-4 text-card-foreground shadow-xl">
+          <div className="ride-map-panel ride-glass-strong w-full max-w-md space-y-3 rounded-3xl p-4">
             <h2 className="text-lg font-semibold">
               {NAVIGATION_ACTIVE_BLOCK_TITLE}
             </h2>
@@ -922,7 +924,7 @@ function LibraryList({
   onRemove?: (item: SavedRide) => void;
 }) {
   return (
-    <div className="absolute inset-0 z-10 overflow-y-auto bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
+    <div className="ride-page absolute inset-0 z-10 overflow-y-auto">
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       {items.length === 0 ? (
         <p className="mt-4 text-muted-foreground">{empty}</p>
@@ -931,7 +933,7 @@ function LibraryList({
           {items.map((item) => (
             <li
               key={item.id}
-              className="rounded-xl border border-border px-3 py-3"
+              className="rounded-2xl border border-border bg-card/82 px-3 py-3 shadow-sm"
             >
               <p className="font-medium">{item.name}</p>
               <p className="text-sm text-muted-foreground">
@@ -992,7 +994,7 @@ function SettingsPanel({
   }
 
   return (
-    <div className="absolute inset-0 z-10 overflow-y-auto bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
+    <div className="ride-page absolute inset-0 z-10 overflow-y-auto">
       <h1 className="text-2xl font-semibold tracking-tight">Réglages</h1>
       <fieldset className="mt-4 space-y-2">
         <legend className="text-sm font-medium">Apparence</legend>
@@ -1009,7 +1011,10 @@ function SettingsPanel({
             type="button"
             role="radio"
             aria-checked={mode === value}
-            className="flex min-h-12 w-full items-center rounded-lg border border-border px-3 text-left text-base"
+            className={cn(
+              "ride-control-row flex w-full items-center text-left text-base",
+              mode === value && "border-primary bg-primary text-primary-foreground",
+            )}
             onClick={() => onMode(value)}
           >
             {label}

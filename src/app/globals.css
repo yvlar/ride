@@ -18,6 +18,9 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-ride-glass: var(--ride-glass);
+  --color-ride-glass-strong: var(--ride-glass-strong);
+  --color-ride-glass-border: var(--ride-glass-border);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -55,24 +58,24 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.38 0.07 145);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.94 0.018 145);
+  --secondary-foreground: oklch(0.27 0.045 145);
+  --muted: oklch(0.95 0.012 145);
+  --muted-foreground: oklch(0.48 0.025 145);
+  --accent: oklch(0.91 0.035 145);
+  --accent-foreground: oklch(0.25 0.05 145);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.82 0.025 145 / 70%);
+  --input: oklch(0.78 0.03 145 / 65%);
+  --ring: oklch(0.55 0.08 145);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.875rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -86,27 +89,32 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --touch-target: 3rem;
   --nav-banner: var(--primary);
+  --ride-glass: oklch(0.27 0.035 145 / 66%);
+  --ride-glass-strong: oklch(0.22 0.03 145 / 82%);
+  --ride-glass-border: oklch(1 0 0 / 34%);
+  --ride-glass-highlight: oklch(1 0 0 / 13%);
+  --ride-shadow: 0 12px 32px oklch(0.12 0.025 145 / 24%);
 }
 
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.21 0.025 145);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --primary: oklch(0.76 0.11 145);
+  --primary-foreground: oklch(0.2 0.035 145);
+  --secondary: oklch(0.29 0.035 145);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --muted: oklch(0.28 0.025 145);
+  --muted-foreground: oklch(0.74 0.025 145);
+  --accent: oklch(0.32 0.045 145);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.7 0.1 145);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -154,6 +162,10 @@ html.night {
     @apply font-sans;
   }
 
+  body {
+    background-image: radial-gradient(circle at 50% -20%, oklch(0.88 0.045 145 / 35%), transparent 38rem);
+  }
+
   /* NFR-008 — riders who asked the OS to reduce motion get no sweeping
      transitions. The MapLibre camera honours the same query in
      navigation-follow-camera.ts. */
@@ -166,5 +178,62 @@ html.night {
       transition-duration: 0.001ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer components {
+  .ride-glass {
+    color: white;
+    border: 1px solid var(--ride-glass-border);
+    background:
+      linear-gradient(145deg, var(--ride-glass-highlight), transparent 46%),
+      var(--ride-glass);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 12%), var(--ride-shadow);
+    -webkit-backdrop-filter: blur(18px) saturate(125%);
+    backdrop-filter: blur(18px) saturate(125%);
+  }
+
+  .ride-glass-strong {
+    color: white;
+    border: 1px solid var(--ride-glass-border);
+    background:
+      linear-gradient(145deg, var(--ride-glass-highlight), transparent 46%),
+      var(--ride-glass-strong);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 12%), var(--ride-shadow);
+    -webkit-backdrop-filter: blur(22px) saturate(130%);
+    backdrop-filter: blur(22px) saturate(130%);
+  }
+
+  .ride-map-panel {
+    --foreground: oklch(0.98 0.01 145);
+    --card: oklch(0.26 0.035 145 / 78%);
+    --card-foreground: oklch(0.98 0.01 145);
+    --muted: oklch(0.42 0.035 145 / 72%);
+    --muted-foreground: oklch(0.86 0.018 145);
+    --border: oklch(1 0 0 / 25%);
+    --input: oklch(1 0 0 / 28%);
+    --primary: oklch(0.78 0.11 145);
+    --primary-foreground: oklch(0.2 0.035 145);
+    --ring: oklch(0.88 0.08 145);
+  }
+
+  .ride-control-row {
+    @apply min-h-12 rounded-2xl border border-border bg-card/82 px-3 shadow-sm backdrop-blur-md transition-[background-color,border-color,transform,box-shadow];
+  }
+
+  .ride-control-row:focus-within {
+    @apply border-ring ring-3 ring-ring/20;
+  }
+
+  .ride-icon-well {
+    @apply flex size-11 shrink-0 items-center justify-center rounded-full border border-white/25 bg-black/10 text-white shadow-inner;
+  }
+
+  .ride-page {
+    @apply bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))];
+  }
+
+  .ride-panel-actions {
+    @apply sticky bottom-0 z-20 -mx-1 mt-4 space-y-2 rounded-2xl border border-border bg-card/88 p-2 shadow-lg backdrop-blur-xl;
   }
 }

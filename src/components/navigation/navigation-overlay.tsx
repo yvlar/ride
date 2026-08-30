@@ -32,7 +32,7 @@ import {
 const TOUCH_TARGET = "min-h-12 min-w-12 size-12 rounded-full";
 
 const STATUS_TONE_CLASS: Record<NavigationStatus["tone"], string> = {
-  neutral: "bg-card text-card-foreground ring-foreground/10",
+  neutral: "ride-glass-strong text-white ring-white/15",
   info: "bg-sky-600 text-white ring-sky-900/20",
   warning: "bg-amber-500 text-black ring-amber-900/30",
   danger: "bg-destructive text-white ring-black/20",
@@ -121,12 +121,12 @@ export function NavigationOverlay({
       >
         <header
           aria-label="Prochaine manœuvre"
-          className="pointer-events-auto rounded-2xl bg-primary text-primary-foreground shadow-lg"
+          className="ride-map-panel ride-glass-strong pointer-events-auto rounded-3xl"
         >
           <div className="flex items-center gap-3 px-3 py-3">
             <p
               aria-hidden="true"
-              className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15 text-4xl leading-none"
+              className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white/12 text-4xl leading-none"
             >
               {arrow}
             </p>
@@ -195,7 +195,7 @@ export function NavigationOverlay({
         {statusLabel ? (
           <p
             role="status"
-            className="pointer-events-auto mt-2 rounded-xl bg-card px-3 py-2 text-base leading-6 text-card-foreground shadow-lg ring-1 ring-foreground/10"
+            className="ride-glass pointer-events-auto mt-2 rounded-2xl px-3 py-2 text-base leading-6 text-white"
           >
             {statusLabel}
           </p>
@@ -261,7 +261,7 @@ export function NavigationOverlay({
 
         <footer
           aria-label="Progression du trajet"
-          className="pointer-events-auto w-full space-y-2 rounded-2xl bg-card px-3 py-3 text-card-foreground shadow-lg ring-1 ring-foreground/10"
+          className="ride-map-panel ride-glass-strong pointer-events-auto w-full space-y-2 rounded-3xl px-3 py-3"
         >
           {destinationLabel ? (
             <p className="truncate text-sm leading-5 text-muted-foreground">
@@ -334,7 +334,7 @@ export function NavigationOverlay({
             <div
               role="alertdialog"
               aria-label={STOP_NAVIGATION_LABEL}
-              className="space-y-2 rounded-xl bg-muted/60 p-2"
+              className="space-y-2 rounded-2xl bg-black/15 p-2"
             >
               <p className="text-base font-medium">{STOP_NAVIGATION_CONFIRM}</p>
               <div className="grid grid-cols-2 gap-2">

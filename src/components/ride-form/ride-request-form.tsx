@@ -529,10 +529,10 @@ export function RideRequestForm({
                   role="radio"
                   aria-checked={type === option.value}
                   className={cn(
-                    "flex min-h-12 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors",
+                    "flex min-h-12 flex-col items-start justify-center rounded-2xl border px-3 py-2 text-left shadow-sm transition-colors",
                     type === option.value
                       ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background hover:bg-muted",
+                      : "border-border bg-card/72 hover:bg-muted",
                   )}
                   onClick={() => {
                     setType(option.value);
@@ -693,10 +693,10 @@ export function RideRequestForm({
                   role="radio"
                   aria-checked={style === option.style}
                   className={cn(
-                    "flex min-h-12 items-center justify-center rounded-lg border px-2 text-sm font-medium transition-colors sm:text-base",
+                    "flex min-h-12 items-center justify-center rounded-2xl border px-2 text-sm font-medium shadow-sm transition-colors sm:text-base",
                     style === option.style
                       ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background hover:bg-muted",
+                      : "border-border bg-card/72 hover:bg-muted",
                   )}
                   onClick={() => {
                     setStyle(option.style);
@@ -716,7 +716,7 @@ export function RideRequestForm({
                     disabled
                     aria-disabled="true"
                     title={option.unsupportedReason}
-                    className="flex min-h-12 flex-col items-start justify-center rounded-lg border border-dashed border-border px-3 py-2 text-left text-sm text-muted-foreground"
+                    className="flex min-h-12 flex-col items-start justify-center rounded-2xl border border-dashed border-border bg-card/45 px-3 py-2 text-left text-sm text-muted-foreground"
                   >
                     <span className="font-medium">{option.label}</span>
                     <span>{option.unsupportedReason}</span>
@@ -727,7 +727,7 @@ export function RideRequestForm({
           </fieldset>
 
           <div className="space-y-2">
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+            <div className="ride-control-row flex items-center justify-between gap-3">
               <Label htmlFor="avoid-highways" className="text-base">
                 Éviter les autoroutes
               </Label>
@@ -740,7 +740,7 @@ export function RideRequestForm({
                 }}
               />
             </div>
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+            <div className="ride-control-row flex items-center justify-between gap-3">
               <Label htmlFor="avoid-unpaved" className="text-base">
                 Éviter les routes non pavées
               </Label>
@@ -756,7 +756,7 @@ export function RideRequestForm({
             <p className="text-sm text-muted-foreground">
               Route asphaltée seulement lorsque c’est activé.
             </p>
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+            <div className="ride-control-row flex items-center justify-between gap-3">
               <Label htmlFor="allow-unpaved" className="text-base">
                 Chemins non asphaltés autorisés
               </Label>
@@ -773,7 +773,7 @@ export function RideRequestForm({
               (item) => (
                 <div
                   key={item.key}
-                  className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-card/45 px-3 py-2"
                 >
                   <div className="min-w-0">
                     <p className="text-base text-muted-foreground">{item.label}</p>
@@ -789,7 +789,7 @@ export function RideRequestForm({
                 </div>
               ),
             )}
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+            <div className="ride-control-row flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <Label htmlFor="stay-in-canada" className="text-base">
                   Canada seulement
@@ -808,7 +808,7 @@ export function RideRequestForm({
                 }}
               />
             </div>
-            <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+            <div className="ride-control-row flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <Label htmlFor="use-knowledge-routing" className="text-base">
                   Corridors RAG
@@ -866,7 +866,7 @@ export function RideRequestForm({
           {generatedRoute ? (
             <section
               aria-label="Trajet généré"
-              className="space-y-3 rounded-lg border border-border px-3 py-3"
+              className="space-y-3 rounded-2xl border border-border bg-card/72 px-3 py-3 shadow-sm"
             >
               <h2 className="text-base font-medium">Avant le départ</h2>
               {!hideMap ? (
@@ -969,7 +969,7 @@ export function RideRequestForm({
                   {startWarning}
                 </p>
               ) : null}
-              <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border px-3">
+              <div className="ride-control-row flex items-center justify-between gap-3">
                 <Label htmlFor="voice-guidance" className="text-base">
                   Guidage vocal
                 </Label>

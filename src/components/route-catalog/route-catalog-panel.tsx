@@ -200,7 +200,7 @@ export function RouteCatalogPanel({
       ) : null}
 
       {error ? (
-        <div role="alert" className="mt-4 rounded-lg border border-destructive/40 p-3">
+        <div role="alert" className="mt-4 rounded-2xl border border-destructive/40 bg-card/70 p-3">
           <p className="text-sm">{error}</p>
           {!page ? (
             <Button type="button" variant="outline" className="mt-2 min-h-12" onClick={reload}>
@@ -219,7 +219,7 @@ export function RouteCatalogPanel({
       {page && page.routes.length > 0 ? (
         <ul className="mt-4 space-y-3" aria-label="Trajets du catalogue">
           {page.routes.map((route) => (
-            <li key={route.slug} className="rounded-xl border border-border p-3">
+            <li key={route.slug} className="rounded-2xl border border-border bg-card/72 p-3 shadow-sm">
               <p className="font-medium">{route.name}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {route.location.country.name} · {route.location.subdivision.name} ·{" "}
@@ -294,7 +294,7 @@ function CatalogSelect({
     <label className="grid gap-1 text-sm font-medium">
       {label}
       <select
-        className="min-h-12 rounded-lg border border-input bg-background px-3 text-base"
+        className="min-h-12 rounded-2xl border border-input bg-card/72 px-3 text-base shadow-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/25"
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
