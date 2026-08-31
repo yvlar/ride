@@ -919,9 +919,9 @@ describe("RideRequestForm (FR-014)", () => {
     expect(screen.getByText(/GPS : position définie/)).toBeInTheDocument();
   });
 
-  it("shows unsupported styles and preferences as disabled (FR-019)", () => {
+  it("enables Rapide and keeps unsupported options disabled (FR-019)", () => {
     renderForm();
-    expect(screen.getByRole("button", { name: /Rapide/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Rapide" })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Aventure/ })).toBeDisabled();
     expect(screen.getByLabelText("Éviter les péages")).toBeDisabled();
     expect(screen.getByLabelText("Éviter les traversiers")).toBeDisabled();

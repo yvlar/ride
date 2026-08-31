@@ -232,6 +232,10 @@ export function styleRankScore(
   evaluation: EvaluatedDestinationCandidate,
 ): number {
   switch (style) {
+    case "fastest":
+      // A higher score wins. Negating duration therefore selects the
+      // shortest travel time while normal viability constraints remain.
+      return -evaluation.candidate.durationMinutes;
     case "curvy":
       return curvyRankScore(
         evaluation.candidate.geometry,

@@ -795,11 +795,11 @@ describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
     expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: /Le plus rapide/ }));
     fireEvent.click(screen.getByLabelText("Canada seulement"));
-    fireEvent.click(screen.getByLabelText("Éviter les autoroutes"));
     expect(screen.getByLabelText("Canada seulement")).toBeChecked();
     expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
 
@@ -808,6 +808,9 @@ describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
     expect(screen.getByLabelText("Canada seulement")).toBeChecked();
     expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: /Le plus rapide/ }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
     fireEvent.click(screen.getByRole("button", { name: "Décrire mon trajet" }));
@@ -818,6 +821,7 @@ describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
     await waitFor(() => {
       expect(generateRide).toHaveBeenCalledWith(
         expect.objectContaining({
+          style: "fastest",
           preferences: {
             avoidHighways: false,
             avoidUnpaved: true,

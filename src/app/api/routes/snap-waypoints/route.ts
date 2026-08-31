@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
   const payload = body as {
     waypoints: { latitude: number; longitude: number }[];
-    style?: "curvy" | "scenic" | "touring";
+    style?: "curvy" | "scenic" | "touring" | "fastest";
     preferences?: {
       avoidHighways: boolean;
       avoidUnpaved: boolean;

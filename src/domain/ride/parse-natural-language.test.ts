@@ -20,14 +20,14 @@ describe("parseNaturalLanguageRide (FR-034)", () => {
     expect(draft.unsupported).toEqual([]);
   });
 
-  it("keeps unsupported styles as warnings instead of new domain values", () => {
+  it("recognizes fastest while keeping adventure as an unsupported warning", () => {
     const draft = parseNaturalLanguageRide(
       "Une aventure rapide vers Magog, sans péage.",
     );
     expect(draft.type).toBe("destination");
     expect(draft.destinationQuery).toBe("Magog");
     expect(draft.unsupported.length).toBeGreaterThan(0);
-    expect(draft.style).toBe("scenic");
+    expect(draft.style).toBe("fastest");
   });
 
   it("extracts a start place before a trailing period (FR-034)", () => {

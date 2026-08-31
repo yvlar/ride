@@ -9,7 +9,9 @@ import { DESCRIBE_DISTANCE_STORAGE_KEY } from "@/domain/ride/describe-distance";
 import { DESCRIBE_LOOP_STORAGE_KEY } from "@/domain/ride/describe-loop";
 import {
   ROUTE_PREFERENCES_STORAGE_KEY,
+  ROUTE_STYLE_STORAGE_KEY,
   writeStoredRoutePreferences,
+  writeStoredRouteStyle,
 } from "@/domain/ride/stored-route-preferences";
 import type { Place } from "@/domain/geo/types";
 import type {
@@ -93,7 +95,8 @@ const located = {
 function renderPanel(overrides: Partial<DescribeRidePanelProps> = {}) {
   window.localStorage.removeItem(DESCRIBE_DISTANCE_STORAGE_KEY);
   window.localStorage.removeItem(DESCRIBE_LOOP_STORAGE_KEY);
-  window.localStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
+  window.sessionStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
+  window.sessionStorage.removeItem(ROUTE_STYLE_STORAGE_KEY);
   return render(
     <DescribeRidePanel
       requestPosition={async () => located}
@@ -192,7 +195,7 @@ describe("DescribeRidePanel (FR-034)", () => {
         type: "loop",
         targetDistanceKm: 180,
         preferences: {
-          avoidHighways: true,
+          avoidHighways: false,
           avoidUnpaved: true,
           stayInCanada: false,
         },
@@ -206,23 +209,25 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(screen.getByText(/98\.2 km/)).toBeInTheDocument();
   });
 
-  it("applies route preferences stored in Réglages at generation (FR-007, FR-008, FR-030, FR-031)", async () => {
+  it("applies route preferences and style stored in Réglages at generation", async () => {
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
       route: loop,
     }));
     renderPanel({ generateRide });
     await screen.findByText("Position détectée");
-    writeStoredRoutePreferences(window.localStorage, {
+    writeStoredRoutePreferences(window.sessionStorage, {
       avoidHighways: false,
       avoidUnpaved: false,
       stayInCanada: true,
     });
+    writeStoredRouteStyle(window.sessionStorage, "fastest");
     fireEvent.click(screen.getByRole("button", { name: "Générer mon trajet" }));
 
     await waitFor(() => {
       expect(generateRide).toHaveBeenCalledWith(
         expect.objectContaining({
+          style: "fastest",
           preferences: {
             avoidHighways: false,
             avoidUnpaved: false,

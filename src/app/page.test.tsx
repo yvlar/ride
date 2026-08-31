@@ -73,9 +73,16 @@ describe("Home explorer (FR-014, FR-031)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
     expect(screen.getByRole("heading", { name: "Réglages" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
     expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: /Panoramique/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByRole("button", { name: /Le plus rapide/ }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 
   it("keeps primary actions above 48px on a phone viewport (NFR-001)", () => {

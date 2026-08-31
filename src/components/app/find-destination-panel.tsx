@@ -37,7 +37,10 @@ import type { Coordinates, Place } from "@/domain/geo/types";
 import type { LocatedPosition } from "@/domain/location/types";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import { principalRoadNames, routeShareSummary } from "@/domain/ride/route-share";
-import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
+import {
+  readStoredRoutePreferences,
+  readStoredRouteStyle,
+} from "@/domain/ride/stored-route-preferences";
 import { generatedRouteTypeLabel, RIDE_STYLE_LABELS } from "@/domain/ride/summarize-request";
 import type {
   GenerateRideRequest,
@@ -300,11 +303,15 @@ export function FindDestinationPanel({
         return;
       }
       const preferences = readStoredRoutePreferences(
-        typeof window === "undefined" ? null : window.localStorage,
+        typeof window === "undefined" ? null : window.sessionStorage,
+      );
+      const style = readStoredRouteStyle(
+        typeof window === "undefined" ? null : window.sessionStorage,
       );
       const composed = composeDestinationRide({
         start,
         destination,
+        style,
         preferences,
       });
       if (!composed.ok) {

@@ -10,8 +10,8 @@ export type RideStyleOption = {
 };
 
 /**
- * FR-019 — three domain styles. Extra chips stay visible but disabled so the
- * UI never pretends the generator can honour “rapide” or “aventure”.
+ * FR-019 — supported domain styles. Adventure stays visible but disabled so
+ * the UI never pretends the generator can honour it.
  */
 export const RIDE_STYLE_OPTIONS: RideStyleOption[] = [
   {
@@ -38,10 +38,9 @@ export const RIDE_STYLE_OPTIONS: RideStyleOption[] = [
   {
     id: "fastest",
     label: "Rapide",
-    description: "Le plus court chemin",
-    supported: false,
-    unsupportedReason:
-      "Ride ne calcule pas le trajet le plus rapide. Choisissez Équilibré.",
+    description: "Le temps de parcours le plus court",
+    style: "fastest",
+    supported: true,
   },
   {
     id: "adventure",
@@ -57,4 +56,5 @@ export const RIDE_STYLE_LABELS: Record<RideStyle, string> = {
   curvy: "Routes sinueuses",
   scenic: "Panoramique",
   touring: "Équilibré",
+  fastest: "Le plus rapide",
 };

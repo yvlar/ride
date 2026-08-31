@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { RoutePreferenceSettings } from "./route-preference-settings";
+import {
+  RoutePreferenceSettings,
+  RouteStyleSettings,
+} from "./route-preference-settings";
 import { DEFAULT_ROUTE_PREFERENCES } from "@/domain/ride/stored-route-preferences";
 
 describe("RoutePreferenceSettings (FR-007, FR-008, FR-030, FR-031)", () => {
@@ -11,7 +14,7 @@ describe("RoutePreferenceSettings (FR-007, FR-008, FR-030, FR-031)", () => {
         onChange={() => {}}
       />,
     );
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
     expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
   });
@@ -29,5 +32,17 @@ describe("RoutePreferenceSettings (FR-007, FR-008, FR-030, FR-031)", () => {
       ...DEFAULT_ROUTE_PREFERENCES,
       stayInCanada: true,
     });
+  });
+
+  it("offers panoramic and fastest route styles", () => {
+    const onChange = vi.fn();
+    render(<RouteStyleSettings value="scenic" onChange={onChange} />);
+
+    expect(screen.getByRole("button", { name: /Panoramique/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Le plus rapide/ }));
+    expect(onChange).toHaveBeenCalledWith("fastest");
   });
 });

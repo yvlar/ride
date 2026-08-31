@@ -51,6 +51,7 @@ function stubLoopEvaluation(input: {
   curvyScore?: number;
   scenicScore?: number;
   touringScore?: number;
+  durationMinutes?: number;
   roadClass: string;
   landscapeFeatures?: RouteSegment["landscapeFeatures"];
   surface?: RouteSegment["surface"];
@@ -72,6 +73,7 @@ function stubLoopEvaluation(input: {
   return {
     candidate: {
       ...candidateFromGeometry(geometry, 80),
+      durationMinutes: input.durationMinutes ?? 80,
       segments: [
         {
           id: `stub-${input.roadClass}`,
@@ -95,6 +97,32 @@ function stubLoopEvaluation(input: {
     warnings: [],
   };
 }
+
+describe("selectBestLoopCandidate fastest style", () => {
+  it("keeps loop constraints and selects the shortest travel time", () => {
+    const slower = stubLoopEvaluation({
+      repeatedRoadPercent: 5,
+      roadClass: "secondary",
+      durationMinutes: 95,
+    });
+    const faster = stubLoopEvaluation({
+      repeatedRoadPercent: 5,
+      roadClass: "motorway",
+      durationMinutes: 60,
+    });
+
+    const selection = selectBestLoopCandidate(
+      [slower, faster],
+      80,
+      "fastest",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status === "selected") {
+      expect(selection.evaluation.candidate.durationMinutes).toBe(60);
+    }
+  });
+});
 
 describe("createLoopWaypointSets (FR-001)", () => {
   it("seeds several asymmetric waypoint rings around the start", () => {

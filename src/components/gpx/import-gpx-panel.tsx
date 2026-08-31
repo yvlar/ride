@@ -96,7 +96,7 @@ export function ImportGpxPanel({
     abortRef.current = controller;
 
     const preferences = readStoredRoutePreferences(
-      typeof window === "undefined" ? null : window.localStorage,
+      typeof window === "undefined" ? null : window.sessionStorage,
     );
 
     if (!tripNeedsRoutingSnap(trip)) {

@@ -387,5 +387,8 @@ function loopStyleScore(
   if (style === "touring") {
     return evaluation.touringScore;
   }
+  if (style === "fastest") {
+    return -evaluation.candidate.durationMinutes;
+  }
   return null;
 }

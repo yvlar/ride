@@ -35,7 +35,7 @@ const SYSTEM_PROMPT =
   "You rank motorcycle road corridor kinds. Return JSON " +
   '{"ranked":[{"key":"<kind key>","score":<number from 0 to 1>}]}. ' +
   "Use only the provided keys. Prefer kinds matching the query " +
-  "(scenic, curvy, touring, paved). Do not invent coordinates, roads, or keys.";
+  "(scenic, curvy, touring, fastest, paved). Do not invent coordinates, roads, or keys.";
 
 export function corridorKindKey(document: RouteKnowledgeDocument): string {
   return `${document.roadName}|${document.roadClass}|${document.surface}`;

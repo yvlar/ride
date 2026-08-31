@@ -3,7 +3,7 @@ import type { GeneratedGpxRoute, GpxRideRequest } from "@/domain/gpx/types";
 import type { NavigationStep } from "@/domain/navigation/types";
 
 export type RideType = "loop" | "destination" | "round_trip";
-export type RideStyle = "curvy" | "scenic" | "touring";
+export type RideStyle = "curvy" | "scenic" | "touring" | "fastest";
 
 /**
  * Provider-agnostic landscape hints. Adapters copy known tags; the domain

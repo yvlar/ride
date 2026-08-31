@@ -66,6 +66,7 @@ export const AVERAGE_SPEED_KMH = {
   curvy: 50,
   scenic: 65,
   touring: 80,
+  fastest: 90,
 } as const;
 
 /** Spatial cell size for matching the same roadway in either direction. */

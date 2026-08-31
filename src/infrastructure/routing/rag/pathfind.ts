@@ -114,6 +114,8 @@ function edgePenalty(
       penalty *= 12;
     } else if (style === "curvy" || style === "scenic") {
       penalty *= 8;
+    } else if (style === "fastest") {
+      penalty *= 0.82;
     } else {
       penalty *= 1.05;
     }
@@ -129,6 +131,12 @@ function edgePenalty(
   }
   if (style === "touring" && document.text.includes("touring")) {
     penalty *= 0.7;
+  }
+  if (
+    style === "fastest" &&
+    /\b(?:rapide|direct|highway|motorway)\b/.test(document.text)
+  ) {
+    penalty *= 0.75;
   }
   return penalty / (1 + 0.15 * score);
 }
