@@ -31,6 +31,7 @@ import {
   canStartDestinationNavigation,
   createDestinationSearchState,
   reduceDestinationSearch,
+  showsGenerateDestinationAction,
 } from "@/domain/destination-search/flow";
 import type { MapEngine } from "@/components/map/map-engine";
 import type { Coordinates, Place } from "@/domain/geo/types";
@@ -140,6 +141,9 @@ export function FindDestinationPanel({
   const preview = state.route;
   const canGenerate = canGenerateDestinationSearch(state);
   const canStart = canStartDestinationNavigation(state);
+  // The generate action stays out of the way until the rider has said where
+  // they are going: an empty pane offers the search field, nothing else.
+  const showGenerate = showsGenerateDestinationAction(state);
   const showDestinationCard =
     state.stage === "selected" && state.destination !== null;
   // Changing the destination mid-generation is allowed: it aborts the in-flight
@@ -680,7 +684,7 @@ export function FindDestinationPanel({
               </Button>
             </div>
           </>
-        ) : (
+        ) : showGenerate ? (
           <Button
             key="find-destination-generate"
             type="button"
@@ -694,7 +698,7 @@ export function FindDestinationPanel({
               ? "Génération du trajet…"
               : "Générer le trajet"}
           </Button>
-        )}
+        ) : null}
         <Button
           type="button"
           variant="ghost"

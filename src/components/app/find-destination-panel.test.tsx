@@ -131,16 +131,42 @@ describe("FindDestinationPanel (FR-038)", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Canada seulement")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Générer le trajet" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Générer le trajet" }),
+    ).not.toBeInTheDocument();
+    // Backing out of the pane never depends on choosing a destination first.
+    expect(screen.getByRole("button", { name: "Retour" })).toBeEnabled();
   });
 
-  it("keeps generate disabled without a valid destination or GPS (FR-038)", async () => {
+  it("reveals generate only once a destination is chosen (FR-038)", async () => {
+    renderPanel();
+    await screen.findByText(/Position détectée/);
+    expect(
+      screen.queryByRole("button", { name: "Générer le trajet" }),
+    ).not.toBeInTheDocument();
+
+    // Typing alone is not a choice: the button appears with the selection.
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+      { target: { value: "Mont" } },
+    );
+    expect(
+      screen.queryByRole("button", { name: "Générer le trajet" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Mont-Tremblant" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Générer le trajet" }),
+    ).toBeEnabled();
+  });
+
+  it("hides generate without a destination and disables it without GPS (FR-038)", async () => {
     const { unmount } = renderPanel();
     await screen.findByText(/Position détectée/);
     expect(
-      screen.getByRole("button", { name: "Générer le trajet" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Générer le trajet" }),
+    ).not.toBeInTheDocument();
     unmount();
 
     renderPanel({
@@ -651,8 +677,8 @@ describe("FindDestinationPanel (FR-038)", () => {
 
     // The stale coordinates must never be reused silently.
     expect(
-      screen.getByRole("button", { name: "Générer le trajet" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Générer le trajet" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("selected-destination"),
     ).not.toBeInTheDocument();
@@ -732,7 +758,7 @@ describe("FindDestinationPanel (FR-038)", () => {
     ).toBeEnabled();
   });
 
-  it("clears the destination and disables generation (FR-038)", async () => {
+  it("clears the destination and hides generation (FR-038)", async () => {
     renderPanel();
     await screen.findByText(/Position détectée/);
     await selectTremblant();
@@ -748,7 +774,7 @@ describe("FindDestinationPanel (FR-038)", () => {
       screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
     ).toHaveValue("");
     expect(
-      screen.getByRole("button", { name: "Générer le trajet" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Générer le trajet" }),
+    ).not.toBeInTheDocument();
   });
 });
