@@ -7,13 +7,21 @@ import {
 } from "./stored-route-preferences";
 
 describe("stored route preferences (FR-007, FR-008, FR-030, FR-031)", () => {
-  it("defaults to avoiding highways and unpaved roads", () => {
+  it("defaults to avoiding unpaved roads, and leaves highway avoidance opt-in", () => {
     expect(readStoredRoutePreferences(null)).toEqual(DEFAULT_ROUTE_PREFERENCES);
     expect(readStoredRoutePreferences({ getItem: () => null })).toEqual({
-      avoidHighways: true,
+      avoidHighways: false,
       avoidUnpaved: true,
       stayInCanada: false,
     });
+  });
+
+  it("keeps highway avoidance on once the rider turns it on", () => {
+    expect(
+      readStoredRoutePreferences({
+        getItem: () => JSON.stringify({ avoidHighways: true }),
+      }).avoidHighways,
+    ).toBe(true);
   });
 
   it("persists the last chosen settings", () => {

@@ -795,18 +795,19 @@ describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    // FR-007 stays opt-in: it is off until the rider turns it on here.
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
     expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
     fireEvent.click(screen.getByLabelText("Canada seulement"));
     fireEvent.click(screen.getByLabelText("Éviter les autoroutes"));
     expect(screen.getByLabelText("Canada seulement")).toBeChecked();
-    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
     fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
     expect(screen.getByLabelText("Canada seulement")).toBeChecked();
-    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
+    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
@@ -819,7 +820,7 @@ describe("RideApp route preferences (FR-031, FR-007, FR-008, FR-030)", () => {
       expect(generateRide).toHaveBeenCalledWith(
         expect.objectContaining({
           preferences: {
-            avoidHighways: false,
+            avoidHighways: true,
             avoidUnpaved: true,
             stayInCanada: true,
           },

@@ -2,8 +2,15 @@ import type { RoutePreferences } from "@/domain/ride/types";
 
 export const ROUTE_PREFERENCES_STORAGE_KEY = "ride.settings.routePreferences";
 
+/**
+ * FR-007 is an opt-in : le motard « peut demander » que les autoroutes soient
+ * évitées, et le flux principal l’active « au besoin » (FR-016, étape 7). Le
+ * défaut reste donc à `false`, sinon les volets qui lisent ces préférences
+ * sans afficher les interrupteurs (FR-034, FR-038, FR-039) évitent les
+ * autoroutes sans que personne ne l’ait demandé.
+ */
 export const DEFAULT_ROUTE_PREFERENCES: RoutePreferences = {
-  avoidHighways: true,
+  avoidHighways: false,
   avoidUnpaved: true,
   stayInCanada: false,
 };

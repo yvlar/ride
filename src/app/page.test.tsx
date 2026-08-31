@@ -73,7 +73,8 @@ describe("Home explorer (FR-014, FR-031)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
     expect(screen.getByRole("heading", { name: "Réglages" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Éviter les autoroutes")).toBeChecked();
+    // FR-007 is opt-in: nothing avoids highways until the rider asks for it.
+    expect(screen.getByLabelText("Éviter les autoroutes")).not.toBeChecked();
     expect(screen.getByLabelText("Éviter les routes non pavées")).toBeChecked();
     expect(screen.getByLabelText("Canada seulement")).not.toBeChecked();
   });

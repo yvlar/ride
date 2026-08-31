@@ -192,7 +192,7 @@ describe("DescribeRidePanel (FR-034)", () => {
         type: "loop",
         targetDistanceKm: 180,
         preferences: {
-          avoidHighways: true,
+          avoidHighways: false,
           avoidUnpaved: true,
           stayInCanada: false,
         },
