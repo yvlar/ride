@@ -7,6 +7,7 @@ import {
   createDestinationSearchState,
   emptyDestinationSearchState,
   reduceDestinationSearch,
+  showsGenerateDestinationAction,
   type DestinationSearchState,
 } from "./flow";
 
@@ -85,6 +86,29 @@ describe("destination search flow (FR-038)", () => {
     const ready = withDestination(withGps);
     expect(ready.phase).toBe("destinationReady");
     expect(canGenerateDestinationSearch(ready)).toBe(true);
+  });
+
+  it("shows the generate action only once a destination is chosen (FR-038)", () => {
+    const withGps = located(emptyDestinationSearchState());
+    expect(showsGenerateDestinationAction(withGps)).toBe(false);
+
+    const ready = withDestination(withGps);
+    expect(showsGenerateDestinationAction(ready)).toBe(true);
+
+    // A missing GPS fix disables the action, it never removes it.
+    const withoutGps = withDestination(emptyDestinationSearchState());
+    expect(canGenerateDestinationSearch(withoutGps)).toBe(false);
+    expect(showsGenerateDestinationAction(withoutGps)).toBe(true);
+
+    // Editing the text drops the coordinates, so the action goes away with them.
+    const retyped = reduceDestinationSearch(ready, {
+      type: "change_destination_query",
+      query: "Mont-Trembl",
+    });
+    expect(showsGenerateDestinationAction(retyped)).toBe(false);
+
+    const cleared = reduceDestinationSearch(ready, { type: "clear_destination" });
+    expect(showsGenerateDestinationAction(cleared)).toBe(false);
   });
 
   it("uses the current GPS place as origin once locating succeeds", () => {

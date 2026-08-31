@@ -137,6 +137,17 @@ export function canGenerateDestinationSearch(
   return true;
 }
 
+/**
+ * FR-038 — the generate action only exists once a destination is chosen.
+ * Deliberately separate from `canGenerateDestinationSearch`: a missing GPS fix
+ * or an in-flight generation disables the button, it never removes it.
+ */
+export function showsGenerateDestinationAction(
+  state: DestinationSearchState,
+): boolean {
+  return isUsableDestination(state.destination);
+}
+
 export function canStartDestinationNavigation(
   state: DestinationSearchState,
 ): boolean {
