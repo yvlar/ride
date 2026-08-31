@@ -37,7 +37,10 @@ import {
   readStoredDescribeLoop,
   writeStoredDescribeLoop,
 } from "@/domain/ride/describe-loop";
-import { readStoredRoutePreferences } from "@/domain/ride/stored-route-preferences";
+import {
+  readStoredRoutePreferences,
+  readStoredRouteStyle,
+} from "@/domain/ride/stored-route-preferences";
 import { previousRideSignature } from "@/domain/ride/route-signature";
 import {
   principalRoadNames,
@@ -234,11 +237,15 @@ export function DescribeRidePanel({
         return;
       }
       const preferences = readStoredRoutePreferences(
-        typeof window === "undefined" ? null : window.localStorage,
+        typeof window === "undefined" ? null : window.sessionStorage,
+      );
+      const style = readStoredRouteStyle(
+        typeof window === "undefined" ? null : window.sessionStorage,
       );
       const composed = composeDescribedRide({
         start: located.start,
         targetDistanceKm: distanceKm,
+        style,
         preferences,
       });
       if (!composed.ok) {
@@ -310,11 +317,15 @@ export function DescribeRidePanel({
         return;
       }
       const preferences = readStoredRoutePreferences(
-        typeof window === "undefined" ? null : window.localStorage,
+        typeof window === "undefined" ? null : window.sessionStorage,
+      );
+      const style = readStoredRouteStyle(
+        typeof window === "undefined" ? null : window.sessionStorage,
       );
       const composed = composeDescribedRegenerateRequest({
         start: located.start,
         targetDistanceKm: distanceKm,
+        style,
         preferences,
         previousRoute: activeRoute,
       });

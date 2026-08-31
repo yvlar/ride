@@ -49,7 +49,12 @@ const placeSchema = z.object({
   bounds: boundingBoxSchema.optional(),
 });
 
-export const rideStyleSchema = z.enum(["curvy", "scenic", "touring"]);
+export const rideStyleSchema = z.enum([
+  "curvy",
+  "scenic",
+  "touring",
+  "fastest",
+]);
 
 const routePreferencesSchema = z.object({
   avoidHighways: z.boolean(),

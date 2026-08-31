@@ -68,7 +68,7 @@ function upload(xml: string, name = "sortie.gpx", type = "application/gpx+xml") 
 
 describe("ImportGpxPanel (FR-039)", () => {
   beforeEach(() => {
-    window.localStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
+    window.sessionStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
   });
 
   it("uses an iPhone-compatible hidden file input", () => {
@@ -348,7 +348,7 @@ describe("ImportGpxPanel (FR-039)", () => {
   });
 
   it("forwards Réglages preferences into the GPX request and <rte> snap (FR-007, FR-008, FR-030, FR-039)", async () => {
-    writeStoredRoutePreferences(window.localStorage, {
+    writeStoredRoutePreferences(window.sessionStorage, {
       avoidHighways: false,
       avoidUnpaved: false,
       stayInCanada: true,

@@ -88,7 +88,7 @@ export type GpxRideRequest = {
   start: Place;
   destination: Place;
   name: string;
-  style?: "curvy" | "scenic" | "touring";
+  style?: RideStyle;
   preferences?: {
     avoidHighways: boolean;
     avoidUnpaved: boolean;

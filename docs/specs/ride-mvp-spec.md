@@ -147,6 +147,7 @@ La conversion d’une durée disponible en distance cible doit tenir compte du s
 - **Curvy** : vitesse moyenne plus basse, plus de virages;
 - **Scenic** : vitesse moyenne modérée, routes rurales;
 - **Touring** : vitesse moyenne plus élevée, routes plus fluides.
+- **Fastest** : vitesse moyenne la plus élevée, trajet classé par temps estimé.
 
 Cette conversion appartient au domaine. Elle ne doit pas être déléguée implicitement à un fournisseur de routage. Les constantes de vitesse utilisées pour l’estimation doivent rester ajustables sans changer d’adaptateur externe.
 
@@ -154,7 +155,7 @@ Cette conversion appartient au domaine. Elle ne doit pas être déléguée impli
 
 ## 6. Styles de trajet
 
-Le MVP prend en charge exactement trois styles. L’utilisateur en choisit un avant la génération (`FR-019`).
+Le MVP prend en charge quatre styles. L’utilisateur en choisit un avant la génération (`FR-019`).
 
 ### FR-004 — Curvy
 
@@ -192,13 +193,17 @@ Prioriser :
 
 Le touring n’est pas un mode « le plus rapide ». Il reste un trajet moto agréable, plus stable et moins technique que Curvy.
 
+### Style Fastest
+
+Prioriser le candidat viable dont le temps de parcours estimé est le plus court. Les autoroutes sont permises lorsque **Éviter les autoroutes** est désactivé. Lorsque cette préférence est activée, le moteur choisit d’abord une alternative raisonnable sans autoroute, puis minimise le temps dans ce vivier.
+
 ### FR-019 — Choix du style de trajet
 
-L’écran principal doit permettre de choisir un et un seul style parmi Curvy, Scenic et Touring avant la génération. Le style sélectionné oriente le classement et la construction du trajet.
+L’écran principal doit permettre de choisir un et un seul style parmi Curvy, Scenic, Touring et Fastest avant la génération. **Réglages** expose également un choix simplifié **Panoramique** ou **Le plus rapide** pour les flux rapides de la carte. Le style sélectionné oriente le classement et la construction du trajet.
 
 ### BR-003 — Priorité du style sur la route la plus rapide
 
-Sauf demande explicite contraire, le générateur ne doit pas réduire le problème à un plus court chemin temporel. Le style demandé (`FR-004`, `FR-005` ou `FR-006`) guide la sélection des corridors, y compris si le résultat n’est pas le plus rapide.
+Sauf demande explicite du style **Fastest**, le générateur ne doit pas réduire le problème à un plus court chemin temporel. Le style demandé (`FR-004`, `FR-005` ou `FR-006`) guide la sélection des corridors, y compris si le résultat n’est pas le plus rapide. Avec **Fastest**, les contraintes de viabilité et les préférences explicites restent prioritaires, puis le temps estimé départage les candidats.
 
 ---
 
@@ -733,7 +738,7 @@ sollicitée qu’à l’ouverture d’un flux, automatiquement pour **Trouver un
 
 **Rechercher une destination** ouvre le volet **Trouver une destination** (`FR-038`) : position actuelle automatique, champ unique de destination, génération et prévisualisation, puis navigation. Ce n’est pas le formulaire de composition (`FR-014`).
 
-**Réglages** contient l’apparence (`FR-037`) et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Ces trois options sont conservées sur l’appareil. Les flux **Décrire mon trajet** (`FR-034`), **Trouver une destination** (`FR-038`) et **Importer un fichier GPX** (`FR-039`, raccordement, retour hors trajet, et accroche `<rte>`) les lisent à la génération et ne les affichent pas dans leur panneau. La géométrie d’une trace `<trk>` reste autoritaire (`BR-010`) : les préférences ne la remplacent pas.
+**Réglages** contient l’apparence (`FR-037`), le style **Panoramique** ou **Le plus rapide**, et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Le style et ces trois options sont conservés uniquement pendant la session du navigateur; une nouvelle session revient à **Panoramique** avec **Éviter les autoroutes** désactivé. Les flux **Décrire mon trajet** (`FR-034`), **Trouver une destination** (`FR-038`) et **Importer un fichier GPX** (`FR-039`, raccordement, retour hors trajet, et accroche `<rte>`) les lisent à la génération et ne les affichent pas dans leur panneau. La géométrie d’une trace `<trk>` reste autoritaire (`BR-010`) : les préférences ne la remplacent pas.
 
 **Importer un fichier GPX** ouvre le flux `FR-039` dans la même vue carte, sans perturber **Trouver une destination**.
 
@@ -862,7 +867,7 @@ Ce flux ne propose **pas** :
 
 - de champ d’adresse d’origine, ni de saisie manuelle du départ;
 - de sélecteur de distance ou de durée (`FR-009`, `FR-010`);
-- des interrupteurs de préférences de route ni du style de trajet : ces options se règlent dans **Réglages** (`FR-031`) lorsqu’elles y existent, et sont lues à la génération. Le style de domaine utilisé est le défaut **scenic** (`FR-005`), comme `FR-034`, tant que Réglages ne stocke pas de style;
+- des interrupteurs de préférences de route ni du style de trajet : ces options se règlent dans **Réglages** (`FR-031`) et sont lues à la génération. **Panoramique** utilise le classement `scenic` (`FR-005`); **Le plus rapide** minimise le temps estimé parmi les candidats viables. Sans choix de session, le défaut reste **Panoramique**;
 - de duplication des options déjà disponibles dans Réglages (`avoidHighways`, `avoidUnpaved`, `stayInCanada`).
 
 #### Position de départ automatique

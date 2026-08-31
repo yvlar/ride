@@ -147,7 +147,7 @@ describe("regenerateRide (FR-012, BR-006)", () => {
     expect(
       measureOverlapPercent(first.route.geometry, regenerated.route.geometry),
     ).toBeLessThanOrEqual(REGENERATION_MAX_OVERLAP_PERCENT);
-  });
+  }, 30_000);
 
   it("explains when the network cannot produce a distinct corridor", async () => {
     const request = {

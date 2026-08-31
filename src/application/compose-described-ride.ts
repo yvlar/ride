@@ -132,6 +132,7 @@ export function describedRouteMatchesReturnToStart(
 export function composeDescribedRegenerateRequest(input: {
   start: Place;
   targetDistanceKm: number;
+  style?: RideStyle;
   preferences?: RoutePreferences;
   previousRoute: GeneratedRideRoute;
 }): ComposeRideRequestResult {
@@ -139,7 +140,7 @@ export function composeDescribedRegenerateRequest(input: {
     return composeDescribedRide({
       start: input.start,
       targetDistanceKm: input.targetDistanceKm,
-      style: input.previousRoute.style,
+      style: input.style ?? input.previousRoute.style,
       preferences: input.preferences,
     });
   }
@@ -192,6 +193,7 @@ export function composeDescribedRegenerateRequest(input: {
       ...fromRoute,
       start: input.start,
       targetDistanceKm: snapDescribeDistanceKm(input.targetDistanceKm),
+      style: input.style ?? fromRoute.style,
       preferences,
     },
   };

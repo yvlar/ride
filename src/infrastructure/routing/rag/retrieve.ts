@@ -40,6 +40,7 @@ export function buildRouteRetrievalQuery(input: ProviderRouteRequest): string {
     curvy: "curvy sinueux ridge secondary",
     scenic: "scenic panoramique rural valley lac",
     touring: "touring confort fluide secondary",
+    fastest: "rapide direct highway motorway paved",
   };
   const kind = isLoop ? "boucle" : "destination";
   return `${kind} moto paved ${styleTerms[style]}`;

@@ -346,6 +346,20 @@ describe("selectBestDestinationCandidate (FR-002, BR-003)", () => {
     expect(selection.evaluation.candidate.distanceKm).toBe(210);
   });
 
+  it("selects the shortest travel time when style is fastest", () => {
+    const selection = selectBestDestinationCandidate(
+      [twistier, shortest],
+      "fastest",
+    );
+
+    expect(selection.status).toBe("selected");
+    if (selection.status !== "selected") {
+      return;
+    }
+    expect(selection.evaluation.candidate.durationMinutes).toBe(120);
+    expect(selection.evaluation.candidate.distanceKm).toBe(180);
+  });
+
   it("prefers a winding secondary climb over a faster highway (FR-004)", () => {
     const highway = evaluateDestinationCandidate(
       GRANBY,

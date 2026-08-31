@@ -7,7 +7,9 @@ import {
 import { CurrentPositionError } from "@/components/ride-form/browser-geolocation";
 import {
   ROUTE_PREFERENCES_STORAGE_KEY,
+  ROUTE_STYLE_STORAGE_KEY,
   writeStoredRoutePreferences,
+  writeStoredRouteStyle,
 } from "@/domain/ride/stored-route-preferences";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { MapEngine, MapEngineHandlers } from "@/components/map/map-engine";
@@ -105,7 +107,8 @@ async function selectTremblant() {
 
 describe("FindDestinationPanel (FR-038)", () => {
   beforeEach(() => {
-    window.localStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
+    window.sessionStorage.removeItem(ROUTE_PREFERENCES_STORAGE_KEY);
+    window.sessionStorage.removeItem(ROUTE_STYLE_STORAGE_KEY);
   });
 
   it("locates automatically and hides origin, distance, and preference controls", async () => {
@@ -155,11 +158,12 @@ describe("FindDestinationPanel (FR-038)", () => {
   });
 
   it("uses the current GPS as origin and settings preferences (FR-007, FR-008, FR-030, FR-038)", async () => {
-    writeStoredRoutePreferences(window.localStorage, {
+    writeStoredRoutePreferences(window.sessionStorage, {
       avoidHighways: false,
       avoidUnpaved: false,
       stayInCanada: true,
     });
+    writeStoredRouteStyle(window.sessionStorage, "fastest");
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
       route,
@@ -179,7 +183,7 @@ describe("FindDestinationPanel (FR-038)", () => {
         start: granby,
         // The destination records how it was chosen (FR-038).
         destination: { ...tremblant, source: "search" },
-        style: "scenic",
+        style: "fastest",
         preferences: {
           avoidHighways: false,
           avoidUnpaved: false,

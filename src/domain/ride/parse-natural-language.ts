@@ -66,15 +66,14 @@ export function parseNaturalLanguageRide(
   let style: RideStyle = "scenic";
   if (/sinueus|courbe|curvy/.test(folded)) {
     style = "curvy";
+  } else if (/\brapide\b|plus vite|le plus court/.test(folded)) {
+    style = "fastest";
   } else if (/equilibr|touring|fluide/.test(folded)) {
     style = "touring";
   } else if (/panoram|scenic/.test(folded)) {
     style = "scenic";
   }
 
-  if (/\brapide\b/.test(folded)) {
-    unsupported.push("Le style « rapide » n’est pas offert.");
-  }
   if (/aventure|gravel|hors[-\s]?piste/.test(folded)) {
     unsupported.push("Le style « aventure » n’est pas offert.");
   }

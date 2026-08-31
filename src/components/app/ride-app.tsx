@@ -8,7 +8,10 @@ import { WeatherMapControl } from "@/components/weather/weather-map-control";
 import { useWeatherWatch } from "@/components/weather/use-weather-watch";
 import { DescribeRidePanel } from "@/components/app/describe-ride-panel";
 import { FindDestinationPanel } from "@/components/app/find-destination-panel";
-import { RoutePreferenceSettings } from "@/components/app/route-preference-settings";
+import {
+  RoutePreferenceSettings,
+  RouteStyleSettings,
+} from "@/components/app/route-preference-settings";
 import {
   RideRequestForm,
   type RideRequestFormProps,
@@ -55,7 +58,10 @@ import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
 import {
   readStoredRoutePreferences,
+  readStoredRouteStyle,
   writeStoredRoutePreferences,
+  writeStoredRouteStyle,
+  type StoredRouteStyle,
 } from "@/domain/ride/stored-route-preferences";
 import type { RoutePreferences } from "@/domain/ride/types";
 import { formatDistanceLabel, formatDurationLabel } from "@/components/navigation/format-navigation";
@@ -981,14 +987,27 @@ function SettingsPanel({
   const [routePreferences, setRoutePreferences] = useState<RoutePreferences>(
     () =>
       readStoredRoutePreferences(
-        typeof window === "undefined" ? null : window.localStorage,
+        typeof window === "undefined" ? null : window.sessionStorage,
       ),
+  );
+  const [routeStyle, setRouteStyle] = useState<StoredRouteStyle>(() =>
+    readStoredRouteStyle(
+      typeof window === "undefined" ? null : window.sessionStorage,
+    ),
   );
 
   function persistRoutePreferences(next: RoutePreferences) {
     setRoutePreferences(next);
     writeStoredRoutePreferences(
-      typeof window === "undefined" ? null : window.localStorage,
+      typeof window === "undefined" ? null : window.sessionStorage,
+      next,
+    );
+  }
+
+  function persistRouteStyle(next: StoredRouteStyle) {
+    setRouteStyle(next);
+    writeStoredRouteStyle(
+      typeof window === "undefined" ? null : window.sessionStorage,
       next,
     );
   }
@@ -1021,6 +1040,12 @@ function SettingsPanel({
           </button>
         ))}
       </fieldset>
+      <div className="mt-6">
+        <RouteStyleSettings
+          value={routeStyle}
+          onChange={persistRouteStyle}
+        />
+      </div>
       <div className="mt-6">
         <RoutePreferenceSettings
           value={routePreferences}
