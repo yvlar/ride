@@ -712,6 +712,7 @@ export function RideApp(props: RideAppProps) {
             {sheet === "search" ? (
               <MapBottomPanel
                 title="Trouver une destination"
+                titleHidden
                 variant="floating"
                 className={route ? "max-h-[58dvh]" : undefined}
               >

@@ -140,6 +140,44 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     );
   });
 
+  it("opens the destination pane without a visible title or GPS banner (FR-031, FR-038)", async () => {
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          debounceMs={0}
+          searchPlaces={async () => [tremblant]}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
+          reversePlace={async (coordinates) => ({
+            label: granby.label,
+            coordinates,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rechercher une destination" }),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Trouver une destination" }),
+    ).toBeInTheDocument();
+    // The pane keeps its accessible name, not a heading that repeats the
+    // action the rider just tapped.
+    expect(
+      screen.queryByRole("heading", { name: "Trouver une destination" }),
+    ).not.toBeInTheDocument();
+    // The confirmed fix is announced, never shown: the map already says where
+    // the rider is.
+    expect(await screen.findByText(/Position détectée/)).toHaveClass("sr-only");
+    expect(
+      screen.getByRole("combobox", { name: "Où voulez-vous aller?" }),
+    ).toBeEnabled();
+  });
+
   it("starts a saved ride in three interactions", async () => {
     window.localStorage.setItem(
       "ride.library.v1",
@@ -705,7 +743,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       screen.getByRole("button", { name: "Rechercher une destination" }),
     );
     expect(
-      await screen.findByRole("heading", { name: "Trouver une destination" }),
+      await screen.findByRole("region", { name: "Trouver une destination" }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Point de départ")).not.toBeInTheDocument();
     fireEvent.change(
@@ -732,7 +770,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Terminer la navigation" }));
     fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
     expect(
-      await screen.findByRole("heading", { name: "Trouver une destination" }),
+      await screen.findByRole("region", { name: "Trouver une destination" }),
     ).toBeInTheDocument();
     expect(unsubscribeWatch).toHaveBeenCalled();
     expect(speech.cancel).toHaveBeenCalled();
@@ -855,7 +893,7 @@ describe("RideApp GPX import (FR-039)", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Rechercher une destination" }));
     expect(
-      screen.getByRole("heading", { name: "Trouver une destination" }),
+      screen.getByRole("region", { name: "Trouver une destination" }),
     ).toBeInTheDocument();
   });
 

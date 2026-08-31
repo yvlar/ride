@@ -137,6 +137,32 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(screen.getByRole("button", { name: "Retour" })).toBeEnabled();
   });
 
+  it("announces the detected fix without showing it, and keeps failures visible (FR-038)", async () => {
+    const { unmount } = renderPanel();
+
+    // The confirmation reaches assistive tech, not the pane: the map behind it
+    // already shows where the rider is.
+    const detected = await screen.findByText(/Position détectée/);
+    expect(detected).toHaveClass("sr-only");
+    expect(detected).toHaveAttribute("role", "status");
+    expect(detected).toHaveTextContent("12 Rue Principale, Granby");
+    unmount();
+
+    // A failure still has to be read: it comes with the actions that fix it.
+    renderPanel({
+      requestPosition: async () => {
+        throw new CurrentPositionError("permission_denied");
+      },
+    });
+    const denied = await screen.findByText(
+      "L’autorisation de localisation a été refusée.",
+    );
+    expect(denied).not.toHaveClass("sr-only");
+    expect(
+      screen.getByRole("button", { name: "Réessayer la localisation" }),
+    ).toBeEnabled();
+  });
+
   it("reveals generate only once a destination is chosen (FR-038)", async () => {
     renderPanel();
     await screen.findByText(/Position détectée/);

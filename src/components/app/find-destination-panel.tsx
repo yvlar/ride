@@ -435,7 +435,18 @@ export function FindDestinationPanel({
         state.start ? String(state.start.coordinates.longitude) : undefined
       }
     >
-      <p role="status" className="ride-glass rounded-2xl px-4 py-3 text-sm text-white/85">
+      {/* FR-038 — a successful fix is announced to assistive tech only: the
+          explorer already shows the map, so a banner repeating where the rider
+          is only pushes the destination field down. Locating and failures stay
+          visible, next to the actions that resolve them. */}
+      <p
+        role="status"
+        className={
+          state.locationStatus === "detected"
+            ? "sr-only"
+            : "ride-glass rounded-2xl px-4 py-3 text-sm text-white/85"
+        }
+      >
         {locationStatusMessage(state.locationStatus)}
         {state.start && state.locationStatus === "detected"
           ? ` · ${state.start.label}`
