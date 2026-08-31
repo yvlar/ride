@@ -874,7 +874,7 @@ Ce flux ne propose **pas** :
 
 À l’ouverture du volet, le système demande une **localisation précise ponctuelle**. Le suivi GPS continu (`watchPosition`) ne commence qu’au **Démarrer la navigation** (`FR-023`).
 
-Affichage : une information **non modifiable**, par exemple « Position détectée » et le libellé du lieu (adresse si le géocodage inverse la fournit, sinon « Position actuelle »). Pas de section d’origine complète.
+Affichage : le volet **n’affiche pas** la position obtenue. Comme l’accueil de l’explorateur, il ne porte ni titre visible, ni bandeau d’état GPS : la carte est déjà à l’écran et le premier élément du volet est le champ de destination. La confirmation « Position détectée » et le libellé du lieu (adresse si le géocodage inverse la fournit, sinon « Position actuelle ») restent **annoncés aux technologies d’assistance** (`role="status"`), jamais rendus visuellement. Reste visible : « Recherche de la position… » pendant la localisation, parce que c’est ce qui explique un bouton **Générer le trajet** désactivé. Pas de section d’origine complète, ni de position modifiable.
 
 Si la permission est refusée ou si la localisation échoue : explication claire, **Réessayer la localisation**, et lorsque c’est possible **Ouvrir les réglages de localisation**. Jamais de champ d’adresse d’origine.
 
