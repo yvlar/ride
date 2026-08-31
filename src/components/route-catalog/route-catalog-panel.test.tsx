@@ -171,6 +171,7 @@ describe("RouteCatalogPanel", () => {
     });
     const onPreview = vi.fn();
     const onBack = vi.fn();
+    const onCollapsedChange = vi.fn();
 
     render(
       <RouteCatalogPanel
@@ -179,10 +180,12 @@ describe("RouteCatalogPanel", () => {
         onPreview={onPreview}
         onStartNavigation={vi.fn()}
         onBack={onBack}
+        onCollapsedChange={onCollapsedChange}
       />,
     );
 
     expect(await screen.findByText("Boucle Estrie")).toBeInTheDocument();
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(false);
     fireEvent.click(screen.getByRole("button", { name: "Voir sur la carte" }));
     await waitFor(() => expect(onPreview).toHaveBeenCalledTimes(1));
 
@@ -193,6 +196,12 @@ describe("RouteCatalogPanel", () => {
     expect(card).toHaveTextContent("Estrie");
     expect(card).toHaveTextContent("Intermédiaire");
     expect(document.activeElement).toBe(card);
+    // Looking at one trajet leaves Retour as the only way out of the card.
+    expect(
+      screen.queryByRole("button", { name: "Fermer" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retour" })).toBeInTheDocument();
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Retour" }));
 
@@ -211,6 +220,12 @@ describe("RouteCatalogPanel", () => {
     expect(
       screen.getByRole("button", { name: "Démarrer la navigation" }),
     ).toBeInTheDocument();
+    // Back on the list, Fermer takes over from Retour.
+    expect(screen.getByRole("button", { name: "Fermer" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retour" }),
+    ).not.toBeInTheDocument();
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(false);
   });
 
   it("keeps the list visible when the GPX cannot be downloaded", async () => {

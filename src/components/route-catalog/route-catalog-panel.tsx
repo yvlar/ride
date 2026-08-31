@@ -37,6 +37,8 @@ export type RouteCatalogPanelProps = {
   onPreview: (route: GeneratedGpxRoute, request: GpxRideRequest) => void;
   onStartNavigation: () => void;
   onBack: () => void;
+  /** Lets the host chrome fold away its heading while a trajet is on the map. */
+  onCollapsedChange?: (collapsed: boolean) => void;
   navigationActive?: boolean;
 };
 
@@ -46,6 +48,7 @@ export function RouteCatalogPanel({
   onPreview,
   onStartNavigation,
   onBack,
+  onCollapsedChange,
   navigationActive = false,
 }: RouteCatalogPanelProps) {
   const [page, setPage] = useState<RouteCatalogPage | null>(null);
@@ -121,6 +124,10 @@ export function RouteCatalogPanel({
     // jsdom has no scrollIntoView.
     node.scrollIntoView?.({ block: "nearest" });
   }, [collapsed]);
+
+  useEffect(() => {
+    onCollapsedChange?.(collapsed);
+  }, [collapsed, onCollapsedChange]);
 
   async function preview(summary: RouteCatalogSummary): Promise<void> {
     previewController.current?.abort();
@@ -351,14 +358,16 @@ export function RouteCatalogPanel({
         </Button>
       ) : null}
 
-      <Button
-        type="button"
-        variant="ride"
-        className="min-h-12 w-full rounded-2xl text-white/85"
-        onClick={onBack}
-      >
-        Fermer
-      </Button>
+      {!collapsed ? (
+        <Button
+          type="button"
+          variant="ride"
+          className="min-h-12 w-full rounded-2xl text-white/85"
+          onClick={onBack}
+        >
+          Fermer
+        </Button>
+      ) : null}
     </div>
   );
 }

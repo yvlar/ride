@@ -120,6 +120,7 @@ export function RideApp(props: RideAppProps) {
   >(null);
   const [gpxOverlay, setGpxOverlay] = useState<GpxMapOverlay | null>(null);
   const [gpxSession, setGpxSession] = useState(0);
+  const [catalogCollapsed, setCatalogCollapsed] = useState(false);
   const [describeMuted, setDescribeMuted] = useState(false);
   const [plannerDraft, setPlannerDraft] =
     useState<NaturalLanguageRideDraft | null>(null);
@@ -337,6 +338,7 @@ export function RideApp(props: RideAppProps) {
 
   function openRouteCatalog() {
     setSheet("catalog");
+    setCatalogCollapsed(false);
     setTab("explore");
     navigatingRef.current = false;
     setNavigating(false);
@@ -827,6 +829,7 @@ export function RideApp(props: RideAppProps) {
             {sheet === "catalog" ? (
               <MapBottomPanel
                 title="Découvrir des trajets moto"
+                titleHidden={catalogCollapsed}
                 variant="floating"
                 className={route ? "max-h-[72dvh]" : "max-h-[82dvh]"}
               >
@@ -839,6 +842,7 @@ export function RideApp(props: RideAppProps) {
                   }}
                   onStartNavigation={startGuidedNavigation}
                   onBack={() => setSheet("home")}
+                  onCollapsedChange={setCatalogCollapsed}
                   navigationActive={navigating && sheet === "catalog"}
                 />
               </MapBottomPanel>
