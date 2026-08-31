@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   ChevronDown,
   Clock3,
@@ -57,8 +57,11 @@ export function RouteCatalogPanel({
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const previewGeneration = useRef(0);
   const previewController = useRef<AbortController | null>(null);
+  const previewCardRef = useRef<HTMLElement>(null);
+  const selectedButtonRef = useRef<HTMLButtonElement>(null);
 
   const filter = useMemo<RouteCatalogFilter>(
     () => ({
@@ -103,6 +106,21 @@ export function RouteCatalogPanel({
   const subdivision =
     subdivisions.find((item) => item.code === subdivisionCode) ?? null;
   const regions = subdivision?.regions ?? [];
+  const selectedRoute =
+    page?.routes.find((item) => item.slug === selectedSlug) ?? null;
+  /* Derived so a filter change that drops the selection can never leave the
+     panel collapsed on a trajet it can no longer describe. */
+  const collapsed = previewCollapsed && selectedRoute !== null;
+
+  useEffect(() => {
+    /* Coming back to the list puts the rider back on the trajet they picked;
+       collapsing moves focus to the card so it is not dropped on <body>. */
+    const node = collapsed ? previewCardRef.current : selectedButtonRef.current;
+    if (!node) return;
+    node.focus({ preventScroll: true });
+    // jsdom has no scrollIntoView.
+    node.scrollIntoView?.({ block: "nearest" });
+  }, [collapsed]);
 
   async function preview(summary: RouteCatalogSummary): Promise<void> {
     previewController.current?.abort();
@@ -130,10 +148,12 @@ export function RouteCatalogPanel({
         id: `catalog:${summary.slug}`,
       });
       setSelectedSlug(summary.slug);
+      setPreviewCollapsed(true);
       onPreview(route, gpxRideRequestFromRoute(route));
     } catch (reason) {
       if (generation === previewGeneration.current && !controller.signal.aborted) {
         setError(reason instanceof Error ? reason.message : "Fichier GPX indisponible.");
+        setPreviewCollapsed(false);
       }
     } finally {
       if (generation === previewGeneration.current) {
@@ -151,7 +171,7 @@ export function RouteCatalogPanel({
 
   return (
     <div data-testid="route-catalog" className="space-y-3 text-white">
-      {page ? (
+      {page && !collapsed ? (
         <div
           className="ride-glass grid grid-cols-3 gap-1.5 rounded-3xl p-2"
           aria-label="Filtres du catalogue"
@@ -197,7 +217,7 @@ export function RouteCatalogPanel({
         </div>
       ) : null}
 
-      {busy ? (
+      {busy && !collapsed ? (
         <div
           role="status"
           className="ride-glass flex min-h-24 items-center justify-center gap-2 rounded-3xl px-4 text-sm text-white/75"
@@ -223,13 +243,13 @@ export function RouteCatalogPanel({
         </div>
       ) : null}
 
-      {!busy && page && page.routes.length === 0 ? (
+      {!busy && page && page.routes.length === 0 && !collapsed ? (
         <p className="ride-glass rounded-3xl px-4 py-6 text-center text-sm text-white/75">
           Aucun trajet publié dans cette partie du catalogue pour le moment.
         </p>
       ) : null}
 
-      {page && page.routes.length > 0 ? (
+      {page && page.routes.length > 0 && !collapsed ? (
         <section
           className="ride-glass-strong rounded-3xl p-2.5"
           aria-labelledby="catalog-results-title"
@@ -279,6 +299,7 @@ export function RouteCatalogPanel({
                     {route.description}
                   </p>
                   <Button
+                    ref={selected ? selectedButtonRef : undefined}
                     type="button"
                     variant={selected ? "secondary" : "default"}
                     className="mt-2 min-h-12 w-full rounded-2xl text-base"
@@ -303,6 +324,10 @@ export function RouteCatalogPanel({
         </section>
       ) : null}
 
+      {collapsed && selectedRoute ? (
+        <SelectedRouteCard ref={previewCardRef} route={selectedRoute} />
+      ) : null}
+
       {selectedSlug ? (
         <Button
           type="button"
@@ -315,15 +340,59 @@ export function RouteCatalogPanel({
         </Button>
       ) : null}
 
+      {collapsed ? (
+        <Button
+          type="button"
+          variant="ride"
+          className="min-h-12 w-full rounded-2xl text-white/85"
+          onClick={() => setPreviewCollapsed(false)}
+        >
+          Retour
+        </Button>
+      ) : null}
+
       <Button
         type="button"
         variant="ride"
         className="min-h-12 w-full rounded-2xl text-white/85"
         onClick={onBack}
       >
-        Retour
+        Fermer
       </Button>
     </div>
+  );
+}
+
+/** Keeps the chosen trajet in view once the list folds away to free the map. */
+function SelectedRouteCard({
+  ref,
+  route,
+}: {
+  ref: RefObject<HTMLElement | null>;
+  route: RouteCatalogSummary;
+}) {
+  return (
+    <section
+      ref={ref}
+      tabIndex={-1}
+      aria-label="Trajet affiché sur la carte"
+      className="ride-glass-strong rounded-3xl border border-primary/75 p-2.5 outline-none"
+    >
+      <div className="flex gap-3">
+        <RouteThumbnail routeType={route.routeType} />
+        <div className="min-w-0 flex-1 py-0.5">
+          <p className="truncate font-semibold tracking-tight">{route.name}</p>
+          <p className="mt-0.5 truncate text-sm text-primary">
+            {route.location.region.name} · {route.location.subdivision.name}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-white/80">
+            <RouteMeta icon={RouteIcon} label={formatDistanceLabel(route.distanceKm)} />
+            <RouteMeta icon={Clock3} label={formatDurationLabel(route.durationMinutes)} />
+            <RouteMeta icon={Gauge} label={difficultyLabel(route.difficulty)} />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

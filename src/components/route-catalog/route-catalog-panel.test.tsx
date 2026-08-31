@@ -151,10 +151,113 @@ describe("RouteCatalogPanel", () => {
     });
     expect(onPreview.mock.calls[0]?.[1]).toMatchObject({ type: "gpx" });
 
+    // The list folds away so the previewed trajet is visible on the map.
+    expect(
+      screen.queryByRole("list", { name: "Trajets du catalogue" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Pays")).not.toBeInTheDocument();
+
     fireEvent.click(
       screen.getByRole("button", { name: "Démarrer la navigation" }),
     );
     expect(onStartNavigation).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses to the selected trajet and restores the list on Retour", async () => {
+    const loadCatalog = vi.fn().mockResolvedValue(page);
+    const loadGpx = vi.fn().mockResolvedValue({
+      filename: "boucle-estrie.gpx",
+      xml: gpx,
+    });
+    const onPreview = vi.fn();
+    const onBack = vi.fn();
+
+    render(
+      <RouteCatalogPanel
+        loadCatalog={loadCatalog}
+        loadGpx={loadGpx}
+        onPreview={onPreview}
+        onStartNavigation={vi.fn()}
+        onBack={onBack}
+      />,
+    );
+
+    expect(await screen.findByText("Boucle Estrie")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Voir sur la carte" }));
+    await waitFor(() => expect(onPreview).toHaveBeenCalledTimes(1));
+
+    const card = screen.getByRole("region", {
+      name: "Trajet affiché sur la carte",
+    });
+    expect(card).toHaveTextContent("Boucle Estrie");
+    expect(card).toHaveTextContent("Estrie");
+    expect(card).toHaveTextContent("Intermédiaire");
+    expect(document.activeElement).toBe(card);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retour" }));
+
+    expect(
+      screen.getByRole("list", { name: "Trajets du catalogue" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Pays")).toBeInTheDocument();
+    // Coming back neither refetches the catalogue nor redraws the map.
+    expect(loadCatalog).toHaveBeenCalledTimes(1);
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+    // The trajet stays marked as the one on the map.
+    expect(
+      screen.getByRole("button", { name: "Trajet affiché sur la carte" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Démarrer la navigation" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the list visible when the GPX cannot be downloaded", async () => {
+    const loadCatalog = vi.fn().mockResolvedValue(page);
+    const loadGpx = vi.fn().mockRejectedValue(new Error("GPX introuvable"));
+    const onPreview = vi.fn();
+
+    render(
+      <RouteCatalogPanel
+        loadCatalog={loadCatalog}
+        loadGpx={loadGpx}
+        onPreview={onPreview}
+        onStartNavigation={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Boucle Estrie")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Voir sur la carte" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("GPX introuvable");
+    expect(
+      screen.getByRole("list", { name: "Trajets du catalogue" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Pays")).toBeInTheDocument();
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Démarrer la navigation" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes the sheet with Fermer", async () => {
+    const onBack = vi.fn();
+
+    render(
+      <RouteCatalogPanel
+        loadCatalog={vi.fn().mockResolvedValue(page)}
+        loadGpx={vi.fn()}
+        onPreview={vi.fn()}
+        onStartNavigation={vi.fn()}
+        onBack={onBack}
+      />,
+    );
+
+    expect(await screen.findByText("Boucle Estrie")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it("shows an actionable error when the catalog cannot be loaded", async () => {
