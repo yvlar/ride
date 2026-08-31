@@ -136,7 +136,7 @@ describe("RouteCatalogPanel", () => {
       target: { value: "estrie" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Afficher sur la carte" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voir sur la carte" }));
     await waitFor(() =>
       expect(loadGpx).toHaveBeenCalledWith(
         "boucle-estrie",

@@ -827,7 +827,8 @@ export function RideApp(props: RideAppProps) {
             {sheet === "catalog" ? (
               <MapBottomPanel
                 title="Découvrir des trajets moto"
-                className={route ? "max-h-[68dvh]" : "max-h-[76dvh]"}
+                variant="floating"
+                className={route ? "max-h-[72dvh]" : "max-h-[82dvh]"}
               >
                 <RouteCatalogPanel
                   onPreview={(next, composed) => {

@@ -1,6 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronDown,
+  Clock3,
+  Compass,
+  Gauge,
+  LoaderCircle,
+  Map,
+  MapPin,
+  Mountain,
+  Route as RouteIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   formatDistanceLabel,
@@ -14,6 +25,7 @@ import type {
   RouteCatalogPage,
   RouteCatalogSummary,
 } from "@/domain/route-catalog/types";
+import { cn } from "@/lib/utils";
 import {
   requestRouteCatalog,
   requestRouteCatalogGpx,
@@ -138,22 +150,18 @@ export function RouteCatalogPanel({
   }
 
   return (
-    <div data-testid="route-catalog">
-      <p className="text-sm text-muted-foreground">
-        Choisissez un pays, une province ou un État, puis une région. Le GPX est
-        chargé seulement lorsque vous ouvrez un trajet.
-      </p>
-
+    <div data-testid="route-catalog" className="space-y-3 text-white">
       {page ? (
-        <div className="mt-3 grid gap-2">
+        <div
+          className="ride-glass grid grid-cols-3 gap-1.5 rounded-3xl p-2"
+          aria-label="Filtres du catalogue"
+        >
           <CatalogSelect
             label="Pays"
             value={countryCode}
             allLabel="Tous les pays"
-            options={page.countries.map((item) => ({
-              value: item.code,
-              label: `${item.name} (${item.routeCount})`,
-            }))}
+            icon={MapPin}
+            options={page.countries.map((item) => ({ value: item.code, label: item.name }))}
             onChange={(value) => {
               setBusy(true);
               setCountryCode(value);
@@ -164,12 +172,10 @@ export function RouteCatalogPanel({
           <CatalogSelect
             label="Province ou État"
             value={subdivisionCode}
-            allLabel="Toutes les provinces et tous les États"
+            allLabel="Province"
             disabled={!countryCode}
-            options={subdivisions.map((item) => ({
-              value: item.code,
-              label: `${item.name} (${item.routeCount})`,
-            }))}
+            icon={Mountain}
+            options={subdivisions.map((item) => ({ value: item.code, label: item.name }))}
             onChange={(value) => {
               setBusy(true);
               setSubdivisionCode(value);
@@ -179,12 +185,10 @@ export function RouteCatalogPanel({
           <CatalogSelect
             label="Région"
             value={regionSlug}
-            allLabel="Toutes les régions"
+            allLabel="Région"
             disabled={!subdivisionCode}
-            options={regions.map((item) => ({
-              value: item.slug,
-              label: `${item.name} (${item.routeCount})`,
-            }))}
+            icon={Compass}
+            options={regions.map((item) => ({ value: item.slug, label: item.name }))}
             onChange={(value) => {
               setBusy(true);
               setRegionSlug(value);
@@ -194,16 +198,25 @@ export function RouteCatalogPanel({
       ) : null}
 
       {busy ? (
-        <p role="status" className="mt-4 text-sm text-muted-foreground">
+        <div
+          role="status"
+          className="ride-glass flex min-h-24 items-center justify-center gap-2 rounded-3xl px-4 text-sm text-white/75"
+        >
+          <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
           Chargement des trajets…
-        </p>
+        </div>
       ) : null}
 
       {error ? (
-        <div role="alert" className="mt-4 rounded-2xl border border-destructive/40 bg-card/70 p-3">
+        <div role="alert" className="ride-glass rounded-3xl border-destructive/50 p-3">
           <p className="text-sm">{error}</p>
           {!page ? (
-            <Button type="button" variant="outline" className="mt-2 min-h-12" onClick={reload}>
+            <Button
+              type="button"
+              variant="ride"
+              className="mt-2 min-h-12 w-full rounded-2xl"
+              onClick={reload}
+            >
               Réessayer
             </Button>
           ) : null}
@@ -211,51 +224,90 @@ export function RouteCatalogPanel({
       ) : null}
 
       {!busy && page && page.routes.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">
+        <p className="ride-glass rounded-3xl px-4 py-6 text-center text-sm text-white/75">
           Aucun trajet publié dans cette partie du catalogue pour le moment.
         </p>
       ) : null}
 
       {page && page.routes.length > 0 ? (
-        <ul className="mt-4 space-y-3" aria-label="Trajets du catalogue">
-          {page.routes.map((route) => (
-            <li key={route.slug} className="rounded-2xl border border-border bg-card/72 p-3 shadow-sm">
-              <p className="font-medium">{route.name}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {route.location.country.name} · {route.location.subdivision.name} ·{" "}
-                {route.location.region.name}
-              </p>
-              <p className="mt-1 text-sm">
-                {formatDistanceLabel(route.distanceKm)} ·{" "}
-                {formatDurationLabel(route.durationMinutes)} ·{" "}
-                {difficultyLabel(route.difficulty)}
-              </p>
-              <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
-                {route.description}
-              </p>
-              <Button
-                type="button"
-                variant={selectedSlug === route.slug ? "secondary" : "outline"}
-                className="mt-3 min-h-12 w-full"
-                disabled={loadingSlug !== null}
-                onClick={() => void preview(route)}
-              >
-                {loadingSlug === route.slug
-                  ? "Chargement du GPX…"
-                  : selectedSlug === route.slug
-                    ? "Trajet affiché sur la carte"
-                    : "Afficher sur la carte"}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <section
+          className="ride-glass-strong rounded-3xl p-2.5"
+          aria-labelledby="catalog-results-title"
+        >
+          <div className="flex items-center justify-between gap-3 px-1.5 pb-2">
+            <p id="catalog-results-title" className="shrink-0 text-sm font-semibold">
+              {page.total} {page.total === 1 ? "trajet" : "trajets"}
+            </p>
+            <p className="truncate text-xs text-white/65">
+              Touchez un trajet pour l’afficher
+            </p>
+          </div>
+          <ul className="space-y-2" aria-label="Trajets du catalogue">
+            {page.routes.map((route) => {
+              const selected = selectedSlug === route.slug;
+              const loading = loadingSlug === route.slug;
+
+              return (
+                <li
+                  key={route.slug}
+                  className={cn(
+                    "rounded-3xl border bg-black/10 p-2.5 shadow-inner transition-colors",
+                    selected ? "border-primary/75 bg-primary/10" : "border-white/20",
+                  )}
+                >
+                  <div className="flex gap-3">
+                    <RouteThumbnail routeType={route.routeType} />
+                    <div className="min-w-0 flex-1 py-0.5">
+                      <p className="truncate font-semibold tracking-tight">{route.name}</p>
+                      <p className="mt-0.5 truncate text-sm text-primary">
+                        {route.location.region.name} · {route.location.subdivision.name}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-white/80">
+                        <RouteMeta
+                          icon={RouteIcon}
+                          label={formatDistanceLabel(route.distanceKm)}
+                        />
+                        <RouteMeta
+                          icon={Clock3}
+                          label={formatDurationLabel(route.durationMinutes)}
+                        />
+                        <RouteMeta icon={Gauge} label={difficultyLabel(route.difficulty)} />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/70">
+                    {route.description}
+                  </p>
+                  <Button
+                    type="button"
+                    variant={selected ? "secondary" : "default"}
+                    className="mt-2 min-h-12 w-full rounded-2xl text-base"
+                    disabled={loadingSlug !== null}
+                    onClick={() => void preview(route)}
+                  >
+                    {loading ? (
+                      <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
+                    ) : (
+                      <Map aria-hidden="true" className="size-5" />
+                    )}
+                    {loading
+                      ? "Chargement du GPX…"
+                      : selected
+                        ? "Trajet affiché sur la carte"
+                        : "Voir sur la carte"}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       ) : null}
 
       {selectedSlug ? (
         <Button
           type="button"
           size="lg"
-          className="mt-4 min-h-12 w-full text-base"
+          className="min-h-12 w-full rounded-2xl text-base shadow-lg"
           disabled={navigationActive || loadingSlug !== null}
           onClick={onStartNavigation}
         >
@@ -265,8 +317,8 @@ export function RouteCatalogPanel({
 
       <Button
         type="button"
-        variant="ghost"
-        className="mt-2 min-h-12 w-full"
+        variant="ride"
+        className="min-h-12 w-full rounded-2xl text-white/85"
         onClick={onBack}
       >
         Retour
@@ -279,6 +331,7 @@ function CatalogSelect({
   label,
   value,
   allLabel,
+  icon: Icon,
   options,
   disabled = false,
   onChange,
@@ -286,27 +339,73 @@ function CatalogSelect({
   label: string;
   value: string;
   allLabel: string;
+  icon: typeof Compass;
   options: { value: string; label: string }[];
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1 text-sm font-medium">
-      {label}
+    <label
+      className={cn(
+        "ride-icon-well relative min-h-12 w-full min-w-0 rounded-2xl px-2 transition-shadow focus-within:border-white/60 focus-within:ring-3 focus-within:ring-white/20",
+        disabled && "opacity-45",
+      )}
+    >
+      <span className="sr-only">{label}</span>
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
       <select
-        className="min-h-12 rounded-2xl border border-input bg-card/72 px-3 text-base shadow-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/25"
+        className="absolute inset-0 min-h-12 w-full cursor-pointer appearance-none bg-transparent pl-8 pr-6 text-xs font-semibold text-white outline-none disabled:cursor-not-allowed"
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       >
         <option value="">{allLabel}</option>
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} className="text-foreground">
             {option.label}
           </option>
         ))}
       </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-1.5 size-3.5"
+      />
     </label>
+  );
+}
+
+function RouteThumbnail({
+  routeType,
+}: {
+  routeType: RouteCatalogSummary["routeType"];
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/25 bg-[radial-gradient(circle_at_65%_30%,rgba(167,243,208,0.35),transparent_25%),linear-gradient(145deg,rgba(255,255,255,0.16),rgba(0,0,0,0.16))]"
+    >
+      <span className="absolute -left-3 top-3 h-14 w-24 -rotate-[18deg] rounded-[50%] border-2 border-primary/80" />
+      <span className="absolute left-5 top-1 h-20 w-12 rotate-[32deg] rounded-[50%] border border-dashed border-white/45" />
+      <RouteIcon className="relative z-10 size-7 text-white drop-shadow" />
+      <span className="absolute bottom-1.5 rounded-full bg-black/35 px-2 py-0.5 text-[0.625rem] font-semibold">
+        {routeType === "loop" ? "Boucle" : "Aller simple"}
+      </span>
+    </div>
+  );
+}
+
+function RouteMeta({
+  icon: Icon,
+  label,
+}: {
+  icon: typeof Compass;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Icon aria-hidden="true" className="size-3.5 text-primary" />
+      {label}
+    </span>
   );
 }
 
