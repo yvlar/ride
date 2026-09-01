@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Place } from "@/domain/geo/types";
 import type { GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
 import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "./geolocate-control-options";
@@ -9,6 +10,7 @@ import {
   useMapTheme,
 } from "@/components/theme/map-theme-provider";
 import { MAP_UNAVAILABLE_MESSAGE, type MapEngine } from "./map-engine";
+import { mapThemeOverlay } from "./map-theme-overlay";
 import { mapThemeStyle } from "./map-theme-styles";
 import { RideMap } from "./ride-map";
 import type { WeatherMapOverlay } from "./weather-overlay";
@@ -338,6 +340,8 @@ describe("RideMap basemap theme (FR-045)", () => {
     // The default appearance is dark, so Automatique picks the dark basemap.
     expect(mount.mock.calls[0]?.[3]).toEqual({
       mapStyle: mapThemeStyle("dark"),
+      mapOverlay: mapThemeOverlay("dark"),
+      detailLevel: "exploration",
     });
 
     act(() => {
@@ -345,10 +349,199 @@ describe("RideMap basemap theme (FR-045)", () => {
     });
 
     await waitFor(() => {
-      expect(setMapStyle).toHaveBeenCalledWith(mapThemeStyle("terrain"));
+      expect(setMapStyle).toHaveBeenCalledWith(
+        mapThemeStyle("terrain"),
+        mapThemeOverlay("terrain"),
+      );
     });
     // The rider keeps the same map: only its basemap changed.
     expect(mount).toHaveBeenCalledTimes(1);
     window.localStorage.clear();
+  });
+});
+
+describe("RideMap Kart Arcade (FR-046)", () => {
+  function ArcadePicker() {
+    const { setTheme, theme } = useMapTheme();
+    return (
+      <>
+        <span data-testid="picked">{theme}</span>
+        <button type="button" onClick={() => setTheme("kart-arcade")}>
+          Kart Arcade
+        </button>
+        <button type="button" onClick={() => setTheme("auto")}>
+          Automatique
+        </button>
+      </>
+    );
+  }
+
+  function renderWithTheme(ui: ReactNode) {
+    return render(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <ArcadePicker />
+          {ui}
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+  }
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("swaps to the arcade theme and back without remounting the map", async () => {
+    const setMapStyle = vi.fn();
+    const destroy = vi.fn();
+    const mount = vi.fn<MapEngine["mount"]>(() => ({ destroy, setMapStyle }));
+
+    renderWithTheme(
+      <RideMap route={loop} engine={{ mount } as MapEngine} />,
+    );
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+    await waitFor(() => {
+      expect(setMapStyle).toHaveBeenCalledWith(
+        mapThemeStyle("kart-arcade"),
+        mapThemeOverlay("kart-arcade"),
+      );
+    });
+
+    act(() => {
+      screen.getByRole("button", { name: "Automatique" }).click();
+    });
+    await waitFor(() => {
+      expect(setMapStyle).toHaveBeenLastCalledWith(
+        mapThemeStyle("dark"),
+        mapThemeOverlay("dark"),
+      );
+    });
+
+    // The route, its markers and the GPS puck all live inside the same engine
+    // instance: it is never torn down, so none of them can be lost (FR-046).
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the route, the markers and the position through the swap", async () => {
+    const setMapStyle = vi.fn();
+    const setViewModel = vi.fn();
+    const setUserLocation = vi.fn();
+    const mount = vi.fn<MapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setMapStyle,
+      setViewModel,
+      setUserLocation,
+    }));
+    const location = { latitude: 45.4, longitude: -72.73 };
+
+    renderWithTheme(
+      <RideMap
+        route={loop}
+        engine={{ mount } as MapEngine}
+        userLocation={location}
+        headingDeg={90}
+      />,
+    );
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    setViewModel.mockClear();
+    setUserLocation.mockClear();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+    await waitFor(() => {
+      expect(setMapStyle).toHaveBeenCalled();
+    });
+
+    // Nothing was re-pushed, because nothing was lost: the engine replays what
+    // it owns once the new style settles.
+    expect(setViewModel).not.toHaveBeenCalled();
+    expect(setUserLocation).not.toHaveBeenCalled();
+    expect(mount.mock.calls[0]?.[1]?.start.label).toBe("Départ");
+  });
+
+  it("returns the rider to the default theme when the basemap fails", async () => {
+    const mount = vi.fn<MapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setMapStyle: vi.fn(),
+    }));
+
+    renderWithTheme(
+      <RideMap route={loop} engine={{ mount } as MapEngine} />,
+    );
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+    expect(screen.getByTestId("picked")).toHaveTextContent("kart-arcade");
+
+    act(() => {
+      mount.mock.calls[0]?.[2]?.onMapStyleFallback?.();
+    });
+
+    expect(screen.getByTestId("picked")).toHaveTextContent("auto");
+  });
+
+  it("explores by default and strips the theme back while following the rider", async () => {
+    const mount = vi.fn<MapEngine["mount"]>(() => ({ destroy: vi.fn() }));
+
+    const { unmount } = renderWithTheme(
+      <RideMap route={loop} engine={{ mount } as MapEngine} />,
+    );
+    await waitFor(() => {
+      expect(mount.mock.calls[0]?.[3]?.detailLevel).toBe("exploration");
+    });
+    unmount();
+
+    // `expanded` is how this map says a live session owns the screen.
+    const navMount = vi.fn<MapEngine["mount"]>(() => ({ destroy: vi.fn() }));
+    renderWithTheme(
+      <RideMap route={loop} engine={{ mount: navMount } as MapEngine} expanded />,
+    );
+    await waitFor(() => {
+      expect(navMount.mock.calls[0]?.[3]?.detailLevel).toBe("navigation");
+    });
+  });
+
+  it("switches the detail level in place when navigation starts", async () => {
+    const setDetailLevel = vi.fn();
+    const mount = vi.fn<MapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setDetailLevel,
+    }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = renderWithTheme(
+      <RideMap route={loop} engine={engine} />,
+    );
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <ArcadePicker />
+          <RideMap route={loop} engine={engine} expanded />
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+
+    await waitFor(() => {
+      expect(setDetailLevel).toHaveBeenCalledWith("navigation");
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
   });
 });

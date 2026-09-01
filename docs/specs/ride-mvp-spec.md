@@ -1187,13 +1187,14 @@ Un fournisseur d’imagerie déclare le zoom au-delà duquel il ne sert plus rie
 
 ### FR-045 — Thème de la carte
 
-Le fond de carte se choisit dans **Réglages** (`FR-031`), sous forme de cinq thèmes :
+Le fond de carte se choisit dans **Réglages** (`FR-031`), sous forme de six thèmes :
 
 - **Automatique** — suit l’apparence de l’interface (`FR-037`) : fond clair en mode clair, fond sombre en mode sombre **et** en navigation nocturne;
 - **Clair** — fond de rue clair, lisible en plein soleil;
 - **Sombre** — fond de rue sombre, moins éblouissant la nuit;
 - **Satellite** — imagerie aérienne;
-- **Relief** — relief et courbes de niveau.
+- **Relief** — relief et courbes de niveau;
+- **Kart Arcade** — thème vectoriel expressif (`FR-046`).
 
 Règles :
 
@@ -1204,6 +1205,43 @@ Règles :
 - chaque thème affiche l’**attribution** exigée par son fournisseur de tuiles;
 - l’échec de chargement d’un thème laisse le fond précédent à l’écran plutôt qu’une carte vide (`NFR-005`); les informations textuelles du trajet ne dépendent jamais du fond (`FR-013`);
 - le fournisseur de tuiles reste un détail d’infrastructure (`BR-004`) : le domaine ne connaît que le nom du thème.
+
+---
+
+### FR-046 — Thème de carte Kart Arcade
+
+**Kart Arcade** est un thème de fond de carte optionnel (`FR-045`) : couleurs vives inspirées des jeux de course, sans reprendre aucun personnage, logo, véhicule ni élément graphique appartenant à un tiers. Tous les éléments visuels sont originaux, de sorte que le thème reste utilisable dans une application publique.
+
+Rendu :
+
+- style **MapLibre vectoriel complet** au schéma OpenMapTiles. Le thème ne recolore pas des tuiles matricielles;
+- terrain vert chaleureux, avec des surfaces distinctes pour les zones urbaines, les champs, les forêts, les parcs et les plans d’eau;
+- eau turquoise, avec un rivage plus foncé;
+- routes chaudes et arrondies, hiérarchisées : autoroutes corail, routes principales dorées, routes secondaires et locales crème, chemins pointillés, ponts au contour renforcé, tunnels violets en tirets;
+- contour clair autour des routes, pour l’effet arcade et la lisibilité;
+- épaisseur, contour, visibilité, densité et taille des libellés pilotés par des expressions de zoom : les petites rues n’apparaissent qu’en zoom rapproché;
+- bâtiments orangés, avec extrusion 3D légère pendant le suivi de navigation lorsque le style le permet (`FR-024`);
+- ombrage de relief **facultatif**, activé seulement si une source d’élévation est configurée; son absence n’est pas une erreur (`NFR-005`);
+- libellés en encre foncée sur halo clair, hiérarchisés par importance, avec les accents français rendus correctement. Les noms réels des lieux ne sont jamais remplacés.
+
+Trajet actif :
+
+- bleu électrique sur un halo blanc plus large, sous les marqueurs et au-dessus du fond;
+- la géométrie reste exactement celle du moteur de routage : le thème ne touche ni au calcul, ni au recalcul, ni au guidage.
+
+Deux niveaux de détail :
+
+- **Exploration** — couleurs complètes et détails secondaires;
+- **Navigation active** — les couches décoratives sont masquées et le tracé est épaissi, dès que la caméra suit le motocycliste.
+
+Règles :
+
+- le thème est un **choix volontaire** : le défaut reste **Automatique** (`FR-045`), y compris pour les utilisateurs existants;
+- la source de tuiles vectorielles, les polices et l’élévation sont **configurables par variables d’environnement**, sans clé dans le code (`NFR-004`);
+- l’attribution OpenStreetMap et celle du fournisseur de tuiles restent affichées;
+- si le fond ne peut pas être chargé — style illisible ou source de tuiles injoignable — l’application **revient d’elle-même au thème par défaut** plutôt que de laisser une carte vide (`NFR-005`);
+- aucune animation permanente; `prefers-reduced-motion` est respecté;
+- l’information n’est jamais portée par la couleur seule : les marqueurs gardent leur libellé textuel (`NFR-001`).
 
 ---
 
@@ -1321,6 +1359,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-043` | Météo et radar sur la carte |
 | `FR-044` | Indications sonores |
 | `FR-045` | Thème de la carte |
+| `FR-046` | Thème de carte Kart Arcade |
 
 ### Règles métier
 

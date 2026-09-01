@@ -1,7 +1,14 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GeneratedLoopRoute } from "@/domain/ride/types";
+import { mapThemeOverlay } from "@/components/map/map-theme-overlay";
+import { mapThemeStyle } from "@/components/map/map-theme-styles";
 import type { NavigationMapEngine } from "@/components/map/navigation-map-engine";
+import { AppearanceProvider } from "@/components/theme/appearance-provider";
+import {
+  MapThemeProvider,
+  useMapTheme,
+} from "@/components/theme/map-theme-provider";
 import { NavigationMap } from "./navigation-map";
 
 const route: GeneratedLoopRoute = {
@@ -65,5 +72,81 @@ describe("NavigationMap (FR-023, FR-026, NFR-006)", () => {
     expect(mount).toHaveBeenCalledTimes(1);
     expect(destroy).not.toHaveBeenCalled();
     expect(setViewModel).toHaveBeenCalled();
+  });
+});
+
+describe("NavigationMap Kart Arcade (FR-046)", () => {
+  function ArcadePicker() {
+    const { setTheme } = useMapTheme();
+    return (
+      <button type="button" onClick={() => setTheme("kart-arcade")}>
+        Kart Arcade
+      </button>
+    );
+  }
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("mounts a live session with the navigation detail level", () => {
+    const mount = vi.fn<NavigationMapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setUserLocation: vi.fn(),
+      setFollowUser: vi.fn(),
+      recenter: vi.fn(),
+      setViewModel: vi.fn(),
+    }));
+
+    render(<NavigationMap route={route} engine={{ mount } as NavigationMapEngine} />);
+
+    expect(mount.mock.calls[0]?.[3]).toMatchObject({
+      detailLevel: "navigation",
+    });
+  });
+
+  it("changes theme mid-navigation without interrupting the session", async () => {
+    const destroy = vi.fn();
+    const setMapStyle = vi.fn();
+    const setUserLocation = vi.fn();
+    const mount = vi.fn<NavigationMapEngine["mount"]>(() => ({
+      destroy,
+      setUserLocation,
+      setFollowUser: vi.fn(),
+      recenter: vi.fn(),
+      setViewModel: vi.fn(),
+      setMapStyle,
+    }));
+
+    render(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <ArcadePicker />
+          <NavigationMap
+            route={route}
+            engine={{ mount } as NavigationMapEngine}
+            userLocation={{ latitude: 45.4, longitude: -72.7 }}
+            headingDeg={12}
+          />
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+    expect(mount).toHaveBeenCalledTimes(1);
+    setUserLocation.mockClear();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+
+    await waitFor(() => {
+      expect(setMapStyle).toHaveBeenCalledWith(
+        mapThemeStyle("kart-arcade"),
+        mapThemeOverlay("kart-arcade"),
+      );
+    });
+    // The session keeps its engine, its camera and its GPS feed.
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(destroy).not.toHaveBeenCalled();
+    expect(setUserLocation).not.toHaveBeenCalled();
   });
 });

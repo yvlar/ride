@@ -33,6 +33,11 @@ const MAP_THEME_OPTIONS: {
     label: "Relief",
     description: "Courbes de niveau et relief; pas de bâtiments 3D.",
   },
+  {
+    value: "kart-arcade",
+    label: "Kart Arcade",
+    description: "Couleurs vives de jeu de course; tracé bleu à halo blanc.",
+  },
 ];
 
 /** FR-045 — le fond de carte choisi dans Réglages, conservé d’une session à l’autre. */

@@ -53,6 +53,7 @@ const {
         mapState.styleLoadHandlers.push(handler);
       }
     }
+    off() {}
     setStyle() {
       // MapLibre drops every source and layer when the style is replaced.
       mapState.sources.clear();

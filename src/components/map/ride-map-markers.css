@@ -162,3 +162,71 @@
 .ride-map-cloud--storm .ride-map-cloud-icon {
   color: #c084fc;
 }
+
+/*
+ * FR-046 — Kart Arcade markers. Every shape here is drawn for Ride: a racing
+ * chequered flag, a start chevron and a bolt badge. Nothing is traced from, or
+ * modelled on, any published game's artwork.
+ *
+ * The class lands on the map container, so the theme reaches the DOM markers
+ * MapLibre appends without a second marker implementation.
+ */
+.ride-map-kart-arcade .ride-map-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #FFF9E8;
+  color: #17324D;
+  border: 2px solid #17324D;
+  border-radius: 999px;
+  padding: 4px 11px 4px 8px;
+  font-weight: 700;
+  box-shadow: 0 3px 0 rgb(23 50 77 / 0.28);
+}
+
+.ride-map-kart-arcade .ride-map-marker::before {
+  content: "";
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.ride-map-kart-arcade .ride-map-marker-start::before {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%229%22%20fill%3D%22%23147DFF%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M10%207.8l5.4%204.2-5.4%204.2z%22%20fill%3D%22%23FFFFFF%22%2F%3E%3C%2Fsvg%3E");
+}
+
+.ride-map-kart-arcade .ride-map-marker-destination::before {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20x%3D%223%22%20y%3D%222.5%22%20width%3D%222.4%22%20height%3D%2219%22%20rx%3D%221.2%22%20fill%3D%22%2317324D%22%2F%3E%3Cpath%20d%3D%22M6.6%204.2h13.2v10.2H6.6z%22%20fill%3D%22%23FFF9E8%22%2F%3E%3Cpath%20d%3D%22M6.6%204.2h3.3v3.4H6.6zM13.2%204.2h3.3v3.4h-3.3zM9.9%207.6h3.3V11H9.9zM16.5%207.6h3.3V11h-3.3zM6.6%2011h3.3v3.4H6.6zM13.2%2011h3.3v3.4h-3.3z%22%20fill%3D%22%2317324D%22%2F%3E%3C%2Fsvg%3E");
+}
+
+.ride-map-kart-arcade .ride-map-marker-entry::before {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M13.6%202%205.2%2013.2h4.9L8.6%2022l8.6-11.4h-5z%22%20fill%3D%22%23FFD447%22%20stroke%3D%22%2317324D%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+}
+
+.ride-map-kart-arcade .ride-map-arrow {
+  border-bottom-color: #FFD447;
+  filter: drop-shadow(0 0 1.5px #17324D);
+}
+
+.ride-map-kart-arcade .ride-map-user-puck,
+.ride-map-kart-arcade .maplibregl-user-location-dot.ride-map-user-puck {
+  background: #147DFF;
+  border-color: #ffffff;
+  box-shadow:
+    0 0 0 3px rgb(255 212 71 / 0.85),
+    0 2px 4px rgb(23 50 77 / 0.45);
+}
+
+/* No looping animation anywhere in this theme; this only softens a redraw. */
+.ride-map-kart-arcade .ride-map-marker {
+  transition: box-shadow 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ride-map-kart-arcade .ride-map-marker {
+    transition: none;
+  }
+}

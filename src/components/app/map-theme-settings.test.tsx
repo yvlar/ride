@@ -24,7 +24,7 @@ describe("MapThemeSettings (FR-045)", () => {
     expect(onChange).toHaveBeenCalledWith("terrain");
   });
 
-  it("offers the five themes", () => {
+  it("offers every theme", () => {
     render(<MapThemeSettings value="dark" onChange={vi.fn()} />);
 
     for (const label of [
@@ -33,8 +33,29 @@ describe("MapThemeSettings (FR-045)", () => {
       /Sombre/,
       /Satellite/,
       /Relief/,
+      /Kart Arcade/,
     ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
+  });
+
+  it("offers Kart Arcade as a deliberate choice, never the default (FR-046)", () => {
+    const onChange = vi.fn();
+    render(<MapThemeSettings value="auto" onChange={onChange} />);
+
+    const arcade = screen.getByRole("button", { name: /Kart Arcade/ });
+    expect(arcade).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(arcade);
+
+    expect(onChange).toHaveBeenCalledWith("kart-arcade");
+  });
+
+  it("names every option in text, so the choice is never colour alone (NFR-001)", () => {
+    render(<MapThemeSettings value="kart-arcade" onChange={vi.fn()} />);
+
+    const arcade = screen.getByRole("button", { name: /Kart Arcade/ });
+    expect(arcade).toHaveAttribute("aria-pressed", "true");
+    expect(arcade).toHaveAccessibleName(/Kart Arcade/);
   });
 });

@@ -13,6 +13,7 @@ import {
   type NavigationMapEngine,
   type NavigationMapHandle,
 } from "@/components/map/navigation-map-engine";
+import { mapThemeOverlay } from "@/components/map/map-theme-overlay";
 import { mapThemeStyle } from "@/components/map/map-theme-styles";
 import { toRideMapViewModel } from "@/components/map/ride-map-view-model";
 import { useMapTheme } from "@/components/theme/map-theme-provider";
@@ -45,9 +46,15 @@ export function NavigationMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<NavigationMapHandle | undefined>(undefined);
   /** FR-045 — the basemap picked in Réglages, resolved against the appearance. */
-  const { resolvedTheme } = useMapTheme();
+  const { resolvedTheme, reportThemeFailure } = useMapTheme();
   const mapStyle = useMemo(() => mapThemeStyle(resolvedTheme), [resolvedTheme]);
+  const mapOverlay = useMemo(
+    () => mapThemeOverlay(resolvedTheme),
+    [resolvedTheme],
+  );
   const mapStyleRef = useRef(mapStyle);
+  const mapOverlayRef = useRef(mapOverlay);
+  const reportThemeFailureRef = useRef(reportThemeFailure);
   const onRecenterReadyRef = useRef(onRecenterReady);
   const onOverviewReadyRef = useRef(onOverviewReady);
   const onFollowUserChangeRef = useRef(onFollowUserChange);
@@ -106,11 +113,19 @@ export function NavigationMap({
           onFollowUserChangeRef.current?.(following);
         }
       },
+      onMapStyleFallback: () => {
+        if (!cancelled) {
+          reportThemeFailureRef.current();
+        }
+      },
     };
 
     const resolved = engine ?? createNavigationMapEngine();
     const handle = resolved.mount(container, initial, handlers, {
       mapStyle: mapStyleRef.current,
+      mapOverlay: mapOverlayRef.current,
+      // FR-046 — a live session is not the place for atmosphere.
+      detailLevel: "navigation",
     });
     handleRef.current = handle;
     onRecenterReadyRef.current?.(() => handle.recenter());
@@ -145,9 +160,14 @@ export function NavigationMap({
   }, [userLocation, headingDeg]);
 
   useEffect(() => {
+    reportThemeFailureRef.current = reportThemeFailure;
+  }, [reportThemeFailure]);
+
+  useEffect(() => {
     mapStyleRef.current = mapStyle;
-    handleRef.current?.setMapStyle?.(mapStyle);
-  }, [mapStyle]);
+    mapOverlayRef.current = mapOverlay;
+    handleRef.current?.setMapStyle?.(mapStyle, mapOverlay);
+  }, [mapStyle, mapOverlay]);
 
   return (
     <section aria-label="Carte de navigation" className="relative min-h-0 flex-1">

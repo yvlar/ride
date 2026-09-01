@@ -1,5 +1,6 @@
 import type { StyleSpecification } from "maplibre-gl";
 import type { Coordinates } from "@/domain/geo/types";
+import type { MapDetailLevel, MapOverlayTheme } from "./map-theme-overlay";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
@@ -13,6 +14,10 @@ export type MapStyleSource = string | StyleSpecification;
 export type MapMountOptions = {
   /** FR-045 — the basemap the rider picked in Réglages, resolved to a style. */
   mapStyle?: MapStyleSource;
+  /** FR-046 — route, halo and building colours that belong to that theme. */
+  mapOverlay?: MapOverlayTheme;
+  /** FR-046 — how much atmosphere the map may show. Defaults to exploration. */
+  detailLevel?: MapDetailLevel;
 };
 
 export type MapEngineHandle = {
@@ -48,7 +53,12 @@ export type MapEngineHandle = {
    * FR-045 — swap the basemap in place. The engine re-adds every source and
    * layer it owns once the new style settles; the map is never remounted.
    */
-  setMapStyle?: (style: MapStyleSource) => void;
+  setMapStyle?: (style: MapStyleSource, overlay?: MapOverlayTheme) => void;
+  /**
+   * FR-046 — exploration shows the full theme; navigation hides the decorative
+   * layers so the road, the manoeuvre and the rider own the screen.
+   */
+  setDetailLevel?: (level: MapDetailLevel) => void;
 };
 
 export type MapEngineHandlers = {
@@ -62,6 +72,12 @@ export type MapEngineHandlers = {
   onFollowUserChange?: (following: boolean) => void;
   /** FR-038 — a coordinate picked by click, long press, or marker drag. */
   onPick?: (coordinates: Coordinates) => void;
+  /**
+   * FR-046 — a basemap that could not be loaded was rolled back. The UI uses it
+   * to return the rider to the standard theme instead of leaving them on a
+   * setting that never applies.
+   */
+  onMapStyleFallback?: () => void;
 };
 
 export type MapEngine = {

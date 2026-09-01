@@ -5,15 +5,30 @@ import type {
 
 export const RIDE_3D_BUILDINGS_LAYER_ID = "ride-3d-buildings";
 
-export function addRideBuildingExtrusions(map: {
-  getLayer: (id: string) => unknown;
-  getStyle: () => Pick<StyleSpecification, "sources" | "layers">;
-  addLayer: (layer: FillExtrusionLayerSpecification) => unknown;
-}): void {
+/** FR-046 — the extrusion takes its colour from the active map theme. */
+export type BuildingExtrusionAppearance = {
+  color: string;
+  opacity: number;
+};
+
+export const DEFAULT_BUILDING_EXTRUSION_APPEARANCE: BuildingExtrusionAppearance =
+  {
+    color: "#94a3b8",
+    opacity: 0.65,
+  };
+
+export function addRideBuildingExtrusions(
+  map: {
+    getLayer: (id: string) => unknown;
+    getStyle: () => Pick<StyleSpecification, "sources" | "layers">;
+    addLayer: (layer: FillExtrusionLayerSpecification) => unknown;
+  },
+  appearance: BuildingExtrusionAppearance = DEFAULT_BUILDING_EXTRUSION_APPEARANCE,
+): void {
   if (map.getLayer(RIDE_3D_BUILDINGS_LAYER_ID)) {
     return;
   }
-  const layer = buildingExtrusionLayer(map.getStyle());
+  const layer = buildingExtrusionLayer(map.getStyle(), appearance);
   if (layer) {
     map.addLayer(layer);
   }
@@ -25,6 +40,7 @@ export function addRideBuildingExtrusions(map: {
  */
 export function buildingExtrusionLayer(
   style: Pick<StyleSpecification, "sources" | "layers">,
+  appearance: BuildingExtrusionAppearance = DEFAULT_BUILDING_EXTRUSION_APPEARANCE,
 ): FillExtrusionLayerSpecification | null {
   const layers = style.layers ?? [];
   if (layers.some((layer) => layer.type === "fill-extrusion")) {
@@ -51,7 +67,7 @@ export function buildingExtrusionLayer(
     "source-layer": "building",
     minzoom: 15,
     paint: {
-      "fill-extrusion-color": "#94a3b8",
+      "fill-extrusion-color": appearance.color,
       "fill-extrusion-height": [
         "coalesce",
         ["get", "render_height"],
@@ -64,7 +80,7 @@ export function buildingExtrusionLayer(
         ["get", "min_height"],
         0,
       ],
-      "fill-extrusion-opacity": 0.65,
+      "fill-extrusion-opacity": appearance.opacity,
     },
   };
 }

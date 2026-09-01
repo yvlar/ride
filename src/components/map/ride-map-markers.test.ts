@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyMotorcyclePuckHeading,
@@ -102,3 +104,40 @@ function headingNode(root: HTMLElement): HTMLElement {
   }
   return heading;
 }
+
+describe("Kart Arcade markers (FR-046)", () => {
+  const stylesheet = readFileSync(
+    path.join(process.cwd(), "src/components/map/ride-map-markers.css"),
+    "utf8",
+  );
+
+  it("gives each place marker its kind and keeps its text label", () => {
+    const destination = createPlaceMarkerElement("Arrivée", "destination");
+
+    expect(destination.className).toContain("ride-map-marker-destination");
+    expect(destination.dataset.markerKind).toBe("destination");
+    // Meaning never rests on the badge alone (NFR-001).
+    expect(destination.textContent).toBe("Arrivée");
+    expect(destination.getAttribute("aria-label")).toBe("Arrivée");
+  });
+
+  it("defaults to the start kind, so existing callers are unchanged", () => {
+    expect(createPlaceMarkerElement("Départ").className).toContain(
+      "ride-map-marker-start",
+    );
+  });
+
+  it("draws its badges inline, with no request and no third-party artwork", () => {
+    const arcade = stylesheet.slice(
+      stylesheet.indexOf(".ride-map-kart-arcade"),
+    );
+    expect(arcade).toContain("data:image/svg+xml");
+    expect(arcade).not.toMatch(/url\(\s*["']?https?:/);
+  });
+
+  it("runs no permanent animation and honours prefers-reduced-motion", () => {
+    expect(stylesheet).not.toContain("infinite");
+    expect(stylesheet).not.toContain("@keyframes");
+    expect(stylesheet).toContain("prefers-reduced-motion");
+  });
+});

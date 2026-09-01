@@ -1,4 +1,9 @@
-import { GeolocateControl, Map as MapLibreMap, Marker } from "maplibre-gl";
+import {
+  GeolocateControl,
+  Map as MapLibreMap,
+  Marker,
+  type DataDrivenPropertyValueSpecification,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { coordinatesToPosition } from "@/domain/geo/distance";
 import type { Coordinates } from "@/domain/geo/types";
@@ -16,6 +21,12 @@ import {
   type MapStyleSource,
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
+import {
+  STANDARD_MAP_OVERLAY_THEME,
+  type MapDetailLevel,
+  type MapOverlayTheme,
+} from "./map-theme-overlay";
+import { KART_ARCADE_DECOR_LAYER_PREFIX } from "./themes/kart-arcade-style";
 import { createLongPressRecognizer } from "./long-press";
 import {
   RECORDED_TRACK_END_LABEL,
@@ -37,6 +48,7 @@ import {
   createUserPuckElement,
   enhanceGeolocateDotWithMotorcycle,
   headingFromGeolocateEvent,
+  type PlaceMarkerKind,
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
 import {
@@ -60,7 +72,13 @@ export const RADAR_SOURCE_ID = "ride-radar";
 export const RADAR_LAYER_ID = "ride-radar-tiles";
 
 /** Radar has to sit under the route: a cell must never hide the road. */
-const ROUTE_LAYER_IDS = ["ride-traveled-line", "ride-route-line"] as const;
+const ROUTE_LAYER_IDS = [
+  "ride-route-casing",
+  "ride-traveled-line",
+  "ride-route-line",
+] as const;
+
+export const ROUTE_CASING_LAYER_ID = "ride-route-casing";
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -76,7 +94,7 @@ export function createMapLibreEngine(
     mount(
       container,
       viewModel,
-      { onError, onWarning, onFollowUserChange, onPick },
+      { onError, onWarning, onFollowUserChange, onPick, onMapStyleFallback },
       mountOptions,
     ): MapEngineHandle {
       const markers: Marker[] = [];
@@ -92,12 +110,26 @@ export function createMapLibreEngine(
       let currentStyleSource: MapStyleSource =
         mountOptions?.mapStyle ??
         (process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE);
+      /** FR-046 — route, halo and building colours of the active theme. */
+      let overlayTheme: MapOverlayTheme =
+        mountOptions?.mapOverlay ?? STANDARD_MAP_OVERLAY_THEME;
+      let detailLevel: MapDetailLevel = mountOptions?.detailLevel ?? "exploration";
+      /**
+       * Guards the listeners a theme swap registers: a rider tapping through
+       * the themes must not leave a stack of `style.load` handlers behind.
+       */
+      let styleSwapId = 0;
+      /** Detaches the listeners of the running style-health watch, if any. */
+      let releaseStyleHealthWatch: (() => void) | null = null;
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
       let lastGeolocateHeadingDeg: number | null = null;
       const reducedMotion = prefersReducedMotion();
 
       ensureMapLibreWorkerUrl();
+      if (overlayTheme.containerClassName) {
+        container.classList.add(overlayTheme.containerClassName);
+      }
       let camera = mapCameraFrame(viewModel.bounds);
       let currentViewModel = viewModel;
 
@@ -219,6 +251,23 @@ export function createMapLibreEngine(
               type: "geojson",
               data,
             });
+            // The halo goes in first so it stays under every other route layer;
+            // MapLibre draws in insertion order (FR-046).
+            if (overlayTheme.route.casingColor) {
+              map.addLayer({
+                id: ROUTE_CASING_LAYER_ID,
+                type: "line",
+                source: "ride-route",
+                layout: {
+                  "line-cap": "round",
+                  "line-join": "round",
+                },
+                paint: {
+                  "line-color": overlayTheme.route.casingColor,
+                  "line-width": routeLineWidth(overlayTheme.route.casingWidth),
+                },
+              });
+            }
             map.addLayer({
               id: "ride-route-line",
               type: "line",
@@ -228,8 +277,8 @@ export function createMapLibreEngine(
                 "line-join": "round",
               },
               paint: {
-                "line-color": "#38bdf8",
-                "line-width": 4,
+                "line-color": overlayTheme.route.color,
+                "line-width": routeLineWidth(overlayTheme.route.width),
               },
             });
           }
@@ -258,8 +307,8 @@ export function createMapLibreEngine(
                   "line-join": "round",
                 },
                 paint: {
-                  "line-color": "#64748b",
-                  "line-width": 6,
+                  "line-color": overlayTheme.route.traveledColor,
+                  "line-width": routeLineWidth(overlayTheme.route.traveledWidth),
                   "line-opacity": 0.55,
                 },
               },
@@ -299,7 +348,7 @@ export function createMapLibreEngine(
                 "line-join": "round",
               },
               paint: {
-                "line-color": "#f59e0b",
+                "line-color": overlayTheme.route.connectorColor,
                 "line-width": 4,
                 "line-dasharray": [1.5, 1.5],
               },
@@ -311,19 +360,27 @@ export function createMapLibreEngine(
           }
           markers.length = 0;
           if (!next.idle) {
-            markers.push(placeMarker(map, next.start.label, next.start.coordinates));
+            markers.push(
+              placeMarker(map, next.start.label, next.start.coordinates, "start"),
+            );
             if (next.destination) {
               markers.push(
                 placeMarker(
                   map,
                   next.destination.label,
                   next.destination.coordinates,
+                  "destination",
                 ),
               );
             }
             if (next.entry) {
               markers.push(
-                placeMarker(map, next.entry.label, next.entry.coordinates),
+                placeMarker(
+                  map,
+                  next.entry.label,
+                  next.entry.coordinates,
+                  "entry",
+                ),
               );
             }
             for (const arrow of next.directionArrows) {
@@ -378,12 +435,22 @@ export function createMapLibreEngine(
           recordedMarkers.length = 0;
           if (recordedTrack?.startPoint) {
             recordedMarkers.push(
-              placeMarker(map, RECORDED_TRACK_START_LABEL, recordedTrack.startPoint),
+              placeMarker(
+                map,
+                RECORDED_TRACK_START_LABEL,
+                recordedTrack.startPoint,
+                "start",
+              ),
             );
           }
           if (recordedTrack?.endPoint) {
             recordedMarkers.push(
-              placeMarker(map, RECORDED_TRACK_END_LABEL, recordedTrack.endPoint),
+              placeMarker(
+                map,
+                RECORDED_TRACK_END_LABEL,
+                recordedTrack.endPoint,
+                "destination",
+              ),
             );
           }
 
@@ -530,17 +597,112 @@ export function createMapLibreEngine(
           return;
         }
         try {
-          addRideBuildingExtrusions(map);
+          addRideBuildingExtrusions(map, overlayTheme.buildings);
         } catch {
           // Optional 3D buildings must not take down the street map (NFR-005).
         }
         renderRoute(currentViewModel);
         renderRecordedTrack();
         renderWeather();
+        applyDetailLevel();
         applyPendingFrame();
       }
 
+      /**
+       * FR-046 — a style document can load while its tile source never does:
+       * MapLibre reports that as an error *after* `style.load`, leaving a blank
+       * ground. Watch until the first source is actually up, and treat any
+       * error before that as the theme having failed (NFR-005).
+       */
+      function watchStyleHealth(onFailure: () => void) {
+        releaseStyleHealthWatch?.();
+        if (!map || disposed) {
+          return;
+        }
+        const target = map;
+        const detach = () => {
+          target.off("error", onStyleHealthError);
+          target.off("sourcedata", onSourceData);
+          if (releaseStyleHealthWatch === detach) {
+            releaseStyleHealthWatch = null;
+          }
+        };
+        function onSourceData(event: { isSourceLoaded?: boolean }) {
+          if (event?.isSourceLoaded) {
+            detach();
+          }
+        }
+        function onStyleHealthError() {
+          detach();
+          onFailure();
+        }
+        target.on("error", onStyleHealthError);
+        target.on("sourcedata", onSourceData);
+        releaseStyleHealthWatch = detach;
+      }
+
+      /** FR-046 — marks the container so the DOM markers follow the theme. */
+      function applyContainerTheme(previous?: MapOverlayTheme) {
+        const previousClass = previous?.containerClassName;
+        if (previousClass) {
+          container.classList.remove(previousClass);
+        }
+        if (overlayTheme.containerClassName) {
+          container.classList.add(overlayTheme.containerClassName);
+        }
+      }
+
+      /**
+       * FR-046 — navigation drops the decorative layers and thickens the route.
+       * Layer visibility is cheap: no style reload, no camera move, so it can
+       * flip when a session starts without disturbing the GPS follow.
+       */
+      function applyDetailLevel() {
+        if (!map || disposed) {
+          return;
+        }
+        const navigating = detailLevel === "navigation";
+        try {
+          for (const layer of map.getStyle()?.layers ?? []) {
+            if (!layer.id.startsWith(KART_ARCADE_DECOR_LAYER_PREFIX)) {
+              continue;
+            }
+            map.setLayoutProperty(
+              layer.id,
+              "visibility",
+              navigating ? "none" : "visible",
+            );
+          }
+        } catch {
+          // A style still settling simply keeps its own visibility (NFR-005).
+        }
+        // Contrast, not decoration: the route reads first while riding.
+        const scale = navigating ? 1.25 : 1;
+        setRouteWidth("ride-route-line", overlayTheme.route.width * scale);
+        setRouteWidth(
+          ROUTE_CASING_LAYER_ID,
+          overlayTheme.route.casingWidth * scale,
+        );
+      }
+
+      function setRouteWidth(layerId: string, width: number) {
+        if (!map || disposed || !map.getLayer?.(layerId)) {
+          return;
+        }
+        try {
+          map.setPaintProperty(layerId, "line-width", routeLineWidth(width));
+        } catch {
+          // Width is a refinement; the route is already on screen.
+        }
+      }
+
       map.on("load", renderStyleLayers);
+
+      if (overlayTheme.revertOnLoadFailure) {
+        // A theme restored from Réglages gets the same safety net as one picked
+        // now: the rider never lands on a blank map at startup.
+        watchStyleHealth(() => onMapStyleFallback?.());
+      }
 
       /**
        * Frame a route that could not be framed when it arrived. Deferred by a
@@ -699,6 +861,11 @@ export function createMapLibreEngine(
       return {
         destroy() {
           disposed = true;
+          releaseStyleHealthWatch?.();
+          releaseStyleHealthWatch = null;
+          if (overlayTheme.containerClassName) {
+            container.classList.remove(overlayTheme.containerClassName);
+          }
           longPress.cancel();
           container.removeEventListener("touchstart", onTouchStart);
           container.removeEventListener("touchmove", onTouchMove);
@@ -828,27 +995,91 @@ export function createMapLibreEngine(
             longPress.cancel();
           }
         },
-        setMapStyle(next) {
-          if (!map || disposed || next === currentStyleSource) {
+        setMapStyle(next, nextOverlay) {
+          const overlayChanged =
+            nextOverlay !== undefined && nextOverlay !== overlayTheme;
+          if (!map || disposed || (next === currentStyleSource && !overlayChanged)) {
             return;
           }
           const previous = currentStyleSource;
+          const previousOverlay = overlayTheme;
           currentStyleSource = next;
+          if (nextOverlay) {
+            overlayTheme = nextOverlay;
+            applyContainerTheme(previousOverlay);
+          }
           // The radar source goes with the old style; forget the template so
           // renderWeather rebuilds it instead of assuming it is still there.
           radarTemplate = null;
+          // Every swap invalidates the listeners of the one before it, so a
+          // rider tapping through themes never stacks handlers (FR-046).
+          const swapId = ++styleSwapId;
+
+          const revert = () => {
+            if (!map || disposed || swapId !== styleSwapId) {
+              return;
+            }
+            map.off("error", onStyleError);
+            styleSwapId += 1;
+            currentStyleSource = previous;
+            overlayTheme = previousOverlay;
+            applyContainerTheme(nextOverlay ?? previousOverlay);
+            try {
+              map.once("style.load", renderStyleLayers);
+              map.setStyle(previous, { diff: false });
+            } catch {
+              // Nothing left to try: the previous basemap is the last resort.
+            }
+            onMapStyleFallback?.();
+          };
+
+          function onStyleError() {
+            // Only a style that never finished loading is a failed theme; tile
+            // hiccups afterwards are not, and the handler is gone by then.
+            if (!map || disposed || swapId !== styleSwapId || map.isStyleLoaded()) {
+              return;
+            }
+            revert();
+          }
+
+          const onStyleLoaded = () => {
+            if (swapId !== styleSwapId) {
+              return;
+            }
+            map?.off("error", onStyleError);
+            renderStyleLayers();
+            if (overlayTheme.revertOnLoadFailure) {
+              watchStyleHealth(revert);
+            } else {
+              releaseStyleHealthWatch?.();
+            }
+          };
+
           try {
             // Registered first: an inline style specification settles inside
             // setStyle, so a handler added afterwards would miss the event.
-            map.once("style.load", renderStyleLayers);
+            map.once("style.load", onStyleLoaded);
+            map.on("error", onStyleError);
             map.setStyle(next, { diff: false });
           } catch {
             // Keep the basemap already on screen rather than an empty canvas
             // (NFR-005); the route and its text are untouched either way, and
             // the rider can pick the theme again.
+            map.off("error", onStyleError);
+            styleSwapId += 1;
             currentStyleSource = previous;
+            overlayTheme = previousOverlay;
+            applyContainerTheme(nextOverlay ?? previousOverlay);
             onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+            onMapStyleFallback?.();
           }
+        },
+        setDetailLevel(level) {
+          if (disposed || level === detailLevel) {
+            return;
+          }
+          detailLevel = level;
+          applyDetailLevel();
         },
         setPickMarker(coordinates) {
           if (!map || disposed) {
@@ -939,6 +1170,28 @@ function radarBeforeLayerId(map: MapLibreMap): string | undefined {
   return undefined;
 }
 
+/**
+ * FR-046 — the route keeps its weight across zoom levels: hairline-thin on an
+ * overview and bold in a town, from a single width token per theme.
+ */
+export function routeLineWidth(
+  base: number,
+): DataDrivenPropertyValueSpecification<number> {
+  return [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    6,
+    base * 0.55,
+    11,
+    base * 0.8,
+    15,
+    base,
+    19,
+    base * 1.35,
+  ];
+}
+
 function removeMapSafely(map: MapLibreMap | undefined): void {
   if (!map) {
     return;
@@ -964,9 +1217,10 @@ function placeMarker(
   map: MapLibreMap,
   label: string,
   coordinates: RideMapViewModel["start"]["coordinates"],
+  kind: PlaceMarkerKind,
 ): Marker {
   return new Marker({
-    element: createPlaceMarkerElement(label),
+    element: createPlaceMarkerElement(label, kind),
     anchor: "bottom",
   })
     .setLngLat(coordinatesToPosition(coordinates))

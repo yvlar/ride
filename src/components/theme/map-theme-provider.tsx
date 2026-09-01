@@ -2,9 +2,11 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -22,10 +24,17 @@ const MapThemeContext = createContext<{
   theme: MapTheme;
   setTheme: (theme: MapTheme) => void;
   resolvedTheme: ResolvedMapTheme;
+  /**
+   * FR-046 — the map calls this when a basemap could not be loaded. The rider
+   * is returned to the default theme instead of being left on a setting that
+   * never applies, and the failed theme is not retried this session.
+   */
+  reportThemeFailure: () => void;
 }>({
   theme: DEFAULT_MAP_THEME,
   setTheme: () => {},
   resolvedTheme: "dark",
+  reportThemeFailure: () => {},
 });
 
 /**
@@ -62,13 +71,26 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [hydrated, theme]);
 
+  const themeRef = useRef(theme);
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
+
+  const reportThemeFailure = useCallback(() => {
+    if (themeRef.current === DEFAULT_MAP_THEME) {
+      return;
+    }
+    setTheme(DEFAULT_MAP_THEME);
+  }, []);
+
   const value = useMemo(
     () => ({
       theme,
       setTheme,
       resolvedTheme: resolveMapTheme(theme, resolved),
+      reportThemeFailure,
     }),
-    [theme, resolved],
+    [theme, resolved, reportThemeFailure],
   );
 
   return (

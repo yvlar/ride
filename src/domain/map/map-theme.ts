@@ -1,7 +1,13 @@
 import type { ResolvedAppearance } from "@/domain/appearance/appearance";
 
 /** FR-045 — the basemap themes offered in Réglages. */
-export type MapTheme = "auto" | "light" | "dark" | "satellite" | "terrain";
+export type MapTheme =
+  | "auto"
+  | "light"
+  | "dark"
+  | "satellite"
+  | "terrain"
+  | "kart-arcade";
 
 /** A theme the map engine can actually load: `auto` is resolved away first. */
 export type ResolvedMapTheme = Exclude<MapTheme, "auto">;
@@ -16,6 +22,7 @@ const MAP_THEMES: readonly MapTheme[] = [
   "dark",
   "satellite",
   "terrain",
+  "kart-arcade",
 ];
 
 export function isMapTheme(value: unknown): value is MapTheme {
