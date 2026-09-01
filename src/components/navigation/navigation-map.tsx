@@ -13,7 +13,9 @@ import {
   type NavigationMapEngine,
   type NavigationMapHandle,
 } from "@/components/map/navigation-map-engine";
+import { mapThemeStyle } from "@/components/map/map-theme-styles";
 import { toRideMapViewModel } from "@/components/map/ride-map-view-model";
+import { useMapTheme } from "@/components/theme/map-theme-provider";
 import { cn } from "@/lib/utils";
 
 export type NavigationMapProps = {
@@ -42,6 +44,10 @@ export function NavigationMap({
 }: NavigationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<NavigationMapHandle | undefined>(undefined);
+  /** FR-045 — the basemap picked in Réglages, resolved against the appearance. */
+  const { resolvedTheme } = useMapTheme();
+  const mapStyle = useMemo(() => mapThemeStyle(resolvedTheme), [resolvedTheme]);
+  const mapStyleRef = useRef(mapStyle);
   const onRecenterReadyRef = useRef(onRecenterReady);
   const onOverviewReadyRef = useRef(onOverviewReady);
   const onFollowUserChangeRef = useRef(onFollowUserChange);
@@ -103,7 +109,9 @@ export function NavigationMap({
     };
 
     const resolved = engine ?? createNavigationMapEngine();
-    const handle = resolved.mount(container, initial, handlers);
+    const handle = resolved.mount(container, initial, handlers, {
+      mapStyle: mapStyleRef.current,
+    });
     handleRef.current = handle;
     onRecenterReadyRef.current?.(() => handle.recenter());
     onOverviewReadyRef.current?.(() => handle.overview?.());
@@ -135,6 +143,11 @@ export function NavigationMap({
   useEffect(() => {
     handleRef.current?.setUserLocation(userLocation ?? null, headingDeg);
   }, [userLocation, headingDeg]);
+
+  useEffect(() => {
+    mapStyleRef.current = mapStyle;
+    handleRef.current?.setMapStyle?.(mapStyle);
+  }, [mapStyle]);
 
   return (
     <section aria-label="Carte de navigation" className="relative min-h-0 flex-1">

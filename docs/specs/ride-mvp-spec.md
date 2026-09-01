@@ -760,7 +760,7 @@ sollicitée qu’à l’ouverture d’un flux, automatiquement pour **Trouver un
 
 **Rechercher une destination** ouvre le volet **Trouver une destination** (`FR-038`) : position actuelle automatique, champ unique de destination, génération et prévisualisation, puis navigation. Ce n’est pas le formulaire de composition (`FR-014`).
 
-**Réglages** contient l’apparence (`FR-037`), le style **Panoramique** ou **Le plus rapide**, et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Le style et ces trois options sont conservés uniquement pendant la session du navigateur; une nouvelle session revient à **Panoramique** avec **Éviter les autoroutes** désactivé. Les flux **Décrire mon trajet** (`FR-034`), **Trouver une destination** (`FR-038`) et **Importer un fichier GPX** (`FR-039`, raccordement, retour hors trajet, et accroche `<rte>`) les lisent à la génération et ne les affichent pas dans leur panneau. La géométrie d’une trace `<trk>` reste autoritaire (`BR-010`) : les préférences ne la remplacent pas.
+**Réglages** contient l’apparence (`FR-037`), le thème de la carte (`FR-045`), le style **Panoramique** ou **Le plus rapide**, et les préférences de route **Éviter les autoroutes**, **Éviter les routes non pavées** et **Canada seulement** (`FR-007`, `FR-008`, `FR-030`). Le style et ces trois options sont conservés uniquement pendant la session du navigateur; une nouvelle session revient à **Panoramique** avec **Éviter les autoroutes** désactivé. Les flux **Décrire mon trajet** (`FR-034`), **Trouver une destination** (`FR-038`) et **Importer un fichier GPX** (`FR-039`, raccordement, retour hors trajet, et accroche `<rte>`) les lisent à la génération et ne les affichent pas dans leur panneau. La géométrie d’une trace `<trk>` reste autoritaire (`BR-010`) : les préférences ne la remplacent pas.
 
 **Importer un fichier GPX** ouvre le flux `FR-039` dans la même vue carte, sans perturber **Trouver une destination**.
 
@@ -1185,6 +1185,26 @@ Les fournisseurs sont remplaçables (`NFR-005`, `BR-004`) : le domaine ne conna�
 
 Un fournisseur d’imagerie déclare le zoom au-delà duquel il ne sert plus rien : la carte agrandit alors sa dernière image plutôt que de demander des tuiles qui reviendraient en image de remplacement. Deux services sont branchés — l’un mondial avec prévision immédiate mais plafonné en zoom, l’autre nord-américain à 1 km rendu à la demande, sans plafond mais sans prévision. Le choix est une variable d’environnement, jamais une décision du domaine.
 
+### FR-045 — Thème de la carte
+
+Le fond de carte se choisit dans **Réglages** (`FR-031`), sous forme de cinq thèmes :
+
+- **Automatique** — suit l’apparence de l’interface (`FR-037`) : fond clair en mode clair, fond sombre en mode sombre **et** en navigation nocturne;
+- **Clair** — fond de rue clair, lisible en plein soleil;
+- **Sombre** — fond de rue sombre, moins éblouissant la nuit;
+- **Satellite** — imagerie aérienne;
+- **Relief** — relief et courbes de niveau.
+
+Règles :
+
+- **Automatique** est la valeur par défaut;
+- contrairement au style de trajet et aux préférences de route, le choix est **durable** : il survit à la fermeture de l’application, comme l’apparence (`FR-037`) et la voix (`FR-025`);
+- le changement s’applique **sans démonter la carte** : le tracé, la trace enregistrée (`FR-041`), les marqueurs et la couche météo (`FR-043`) sont redessinés sur le nouveau fond, et la caméra ne bouge pas;
+- les thèmes **Satellite** et **Relief** sont matriciels : ils n’offrent pas de bâtiments 3D pendant le suivi de navigation (`FR-024`), sans que ce soit une erreur (`NFR-005`);
+- chaque thème affiche l’**attribution** exigée par son fournisseur de tuiles;
+- l’échec de chargement d’un thème laisse le fond précédent à l’écran plutôt qu’une carte vide (`NFR-005`); les informations textuelles du trajet ne dépendent jamais du fond (`FR-013`);
+- le fournisseur de tuiles reste un détail d’infrastructure (`BR-004`) : le domaine ne connaît que le nom du thème.
+
 ---
 
 ## 15. Hors périmètre du MVP
@@ -1300,6 +1320,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-042` | Écran de navigation lisible en roulant |
 | `FR-043` | Météo et radar sur la carte |
 | `FR-044` | Indications sonores |
+| `FR-045` | Thème de la carte |
 
 ### Règles métier
 

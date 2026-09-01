@@ -938,7 +938,7 @@ WEB_SEARCH_API_BASE_URL=
 NEXT_PUBLIC_MAP_STYLE_URL=
 ```
 
-Laisser `NEXT_PUBLIC_MAP_STYLE_URL` vide utilise le repli raster OSM (`FR-013`, `NFR-005`). Un style vectoriel avec une couche `building` active les bâtiments 3D pendant le suivi de navigation (`FR-024`). Exemple sans secret : `https://tiles.openfreemap.org/styles/liberty`.
+`NEXT_PUBLIC_MAP_STYLE_URL` définit le fond du thème de carte **Clair** (`FR-045`), celui que **Automatique** utilise en apparence claire; les thèmes **Sombre**, **Satellite** et **Relief** sont intégrés et l’ignorent. Laisser la variable vide utilise le repli raster OSM (`FR-013`, `NFR-005`). Un style vectoriel avec une couche `building` active les bâtiments 3D pendant le suivi de navigation (`FR-024`). Exemple sans secret : `https://tiles.openfreemap.org/styles/liberty`.
 
 `GEOCODING_PROVIDER=photon` est la valeur par défaut : un géocodeur public **sans clé**, conçu pour l’autocomplétion, donc la recherche d’adresse fonctionne sans configuration. `GEOCODING_API_BASE_URL` vide vise l’instance publique `https://photon.komoot.io/`, offerte pour un usage équitable ; un trafic soutenu doit viser une instance auto-hébergée par cette même variable. `GEOCODING_PROVIDER=mock` reste la valeur hors ligne et de test. `GEOCODING_PROVIDER=nominatim` exige `GEOCODING_API_BASE_URL` vers un service dédié ou géré ; le serveur public de démonstration d’OSM interdit l’autocomplétion et n’est jamais configuré. Les appels de géocodage, y compris le géocodage inverse, restent côté serveur derrière `GeocodingProvider`.
 

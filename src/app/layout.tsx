@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { NativeChrome } from "@/components/native/native-chrome";
 import { AppearanceProvider } from "@/components/theme/appearance-provider";
+import { MapThemeProvider } from "@/components/theme/map-theme-provider";
 import { metadata, viewport } from "./document-chrome";
 import "./globals.css";
 
@@ -24,8 +25,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full bg-background text-foreground font-sans">
         <AppearanceProvider>
-          <NativeChrome />
-          {children}
+          <MapThemeProvider>
+            <NativeChrome />
+            {children}
+          </MapThemeProvider>
         </AppearanceProvider>
       </body>
     </html>

@@ -1,9 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Place } from "@/domain/geo/types";
 import type { GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
 import { GPS_TRACKING_UNAVAILABLE_MESSAGE } from "./geolocate-control-options";
+import { AppearanceProvider } from "@/components/theme/appearance-provider";
+import {
+  MapThemeProvider,
+  useMapTheme,
+} from "@/components/theme/map-theme-provider";
 import { MAP_UNAVAILABLE_MESSAGE, type MapEngine } from "./map-engine";
+import { mapThemeStyle } from "./map-theme-styles";
 import { RideMap } from "./ride-map";
 import type { WeatherMapOverlay } from "./weather-overlay";
 
@@ -296,5 +302,53 @@ describe("RideMap (FR-013, NFR-001)", () => {
     expect(
       screen.getByRole("region", { name: "Carte du trajet" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("RideMap basemap theme (FR-045)", () => {
+  function ThemePicker() {
+    const { setTheme } = useMapTheme();
+    return (
+      <button type="button" onClick={() => setTheme("terrain")}>
+        Relief
+      </button>
+    );
+  }
+
+  it("mounts with the resolved theme and swaps it without remounting", async () => {
+    const setMapStyle = vi.fn();
+    const mount = vi.fn<MapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setMapStyle,
+    }));
+    const engine: MapEngine = { mount };
+
+    render(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <ThemePicker />
+          <RideMap route={loop} engine={engine} />
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    // The default appearance is dark, so Automatique picks the dark basemap.
+    expect(mount.mock.calls[0]?.[3]).toEqual({
+      mapStyle: mapThemeStyle("dark"),
+    });
+
+    act(() => {
+      screen.getByRole("button", { name: "Relief" }).click();
+    });
+
+    await waitFor(() => {
+      expect(setMapStyle).toHaveBeenCalledWith(mapThemeStyle("terrain"));
+    });
+    // The rider keeps the same map: only its basemap changed.
+    expect(mount).toHaveBeenCalledTimes(1);
+    window.localStorage.clear();
   });
 });

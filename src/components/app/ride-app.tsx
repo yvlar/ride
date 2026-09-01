@@ -21,6 +21,7 @@ import { AppTabBar, type AppTab } from "@/components/shell/app-tab-bar";
 import { MapBottomPanel } from "@/components/shell/map-bottom-panel";
 import { MapQuickActions } from "@/components/shell/map-quick-actions";
 import { useAppearance } from "@/components/theme/appearance-provider";
+import { useMapTheme } from "@/components/theme/map-theme-provider";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { SavedRide } from "@/domain/library/types";
 import { savedRideName } from "@/domain/library/types";
@@ -58,6 +59,7 @@ import {
   createSpeechGuidance,
   type SpeechGuidance,
 } from "@/infrastructure/voice/speech-guidance";
+import { MapThemeSettings } from "@/components/app/map-theme-settings";
 import { VoiceSettings } from "@/components/app/voice-settings";
 import {
   readStoredVoicePreferences,
@@ -66,6 +68,7 @@ import {
 } from "@/domain/navigation/voice-preferences";
 import { createNavigationAudioCues } from "@/infrastructure/audio/navigation-audio-cues";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
+import type { MapTheme } from "@/domain/map/map-theme";
 import {
   readStoredRoutePreferences,
   readStoredRouteStyle,
@@ -100,6 +103,7 @@ export function RideApp(props: RideAppProps) {
     return createRideSessionStore(storage);
   }, []);
   const { mode, setMode } = useAppearance();
+  const { theme: mapTheme, setTheme: setMapTheme } = useMapTheme();
 
   const [tab, setTab] = useState<AppTab>("explore");
   const [sheet, setSheet] = useState<ExplorerSheet>("home");
@@ -918,6 +922,8 @@ export function RideApp(props: RideAppProps) {
           <SettingsPanel
             mode={mode}
             onMode={setMode}
+            mapTheme={mapTheme}
+            onMapTheme={setMapTheme}
             gpsLabel={gpsLabel}
             onGpsLabel={setGpsLabel}
             speech={speechEngine}
@@ -1025,12 +1031,16 @@ function LibraryList({
 function SettingsPanel({
   mode,
   onMode,
+  mapTheme,
+  onMapTheme,
   gpsLabel,
   onGpsLabel,
   speech,
 }: {
   mode: AppearanceMode;
   onMode: (mode: AppearanceMode) => void;
+  mapTheme: MapTheme;
+  onMapTheme: (theme: MapTheme) => void;
   gpsLabel: string;
   onGpsLabel: (label: string) => void;
   speech: SpeechGuidance;
@@ -1113,6 +1123,9 @@ function SettingsPanel({
           </button>
         ))}
       </fieldset>
+      <div className="mt-6">
+        <MapThemeSettings value={mapTheme} onChange={onMapTheme} />
+      </div>
       <div className="mt-6">
         <RouteStyleSettings
           value={routeStyle}
