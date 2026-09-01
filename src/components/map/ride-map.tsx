@@ -70,8 +70,11 @@ export function RideMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
   /** FR-045 — the basemap picked in Réglages, resolved against the appearance. */
-  const { resolvedTheme } = useMapTheme();
-  const mapStyle = useMemo(() => mapThemeStyle(resolvedTheme), [resolvedTheme]);
+  const { resolvedTheme, standardTheme } = useMapTheme();
+  const mapStyle = useMemo(
+    () => mapThemeStyle(resolvedTheme, "exploration", standardTheme),
+    [resolvedTheme, standardTheme],
+  );
   const mapStyleRef = useRef(mapStyle);
   const viewModelRef = useRef(
     route ? toRideMapViewModel(route) : idleMapViewModel(),

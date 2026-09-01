@@ -903,7 +903,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
       (call) => (call[0] as { id?: string }).id === "ride-traveled-line",
     );
     expect(traveled).toBeDefined();
-    expect(traveled?.[1]).toBe("ride-route-line");
+    expect(traveled?.[1]).toBe("ride-route-halo");
   });
 });
 describe("MapLibre destination picking (FR-038)", () => {
@@ -1044,7 +1044,7 @@ describe("MapLibre basemap theme (FR-045)", () => {
       "https://tiles.test/sombre/style.json",
       { diff: false },
     );
-    const styleLoad = mapOnce.mock.calls.find(
+    const styleLoad = mapOn.mock.calls.find(
       (call) => call[0] === "style.load",
     )?.[1] as (() => void) | undefined;
     expect(styleLoad).toBeTypeOf("function");
@@ -1070,5 +1070,100 @@ describe("MapLibre basemap theme (FR-045)", () => {
 
     expect(mapSetStyle).not.toHaveBeenCalled();
     handle.destroy();
+  });
+
+  it("restores Standard when Kart Arcade emits a load error", async () => {
+    const { createMapLibreEngine, MAP_THEME_FALLBACK_MESSAGE } = await import(
+      "./maplibre-map-engine"
+    );
+    const container = document.createElement("div");
+    const onWarning = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      container,
+      viewModel,
+      { onError: vi.fn(), onWarning },
+      { mapStyle: "https://tiles.test/standard/style.json" },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    handle.setMapStyle?.({
+      key: "kart-arcade:exploration",
+      style: {
+        version: 8,
+        name: "ride-kart-arcade-exploration",
+        sources: {},
+        layers: [],
+      },
+      fallbackStyle: "https://tiles.test/standard/style.json",
+      visualTheme: "kart-arcade",
+      visualMode: "exploration",
+    });
+    expect(container.dataset.mapTheme).toBe("kart-arcade");
+
+    const error = mapOn.mock.calls.find((call) => call[0] === "error")?.[1] as
+      | (() => void)
+      | undefined;
+    error?.();
+
+    expect(mapSetStyle).toHaveBeenLastCalledWith(
+      "https://tiles.test/standard/style.json",
+      { diff: false },
+    );
+    expect(container.dataset.mapTheme).toBe("standard");
+    expect(onWarning).toHaveBeenCalledWith(MAP_THEME_FALLBACK_MESSAGE);
+    handle.destroy();
+  });
+
+  it("keeps one style listener and one GPS puck across theme swaps", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
+    handle.setMapStyle?.("https://tiles.test/one/style.json");
+    handle.setMapStyle?.("https://tiles.test/two/style.json");
+
+    expect(
+      mapOn.mock.calls.filter((call) => call[0] === "style.load"),
+    ).toHaveLength(1);
+    expect(
+      createdMarkers.filter((marker) =>
+        marker.element?.classList.contains("ride-map-user-puck"),
+      ),
+    ).toHaveLength(1);
+    handle.destroy();
+  });
+
+  it("orders traveled route, white halo and active line without duplicate layers", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+
+    const layers = addLayer.mock.calls.map(
+      (call) => (call[0] as { id?: string }).id,
+    );
+    expect(layers.filter((id) => id === "ride-route-halo")).toHaveLength(1);
+    expect(layers.filter((id) => id === "ride-route-line")).toHaveLength(1);
+    expect(
+      addLayer.mock.calls.find(
+        (call) => (call[0] as { id?: string }).id === "ride-traveled-line",
+      )?.[1],
+    ).toBe("ride-route-halo");
   });
 });

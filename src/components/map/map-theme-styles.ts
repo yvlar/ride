@@ -1,7 +1,11 @@
 import type { StyleSpecification } from "maplibre-gl";
 import type { ResolvedMapTheme } from "@/domain/map/map-theme";
 import { FALLBACK_MAP_STYLE } from "./fallback-style";
-import type { MapStyleSource } from "./map-engine";
+import type { MapStyleConfig, MapStyleSource } from "./map-engine";
+import {
+  kartArcadeStyleFromPublicEnv,
+  type MapVisualMode,
+} from "./themes/kart-arcade-style";
 
 /**
  * Dark vector basemap, no API key. Its own style.json carries the OpenStreetMap
@@ -62,7 +66,7 @@ export const TERRAIN_MAP_STYLE: StyleSpecification = {
  * defines the light basemap, so a deployment keeps its configured style and an
  * unset variable keeps the OSM raster fallback (FR-013, NFR-005).
  */
-export function mapThemeStyle(theme: ResolvedMapTheme): MapStyleSource {
+function standardStyleSource(theme: Exclude<ResolvedMapTheme, "kart-arcade">): MapStyleSource {
   if (theme === "dark") {
     return DARK_MAP_STYLE_URL;
   }
@@ -73,4 +77,26 @@ export function mapThemeStyle(theme: ResolvedMapTheme): MapStyleSource {
     return TERRAIN_MAP_STYLE;
   }
   return process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE;
+}
+
+export function mapThemeStyle(
+  theme: ResolvedMapTheme,
+  mode: MapVisualMode = "exploration",
+  standardFallback: "light" | "dark" = "light",
+): MapStyleConfig {
+  if (theme === "kart-arcade") {
+    return {
+      key: `kart-arcade:${mode}`,
+      style: kartArcadeStyleFromPublicEnv(mode),
+      fallbackStyle: standardStyleSource(standardFallback),
+      visualTheme: "kart-arcade",
+      visualMode: mode,
+    };
+  }
+  return {
+    key: `${theme}:${mode}`,
+    style: standardStyleSource(theme),
+    visualTheme: "standard",
+    visualMode: mode,
+  };
 }

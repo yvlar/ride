@@ -24,6 +24,9 @@ function ThemeProbe() {
       <button type="button" onClick={() => setTheme("satellite")}>
         Satellite
       </button>
+      <button type="button" onClick={() => setTheme("kart-arcade")}>
+        Kart Arcade
+      </button>
       <button type="button" onClick={() => setMode("light")}>
         Clair
       </button>
@@ -59,13 +62,27 @@ describe("MapThemeProvider (FR-045)", () => {
   });
 
   it("hydrates the stored theme", async () => {
-    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "terrain");
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "kart-arcade");
     renderProbe();
 
     await waitFor(() => {
-      expect(screen.getByTestId("theme")).toHaveTextContent("terrain");
+      expect(screen.getByTestId("theme")).toHaveTextContent("kart-arcade");
     });
-    expect(screen.getByTestId("resolved")).toHaveTextContent("terrain");
+    expect(screen.getByTestId("resolved")).toHaveTextContent("kart-arcade");
+  });
+
+  it("persists the Kart Arcade opt-in", async () => {
+    renderProbe();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(MAP_THEME_STORAGE_KEY)).toBe(
+        "kart-arcade",
+      );
+    });
   });
 
   it("persists a new choice", async () => {

@@ -20,6 +20,7 @@ describe("map theme storage (FR-045)", () => {
   it("reads a stored theme", () => {
     expect(readStoredMapTheme(storageWith("satellite"))).toBe("satellite");
     expect(readStoredMapTheme(storageWith("terrain"))).toBe("terrain");
+    expect(readStoredMapTheme(storageWith("kart-arcade"))).toBe("kart-arcade");
   });
 
   it("falls back to the default on an unknown value", () => {

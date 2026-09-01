@@ -1,5 +1,6 @@
 import type { StyleSpecification } from "maplibre-gl";
 import type { Coordinates } from "@/domain/geo/types";
+import type { MapVisualMode } from "./themes/kart-arcade-style";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
@@ -10,9 +11,20 @@ export const MAP_UNAVAILABLE_MESSAGE =
 /** A MapLibre style: a URL, or an inline specification (FR-045). */
 export type MapStyleSource = string | StyleSpecification;
 
+export type MapStyleConfig = {
+  /** Stable identity used to avoid loading the same tiles twice. */
+  key: string;
+  style: MapStyleSource;
+  fallbackStyle?: MapStyleSource;
+  visualTheme: "standard" | "kart-arcade";
+  visualMode: MapVisualMode;
+};
+
+export type MapStyleInput = MapStyleSource | MapStyleConfig;
+
 export type MapMountOptions = {
   /** FR-045 — the basemap the rider picked in Réglages, resolved to a style. */
-  mapStyle?: MapStyleSource;
+  mapStyle?: MapStyleInput;
 };
 
 export type MapEngineHandle = {
@@ -48,7 +60,7 @@ export type MapEngineHandle = {
    * FR-045 — swap the basemap in place. The engine re-adds every source and
    * layer it owns once the new style settles; the map is never remounted.
    */
-  setMapStyle?: (style: MapStyleSource) => void;
+  setMapStyle?: (style: MapStyleInput) => void;
 };
 
 export type MapEngineHandlers = {

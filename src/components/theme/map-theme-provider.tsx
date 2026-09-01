@@ -22,10 +22,12 @@ const MapThemeContext = createContext<{
   theme: MapTheme;
   setTheme: (theme: MapTheme) => void;
   resolvedTheme: ResolvedMapTheme;
+  standardTheme: "light" | "dark";
 }>({
   theme: DEFAULT_MAP_THEME,
   setTheme: () => {},
   resolvedTheme: "dark",
+  standardTheme: "dark",
 });
 
 /**
@@ -63,11 +65,16 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
   }, [hydrated, theme]);
 
   const value = useMemo(
-    () => ({
-      theme,
-      setTheme,
-      resolvedTheme: resolveMapTheme(theme, resolved),
-    }),
+    () => {
+      const standardTheme: "light" | "dark" =
+        resolved === "light" ? "light" : "dark";
+      return {
+        theme,
+        setTheme,
+        resolvedTheme: resolveMapTheme(theme, resolved),
+        standardTheme,
+      };
+    },
     [theme, resolved],
   );
 

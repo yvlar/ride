@@ -47,12 +47,11 @@ const {
       if (event === "load") {
         mapState.loadHandlers.push(handler);
       }
-    }
-    once(event: string, handler: () => void) {
       if (event === "style.load") {
         mapState.styleLoadHandlers.push(handler);
       }
     }
+    once() {}
     setStyle() {
       // MapLibre drops every source and layer when the style is replaced.
       mapState.sources.clear();

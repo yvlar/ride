@@ -16,12 +16,21 @@ const MOTORCYCLE_WHEELS = [
   { cx: 5, cy: 17, r: 3 },
 ] as const;
 
-export function createPlaceMarkerElement(label: string): HTMLElement {
+export function createPlaceMarkerElement(
+  label: string,
+  kind: "start" | "destination" | "entry" = "start",
+): HTMLElement {
   const element = document.createElement("div");
-  element.className = "ride-map-marker";
-  element.textContent = label;
+  element.className = `ride-map-marker ride-map-marker--${kind}`;
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", label);
+  const icon = document.createElement("span");
+  icon.className = "ride-map-marker-icon";
+  icon.setAttribute("aria-hidden", "true");
+  const text = document.createElement("span");
+  text.className = "ride-map-marker-text";
+  text.textContent = label;
+  element.append(icon, text);
   return element;
 }
 
