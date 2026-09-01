@@ -595,11 +595,23 @@ Contraintes :
 
 - aucune synthèse distante;
 - aucun enregistrement audio;
-- voix préférée `fr-CA`, puis `fr-FR`, puis une autre voix française, puis la voix disponible avec le texte français;
+- voix par défaut `fr-CA`, puis `fr-FR`, puis une autre voix française, puis la voix disponible avec le texte français;
+- l’utilisateur peut choisir dans **Réglages** une voix précise parmi celles publiées par l’appareil, ainsi que le **débit** et la **hauteur** de la voix; ce choix est conservé sur l’appareil et survit à la fermeture de l’application;
 - si `speechSynthesis` est indisponible, la navigation visuelle continue;
 - si CarPlay possède la voix, `speechSynthesis` reste muet pour cette session;
 - l’utilisateur peut couper et réactiver le son;
 - chaque seuil d’annonce n’est prononcé qu’une fois par manœuvre.
+
+#### Choix de la voix dans Réglages
+
+La section **Réglages** présente la liste réelle des voix du navigateur ou de l’appareil, les voix françaises d’abord, les autres regroupées sous **Autres langues**. Un bouton **Essayer** prononce une phrase d’exemple; sur iPhone, ce geste est aussi ce qui accorde `speechSynthesis` à la page.
+
+- l’option **Automatique** est la valeur par défaut : elle applique le classement `fr-CA` → `fr-FR` → autre voix française → première voix disponible;
+- une voix choisie puis retirée de l’appareil retombe silencieusement sur ce même classement; aucune navigation ne devient muette;
+- le **débit** (`0,85` / `1` / `1,2`) et la **hauteur** (`0,8` / `1` / `1,2`) sont des valeurs discrètes, bornées à `[0,5; 2]` et `[0; 2]`;
+- la préférence est relue à chaque énoncé : un changement dans Réglages s’applique sans redémarrer l’application;
+- lorsque CarPlay possède la voix (`FR-028`), la synthèse native du véhicule s’applique et ce réglage reste sans effet;
+- si `speechSynthesis` est indisponible, la section le nomme explicitement et le repli sonore (`FR-044`) reste actif.
 
 Les seuils par défaut, configurables et testés, sont :
 

@@ -9,6 +9,11 @@ import type {
 export type SpeechVoiceCandidate = {
   lang: string;
   name: string;
+  /**
+   * FR-025 — identifiant publié par le moteur. Optionnel : plusieurs navigateurs
+   * ne l'exposent pas, et la sélection sait retomber sur le nom.
+   */
+  voiceURI?: string;
 };
 
 export type AnnouncementDecision = {
@@ -17,24 +22,45 @@ export type AnnouncementDecision = {
   memory: VoiceAnnouncementMemory;
 };
 
+/**
+ * FR-025 — 0 = `fr-CA`, 1 = `fr-FR`, 2 = autre voix française, 3 = non française.
+ * Partagé par le classement automatique et par le regroupement du sélecteur des
+ * Réglages, pour que les deux ne puissent pas diverger.
+ */
+export function frenchVoiceRank(lang: string): 0 | 1 | 2 | 3 {
+  const normalized = lang.trim().toLowerCase().replace(/_/g, "-");
+  if (normalized === "fr-ca" || normalized.startsWith("fr-ca")) {
+    return 0;
+  }
+  if (normalized === "fr-fr" || normalized.startsWith("fr-fr")) {
+    return 1;
+  }
+  if (normalized === "fr" || normalized.startsWith("fr-")) {
+    return 2;
+  }
+  return 3;
+}
+
 export function selectPreferredVoiceIndex(
   voices: readonly SpeechVoiceCandidate[],
 ): number {
   if (voices.length === 0) {
     return -1;
   }
-  const ranked = [
-    (lang: string) => lang === "fr-ca" || lang.startsWith("fr-ca"),
-    (lang: string) => lang === "fr-fr" || lang.startsWith("fr-fr"),
-    (lang: string) => lang === "fr" || lang.startsWith("fr-") || lang.startsWith("fr_"),
-  ];
-  for (const match of ranked) {
-    const index = voices.findIndex((voice) => match(voice.lang.trim().toLowerCase()));
-    if (index >= 0) {
-      return index;
+  let bestIndex = -1;
+  let bestRank: 0 | 1 | 2 | 3 = 3;
+  for (let index = 0; index < voices.length; index += 1) {
+    const rank = frenchVoiceRank(voices[index].lang);
+    if (rank < bestRank) {
+      bestRank = rank;
+      bestIndex = index;
+      if (rank === 0) {
+        break;
+      }
     }
   }
-  return 0;
+  // Aucune voix française : le texte français est lu par la voix disponible.
+  return bestIndex >= 0 ? bestIndex : 0;
 }
 
 export function announcementPhaseForDistance(

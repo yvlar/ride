@@ -54,7 +54,16 @@ import {
 import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createLocalRideLibrary } from "@/infrastructure/persistence/local-ride-library";
 import { createRideSessionStore } from "@/infrastructure/persistence/ride-session-store";
-import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
+import {
+  createSpeechGuidance,
+  type SpeechGuidance,
+} from "@/infrastructure/voice/speech-guidance";
+import { VoiceSettings } from "@/components/app/voice-settings";
+import {
+  readStoredVoicePreferences,
+  writeStoredVoicePreferences,
+  type VoicePreferences,
+} from "@/domain/navigation/voice-preferences";
 import { createNavigationAudioCues } from "@/infrastructure/audio/navigation-audio-cues";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
 import {
@@ -911,6 +920,7 @@ export function RideApp(props: RideAppProps) {
             onMode={setMode}
             gpsLabel={gpsLabel}
             onGpsLabel={setGpsLabel}
+            speech={speechEngine}
           />
         ) : null}
       </div>
@@ -1017,11 +1027,13 @@ function SettingsPanel({
   onMode,
   gpsLabel,
   onGpsLabel,
+  speech,
 }: {
   mode: AppearanceMode;
   onMode: (mode: AppearanceMode) => void;
   gpsLabel: string;
   onGpsLabel: (label: string) => void;
+  speech: SpeechGuidance;
 }) {
   const [routePreferences, setRoutePreferences] = useState<RoutePreferences>(
     () =>
@@ -1032,6 +1044,16 @@ function SettingsPanel({
   const [routeStyle, setRouteStyle] = useState<StoredRouteStyle>(() =>
     readStoredRouteStyle(
       typeof window === "undefined" ? null : window.sessionStorage,
+    ),
+  );
+  /**
+   * FR-025 — le choix de voix survit à la fermeture de l'application, contrairement
+   * aux préférences de route. Ce panneau n'est monté qu'après un clic d'onglet, donc
+   * lire `localStorage` dans l'initialiseur ne peut pas créer d'écart d'hydratation.
+   */
+  const [voicePreferences, setVoicePreferences] = useState<VoicePreferences>(() =>
+    readStoredVoicePreferences(
+      typeof window === "undefined" ? null : window.localStorage,
     ),
   );
 
@@ -1049,6 +1071,18 @@ function SettingsPanel({
       typeof window === "undefined" ? null : window.sessionStorage,
       next,
     );
+  }
+
+  function persistVoicePreferences(next: VoicePreferences) {
+    setVoicePreferences(next);
+    try {
+      writeStoredVoicePreferences(
+        typeof window === "undefined" ? null : window.localStorage,
+        next,
+      );
+    } catch {
+      // Private mode.
+    }
   }
 
   return (
@@ -1089,6 +1123,13 @@ function SettingsPanel({
         <RoutePreferenceSettings
           value={routePreferences}
           onChange={persistRoutePreferences}
+        />
+      </div>
+      <div className="mt-6">
+        <VoiceSettings
+          value={voicePreferences}
+          onChange={persistVoicePreferences}
+          speech={speech}
         />
       </div>
       <p className="mt-6 text-sm text-muted-foreground">

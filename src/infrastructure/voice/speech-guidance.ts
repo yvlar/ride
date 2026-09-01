@@ -1,4 +1,10 @@
-import { selectPreferredVoiceIndex } from "@/domain/navigation/voice";
+import {
+  DEFAULT_VOICE_PREFERENCES,
+  readStoredVoicePreferences,
+  selectVoiceIndex,
+  type VoicePreferences,
+} from "@/domain/navigation/voice-preferences";
+import type { SpeechVoiceCandidate } from "@/domain/navigation/voice";
 
 export type SpeechGuidanceStatus = {
   /** The browser exposes a speech engine at all. */
@@ -11,9 +17,18 @@ export type SpeechGuidanceStatus = {
   failed: boolean;
 };
 
+export type SpeakOptions = {
+  /**
+   * FR-025 — the Réglages preview must speak the selection being edited, before
+   * it is written to storage (and it must work in private mode, where reading
+   * storage back can throw).
+   */
+  preferences?: VoicePreferences;
+};
+
 export type SpeechGuidance = {
   available: boolean;
-  speak: (text: string) => void;
+  speak: (text: string, options?: SpeakOptions) => void;
   cancel: () => void;
   setMuted: (muted: boolean) => void;
   /** Unlock Web Speech during the user gesture that starts navigation (FR-025). */
@@ -23,6 +38,22 @@ export type SpeechGuidance = {
    * a future adapter can stay minimal; an adapter without it is trusted.
    */
   status?: () => SpeechGuidanceStatus;
+  /**
+   * FR-025 — the voices Réglages offers. Optional like `status`, so the existing
+   * test stubs stay minimal; a settings panel without it shows only "Automatique".
+   */
+  listVoices?: () => readonly SpeechVoiceCandidate[];
+  /** Notifies when the engine publishes a different voice list (`voiceschanged`). */
+  subscribeVoices?: (listener: () => void) => () => void;
+};
+
+export type SpeechGuidanceOptions = {
+  /**
+   * FR-025 — read per utterance, so a change made in Réglages reaches the engine
+   * that already exists. The engine is built in three memoized places with no
+   * common owner, so a setter would leave at least one of them stale.
+   */
+  readPreferences?: () => VoicePreferences;
 };
 
 export type SpeechSynthesisLike = {
@@ -45,8 +76,29 @@ export type SpeechSynthesisLike = {
  */
 const PRIMING_TEXT = " ";
 
+const NO_VOICES: readonly SpeechVoiceCandidate[] = Object.freeze([]);
+
+/** Safari in private mode can throw on the `window.localStorage` access itself. */
+function defaultReadPreferences(): VoicePreferences {
+  try {
+    if (typeof window === "undefined") {
+      return { ...DEFAULT_VOICE_PREFERENCES };
+    }
+    return readStoredVoicePreferences(window.localStorage);
+  } catch {
+    return { ...DEFAULT_VOICE_PREFERENCES };
+  }
+}
+
+function voiceSignature(voices: readonly SpeechSynthesisVoice[]): string {
+  return voices
+    .map((voice) => `${voice.voiceURI}|${voice.name}|${voice.lang}`)
+    .join("\n");
+}
+
 export function createSpeechGuidance(
   synthesis?: SpeechSynthesisLike | null,
+  options?: SpeechGuidanceOptions,
 ): SpeechGuidance {
   const speech =
     synthesis === undefined
@@ -54,18 +106,41 @@ export function createSpeechGuidance(
         ? window.speechSynthesis
         : null
       : synthesis;
+  const readPreferences = options?.readPreferences ?? defaultReadPreferences;
   let muted = false;
   let unlocked = false;
   let hasSpoken = false;
   let failed = false;
   let voices: SpeechSynthesisVoice[] = [];
   let voicesBound = false;
+  let signature = "";
+  let voiceOptions: readonly SpeechVoiceCandidate[] = NO_VOICES;
+  const listeners = new Set<() => void>();
 
   function refreshVoices() {
+    let next: SpeechSynthesisVoice[];
     try {
-      voices = speech?.getVoices() ?? [];
+      next = speech?.getVoices() ?? [];
     } catch {
-      voices = [];
+      next = [];
+    }
+    voices = next;
+    const nextSignature = voiceSignature(next);
+    if (nextSignature === signature) {
+      // Chrome fires `voiceschanged` in bursts; only a real change is published,
+      // otherwise the settings panel would re-render in a loop.
+      return;
+    }
+    signature = nextSignature;
+    voiceOptions = Object.freeze(
+      next.map((voice) => ({
+        lang: voice.lang,
+        name: voice.name,
+        voiceURI: voice.voiceURI,
+      })),
+    );
+    for (const listener of listeners) {
+      listener();
     }
   }
 
@@ -106,12 +181,20 @@ export function createSpeechGuidance(
     }
   }
 
-  function applyVoice(utterance: SpeechSynthesisUtterance) {
+  function applyVoice(
+    utterance: SpeechSynthesisUtterance,
+    preferences: VoicePreferences,
+  ) {
     utterance.lang = "fr-CA";
+    utterance.rate = preferences.rate;
+    utterance.pitch = preferences.pitch;
     if (voices.length === 0) {
       refreshVoices();
     }
-    const index = selectPreferredVoiceIndex(voices);
+    // FR-025 — the voice picked in Réglages, else the automatic ranking. The
+    // fallback lives inside `selectVoiceIndex`, so a voice removed by an OS
+    // update never leaves the ride silent.
+    const index = selectVoiceIndex(voices, preferences.voice);
     const voice = index >= 0 ? voices[index] : undefined;
     if (voice) {
       utterance.voice = voice;
@@ -127,6 +210,19 @@ export function createSpeechGuidance(
         unlocked,
         hasSpoken,
         failed,
+      };
+    },
+    listVoices() {
+      return voiceOptions;
+    },
+    subscribeVoices(listener) {
+      listeners.add(listener);
+      // Réglages is visited without any navigation having started, so this is
+      // where the `voiceschanged` binding happens for that path.
+      bindVoicesChanged();
+      refreshVoices();
+      return () => {
+        listeners.delete(listener);
       };
     },
     setMuted(next) {
@@ -163,7 +259,7 @@ export function createSpeechGuidance(
         failed = true;
       }
     },
-    speak(text) {
+    speak(text, speakOptions) {
       if (!speech || muted || !text) {
         return;
       }
@@ -173,7 +269,7 @@ export function createSpeechGuidance(
         failed = true;
         return;
       }
-      applyVoice(utterance);
+      applyVoice(utterance, speakOptions?.preferences ?? readPreferences());
       utterance.onstart = () => {
         hasSpoken = true;
       };

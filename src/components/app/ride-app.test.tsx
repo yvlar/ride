@@ -1154,3 +1154,82 @@ describe("RideApp explorer map picking (FR-038)", () => {
     });
   });
 });
+
+describe("RideApp voice settings (FR-025)", () => {
+  function speechWithVoices() {
+    return {
+      available: true,
+      speak: vi.fn(),
+      cancel: vi.fn(),
+      setMuted: vi.fn(),
+      unlock: vi.fn(),
+      listVoices: () => [
+        { lang: "en-US", name: "Samantha", voiceURI: "en-US.Samantha" },
+        { lang: "fr-FR", name: "Thomas", voiceURI: "fr-FR.Thomas" },
+        { lang: "fr-CA", name: "Amélie", voiceURI: "fr-CA.Amelie" },
+      ],
+      subscribeVoices: () => () => {},
+    };
+  }
+
+  it("stores the voice, the rate and the pitch chosen in Réglages", () => {
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          navigation={{ speech: speechWithVoices() }}
+        />
+      </AppearanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+
+    fireEvent.click(screen.getByRole("radio", { name: /Thomas/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Rapide" }));
+
+    expect(
+      JSON.parse(window.localStorage.getItem("ride.settings.voice.v1") ?? "{}"),
+    ).toEqual({
+      voice: { voiceURI: "fr-FR.Thomas", name: "Thomas", lang: "fr-FR" },
+      rate: 1.2,
+      pitch: 1,
+    });
+  });
+
+  it("keeps the choice when the rider leaves and comes back to Réglages", () => {
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={stubMapEngine()}
+          navigation={{ speech: speechWithVoices() }}
+        />
+      </AppearanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Thomas/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+
+    expect(screen.getByRole("radio", { name: /Thomas/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("speaks the sample sentence through the shared engine", () => {
+    const speech = speechWithVoices();
+    render(
+      <AppearanceProvider>
+        <RideApp mapEngine={stubMapEngine()} navigation={{ speech }} />
+      </AppearanceProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Réglages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Essayer la voix" }));
+
+    expect(speech.unlock).toHaveBeenCalled();
+    expect(speech.speak).toHaveBeenCalledWith(
+      expect.stringContaining("rond-point"),
+      { preferences: { voice: null, rate: 1, pitch: 1 } },
+    );
+  });
+});
