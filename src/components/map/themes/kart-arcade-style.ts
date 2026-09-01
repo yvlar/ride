@@ -1,6 +1,9 @@
-import type { StyleSpecification } from "maplibre-gl";
+import type { LineLayerSpecification, StyleSpecification } from "maplibre-gl";
 import template from "./kart-arcade-style.json";
-import { KART_ARCADE_STYLE_TOKENS } from "./kart-arcade-tokens";
+import {
+  KART_ARCADE_ROAD_WIDTH_SCALE,
+  KART_ARCADE_STYLE_TOKENS,
+} from "./kart-arcade-tokens";
 
 export type MapVisualMode = "exploration" | "navigation";
 
@@ -9,6 +12,17 @@ const DEFAULT_GLYPHS_URL =
   "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
 const DEFAULT_ATTRIBUTION =
   "© OpenStreetMap contributors · © OpenFreeMap";
+
+const ROAD_LAYER_IDS = new Set([
+  "kart-tunnel-casing",
+  "kart-tunnel",
+  "kart-road-casing",
+  "kart-road-fill",
+  "kart-path-casing",
+  "kart-path",
+  "kart-bridge-casing",
+  "kart-bridge",
+]);
 
 export function createKartArcadeStyle(
   mode: MapVisualMode,
@@ -32,6 +46,19 @@ export function createKartArcadeStyle(
   );
   const style = JSON.parse(serialized) as StyleSpecification;
   style.name = `ride-kart-arcade-${mode}`;
+
+  for (const layer of style.layers) {
+    if (layer.type !== "line" || !ROAD_LAYER_IDS.has(layer.id)) {
+      continue;
+    }
+    const width = layer.paint?.["line-width"];
+    if (width != null) {
+      layer.paint = {
+        ...layer.paint,
+        "line-width": scaleRoadWidth(width),
+      };
+    }
+  }
 
   if (mode === "navigation") {
     for (const layer of style.layers) {
@@ -87,4 +114,20 @@ export function isKartArcadeStyle(style: unknown): boolean {
       typeof style.name === "string" &&
       style.name.startsWith("ride-kart-arcade-"),
   );
+}
+
+type LineWidth = NonNullable<LineLayerSpecification["paint"]>["line-width"];
+
+function scaleRoadWidth(width: NonNullable<LineWidth>): LineWidth {
+  if (typeof width === "number") {
+    return width * KART_ARCADE_ROAD_WIDTH_SCALE;
+  }
+  if (!Array.isArray(width) || width[0] !== "interpolate") {
+    return ["*", width, KART_ARCADE_ROAD_WIDTH_SCALE] as LineWidth;
+  }
+  return width.map((value, index) =>
+    index >= 4 && index % 2 === 0
+      ? ["*", value, KART_ARCADE_ROAD_WIDTH_SCALE]
+      : value,
+  ) as LineWidth;
 }

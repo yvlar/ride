@@ -42,3 +42,6 @@ export const KART_ARCADE_ROUTE_PAINT = {
   traveled: "#5C7185",
   connector: "#FF8A3D",
 } as const;
+
+/** Makes the road network easier to read through a visor and in full sun. */
+export const KART_ARCADE_ROAD_WIDTH_SCALE = 2;

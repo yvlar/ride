@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { validateStyleMin } from "@maplibre/maplibre-gl-style-spec";
 import { createKartArcadeStyle } from "./kart-arcade-style";
-import { KART_ARCADE_COLORS } from "./kart-arcade-tokens";
+import {
+  KART_ARCADE_COLORS,
+  KART_ARCADE_ROAD_WIDTH_SCALE,
+} from "./kart-arcade-tokens";
 
 describe("Kart Arcade MapLibre style", () => {
   it("is valid against the MapLibre v8 style specification", () => {
@@ -43,6 +46,35 @@ describe("Kart Arcade MapLibre style", () => {
       KART_ARCADE_COLORS.primaryText,
     ]) {
       expect(serialized).toContain(color);
+    }
+  });
+
+  it("renders every road category at twice its original width", () => {
+    const style = createKartArcadeStyle("exploration");
+    const roadLayers = style.layers.filter(
+      (layer) =>
+        layer.type === "line" &&
+        /kart-(?:tunnel|road|path|bridge)/.test(layer.id),
+    );
+
+    expect(roadLayers).toHaveLength(8);
+    for (const layer of roadLayers) {
+      if (layer.type !== "line") {
+        throw new Error(`Expected a line layer: ${layer.id}`);
+      }
+      const width = layer.paint?.["line-width"];
+      expect(width).toBeInstanceOf(Array);
+      if (!Array.isArray(width)) {
+        throw new Error(`Expected an expression width: ${layer.id}`);
+      }
+      expect(width[0]).toBe("interpolate");
+      for (let index = 4; index < width.length; index += 2) {
+        expect(width[index]).toMatchObject([
+          "*",
+          expect.anything(),
+          KART_ARCADE_ROAD_WIDTH_SCALE,
+        ]);
+      }
     }
   });
 
