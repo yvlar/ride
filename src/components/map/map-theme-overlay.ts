@@ -30,6 +30,12 @@ export type MapOverlayTheme = {
     color: string;
     opacity: number;
   };
+  /**
+   * FR-046 — how far the exploration camera leans. `0` is Ride's flat map.
+   * Navigation is never affected: the follow camera owns its own pitch, and
+   * an overview of a whole route is always framed flat so the shape reads.
+   */
+  explorationPitchDeg: number;
   /** Marks the map container so the DOM markers can follow the theme. */
   containerClassName?: string;
   /**
@@ -59,6 +65,7 @@ export const STANDARD_MAP_OVERLAY_THEME: MapOverlayTheme = {
     color: "#94a3b8",
     opacity: 0.65,
   },
+  explorationPitchDeg: 0,
 };
 
 export const KART_ARCADE_MAP_OVERLAY_THEME: MapOverlayTheme = {
@@ -80,6 +87,10 @@ export const KART_ARCADE_MAP_OVERLAY_THEME: MapOverlayTheme = {
     color: KART_ARCADE_PALETTE.building,
     opacity: 0.55,
   },
+  // Enough lean for the near-isometric look of the reference render, and far
+  // enough from the horizon that the map keeps its shape and its tile budget.
+  // Measured cost at the opening regional frame: 8 tiles instead of 6.
+  explorationPitchDeg: 45,
   containerClassName: "ride-map-kart-arcade",
   revertOnLoadFailure: true,
 };

@@ -1231,8 +1231,16 @@ Trajet actif :
 
 Deux niveaux de détail :
 
-- **Exploration** — couleurs complètes et détails secondaires;
+- **Exploration** — couleurs complètes, détails secondaires, et **caméra inclinée à 45°** pour la profondeur quasi isométrique de la référence;
 - **Navigation active** — les couches décoratives sont masquées et le tracé est épaissi, dès que la caméra suit le motocycliste.
+
+La caméra :
+
+- l’inclinaison appartient au thème : le thème standard reste à plat, et le changement de thème incline ou redresse la caméra sans démonter la carte;
+- la **navigation garde la sienne** : la caméra de suivi impose son propre angle, et un changement de thème en roulant ne la bouscule jamais;
+- un **aperçu de trajet complet est toujours cadré à plat**, quel que soit le thème : un tracé de 90 km vu en enfilade est illisible;
+- `prefers-reduced-motion` remplace le mouvement de caméra par une coupe instantanée (`NFR-008`);
+- le motocycliste peut redresser ou incliner la carte lui-même; son geste a toujours le dernier mot.
 
 Règles :
 

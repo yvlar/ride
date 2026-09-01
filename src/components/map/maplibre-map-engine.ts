@@ -131,6 +131,17 @@ export function createMapLibreEngine(
       let lastGeolocateHeadingDeg: number | null = null;
       const reducedMotion = prefersReducedMotion();
 
+      /**
+       * FR-046 — the lean the free-roaming camera takes, from the theme. An
+       * overview during navigation stays flat: a whole route seen edge-on is
+       * a smear, and reading its shape beats the arcade look every time.
+       */
+      function framingPitchDeg(): number {
+        return detailLevel === "navigation"
+          ? 0
+          : overlayTheme.explorationPitchDeg;
+      }
+
       ensureMapLibreWorkerUrl();
       if (overlayTheme.containerClassName) {
         container.classList.add(overlayTheme.containerClassName);
@@ -146,11 +157,11 @@ export function createMapLibreEngine(
           bounds: camera.bounds,
           fitBoundsOptions: {
             ...camera.fitBoundsOptions,
-            pitch: 0,
+            pitch: framingPitchDeg(),
             bearing: 0,
           },
           maxPitch: NAVIGATION_MAX_PITCH,
-          pitch: 0,
+          pitch: framingPitchDeg(),
           locale: {
             "GeolocateControl.FindMyLocation": MAP_GEOLOCATE_LABEL,
             "GeolocateControl.LocationNotAvailable":
@@ -398,7 +409,10 @@ export function createMapLibreEngine(
           // during load can throw inside MapLibre's camera ease (NFR-006).
           if (options.fitCamera) {
             pendingFitCamera = false;
-            map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
+            map.fitBounds(
+              camera.bounds,
+              overviewFitBoundsOptions(camera, framingPitchDeg()),
+            );
           }
         } catch {
           onWarning?.(MAP_UNAVAILABLE_MESSAGE);
@@ -466,7 +480,7 @@ export function createMapLibreEngine(
             // report it so the UI can offer the recentre affordance (FR-042).
             setFollowUserState(false);
             map.fitBounds(frame.bounds, {
-              ...overviewFitBoundsOptions(frame),
+              ...overviewFitBoundsOptions(frame, framingPitchDeg()),
               duration: followCameraDurationMs(reducedMotion),
             });
             streetCameraActive = false;
@@ -676,6 +690,31 @@ export function createMapLibreEngine(
         }
       }
 
+      /**
+       * FR-046 — leans the camera to the theme's angle, or back upright. Only
+       * while the rider is free-roaming: a live follow camera and a framing
+       * already under way both own the pitch, and stealing it mid-ride would
+       * be a jolt at exactly the wrong moment.
+       */
+      function applyExplorationPitch() {
+        if (!map || disposed || followUser || streetCameraActive) {
+          return;
+        }
+        const pitch = framingPitchDeg();
+        if (Math.abs(map.getPitch() - pitch) < 0.5) {
+          return;
+        }
+        try {
+          map.easeTo({
+            pitch,
+            duration: followCameraDurationMs(reducedMotion),
+            essential: true,
+          });
+        } catch {
+          // A camera that will not lean is a flat map, not a broken one.
+        }
+      }
+
       /** FR-046 — marks the container so the DOM markers follow the theme. */
       function applyContainerTheme(previous?: MapOverlayTheme) {
         const previousClass = previous?.containerClassName;
@@ -754,7 +793,10 @@ export function createMapLibreEngine(
             return;
           }
           try {
-            map.fitBounds(camera.bounds, overviewFitBoundsOptions(camera));
+            map.fitBounds(
+              camera.bounds,
+              overviewFitBoundsOptions(camera, framingPitchDeg()),
+            );
           } catch {
             // The route is drawn either way; the rider can still frame it.
           }
@@ -805,7 +847,7 @@ export function createMapLibreEngine(
           return;
         }
         map.fitBounds(camera.bounds, {
-          ...overviewFitBoundsOptions(camera),
+          ...overviewFitBoundsOptions(camera, framingPitchDeg()),
           duration: followCameraDurationMs(reducedMotion),
         });
         streetCameraActive = false;
@@ -1042,6 +1084,7 @@ export function createMapLibreEngine(
           if (nextOverlay) {
             overlayTheme = nextOverlay;
             applyContainerTheme(previousOverlay);
+            applyExplorationPitch();
           }
           // The radar source goes with the old style; forget the template so
           // renderWeather rebuilds it instead of assuming it is still there.
@@ -1115,6 +1158,7 @@ export function createMapLibreEngine(
           }
           detailLevel = level;
           applyDetailLevel();
+          applyExplorationPitch();
         },
         setPickMarker(coordinates) {
           if (!map || disposed) {
@@ -1262,10 +1306,13 @@ function placeMarker(
     .addTo(map);
 }
 
-function overviewFitBoundsOptions(frame: ReturnType<typeof mapCameraFrame>) {
+function overviewFitBoundsOptions(
+  frame: ReturnType<typeof mapCameraFrame>,
+  pitchDeg = 0,
+) {
   return {
     ...frame.fitBoundsOptions,
-    pitch: 0,
+    pitch: pitchDeg,
     bearing: 0,
   };
 }

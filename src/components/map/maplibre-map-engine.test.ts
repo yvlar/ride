@@ -91,6 +91,8 @@ const {
     // A basemap that never finishes loading is how MapLibre reports a broken
     // style: the engine reads it to tell a failed theme from a tile hiccup.
     styleLoaded: true,
+    /** The camera's lean, so a test can watch the theme tilt it (FR-046). */
+    pitch: 0,
     lastOptions: undefined as Record<string, unknown> | undefined,
     style: rasterStyle as {
       version: 8;
@@ -99,6 +101,7 @@ const {
     },
     resetStyle() {
       listeners.clear();
+      this.pitch = 0;
       this.style = {
         version: 8,
         sources: {
@@ -170,13 +173,29 @@ const {
     addImage = (id: string) => {
       this.addedImages.add(id);
     };
-    fitBounds = fitBounds;
-    easeTo = easeTo;
+    fitBounds = (...args: Parameters<typeof fitBounds>) => {
+      const pitch = (args[1] as { pitch?: number } | undefined)?.pitch;
+      if (typeof pitch === "number") {
+        mapState.pitch = pitch;
+      }
+      return fitBounds(...args);
+    };
+    easeTo = (...args: Parameters<typeof easeTo>) => {
+      const pitch = (args[0] as { pitch?: number } | undefined)?.pitch;
+      if (typeof pitch === "number") {
+        mapState.pitch = pitch;
+      }
+      return easeTo(...args);
+    };
+    getPitch = () => mapState.pitch;
     isStyleLoaded = () => mapState.styleLoaded;
     unproject = ([x, y]: [number, number]) => ({ lng: x / 100, lat: y / 100 });
 
     constructor(options: Record<string, unknown>) {
       mapState.lastOptions = options;
+      if (typeof options.pitch === "number") {
+        mapState.pitch = options.pitch;
+      }
       this.painter = mapState.painterAvailable ? {} : undefined;
     }
   }
@@ -1512,6 +1531,153 @@ describe("MapLibre Kart Arcade overlay (FR-046)", () => {
     expect(
       mapOn.mock.calls.some((call) => call[0] === "sourcedata"),
     ).toBe(false);
+  });
+
+  it("mounts the exploration camera leaning, and the built-in themes flat", async () => {
+    const { handle } = await mountArcade();
+    expect(mapState.lastOptions?.pitch).toBe(45);
+    expect(
+      (mapState.lastOptions?.fitBoundsOptions as { pitch?: number })?.pitch,
+    ).toBe(45);
+    handle.destroy();
+
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const plain = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
+    );
+    expect(mapState.lastOptions?.pitch).toBe(0);
+    plain.destroy();
+  });
+
+  it("frames a whole route flat while navigating, however the theme leans", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+        detailLevel: "navigation",
+      },
+    );
+
+    // A 90 km route seen edge-on is a smear: the overview reads it flat.
+    expect(mapState.lastOptions?.pitch).toBe(0);
+    fitBounds.mockClear();
+    handle.overview?.();
+    expect(fitBounds.mock.calls[0]?.[1]).toMatchObject({ pitch: 0 });
+    handle.destroy();
+  });
+
+  it("leans back up when navigation starts and down again when it ends", async () => {
+    const { handle } = await mountArcade();
+    easeTo.mockClear();
+
+    handle.setDetailLevel?.("navigation");
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ pitch: 0, essential: true }),
+    );
+
+    easeTo.mockClear();
+    handle.setDetailLevel?.("exploration");
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ pitch: 45, essential: true }),
+    );
+    handle.destroy();
+  });
+
+  it("leans the camera when the rider picks the theme, and back when they leave", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } =
+      await import("./map-theme-overlay");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      {
+        mapStyle: "https://tiles.test/clair/style.json",
+        mapOverlay: STANDARD_MAP_OVERLAY_THEME,
+      },
+    );
+    easeTo.mockClear();
+
+    handle.setMapStyle?.(
+      { version: 8, name: "arcade", sources: {}, layers: [] },
+      KART_ARCADE_MAP_OVERLAY_THEME,
+    );
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ pitch: 45 }),
+    );
+
+    easeTo.mockClear();
+    handle.setMapStyle?.(
+      "https://tiles.test/clair/style.json",
+      STANDARD_MAP_OVERLAY_THEME,
+    );
+    expect(easeTo).toHaveBeenCalledWith(expect.objectContaining({ pitch: 0 }));
+    handle.destroy();
+  });
+
+  it("cuts to the new angle instead of sweeping under reduced motion (NFR-008)", async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: query.includes("prefers-reduced-motion"),
+        addEventListener() {},
+        removeEventListener() {},
+      }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
+    try {
+      const { handle } = await mountArcade();
+      easeTo.mockClear();
+
+      handle.setDetailLevel?.("navigation");
+
+      expect(easeTo).toHaveBeenCalledWith(
+        expect.objectContaining({ pitch: 0, duration: 0 }),
+      );
+      handle.destroy();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("never steals the camera from a rider being followed", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } =
+      await import("./map-theme-overlay");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      {
+        mapStyle: "https://tiles.test/clair/style.json",
+        mapOverlay: STANDARD_MAP_OVERLAY_THEME,
+      },
+    );
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.4, longitude: -72.73 }, 90);
+    easeTo.mockClear();
+
+    handle.setMapStyle?.(
+      { version: 8, name: "arcade", sources: {}, layers: [] },
+      KART_ARCADE_MAP_OVERLAY_THEME,
+    );
+
+    // The follow camera owns the pitch mid-ride; a theme swap must not jolt it.
+    expect(
+      easeTo.mock.calls.some(
+        ([options]) => (options as { pitch?: number })?.pitch === 45,
+      ),
+    ).toBe(false);
+    handle.destroy();
   });
 
   it("hides the decorative layers and thickens the route in navigation", async () => {
