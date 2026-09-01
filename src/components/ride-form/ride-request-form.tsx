@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
+import { createNavigationAudioCues } from "@/infrastructure/audio/navigation-audio-cues";
 import { composeRideRequest } from "@/domain/ride/compose-request";
 import {
   AVAILABLE_DURATION_HINT,
@@ -131,6 +132,7 @@ export type RideRequestFormProps = {
       NavigationSessionProps,
       | "locationWatch"
       | "speech"
+      | "audioCues"
       | "recalculate"
       | "joinRoute"
       | "mapEngine"
@@ -271,8 +273,10 @@ export function RideRequestForm({
   const onNavigatingChangeRef = useRef(onNavigatingChange);
   const ownedLocationWatch = useMemo(() => createForegroundLocationWatch(), []);
   const ownedSpeech = useMemo(() => createSpeechGuidance(), []);
+  const ownedAudioCues = useMemo(() => createNavigationAudioCues(), []);
   const locationWatch = navigation?.locationWatch ?? ownedLocationWatch;
   const speechEngine = navigation?.speech ?? ownedSpeech;
+  const audioCues = navigation?.audioCues ?? ownedAudioCues;
   const showComposer = editingRequest || !generatedRoute;
 
   useEffect(() => {
@@ -306,8 +310,13 @@ export function RideRequestForm({
     } catch {
       // Visual navigation continues if speech cannot unlock (FR-025).
     }
+    try {
+      audioCues.unlock();
+    } catch {
+      // Navigation continues without earcons (FR-044).
+    }
     onNavigatingChangeRef.current?.(true);
-  }, [seed, locationWatch, speechEngine]);
+  }, [audioCues, seed, locationWatch, speechEngine]);
 
   function invalidateInFlightGeneration() {
     generationId.current += 1;
@@ -338,6 +347,11 @@ export function RideRequestForm({
       speechEngine.unlock();
     } catch {
       // Visual navigation continues if speech cannot unlock (FR-025).
+    }
+    try {
+      audioCues.unlock();
+    } catch {
+      // Navigation continues without earcons (FR-044).
     }
     setNavigating(true);
     onNavigatingChange?.(true);
@@ -1056,6 +1070,7 @@ export function RideRequestForm({
             }}
             locationWatch={locationWatch}
             speech={speechEngine}
+            audioCues={audioCues}
             recalculate={navigation?.recalculate}
             joinRoute={navigation?.joinRoute}
             now={navigation?.now}

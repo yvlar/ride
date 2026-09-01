@@ -746,6 +746,13 @@ describe("RideRequestForm (FR-014)", () => {
       setMuted: vi.fn(),
       unlock: vi.fn(),
     };
+    const audioCues = {
+      available: true,
+      play: vi.fn(),
+      setMuted: vi.fn(),
+      unlock: vi.fn(),
+      stop: vi.fn(),
+    };
     const destroyPreviewMap = vi.fn();
     const setGeolocateEnabled = vi.fn();
     const mountPreviewMap = vi.fn(() => ({
@@ -761,6 +768,7 @@ describe("RideRequestForm (FR-014)", () => {
       navigation: {
         locationWatch,
         speech,
+        audioCues,
       },
     });
 
@@ -795,6 +803,8 @@ describe("RideRequestForm (FR-014)", () => {
     expect(disableOrder!).toBeLessThan(startOrder!);
     expect(locationWatch.start).toHaveBeenCalledTimes(1);
     expect(speech.unlock).toHaveBeenCalledTimes(1);
+    // FR-044 — Web Audio needs the same gesture as the voice.
+    expect(audioCues.unlock).toHaveBeenCalledTimes(1);
     expect(locationWatch.subscribe).toHaveBeenCalledTimes(1);
     const dialog = screen.getByRole("dialog", { name: "Navigation" });
     expect(dialog).toBeInTheDocument();

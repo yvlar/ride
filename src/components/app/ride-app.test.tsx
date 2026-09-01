@@ -544,6 +544,13 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       setMuted: vi.fn(),
       unlock: vi.fn(),
     };
+    const audioCues = {
+      available: true,
+      play: vi.fn(),
+      setMuted: vi.fn(),
+      unlock: vi.fn(),
+      stop: vi.fn(),
+    };
     const destroy = vi.fn();
     const recenter = vi.fn();
     const setFollowUser = vi.fn();
@@ -571,7 +578,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
             coordinates: granby.coordinates,
             accuracyMeters: 8,
           })}
-          navigation={{ locationWatch, speech }}
+          navigation={{ locationWatch, speech, audioCues }}
         />
       </AppearanceProvider>,
     );
@@ -589,6 +596,8 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
     ).toBeInTheDocument();
     expect(locationWatch.start).toHaveBeenCalledTimes(1);
     expect(speech.unlock).toHaveBeenCalledTimes(1);
+    // FR-044 — Web Audio needs the same gesture as the voice.
+    expect(audioCues.unlock).toHaveBeenCalledTimes(1);
     expect(recenter).toHaveBeenCalled();
     expect(generateRide).toHaveBeenCalledTimes(generateCalls);
     expect(destroy).not.toHaveBeenCalled();

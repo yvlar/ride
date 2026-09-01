@@ -101,6 +101,30 @@ function stubSpeech() {
   };
 }
 
+function stubAudioCues() {
+  return {
+    available: true,
+    play: vi.fn(),
+    setMuted: vi.fn(),
+    unlock: vi.fn(),
+    stop: vi.fn(),
+  };
+}
+
+/** A device where speechSynthesis is missing, as on a locked-down browser. */
+function stubSilentSpeech() {
+  return {
+    ...stubSpeech(),
+    available: false,
+    status: () => ({
+      available: false,
+      unlocked: false,
+      hasSpoken: false,
+      failed: false,
+    }),
+  };
+}
+
 function stubMapEngine() {
   return {
     mount: vi.fn(() => ({
@@ -1680,5 +1704,180 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
       expect(onProgressKm).toHaveBeenCalled();
     });
     expect(onProgressKm.mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
+  });
+  it("plays a maneuver earcon when the voice cannot be heard (FR-044)", async () => {
+    const { watch, emit } = createWatch();
+    const audioCues = stubAudioCues();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSilentSpeech()}
+        audioCues={audioCues}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.683 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(audioCues.play).toHaveBeenCalled();
+    });
+    expect(["prepare", "approach", "imminent"]).toContain(
+      audioCues.play.mock.calls[0]?.[0],
+    );
+  });
+
+  it("stays on the voice, without earcons, when speech works (FR-025)", async () => {
+    const { watch, emit } = createWatch();
+    const audioCues = stubAudioCues();
+    const speech = stubSpeech();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={speech}
+        audioCues={audioCues}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.683 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(speech.speak).toHaveBeenCalled();
+    });
+    expect(audioCues.play).not.toHaveBeenCalled();
+  });
+
+  it("mutes the earcons with the voice, and cuts them on stop (FR-044)", async () => {
+    const { watch, emit } = createWatch();
+    const audioCues = stubAudioCues();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSilentSpeech()}
+        audioCues={audioCues}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Guidage vocal indisponible — sons de manœuvre actifs",
+      })[0]!,
+    );
+    emit({
+      type: "fix",
+      fix: {
+        coordinates: { latitude: 45.4, longitude: -72.683 },
+        accuracyMeters: 8,
+        recordedAtMs: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Tournez à droite/)).toBeInTheDocument();
+    });
+    expect(audioCues.play).not.toHaveBeenCalled();
+    expect(audioCues.setMuted).toHaveBeenCalledWith(true);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Terminer la navigation" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Oui, terminer" }));
+    expect(audioCues.stop).toHaveBeenCalled();
+  });
+
+  it("plays the arrival earcon once (FR-044)", async () => {
+    const { watch, emit } = createWatch();
+    const audioCues = stubAudioCues();
+    // The fixture geometry is ~1.56 km: a shorter total is fully ridden.
+    const shortRoute = { ...route, distanceKm: 1.5 };
+    render(
+      <NavigationSession
+        route={shortRoute}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSilentSpeech()}
+        audioCues={audioCues}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    for (const recordedAtMs of [1, 2]) {
+      emit({
+        type: "fix",
+        fix: {
+          coordinates: { latitude: 45.4, longitude: -72.68 },
+          accuracyMeters: 8,
+          recordedAtMs,
+        },
+      });
+    }
+
+    await waitFor(() => {
+      expect(audioCues.play).toHaveBeenCalledWith("arrival");
+    });
+    expect(
+      audioCues.play.mock.calls.filter(([cue]) => cue === "arrival"),
+    ).toHaveLength(1);
+  });
+
+  it("resumes the speech queue when the app returns to the foreground (FR-025)", async () => {
+    const helper = createWatch();
+    const speech = stubSpeech();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={helper.watch}
+        speech={speech}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => {
+      expect(speech.cancel).toHaveBeenCalled();
+    });
+    expect(speech.unlock).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    // iOS leaves the queue paused after a screen lock (FR-025).
+    await waitFor(() => {
+      expect(speech.unlock).toHaveBeenCalled();
+    });
   });
 });
