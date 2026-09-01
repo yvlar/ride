@@ -6,7 +6,8 @@ describe("parseEnv", () => {
     const env = parseEnv({});
 
     expect(env.ROUTING_PROVIDER).toBe("mock");
-    expect(env.GEOCODING_PROVIDER).toBe("mock");
+    // Geocoding is keyless, so the default is a search that actually works.
+    expect(env.GEOCODING_PROVIDER).toBe("photon");
     expect(env.ROUTING_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect(env.OPENAI_API_BASE_URL).toBeUndefined();
@@ -15,7 +16,13 @@ describe("parseEnv", () => {
     expect(env.NEXT_PUBLIC_MAP_STYLE_URL).toBeUndefined();
   });
 
-  it("accepts a Nominatim geocoding provider (NFR-005)", () => {
+  it("accepts the mock, Photon and Nominatim geocoding providers (NFR-005)", () => {
+    expect(parseEnv({ GEOCODING_PROVIDER: "mock" }).GEOCODING_PROVIDER).toBe(
+      "mock",
+    );
+    expect(parseEnv({ GEOCODING_PROVIDER: "photon" }).GEOCODING_PROVIDER).toBe(
+      "photon",
+    );
     expect(
       parseEnv({ GEOCODING_PROVIDER: "nominatim" }).GEOCODING_PROVIDER,
     ).toBe("nominatim");

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { joinPlaceLabelParts } from "@/domain/geo/place-display";
 import type { BoundingBox, Coordinates, Place } from "@/domain/geo/types";
 import { classifyDestinationQuery } from "@/domain/search/query-classification";
 import type {
@@ -251,19 +252,16 @@ function parseNominatimCoordinates(
 
 function formatPlaceLabel(place: NominatimPlace): string {
   const parts = placeParts(place);
-  const labeled = [
+  const labeled = joinPlaceLabelParts([
     parts.name,
     parts.addressLine,
     parts.locality,
     parts.region,
     parts.country,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .filter((part, index, all) => all.indexOf(part) === index);
-  if (labeled.length > 0) {
-    return labeled.join(", ");
-  }
-  return place.display_name;
+  ]);
+  // Nominatim always supplies a `display_name`, so the fallback stays here
+  // rather than in the shared join.
+  return labeled || place.display_name;
 }
 
 function toPlace(

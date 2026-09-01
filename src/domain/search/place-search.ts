@@ -22,6 +22,12 @@ export type PlaceSearchState = {
 
 export const PLACE_SEARCH_MIN_QUERY_LENGTH = 2;
 
+/**
+ * FR-032 — how many offers the list shows. Providers are asked for more than
+ * this so that collapsing duplicates still leaves a full list.
+ */
+export const PLACE_SEARCH_MAX_RESULTS = 8;
+
 export const PLACE_SEARCH_EMPTY_MESSAGE = "Saisissez un lieu, une adresse ou un nom.";
 export const PLACE_SEARCH_NO_RESULTS_MESSAGE = "Aucun lieu trouvé.";
 export const PLACE_SEARCH_OFFLINE_MESSAGE =

@@ -43,3 +43,20 @@ export function placeSecondaryLine(place: Place): string | null {
   );
   return unique.length > 0 ? unique.join(", ") : null;
 }
+
+/**
+ * Assembles a place label from its structured parts: empty fragments and
+ * repetitions drop out, the rest is joined by ", ".
+ *
+ * Shared by the geocoding adapters so that whatever builds `label` stays
+ * consistent with how `placePrimaryName` and `placeSecondaryLine` read it back.
+ */
+export function joinPlaceLabelParts(
+  parts: readonly (string | undefined | null)[],
+): string {
+  return parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .filter((part, index, all) => all.indexOf(part) === index)
+    .join(", ");
+}

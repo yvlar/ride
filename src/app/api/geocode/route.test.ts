@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Place } from "@/domain/geo/types";
 import type { PostalCodeProvider } from "@/domain/postal-codes/postal-code-provider";
+import type { GeocodingProvider } from "@/infrastructure/geocoding/geocoding-provider";
 
 const postalCodes = vi.hoisted(() => ({
   provider: null as PostalCodeProvider | null,
@@ -203,5 +205,80 @@ describe("GET /api/geocode — code postal (FR-040)", () => {
       kind: "city",
       coordinates: { latitude: 45.4001, longitude: -72.7342 },
     });
+  });
+});
+
+describe("GET /api/geocode — doublons (FR-032)", () => {
+  function segment(latitude: number, longitude: number): Place {
+    return {
+      label: "Rue Principale, Granby, Québec, Canada",
+      name: "Rue Principale",
+      locality: "Granby",
+      region: "Québec",
+      country: "Canada",
+      kind: "address",
+      precision: "approximate",
+      coordinates: { latitude, longitude },
+    };
+  }
+
+  /** Hands the route a provider answering like a live geocoder. */
+  async function getWithPlaces(url: string, places: Place[]): Promise<Response> {
+    vi.resetModules();
+    vi.doMock("@/infrastructure/geocoding/get-geocoding-provider", () => ({
+      getGeocodingProvider: (): GeocodingProvider => ({
+        search: async () => places,
+        reverse: async () => places[0]!,
+      }),
+    }));
+
+    try {
+      const { GET: stubbedGet } = await import("./route");
+      return await stubbedGet(new Request(url));
+    } finally {
+      vi.doUnmock("@/infrastructure/geocoding/get-geocoding-provider");
+      vi.resetModules();
+    }
+  }
+
+  it("collapses the way segments of one street and keeps the nearest", async () => {
+    // A provider answers with the objects it indexes: one row per OSM segment.
+    const far = segment(45.4102, -72.7488);
+    const near = segment(45.4008, -72.7311);
+    const vermont: Place = {
+      ...segment(44.9, -72.6),
+      label: "Rue Principale, Granby, Vermont, États-Unis",
+      region: "Vermont",
+      country: "États-Unis",
+    };
+
+    const response = await getWithPlaces(
+      "http://localhost/api/geocode?q=rue%20principale&latitude=45.4001&longitude=-72.7342",
+      [far, vermont, near],
+    );
+    const body = await response.json();
+
+    // One Granby québécoise, one Granby vermontoise: same street name, two
+    // genuinely different offers.
+    expect(body.data.places).toHaveLength(2);
+    // Ranking runs first, so the survivor is the segment nearest the rider.
+    expect(body.data.places[0].coordinates).toEqual(near.coordinates);
+    expect(body.data.places[1].region).toBe("Vermont");
+  });
+
+  it("never returns more offers than the list shows", async () => {
+    const streets = Array.from({ length: 20 }, (_unused, index) => ({
+      ...segment(45.4 + index / 100, -72.7),
+      name: `Rue ${index}`,
+      label: `Rue ${index}, Granby, Québec, Canada`,
+    }));
+
+    const response = await getWithPlaces(
+      "http://localhost/api/geocode?q=rue",
+      streets,
+    );
+    const body = await response.json();
+
+    expect(body.data.places).toHaveLength(8);
   });
 });
