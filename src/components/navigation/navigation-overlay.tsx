@@ -16,6 +16,7 @@ import {
   RECENTER_LABEL,
   STOP_NAVIGATION_CONFIRM,
   STOP_NAVIGATION_LABEL,
+  VOICE_UNAVAILABLE_LABEL,
 } from "@/domain/navigation/session-copy";
 import type { NavigationStatus } from "@/domain/navigation/status";
 import type { RideGenerationError } from "@/domain/ride/types";
@@ -59,6 +60,8 @@ export type NavigationOverlayProps = {
   destinationLabel?: string | null;
   recalcError: RideGenerationError | null;
   statusLabel?: string | null;
+  /** FR-044 — false when speechSynthesis cannot be heard on this device. */
+  voiceAvailable?: boolean;
   onMuteToggle: () => void;
   onRecenter: () => void;
   onOverview?: () => void;
@@ -85,6 +88,7 @@ export function NavigationOverlay({
   destinationLabel = null,
   recalcError,
   statusLabel = null,
+  voiceAvailable = true,
   onMuteToggle,
   onRecenter,
   onOverview,
@@ -94,6 +98,11 @@ export function NavigationOverlay({
   const [confirmStop, setConfirmStop] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const etaLabel = formatEta(nowMs, remainingMinutes);
+  const muteLabel = muted
+    ? "Activer le guidage vocal"
+    : voiceAvailable
+      ? "Couper le guidage vocal"
+      : VOICE_UNAVAILABLE_LABEL;
   const showStatus = status.message.length > 0;
 
   useEffect(() => {
@@ -146,9 +155,7 @@ export function NavigationOverlay({
             <Button
               type="button"
               variant="ghost"
-              aria-label={
-                muted ? "Activer le guidage vocal" : "Couper le guidage vocal"
-              }
+              aria-label={muteLabel}
               aria-pressed={muted}
               className={cn(
                 TOUCH_TARGET,
@@ -305,9 +312,7 @@ export function NavigationOverlay({
             <Button
               type="button"
               variant="secondary"
-              aria-label={
-                muted ? "Activer le guidage vocal" : "Couper le guidage vocal"
-              }
+              aria-label={muteLabel}
               aria-pressed={muted}
               className={cn(TOUCH_TARGET, "shrink-0")}
               onClick={onMuteToggle}

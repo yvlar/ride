@@ -11,6 +11,10 @@ export const FOLLOW_SUSPENDED_MESSAGE = "Suivi automatique en pause";
 
 export const RECENTER_LABEL = "Recentrer sur ma position";
 
+/** FR-044 — the voice is gone, the earcons still mark every maneuver. */
+export const VOICE_UNAVAILABLE_LABEL =
+  "Guidage vocal indisponible — sons de manœuvre actifs";
+
 export const STOP_NAVIGATION_LABEL = "Terminer la navigation";
 
 export const STOP_NAVIGATION_CONFIRM = "Terminer la navigation ?";

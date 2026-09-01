@@ -15,6 +15,12 @@ import {
   markRecalculateStarted,
 } from "@/domain/navigation/off-route";
 import { decideAnnouncement, emptyVoiceMemory, resetVoiceMemory } from "@/domain/navigation/voice";
+import {
+  decideNavigationCue,
+  emptyCueMemory,
+  resetCueMemory,
+  type NavigationCueEvent,
+} from "@/domain/navigation/audio-cues";
 import { formatFrenchInstruction, roadLabel } from "@/domain/navigation/instructions";
 import {
   deriveNavigationStatus,
@@ -33,6 +39,10 @@ import {
 } from "@/infrastructure/device/screen-wake-lock";
 import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createSpeechGuidance, type SpeechGuidance } from "@/infrastructure/voice/speech-guidance";
+import {
+  createNavigationAudioCues,
+  type NavigationAudioCues,
+} from "@/infrastructure/audio/navigation-audio-cues";
 import { NavigationMap, type NavigationMapProps } from "./navigation-map";
 import { NavigationOverlay } from "./navigation-overlay";
 import { maneuverArrow } from "./maneuver-arrow";
@@ -81,6 +91,8 @@ export type NavigationSessionProps = {
   onRouteChange?: (route: GeneratedRideRoute) => void;
   locationWatch?: LocationWatch;
   speech?: SpeechGuidance;
+  /** FR-044 — earcons, used as the fallback when the voice cannot be heard. */
+  audioCues?: NavigationAudioCues;
   carPlay?: CarPlayDisplay;
   recalculate?: (
     input: RecalculateRideInput,
@@ -120,6 +132,7 @@ export function NavigationSession({
   onRouteChange,
   locationWatch,
   speech,
+  audioCues,
   carPlay,
   recalculate = requestRecalculatedRide,
   joinRoute = requestJoinRoute,
@@ -183,6 +196,7 @@ export function NavigationSession({
   const progressRef = useRef<number | null>(null);
   const offRouteRef = useRef(emptyOffRouteTracker());
   const voiceRef = useRef(emptyVoiceMemory());
+  const cueMemoryRef = useRef(emptyCueMemory());
   const generationRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const routeRef = useRef(currentRoute);
@@ -216,6 +230,10 @@ export function NavigationSession({
   const speechEngine = useMemo(
     () => speech ?? createSpeechGuidance(),
     [speech],
+  );
+  const cueEngine = useMemo(
+    () => audioCues ?? createNavigationAudioCues(),
+    [audioCues],
   );
   const screenWakeLock = useMemo(
     () => wakeLock ?? createForegroundScreenWakeLock(),
@@ -293,7 +311,8 @@ export function NavigationSession({
 
   useEffect(() => {
     speechEngine.setMuted(muted);
-  }, [muted, speechEngine]);
+    cueEngine.setMuted(muted);
+  }, [cueEngine, muted, speechEngine]);
 
   /* FR-042 — a dropped connection must be named, not left to a frozen map. */
   useEffect(() => {
@@ -326,6 +345,37 @@ export function NavigationSession({
     setGpxOverlay(overlay);
     onGpxOverlayChangeRef.current?.(overlay);
   }, []);
+
+  /**
+   * FR-044 — the earcon is a *fallback*: it fires when the speech engine is
+   * missing or has errored, so a rider is never left with a silent maneuver.
+   * When CarPlay owns the audio path (FR-028), the vehicle speaks instead.
+   */
+  const voiceUnavailable = useCallback(() => {
+    const status = speechEngine.status?.();
+    if (!status) {
+      return !speechEngine.available;
+    }
+    return !status.available || status.failed;
+  }, [speechEngine]);
+
+  const playFallbackCue = useCallback(
+    (event: NavigationCueEvent) => {
+      if (ownsVoiceRef.current || !voiceUnavailable()) {
+        return;
+      }
+      const decision = decideNavigationCue({
+        event,
+        muted: mutedRef.current,
+        memory: cueMemoryRef.current,
+      });
+      cueMemoryRef.current = decision.memory;
+      if (decision.cue) {
+        cueEngine.play(decision.cue);
+      }
+    },
+    [cueEngine, voiceUnavailable],
+  );
 
   const pushCarPlay = useCallback(
     (speakText: string | null, options?: { cancelSpeech?: boolean }) => {
@@ -366,13 +416,15 @@ export function NavigationSession({
     abortRef.current?.abort();
     abortRef.current = null;
     voiceRef.current = resetVoiceMemory();
+    cueMemoryRef.current = resetCueMemory();
     progressSnapshotRef.current = null;
     gpxRuntimeRef.current = null;
     publishGpxOverlay(null);
     speechEngine.cancel();
+    cueEngine.stop();
     void carPlayDisplay.stop();
     onStop();
-  }, [carPlayDisplay, onStop, publishGpxOverlay, speechEngine]);
+  }, [carPlayDisplay, cueEngine, onStop, publishGpxOverlay, speechEngine]);
   const handleStopRef = useRef(handleStop);
   useEffect(() => {
     handleStopRef.current = handleStop;
@@ -422,6 +474,7 @@ export function NavigationSession({
     offRouteRef.current = markRecalculateStarted(offRouteRef.current, now());
     speechEngine.cancel();
     voiceRef.current = resetVoiceMemory();
+    playFallbackCue({ type: "reroute" });
     pushCarPlay(null, { cancelSpeech: true });
 
     const result = await recalculate(
@@ -454,6 +507,8 @@ export function NavigationSession({
     setRecalcError(null);
     setOffRoute(false);
     offRouteRef.current = emptyOffRouteTracker();
+    // A rebuilt route can be arrived at again (FR-044).
+    cueMemoryRef.current = resetCueMemory();
     setCurrentRoute(result.route);
     routeRef.current = result.route;
     progressRef.current = 0;
@@ -466,7 +521,16 @@ export function NavigationSession({
     setRemainingMinutes(result.route.durationMinutes);
     onRouteChange?.(result.route);
     pushCarPlay(null);
-  }, [now, onRouteChange, pushCarPlay, recalculate, request, speechEngine, useKnowledgeRouting]);
+  }, [
+    now,
+    onRouteChange,
+    playFallbackCue,
+    pushCarPlay,
+    recalculate,
+    request,
+    speechEngine,
+    useKnowledgeRouting,
+  ]);
 
   const fetchGpxJoin = useCallback(async (
     from: Coordinates,
@@ -492,6 +556,7 @@ export function NavigationSession({
     offRouteRef.current = markRecalculateStarted(offRouteRef.current, now());
     speechEngine.cancel();
     voiceRef.current = resetVoiceMemory();
+    playFallbackCue({ type: "reroute" });
     pushCarPlay(null, { cancelSpeech: true });
     setInstruction(GPX_JOIN_CALCULATING_MESSAGE);
     setStatusLabel(gpxStatusLabel("joining_gpx", runtime.offRoute));
@@ -563,7 +628,7 @@ export function NavigationSession({
     setInstruction(JOINING_GPX_MESSAGE);
     setStatusLabel(gpxStatusLabel(next.phase, next.offRoute));
     pushCarPlay(null);
-  }, [now, publishGpxOverlay, pushCarPlay, speechEngine]);
+  }, [now, playFallbackCue, publishGpxOverlay, pushCarPlay, speechEngine]);
 
   useEffect(() => {
     runRecalculateRef.current = runRecalculate;
@@ -639,6 +704,12 @@ export function NavigationSession({
         speechEngine.cancel();
         abortRef.current?.abort();
         offRouteRef.current = markRecalculateAborted(offRouteRef.current);
+        return;
+      }
+      if (!isHidden) {
+        // FR-025 — iOS leaves the speech queue paused after a screen lock;
+        // without this the rest of the ride is silent.
+        speechEngine.unlock();
       }
     }
     document.addEventListener("visibilitychange", onVisibility);
@@ -786,6 +857,9 @@ export function NavigationSession({
       });
       voiceRef.current = announcement.memory;
       if (announcement.speak && !ownsVoiceRef.current) {
+        if (announcement.phase) {
+          playFallbackCue({ type: "announcement", phase: announcement.phase });
+        }
         speechEngine.speak(announcement.speak);
       }
       pushCarPlay(ownsVoiceRef.current ? announcement.speak ?? null : null);
@@ -995,6 +1069,7 @@ export function NavigationSession({
     activeLocationWatch,
     carPlayDisplay,
     now,
+    playFallbackCue,
     publishGpxOverlay,
     pushCarPlay,
     shouldWatch,
@@ -1003,6 +1078,13 @@ export function NavigationSession({
 
   const arrived =
     hasFix && remainingDistanceKm <= 0.05 && !recalculating && !offRoute;
+
+  useEffect(() => {
+    if (!arrived) {
+      return;
+    }
+    playFallbackCue({ type: "arrival" });
+  }, [arrived, playFallbackCue]);
 
   const status: NavigationStatus = deriveNavigationStatus({
     hasFix,
@@ -1071,6 +1153,7 @@ export function NavigationSession({
         destinationLabel={destinationLabel}
         recalcError={recalcError}
         statusLabel={statusLabel}
+        voiceAvailable={!voiceUnavailable()}
         onMuteToggle={() => {
           setMuted((current) => {
             const next = !current;

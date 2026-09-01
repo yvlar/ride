@@ -55,6 +55,7 @@ import { createForegroundLocationWatch } from "@/infrastructure/location/create-
 import { createLocalRideLibrary } from "@/infrastructure/persistence/local-ride-library";
 import { createRideSessionStore } from "@/infrastructure/persistence/ride-session-store";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
+import { createNavigationAudioCues } from "@/infrastructure/audio/navigation-audio-cues";
 import type { AppearanceMode } from "@/domain/appearance/appearance";
 import {
   readStoredRoutePreferences,
@@ -149,8 +150,10 @@ export function RideApp(props: RideAppProps) {
   );
   const ownedLocationWatch = useMemo(() => createForegroundLocationWatch(), []);
   const ownedSpeech = useMemo(() => createSpeechGuidance(), []);
+  const ownedAudioCues = useMemo(() => createNavigationAudioCues(), []);
   const locationWatch = props.navigation?.locationWatch ?? ownedLocationWatch;
   const speechEngine = props.navigation?.speech ?? ownedSpeech;
+  const audioCues = props.navigation?.audioCues ?? ownedAudioCues;
   const carPlay = useMemo(() => createCarPlayDisplay(), []);
   const recorder = useTrackRecorder({
     locationWatch,
@@ -387,6 +390,11 @@ export function RideApp(props: RideAppProps) {
       speechEngine.unlock();
     } catch {
       // Visual navigation continues if speech cannot unlock (FR-025).
+    }
+    try {
+      audioCues.unlock();
+    } catch {
+      // Navigation continues without earcons (FR-044).
     }
     try {
       mapRecenterRef.current();
@@ -648,6 +656,7 @@ export function RideApp(props: RideAppProps) {
             }}
             locationWatch={locationWatch}
             speech={speechEngine}
+            audioCues={audioCues}
             recalculate={props.navigation?.recalculate}
             joinRoute={props.navigation?.joinRoute}
             now={props.navigation?.now}

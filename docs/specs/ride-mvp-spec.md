@@ -609,6 +609,16 @@ Les seuils par défaut, configurables et testés, sont :
 
 Lors d’un recalcul, les annonces devenues obsolètes sont annulées. La file vocale est remplacée. Deux annonces ne se superposent jamais.
 
+#### Chemin audible sur iPhone
+
+`speechSynthesis` n’est accordé à une page iOS que si celle-ci **parle pendant un geste utilisateur**. Une manœuvre est annoncée depuis un relevé GPS, qui n’est pas un geste : sans amorce, toute la sortie reste muette. Par conséquent :
+
+- **Démarrer la navigation** émet un énoncé d’amorce silencieux (volume 0) au moment du geste; il n’annonce aucune manœuvre;
+- au retour de l’application au premier plan, la file vocale est reprise : iOS la laisse en pause après un verrouillage d’écran;
+- la file n’est annulée que lorsqu’une annonce est réellement en cours; annuler un moteur au repos fait perdre l’énoncé suivant sur Safari;
+- la voix française est retenue dès que le navigateur publie sa liste (`voiceschanged`), la première liste étant souvent vide;
+- une erreur du moteur est mémorisée : la session bascule alors sur les indications sonores (`FR-044`).
+
 ### FR-026 — Détection hors trajet et recalcul
 
 Une seule lecture GPS hors géométrie ne constitue pas une sortie de trajet.
@@ -1113,6 +1123,22 @@ Cibles tactiles d’au moins 48 × 48 px, contraste élevé de jour comme de nui
 
 ---
 
+### FR-044 — Indications sonores
+
+Le guidage vocal (`FR-025`) dit **quoi** faire; une indication sonore dit **qu’il se passe quelque chose**, avant même que la phrase soit comprise. Elle sert de repli lorsque la voix ne peut pas être entendue.
+
+Règles :
+
+- les tonalités sont **synthétisées localement** (Web Audio) : aucun fichier audio, aucun appel réseau, aucun enregistrement;
+- la table des tonalités appartient au domaine, de sorte que tout afficheur rejoue la même chose (`BR-004`);
+- une indication accompagne chaque seuil d’annonce (`FR-025`) — préparation, approche, manœuvre imminente —, le recalcul hors trajet (`FR-026`) et l’arrivée;
+- elle se déclenche **quand le moteur vocal est absent ou en erreur**; tant que la voix fonctionne, elle reste silencieuse pour ne pas doubler l’instruction;
+- l’arrivée n’est annoncée qu’une fois; un trajet recalculé peut de nouveau être atteint;
+- le contexte audio est déverrouillé par le même geste que la voix, et deux indications ne se superposent jamais;
+- le bouton de coupure du son de l’écran de navigation coupe la voix **et** les indications sonores;
+- lorsque la voix est indisponible, le bouton le nomme explicitement, plutôt que de laisser croire à un silence choisi (`FR-042`);
+- l’absence de Web Audio ne dégrade que le son : la navigation visuelle continue (`NFR-006`).
+
 ### FR-043 — Météo et radar sur la carte
 
 La carte porte le ciel autant que la route. Objectif : savoir **en temps réel dans quelle direction éviter le mauvais temps**, sans quitter la carte ni interpréter un bulletin.
@@ -1261,6 +1287,7 @@ Toute promotion d’une fonctionnalité future vers le MVP doit d’abord mettre
 | `FR-041` | Enregistrement du parcours en direct et export GPX |
 | `FR-042` | Écran de navigation lisible en roulant |
 | `FR-043` | Météo et radar sur la carte |
+| `FR-044` | Indications sonores |
 
 ### Règles métier
 
