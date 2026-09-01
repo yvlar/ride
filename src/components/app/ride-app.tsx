@@ -139,6 +139,10 @@ export function RideApp(props: RideAppProps) {
   const savedRef = useRef(saved);
   const navigatingRef = useRef(navigating);
   const mapRecenterRef = useRef<() => void>(() => {});
+  // FR-038 — published by FindDestinationPanel, called by the explorer map.
+  const findDestinationPickRef = useRef<
+    ((coordinates: Coordinates) => void) | null
+  >(null);
   const mapOverviewRef = useRef<() => void>(() => {});
   const setMapGeolocateEnabledRef = useRef<(enabled: boolean) => void>(
     () => {},
@@ -574,6 +578,24 @@ export function RideApp(props: RideAppProps) {
                   setMapGeolocateEnabledRef.current = setEnabled;
                 }}
                 weather={weatherOverlay}
+                /*
+                 * FR-038 — the destination pane floats over this map, so the
+                 * map itself is what the rider picks a point on: no button,
+                 * no second full-screen map.
+                 */
+                pickMode={sheet === "search" && !navigating}
+                /*
+                 * A generated route already draws its own destination marker,
+                 * so the draggable pin only stands in while there is none.
+                 */
+                pickMarker={
+                  sheet === "search" && !route
+                    ? (searchPlace?.coordinates ?? null)
+                    : null
+                }
+                onPick={(coordinates) =>
+                  findDestinationPickRef.current?.(coordinates)
+                }
               />
             </div>
             <div className="pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 z-20 flex w-[min(22rem,calc(100%-1.5rem))]">
@@ -724,7 +746,6 @@ export function RideApp(props: RideAppProps) {
                   regenerateRide={props.regenerateRide}
                   searchPlaces={props.searchPlaces}
                   debounceMs={props.debounceMs}
-                  mapEngine={props.mapEngine}
                   initialDestination={searchPlace}
                   initialQuery={searchQuery}
                   navigationActive={navigating && sheet === "search"}
@@ -738,6 +759,9 @@ export function RideApp(props: RideAppProps) {
                       : undefined)
                   }
                   reversePlace={props.reversePlace}
+                  onMapPickReady={(pick) => {
+                    findDestinationPickRef.current = pick;
+                  }}
                   onDestinationChange={(place, query) => {
                     setSearchPlace(place);
                     setSearchQuery(query);

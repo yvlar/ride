@@ -315,7 +315,7 @@ describe("destination flow — destination validity (FR-038)", () => {
   });
 });
 
-describe("destination flow — map picker (FR-038)", () => {
+describe("destination flow — point picked on the map (FR-038)", () => {
   const start: Place = {
     label: "Granby",
     coordinates: { latitude: 45.4001, longitude: -72.7342 },
@@ -324,10 +324,13 @@ describe("destination flow — map picker (FR-038)", () => {
     label: "Mont-Tremblant",
     coordinates: { latitude: 46.1185, longitude: -74.5962 },
   };
-  const picked: Place = {
-    label: "Point sélectionné sur la carte (45.90000, -73.10000)",
-    source: "map",
-    coordinates: { latitude: 45.9, longitude: -73.1 },
+  const point = { latitude: 45.9, longitude: -73.1 };
+  const pointLabel = "Point sélectionné sur la carte (45.90000, -73.10000)";
+  const reversed: Place = {
+    label: "125 rue Principale, Granby",
+    name: "125 rue Principale",
+    locality: "Granby",
+    coordinates: point,
   };
 
   function ready(): DestinationSearchState {
@@ -340,36 +343,79 @@ describe("destination flow — map picker (FR-038)", () => {
     );
   }
 
-  it("blocks generation while the picker is open", () => {
-    const open = reduceDestinationSearch(ready(), { type: "open_map_picker" });
+  function placed(generation = 1): DestinationSearchState {
+    return reduceDestinationSearch(ready(), {
+      type: "pick_point",
+      coordinates: point,
+      generation,
+    });
+  }
 
-    expect(open.mapPickerOpen).toBe(true);
-    expect(canGenerateDestinationSearch(open)).toBe(false);
+  it("adopts the point as the destination the moment it is placed", () => {
+    const state = placed();
+
+    expect(state.destination?.coordinates).toEqual(point);
+    expect(state.destination?.source).toBe("map");
+    expect(state.destination?.label).toBe(pointLabel);
+    expect(state.destinationQuery).toBe(pointLabel);
+    expect(state.stage).toBe("selected");
+    expect(state.pickStatus).toBe("reverse_geocoding");
+    // Coordinates are all routing needs, so the pending lookup blocks nothing.
+    expect(canGenerateDestinationSearch(state)).toBe(true);
   });
 
-  it("keeps the previous destination when the picker is cancelled", () => {
-    const cancelled = reduceDestinationSearch(
-      reduceDestinationSearch(ready(), { type: "open_map_picker" }),
-      { type: "cancel_map_picker" },
-    );
+  it("refines the label once reverse geocoding answers", () => {
+    const state = reduceDestinationSearch(placed(), {
+      type: "pick_reverse_success",
+      generation: 1,
+      place: reversed,
+    });
 
-    expect(cancelled.mapPickerOpen).toBe(false);
-    expect(cancelled.destination).toEqual(chosen);
-    expect(cancelled.stage).toBe("selected");
-    expect(canGenerateDestinationSearch(cancelled)).toBe(true);
+    expect(state.destination?.label).toBe(reversed.label);
+    expect(state.destination?.coordinates).toEqual(point);
+    expect(state.destination?.source).toBe("map");
+    expect(state.pickStatus).toBe("ready");
   });
 
-  it("adopts a confirmed map pick as the destination", () => {
-    const confirmed = reduceDestinationSearch(
-      reduceDestinationSearch(ready(), { type: "open_map_picker" }),
-      { type: "confirm_map_pick", destination: picked },
+  it("keeps the point when reverse geocoding fails", () => {
+    const state = reduceDestinationSearch(placed(), {
+      type: "pick_reverse_failure",
+      generation: 1,
+    });
+
+    expect(state.destination?.coordinates).toEqual(point);
+    expect(state.destination?.label).toBe(pointLabel);
+    expect(state.pickStatus).toBe("reverse_failed");
+    expect(canGenerateDestinationSearch(state)).toBe(true);
+  });
+
+  it("ignores a late answer for a point the rider has moved away from", () => {
+    const moved = { latitude: 46.2, longitude: -74.1 };
+    const state = reduceDestinationSearch(
+      reduceDestinationSearch(placed(1), {
+        type: "pick_point",
+        coordinates: moved,
+        generation: 2,
+      }),
+      { type: "pick_reverse_success", generation: 1, place: reversed },
     );
 
-    expect(confirmed.mapPickerOpen).toBe(false);
-    expect(confirmed.destination).toEqual(picked);
-    expect(confirmed.destinationQuery).toBe(picked.label);
-    expect(confirmed.stage).toBe("selected");
-    expect(canGenerateDestinationSearch(confirmed)).toBe(true);
+    expect(state.destination?.coordinates).toEqual(moved);
+    expect(state.destination?.label).not.toBe(reversed.label);
+    expect(state.pickStatus).toBe("reverse_geocoding");
+  });
+
+  it("ignores a late answer once a suggestion has been picked instead", () => {
+    const state = reduceDestinationSearch(
+      reduceDestinationSearch(placed(), {
+        type: "set_destination",
+        destination: chosen,
+      }),
+      { type: "pick_reverse_success", generation: 1, place: reversed },
+    );
+
+    expect(state.destination).toEqual(chosen);
+    expect(state.pickStatus).toBe("idle");
   });
 
   it("drops a stale preview when the map pick moves the destination", () => {
@@ -380,12 +426,46 @@ describe("destination flow — map picker (FR-038)", () => {
       request: {} as unknown as DestinationSearchState["request"],
     };
 
-    const confirmed = reduceDestinationSearch(previewed, {
-      type: "confirm_map_pick",
-      destination: picked,
+    const state = reduceDestinationSearch(previewed, {
+      type: "pick_point",
+      coordinates: point,
+      generation: 1,
     });
 
-    expect(confirmed.route).toBeNull();
-    expect(confirmed.request).toBeNull();
+    expect(state.route).toBeNull();
+    expect(state.request).toBeNull();
+  });
+
+  it("keeps the preview when only the label of the same point changes", () => {
+    const previewed: DestinationSearchState = {
+      ...placed(),
+      phase: "routePreview",
+      route: { id: "route-1" } as unknown as DestinationSearchState["route"],
+      request: {} as unknown as DestinationSearchState["request"],
+    };
+
+    const state = reduceDestinationSearch(previewed, {
+      type: "pick_reverse_success",
+      generation: 1,
+      place: reversed,
+    });
+
+    expect(state.route).not.toBeNull();
+    expect(state.request).not.toBeNull();
+  });
+
+  it("refuses to move the destination during navigation", () => {
+    const navigating: DestinationSearchState = {
+      ...ready(),
+      phase: "navigating",
+    };
+
+    const state = reduceDestinationSearch(navigating, {
+      type: "pick_point",
+      coordinates: point,
+      generation: 1,
+    });
+
+    expect(state).toBe(navigating);
   });
 });

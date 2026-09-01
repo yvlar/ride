@@ -1,5 +1,8 @@
-import { isUsableDestination } from "@/domain/destination/destination";
-import type { Place } from "@/domain/geo/types";
+import {
+  isUsableDestination,
+  mapPointDestination,
+} from "@/domain/destination/destination";
+import type { Coordinates, Place } from "@/domain/geo/types";
 import type { GenerateRideRequest, GeneratedRideRoute } from "@/domain/ride/types";
 
 /**
@@ -36,10 +39,32 @@ export type DestinationSearchError = {
  */
 export type DestinationStage = "searching" | "selected";
 
+/**
+ * FR-038 — how far the reverse geocoding of the current map point got. The
+ * point itself is a usable destination the moment it is placed, so this only
+ * ever decorates the label.
+ */
+export type MapPickStatus =
+  | "idle"
+  | "reverse_geocoding"
+  | "ready"
+  | "reverse_failed";
+
+export const MAP_PICK_REVERSE_PENDING_MESSAGE = "Recherche de l’adresse…";
+
 export type DestinationSearchState = {
   phase: DestinationSearchPhase;
   stage: DestinationStage;
-  mapPickerOpen: boolean;
+  /*
+   * Reverse geocoding of a map point answers out of order. `pickGeneration`
+   * identifies the point a pending lookup was started for, and `pickStatus`
+   * says whether one is still awaited at all: any other write to the
+   * destination resets it to "idle", so a late answer for a point the rider
+   * has moved away from — or replaced with a typed address — is dropped
+   * instead of overwriting the newer label.
+   */
+  pickGeneration: number;
+  pickStatus: MapPickStatus;
   start: Place | null;
   destination: Place | null;
   destinationQuery: string;
@@ -76,9 +101,9 @@ export type DestinationSearchEvent =
   | { type: "generate_aborted"; generationId: number }
   | { type: "clear_destination" }
   | { type: "edit_destination_text" }
-  | { type: "open_map_picker" }
-  | { type: "cancel_map_picker" }
-  | { type: "confirm_map_pick"; destination: Place }
+  | { type: "pick_point"; coordinates: Coordinates; generation: number }
+  | { type: "pick_reverse_success"; generation: number; place: Place }
+  | { type: "pick_reverse_failure"; generation: number }
   | { type: "start_navigation" }
   | { type: "cancel_navigation" }
   | { type: "cancel_completed" }
@@ -88,7 +113,8 @@ export function emptyDestinationSearchState(): DestinationSearchState {
   return {
     phase: "locating",
     stage: "searching",
-    mapPickerOpen: false,
+    pickGeneration: 0,
+    pickStatus: "idle",
     start: null,
     destination: null,
     destinationQuery: "",
@@ -117,13 +143,11 @@ export function createDestinationSearchState(options?: {
 export function canGenerateDestinationSearch(
   state: DestinationSearchState,
 ): boolean {
+  // A destination is only ever set by an explicit selection or a point placed
+  // on the map; editing the text clears it, so raw field text can never reach
+  // the routing engine (FR-038). A point is routable the moment it lands, so a
+  // reverse geocoding still in flight is deliberately not a reason to wait.
   if (!state.start || !isUsableDestination(state.destination)) {
-    return false;
-  }
-  // A destination is only ever set by an explicit selection or a confirmed
-  // map pick; editing the text clears it, so raw field text can never reach
-  // the routing engine (FR-038).
-  if (state.mapPickerOpen) {
     return false;
   }
   if (
@@ -251,7 +275,9 @@ export function reduceDestinationSearch(
       const withDest: DestinationSearchState = {
         ...next,
         stage: "selected",
-        mapPickerOpen: false,
+        // Any pending reverse geocoding belonged to a point the rider has now
+        // replaced; `pick_*` re-arms the status when a point is placed.
+        pickStatus: "idle",
         destination: event.destination,
         destinationQuery: event.destination.label,
         error: next.error?.kind === "generation" ? null : next.error,
@@ -278,6 +304,7 @@ export function reduceDestinationSearch(
       return {
         ...next,
         stage: destination ? "selected" : "searching",
+        pickStatus: "idle",
         destination,
         destinationQuery: event.query,
         phase:
@@ -370,7 +397,7 @@ export function reduceDestinationSearch(
       return {
         ...invalidatePreview(state),
         stage: "searching",
-        mapPickerOpen: false,
+        pickStatus: "idle",
         destination: null,
         destinationQuery: "",
         error: state.error?.kind === "generation" ? null : state.error,
@@ -383,31 +410,57 @@ export function reduceDestinationSearch(
       }
       // Reopens the field with the current text. The destination stays valid
       // until the text actually changes (FR-038).
-      return { ...state, stage: "searching", mapPickerOpen: false };
+      return { ...state, stage: "searching" };
     }
-    case "open_map_picker": {
+    case "pick_point": {
       if (state.phase === "navigating" || state.phase === "cancelling") {
         return state;
       }
-      return { ...state, mapPickerOpen: true };
-    }
-    case "cancel_map_picker": {
-      // Cancelling changes nothing: the destination chosen before opening the
-      // map survives, and the pane returns to the view it came from (FR-038).
+      // Coordinates alone already make a valid destination, so the rider can
+      // generate immediately even if reverse geocoding never answers (FR-038).
+      const placed = reduceDestinationSearch(state, {
+        type: "set_destination",
+        destination: mapPointDestination(event.coordinates),
+      });
       return {
-        ...state,
-        mapPickerOpen: false,
-        stage: state.destination ? "selected" : "searching",
+        ...placed,
+        pickGeneration: event.generation,
+        pickStatus: "reverse_geocoding",
       };
     }
-    case "confirm_map_pick": {
-      if (state.phase === "navigating" || state.phase === "cancelling") {
+    case "pick_reverse_success": {
+      // `pickStatus` is the real guard: any write to the destination in the
+      // meantime resets it to "idle", so a late answer for an abandoned point
+      // can never overwrite a newer label (FR-038).
+      if (
+        state.pickStatus !== "reverse_geocoding" ||
+        event.generation !== state.pickGeneration ||
+        !state.destination
+      ) {
         return state;
       }
-      return reduceDestinationSearch(
-        { ...state, mapPickerOpen: false },
-        { type: "set_destination", destination: event.destination },
-      );
+      const decorated = reduceDestinationSearch(state, {
+        type: "set_destination",
+        destination: mapPointDestination(
+          state.destination.coordinates,
+          event.place,
+        ),
+      });
+      return {
+        ...decorated,
+        pickGeneration: event.generation,
+        pickStatus: "ready",
+      };
+    }
+    case "pick_reverse_failure": {
+      if (
+        state.pickStatus !== "reverse_geocoding" ||
+        event.generation !== state.pickGeneration
+      ) {
+        return state;
+      }
+      // The coordinate-only destination placed by `pick_point` stands.
+      return { ...state, pickStatus: "reverse_failed" };
     }
     case "start_navigation": {
       if (state.phase === "navigating" || state.phase === "cancelling") {
@@ -439,7 +492,7 @@ export function reduceDestinationSearch(
       return {
         ...state,
         phase: "locating",
-        mapPickerOpen: false,
+        pickStatus: "idle",
         route: null,
         request: null,
         error: null,

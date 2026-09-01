@@ -43,7 +43,7 @@ export type PlaceSearchFieldProps = {
   onQueryChange: (query: string) => void;
   onPlaceSelected: (place: Place) => void;
   action?: ReactNode;
-  /** Rendered under the field, e.g. the FR-038 "Choisir sur la carte" button. */
+  /** Rendered under the field, e.g. the FR-038 map-picking hint. */
   footer?: ReactNode;
   /** Shown when the field is empty and nothing has been typed yet. */
   hint?: string;
