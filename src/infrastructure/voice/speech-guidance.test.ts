@@ -5,6 +5,8 @@ class FakeUtterance {
   text: string;
   lang = "";
   volume = 1;
+  rate = 1;
+  pitch = 1;
   voice: SpeechSynthesisVoice | null = null;
   onstart: (() => void) | null = null;
   onend: (() => void) | null = null;
@@ -167,5 +169,166 @@ describe("createSpeechGuidance (FR-025)", () => {
       guidance.speak("Tournez à droite.");
     });
     expect(speak).not.toHaveBeenCalled();
+  });
+});
+
+describe("createSpeechGuidance voice preferences (FR-025)", () => {
+  const amelie = {
+    lang: "fr-CA",
+    name: "Amélie",
+    voiceURI: "fr-CA.Amelie",
+  } as SpeechSynthesisVoice;
+  const thomas = {
+    lang: "fr-FR",
+    name: "Thomas",
+    voiceURI: "fr-FR.Thomas",
+  } as SpeechSynthesisVoice;
+
+  it("speaks with the voice, rate and pitch chosen in Réglages", () => {
+    const { synthesis, spoken } = fakeSynthesis([amelie, thomas]);
+    const guidance = createSpeechGuidance(synthesis, {
+      readPreferences: () => ({
+        voice: { voiceURI: "fr-FR.Thomas", name: "Thomas", lang: "fr-FR" },
+        rate: 1.2,
+        pitch: 0.8,
+      }),
+    });
+
+    withFakeUtterance(() => {
+      guidance.speak("Tournez à droite.");
+    });
+
+    expect(spoken).toHaveLength(1);
+    expect(spoken[0].voice).toBe(thomas);
+    expect(spoken[0].lang).toBe("fr-FR");
+    expect(spoken[0].rate).toBe(1.2);
+    expect(spoken[0].pitch).toBe(0.8);
+  });
+
+  it("falls back to the automatic ranking when the stored voice is gone", () => {
+    const { synthesis, spoken } = fakeSynthesis([amelie, thomas]);
+    const guidance = createSpeechGuidance(synthesis, {
+      readPreferences: () => ({
+        voice: { voiceURI: "removed", name: "Chantal", lang: "fr-CA" },
+        rate: 1,
+        pitch: 1,
+      }),
+    });
+
+    withFakeUtterance(() => {
+      guidance.speak("Tournez à droite.");
+    });
+
+    expect(spoken[0].voice).toBe(amelie);
+  });
+
+  it("lets the Réglages preview override the ambient preference", () => {
+    const { synthesis, spoken } = fakeSynthesis([amelie, thomas]);
+    const guidance = createSpeechGuidance(synthesis, {
+      readPreferences: () => ({ voice: null, rate: 1, pitch: 1 }),
+    });
+
+    withFakeUtterance(() => {
+      guidance.speak("Essai", {
+        preferences: {
+          voice: { voiceURI: "fr-FR.Thomas", name: "Thomas", lang: "fr-FR" },
+          rate: 0.85,
+          pitch: 1.2,
+        },
+      });
+    });
+
+    expect(spoken[0].voice).toBe(thomas);
+    expect(spoken[0].rate).toBe(0.85);
+    expect(spoken[0].pitch).toBe(1.2);
+  });
+
+  it("re-reads the preference on every announcement", () => {
+    let preferences = { voice: null, rate: 1, pitch: 1 };
+    const { synthesis, spoken } = fakeSynthesis([amelie, thomas]);
+    const guidance = createSpeechGuidance(synthesis, {
+      readPreferences: () => preferences,
+    });
+
+    withFakeUtterance(() => {
+      guidance.speak("Première");
+      preferences = { voice: null, rate: 1.2, pitch: 1 };
+      guidance.speak("Deuxième");
+    });
+
+    expect(spoken[0].rate).toBe(1);
+    expect(spoken[1].rate).toBe(1.2);
+  });
+
+  it("keeps the priming utterance neutral", () => {
+    const { synthesis, spoken } = fakeSynthesis([amelie]);
+    const guidance = createSpeechGuidance(synthesis, {
+      readPreferences: () => ({ voice: null, rate: 1.2, pitch: 0.8 }),
+    });
+
+    withFakeUtterance(() => {
+      guidance.unlock();
+    });
+
+    expect(spoken).toHaveLength(1);
+    expect(spoken[0].volume).toBe(0);
+    expect(spoken[0].rate).toBe(1);
+    expect(spoken[0].pitch).toBe(1);
+  });
+});
+
+describe("createSpeechGuidance voice list (FR-025)", () => {
+  it("publishes the voices once the engine fires voiceschanged, without unlock()", () => {
+    let voices: SpeechSynthesisVoice[] = [];
+    const listeners = new Map<string, () => void>();
+    const synthesis: SpeechSynthesisLike = {
+      getVoices: () => voices,
+      speak: vi.fn(),
+      cancel: vi.fn(),
+      addEventListener: (type, listener) => {
+        listeners.set(type, listener);
+      },
+    };
+    const guidance = createSpeechGuidance(synthesis);
+    const listener = vi.fn();
+
+    const unsubscribe = guidance.subscribeVoices?.(listener);
+    expect(guidance.listVoices?.()).toEqual([]);
+
+    voices = [
+      { lang: "fr-CA", name: "Amélie", voiceURI: "fr-CA.Amelie" },
+    ] as SpeechSynthesisVoice[];
+    listeners.get("voiceschanged")?.();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(guidance.listVoices?.()).toEqual([
+      { lang: "fr-CA", name: "Amélie", voiceURI: "fr-CA.Amelie" },
+    ]);
+
+    // Chrome fires the event in bursts; an unchanged list must not notify again.
+    listeners.get("voiceschanged")?.();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe?.();
+    voices = [];
+    listeners.get("voiceschanged")?.();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a stable snapshot between reads", () => {
+    const { synthesis } = fakeSynthesis([
+      { lang: "fr-CA", name: "Amélie", voiceURI: "fr-CA.Amelie" },
+    ] as SpeechSynthesisVoice[]);
+    const guidance = createSpeechGuidance(synthesis);
+
+    guidance.subscribeVoices?.(() => {});
+    expect(guidance.listVoices?.()).toBe(guidance.listVoices?.());
+  });
+
+  it("reports no voice when the browser has no engine", () => {
+    const guidance = createSpeechGuidance(null);
+    expect(guidance.available).toBe(false);
+    expect(guidance.listVoices?.()).toEqual([]);
+    expect(() => guidance.subscribeVoices?.(() => {})()).not.toThrow();
   });
 });

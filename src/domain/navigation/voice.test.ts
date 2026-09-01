@@ -4,6 +4,7 @@ import {
   announcementPhaseForDistance,
   decideAnnouncement,
   emptyVoiceMemory,
+  frenchVoiceRank,
   selectPreferredVoiceIndex,
 } from "./voice";
 import type { NavigationStep } from "./types";
@@ -24,6 +25,18 @@ const step: NavigationStep = {
     ],
   },
 };
+
+describe("frenchVoiceRank (FR-025)", () => {
+  it("ranks fr-CA, then fr-FR, then any other French, then the rest", () => {
+    expect(frenchVoiceRank("fr-CA")).toBe(0);
+    expect(frenchVoiceRank(" FR_ca ")).toBe(0);
+    expect(frenchVoiceRank("fr-FR")).toBe(1);
+    expect(frenchVoiceRank("fr-BE")).toBe(2);
+    expect(frenchVoiceRank("fr")).toBe(2);
+    expect(frenchVoiceRank("en-US")).toBe(3);
+    expect(frenchVoiceRank("")).toBe(3);
+  });
+});
 
 describe("selectPreferredVoiceIndex (FR-025)", () => {
   it("prefers fr-CA then fr-FR then any French voice", () => {
