@@ -901,23 +901,25 @@ Un code postal canadien est reconnu avec ou sans espace et sans tenir compte des
 
 Un code postal complet est d’abord résolu dans la base de référence (`FR-040`), qui en donne un point **exact**. À défaut — base non configurée, indisponible, ou code inconnu — la recherche retombe sur le fournisseur de géocodage, puis sur la **RTA** (les trois premiers caractères).
 
-Lorsque le code désigne alors une **zone** plutôt qu’une adresse précise, le volet l’indique comme **emplacement approximatif**, affiche la zone sur la carte, et permet d’ajuster le marqueur avant de générer le trajet.
+Lorsque le code désigne alors une **zone** plutôt qu’une adresse précise, le volet l’indique comme **emplacement approximatif** et pose le marqueur sur la carte, où il peut être déplacé avant de générer le trajet.
 
-##### Choisir sur la carte
+##### Point sur la carte
 
-Sous le champ, un bouton **Choisir sur la carte** ouvre une carte plein écran adaptée au téléphone. L’utilisateur peut déplacer et zoomer la carte, voir sa position actuelle, placer la destination par **appui long** (mobile) ou par **clic** (ordinateur), puis déplacer le marqueur.
+Le volet flotte au-dessus de la carte de l’explorateur : choisir un point et taper une adresse sont donc offerts **en même temps, dans le même écran**. Aucun bouton et aucune carte plein écran ne s’interposent — sous le champ, une simple mention rappelle que la carte est directement utilisable.
 
-Après le placement du marqueur, un géocodage inverse cherche l’adresse correspondante. S’il n’en trouve aucune, le libellé **« Point sélectionné sur la carte »** accompagné des coordonnées est utilisé. **Un échec du géocodage inverse n’empêche jamais la sélection.** Une réponse tardive pour une position abandonnée ne remplace pas le libellé du marqueur courant.
+L’utilisateur déplace et zoome la carte, voit sa position actuelle, et place la destination par **appui long** (mobile) ou par **clic** (ordinateur). Le marqueur reste déplaçable ensuite, et le point choisi devient la destination **dès qu’il est posé** : il n’y a ni confirmation ni annulation à faire.
 
-**Utiliser cette destination** confirme le point. **Annuler** ferme la carte sans perdre la destination précédemment sélectionnée.
+Après le placement du marqueur, un géocodage inverse cherche l’adresse correspondante. S’il n’en trouve aucune, le libellé **« Point sélectionné sur la carte »** accompagné des coordonnées est utilisé. **Un échec du géocodage inverse n’empêche jamais la sélection.** Une réponse tardive pour une position abandonnée ne remplace pas le libellé du marqueur courant, pas plus qu’une adresse choisie au clavier entre-temps.
+
+La carte n’est sélectionnable que pendant que le volet est ouvert : elle redevient un simple affichage au retour à l’accueil et pendant la navigation.
 
 ##### Destination sélectionnée
 
-Une fois la destination confirmée, les résultats sont remplacés par une carte récapitulative : nom ou adresse, ville et province, type de destination, **Modifier** et **Effacer la destination**. Un emplacement approximatif offre en plus **Ajuster sur la carte**.
+Une fois la destination confirmée, les résultats sont remplacés par une carte récapitulative : nom ou adresse, ville et province, type de destination, **Modifier** et **Effacer la destination**. La destination est marquée sur la carte de l’explorateur ; un emplacement approximatif s’ajuste en déplaçant ce marqueur.
 
 Si l’utilisateur modifie le texte après avoir sélectionné une destination, l’ancienne sélection est **invalidée**. **Générer le trajet** n’utilise jamais silencieusement les anciennes coordonnées, et ne déclenche jamais de génération à partir du texte encore présent dans le champ.
 
-**Générer le trajet** n’est actif que si une destination explicitement sélectionnée ou confirmée, avec des coordonnées valides, **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération, la navigation et tant que la carte de sélection est ouverte.
+**Générer le trajet** n’est actif que si une destination explicitement sélectionnée ou confirmée, avec des coordonnées valides, **et** une position actuelle sont disponibles. Il reste désactivé pendant la localisation, la génération et la navigation. Un géocodage inverse encore en cours ne le désactive pas : les coordonnées du point suffisent au routage.
 
 #### Génération
 
@@ -956,7 +958,7 @@ Ensuite :
 
 États à prévoir, exclusifs : `idle`, `locating`, `destinationReady`, `generating`, `routePreview`, `navigating`, `cancelling`, `error`.
 
-Le champ de destination gère en parallèle ses propres états (`FR-032`) : champ vide, saisie en cours, recherche en cours, résultats disponibles, aucun résultat, erreur réseau, destination sélectionnée. La carte de sélection ajoute : sélection sur la carte, géocodage inverse en cours, géocodage inverse échoué. L’indisponibilité du GPS et le refus de permission sont couverts par la section **Position de départ automatique**.
+Le champ de destination gère en parallèle ses propres états (`FR-032`) : champ vide, saisie en cours, recherche en cours, résultats disponibles, aucun résultat, erreur réseau, destination sélectionnée. La sélection sur la carte ajoute : point posé, géocodage inverse en cours, géocodage inverse échoué. L’indisponibilité du GPS et le refus de permission sont couverts par la section **Position de départ automatique**.
 
 ### FR-039 — Import GPX et navigation sur la trace
 

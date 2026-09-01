@@ -5,7 +5,8 @@ import { RideApp } from "./ride-app";
 import type { Place } from "@/domain/geo/types";
 import { gpxFileInputAccept } from "@/domain/gpx/file-accept";
 import type { GenerateRideRequest, GenerateRideResult, GeneratedDestinationRoute, GeneratedLoopRoute } from "@/domain/ride/types";
-import type { MapEngine } from "@/components/map/map-engine";
+import type { MapEngine, MapEngineHandlers } from "@/components/map/map-engine";
+import type { Coordinates } from "@/domain/geo/types";
 import type { LocationWatch } from "@/domain/location/types";
 import { NAVIGATION_STATUS_MESSAGES } from "@/domain/navigation/status";
 import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
@@ -1041,5 +1042,106 @@ describe("RideApp GPX import (FR-039)", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("RideApp explorer map picking (FR-038)", () => {
+  /** Captures the pick wiring the explorer map is mounted with. */
+  function pickEngine() {
+    const setPickEnabled = vi.fn();
+    const setPickMarker = vi.fn();
+    let onPick: ((coordinates: Coordinates) => void) | undefined;
+    const engine: MapEngine = {
+      mount: vi.fn((_container, _viewModel, handlers: MapEngineHandlers) => {
+        onPick = handlers.onPick;
+        return { destroy: vi.fn(), setPickEnabled, setPickMarker };
+      }),
+    };
+    return {
+      engine,
+      setPickEnabled,
+      setPickMarker,
+      drop(coordinates: Coordinates) {
+        act(() => {
+          onPick?.(coordinates);
+        });
+      },
+    };
+  }
+
+  it("arms the explorer map only while the destination pane is open", async () => {
+    const map = pickEngine();
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={map.engine}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    // The home explorer map is display-only.
+    expect(map.setPickEnabled).not.toHaveBeenCalledWith(true);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rechercher une destination" }),
+    );
+    await waitFor(() => {
+      expect(map.setPickEnabled).toHaveBeenCalledWith(true);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Retour" }));
+    await waitFor(() => {
+      expect(map.setPickEnabled).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  it("turns a point picked on the explorer map into the destination (FR-038)", async () => {
+    const map = pickEngine();
+    render(
+      <AppearanceProvider>
+        <RideApp
+          mapEngine={map.engine}
+          requestPosition={async () => ({
+            coordinates: granby.coordinates,
+            accuracyMeters: 8,
+          })}
+          reversePlace={async (coordinates) => ({
+            label: "Halte du Lac",
+            name: "Halte du Lac",
+            coordinates,
+          })}
+        />
+      </AppearanceProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rechercher une destination" }),
+    );
+    expect(
+      await screen.findByRole("combobox", { name: "Où voulez-vous aller?" }),
+    ).toBeInTheDocument();
+    // No button stands between the field and the map behind it.
+    expect(
+      screen.queryByRole("button", { name: "Choisir sur la carte" }),
+    ).not.toBeInTheDocument();
+
+    map.drop({ latitude: 45.9, longitude: -73.1 });
+
+    // Reverse geocoding only decorates the label; the point was usable already.
+    const card = await screen.findByTestId("selected-destination");
+    await waitFor(() => {
+      expect(card).toHaveTextContent("Halte du Lac");
+    });
+    // The picked point is marked on the very map it was picked on.
+    await waitFor(() => {
+      expect(map.setPickMarker).toHaveBeenCalledWith({
+        latitude: 45.9,
+        longitude: -73.1,
+      });
+    });
   });
 });

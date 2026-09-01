@@ -13,8 +13,6 @@ export type SelectedDestinationCardProps = {
   onEdit: () => void;
   /** Clears the destination entirely. */
   onClear: () => void;
-  /** Offered for an approximate result, to nudge the marker (FR-038). */
-  onAdjustOnMap?: () => void;
   disabled?: boolean;
 };
 
@@ -26,7 +24,6 @@ export function SelectedDestinationCard({
   destination,
   onEdit,
   onClear,
-  onAdjustOnMap,
   disabled = false,
 }: SelectedDestinationCardProps) {
   const summary = destinationSummary(destination);
@@ -77,17 +74,6 @@ export function SelectedDestinationCard({
         >
           Effacer la destination
         </Button>
-        {summary.approximate && onAdjustOnMap ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-12 w-full text-base sm:col-span-2"
-            disabled={disabled}
-            onClick={onAdjustOnMap}
-          >
-            Ajuster sur la carte
-          </Button>
-        ) : null}
       </div>
     </section>
   );

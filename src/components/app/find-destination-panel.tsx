@@ -7,7 +7,6 @@ import {
   formatDurationLabel,
   formatEta,
 } from "@/components/navigation/format-navigation";
-import { DestinationMapPicker } from "@/components/map/destination-map-picker";
 import { PlaceSearchField } from "@/components/ride-form/place-search-field";
 import { SelectedDestinationCard } from "@/components/ride-form/selected-destination-card";
 import { searchPlacesFromApi } from "@/components/ride-form/search-places";
@@ -30,10 +29,10 @@ import {
   canGenerateDestinationSearch,
   canStartDestinationNavigation,
   createDestinationSearchState,
+  MAP_PICK_REVERSE_PENDING_MESSAGE,
   reduceDestinationSearch,
   showsGenerateDestinationAction,
 } from "@/domain/destination-search/flow";
-import type { MapEngine } from "@/components/map/map-engine";
 import type { Coordinates, Place } from "@/domain/geo/types";
 import type { LocatedPosition } from "@/domain/location/types";
 import { previousRideSignature } from "@/domain/ride/route-signature";
@@ -80,6 +79,13 @@ function locationStatusMessage(
   return "La position actuelle est indisponible.";
 }
 
+/**
+ * FR-038 — the explorer map sits right behind this pane, so picking a point is
+ * offered alongside the text field rather than behind a button and a modal.
+ */
+export const MAP_PICK_HINT =
+  "Ou placez la destination directement sur la carte : appui long (clic sur ordinateur), puis déplacez le marqueur.";
+
 export type FindDestinationPanelProps = {
   generateRide?: (
     request: GenerateRideRequest,
@@ -90,8 +96,6 @@ export type FindDestinationPanelProps = {
   reversePlace?: (coordinates: Coordinates) => Promise<Place>;
   searchPlaces?: (query: string, signal?: AbortSignal) => Promise<Place[]>;
   debounceMs?: number;
-  /** Injected in tests; the picker mounts the real MapLibre engine otherwise. */
-  mapEngine?: MapEngine;
   initialDestination?: Place | null;
   initialQuery?: string;
   navigationActive?: boolean;
@@ -99,6 +103,11 @@ export type FindDestinationPanelProps = {
   /** Injected so the arrival time is deterministic under test. */
   now?: () => number;
   onDestinationChange?: (place: Place | null, query: string) => void;
+  /**
+   * Hands the host the callback that turns a point picked on its map into this
+   * pane's destination. Same shape as `RideMap`'s `onRecenterReady`.
+   */
+  onMapPickReady?: (pick: (coordinates: Coordinates) => void) => void;
   onRequestComposed: (request: GenerateRideRequest) => void;
   onGeneratedRouteChange: (route: GeneratedRideRoute) => void;
   onStartNavigation: (options?: { muted?: boolean }) => void;
@@ -112,13 +121,13 @@ export function FindDestinationPanel({
   reversePlace = reverseGeocodePlace,
   searchPlaces,
   debounceMs,
-  mapEngine,
   initialDestination = null,
   initialQuery = "",
   navigationActive = false,
   openLocationSettings = openDeviceLocationSettings,
   now = Date.now,
   onDestinationChange,
+  onMapPickReady,
   onRequestComposed,
   onGeneratedRouteChange,
   onStartNavigation,
@@ -130,6 +139,8 @@ export function FindDestinationPanel({
     createDestinationSearchState,
   );
   const locateGeneration = useRef(0);
+  const pickGeneration = useRef(0);
+  const reversePlaceRef = useRef(reversePlace);
   const abortRef = useRef<AbortController | null>(null);
   const startRef = useRef(state.start);
   const destinationRef = useRef(state.destination);
@@ -169,6 +180,34 @@ export function FindDestinationPanel({
   useEffect(() => {
     onDestinationChangeRef.current = onDestinationChange;
   }, [onDestinationChange]);
+
+  useEffect(() => {
+    reversePlaceRef.current = reversePlace;
+  }, [reversePlace]);
+
+  /*
+   * FR-038 — a point placed on the host's map becomes the destination right
+   * away; the reverse geocoding that follows only decorates the label, and a
+   * late answer for an abandoned point is dropped by the reducer.
+   */
+  const handleMapPick = useCallback((coordinates: Coordinates) => {
+    const generation = pickGeneration.current + 1;
+    pickGeneration.current = generation;
+    dispatch({ type: "pick_point", coordinates, generation });
+
+    void reversePlaceRef
+      .current(coordinates)
+      .then((place) => {
+        dispatch({ type: "pick_reverse_success", generation, place });
+      })
+      .catch(() => {
+        dispatch({ type: "pick_reverse_failure", generation });
+      });
+  }, []);
+
+  useEffect(() => {
+    onMapPickReady?.(handleMapPick);
+  }, [onMapPickReady, handleMapPick]);
 
   useEffect(() => {
     onDestinationChangeRef.current?.(state.destination, state.destinationQuery);
@@ -489,7 +528,6 @@ export function FindDestinationPanel({
               inFlightRef.current = false;
               dispatch({ type: "clear_destination" });
             }}
-            onAdjustOnMap={() => dispatch({ type: "open_map_picker" })}
           />
         ) : (
           <PlaceSearchField
@@ -502,15 +540,9 @@ export function FindDestinationPanel({
             debounceMs={debounceMs}
             searchPlaces={searchNearby}
             footer={
-              <Button
-                type="button"
-                variant="ride"
-                className="min-h-12 w-full text-base"
-                disabled={destinationLocked}
-                onClick={() => dispatch({ type: "open_map_picker" })}
-              >
-                Choisir sur la carte
-              </Button>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {MAP_PICK_HINT}
+              </p>
             }
             onQueryChange={(query) => {
               abortRef.current?.abort();
@@ -529,19 +561,10 @@ export function FindDestinationPanel({
         )}
       </div>
 
-      {state.mapPickerOpen ? (
-        <DestinationMapPicker
-          engine={mapEngine}
-          userLocation={state.start?.coordinates ?? null}
-          initialPoint={state.destination?.coordinates ?? null}
-          reversePlace={reversePlace}
-          onCancel={() => dispatch({ type: "cancel_map_picker" })}
-          onConfirm={(destination) => {
-            abortRef.current?.abort();
-            inFlightRef.current = false;
-            dispatch({ type: "confirm_map_pick", destination });
-          }}
-        />
+      {state.pickStatus === "reverse_geocoding" ? (
+        <p role="status" className="mt-2 text-sm text-muted-foreground">
+          {MAP_PICK_REVERSE_PENDING_MESSAGE}
+        </p>
       ) : null}
 
       {state.phase === "generating" ? (

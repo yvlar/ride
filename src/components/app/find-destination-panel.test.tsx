@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FindDestinationPanel,
+  MAP_PICK_HINT,
   type FindDestinationPanelProps,
 } from "./find-destination-panel";
 import { CurrentPositionError } from "@/components/ride-form/browser-geolocation";
@@ -12,7 +13,6 @@ import {
   writeStoredRouteStyle,
 } from "@/domain/ride/stored-route-preferences";
 import type { Coordinates, Place } from "@/domain/geo/types";
-import type { MapEngine, MapEngineHandlers } from "@/components/map/map-engine";
 import type {
   GenerateRideRequest,
   GenerateRideResult,
@@ -60,22 +60,20 @@ const laterRoute: GeneratedDestinationRoute = {
 };
 
 /** Map stub that lets a test drop a pin without MapLibre. */
-function stubPickerEngine() {
+/**
+ * The pane no longer owns a map: the host's explorer map hands it points
+ * through `onMapPickReady`. This stands in for that host.
+ */
+function stubHostMap() {
   let pick: ((coordinates: Coordinates) => void) | undefined;
-  const engine: MapEngine = {
-    mount: vi.fn((_container, _viewModel, handlers: MapEngineHandlers) => {
-      pick = handlers.onPick;
-      return {
-        destroy: vi.fn(),
-        setPickEnabled: vi.fn(),
-        setPickMarker: vi.fn(),
-      };
-    }),
-  };
   return {
-    engine,
+    onMapPickReady(next: (coordinates: Coordinates) => void) {
+      pick = next;
+    },
     drop(coordinates: Coordinates) {
-      pick?.(coordinates);
+      act(() => {
+        pick?.(coordinates);
+      });
     },
   };
 }
@@ -678,9 +676,10 @@ describe("FindDestinationPanel (FR-038)", () => {
     const card = screen.getByTestId("selected-destination");
     expect(card).toHaveAttribute("data-precision", "approximate");
     expect(card).toHaveTextContent("Emplacement approximatif");
+    // The marker is nudged on the explorer map itself now, not behind a button.
     expect(
-      screen.getByRole("button", { name: "Ajuster sur la carte" }),
-    ).toBeEnabled();
+      screen.queryByRole("button", { name: "Ajuster sur la carte" }),
+    ).not.toBeInTheDocument();
   });
 
   it("invalidates the destination as soon as the text changes (FR-038)", async () => {
@@ -711,37 +710,37 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(generateRide).not.toHaveBeenCalled();
   });
 
-  it("picks a destination on the map and sends its coordinates to routing (FR-038)", async () => {
+  it("offers map picking alongside the field, without a button (FR-038)", async () => {
+    renderPanel();
+    await screen.findByText(/Position détectée/);
+
+    expect(
+      screen.queryByRole("button", { name: "Choisir sur la carte" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(MAP_PICK_HINT.replace(/\s+/g, " ")),
+    ).toBeInTheDocument();
+  });
+
+  it("takes a point picked on the host map and routes to it (FR-038)", async () => {
     const picked = { latitude: 45.9, longitude: -73.1 };
     const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
       ok: true,
       route,
     }));
-    const map = stubPickerEngine();
+    const map = stubHostMap();
 
     renderPanel({
       generateRide,
-      mapEngine: map.engine,
+      onMapPickReady: map.onMapPickReady,
       reversePlace: async (coordinates) => ({ ...granby, coordinates }),
     });
     await screen.findByText(/Position détectée/);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Choisir sur la carte" }),
-    );
-    expect(await screen.findByTestId("destination-map-picker")).toBeInTheDocument();
-
     map.drop(picked);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Utiliser cette destination" }),
-    );
 
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("destination-map-picker"),
-      ).not.toBeInTheDocument();
-    });
-    expect(screen.getByTestId("selected-destination")).toBeInTheDocument();
+    // No confirmation step: the point is the destination as soon as it lands.
+    expect(await screen.findByTestId("selected-destination")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
     await waitFor(() => expect(generateRide).toHaveBeenCalledTimes(1));
@@ -753,32 +752,53 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(request.start.coordinates).toEqual(located.coordinates);
   });
 
-  it("keeps the previous destination when the map picker is cancelled (FR-038)", async () => {
-    const map = stubPickerEngine();
-    renderPanel({ mapEngine: map.engine });
+  it("keeps a point usable when reverse geocoding fails (FR-038)", async () => {
+    const picked = { latitude: 45.9, longitude: -73.1 };
+    const map = stubHostMap();
+
+    renderPanel({
+      onMapPickReady: map.onMapPickReady,
+      reversePlace: async () => {
+        throw new Error("hors ligne");
+      },
+    });
     await screen.findByText(/Position détectée/);
-    await selectTremblant();
-    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
-      "Mont-Tremblant",
-    );
 
-    fireEvent.click(screen.getByRole("button", { name: "Modifier" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Choisir sur la carte" }),
-    );
-    await screen.findByTestId("destination-map-picker");
-    map.drop({ latitude: 40, longitude: -100 });
-    fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
+    map.drop(picked);
 
+    const card = await screen.findByTestId("selected-destination");
+    expect(card).toHaveTextContent("Point sélectionné sur la carte");
     await waitFor(() => {
       expect(
-        screen.queryByTestId("destination-map-picker"),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Générer le trajet" }),
+      ).toBeEnabled();
     });
-    // Cancelling discards the draft, never the confirmed destination.
-    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
-      "Mont-Tremblant",
-    );
+  });
+
+  it("lets a second point replace the first (FR-038)", async () => {
+    const map = stubHostMap();
+    renderPanel({
+      onMapPickReady: map.onMapPickReady,
+      reversePlace: async (coordinates) =>
+        coordinates.latitude === 40
+          ? { ...granby, label: "Premier point", coordinates }
+          : { ...granby, label: "Second point", coordinates },
+    });
+    await screen.findByText(/Position détectée/);
+
+    map.drop({ latitude: 40, longitude: -100 });
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-destination")).toHaveTextContent(
+        "Premier point",
+      );
+    });
+
+    map.drop({ latitude: 41, longitude: -101 });
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-destination")).toHaveTextContent(
+        "Second point",
+      );
+    });
     expect(
       screen.getByRole("button", { name: "Générer le trajet" }),
     ).toBeEnabled();
