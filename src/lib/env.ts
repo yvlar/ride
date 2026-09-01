@@ -22,9 +22,15 @@ export const envSchema = z.object({
   ),
   ROUTING_API_BASE_URL: optionalUrl,
   ROUTING_API_KEY: optionalSecret,
+  /**
+   * FR-032 / FR-038 — Photon is keyless and built for typeahead, so the
+   * default is a working search rather than a handful of fixtures. `mock`
+   * keeps local work and tests off the network; `nominatim` covers a dedicated
+   * instance.
+   */
   GEOCODING_PROVIDER: z.preprocess(
     emptyToUndefined,
-    z.enum(["mock", "nominatim"]).default("mock"),
+    z.enum(["mock", "nominatim", "photon"]).default("photon"),
   ),
   GEOCODING_API_BASE_URL: optionalUrl,
   GEOCODING_API_KEY: optionalSecret,

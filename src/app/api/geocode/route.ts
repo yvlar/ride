@@ -1,6 +1,10 @@
 import { searchDestinationPlaces } from "@/application/search-destination-places";
+import { dedupePlaces } from "@/domain/search/dedupe-places";
 import { rankPlaces } from "@/domain/search/place-ranking";
-import { PLACE_SEARCH_MIN_QUERY_LENGTH } from "@/domain/search/place-search";
+import {
+  PLACE_SEARCH_MAX_RESULTS,
+  PLACE_SEARCH_MIN_QUERY_LENGTH,
+} from "@/domain/search/place-search";
 import { getGeocodingProvider } from "@/infrastructure/geocoding/get-geocoding-provider";
 import { getPostalCodeProvider } from "@/infrastructure/postal-codes/get-postal-code-provider";
 import { z } from "zod";
@@ -68,9 +72,14 @@ export async function GET(request: Request): Promise<Response> {
       },
     });
 
+    // Québec and Canada first, then nearest — never a hard filter (FR-032).
+    // De-duplication runs *after* ranking so the row that survives a repeated
+    // street is the segment nearest the rider, not whichever one the provider
+    // happened to score first.
+    const ranked = dedupePlaces(rankPlaces(places, { proximity }));
+
     return jsonResponse({
-      // Québec and Canada first, then nearest — never a hard filter (FR-032).
-      data: { places: rankPlaces(places, { proximity }) },
+      data: { places: ranked.slice(0, PLACE_SEARCH_MAX_RESULTS) },
       meta: { requestId: requestId() },
     });
   } catch {

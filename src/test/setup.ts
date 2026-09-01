@@ -4,6 +4,8 @@ import { afterEach, beforeEach } from "vitest";
 import { installChatCompletionsTestStub } from "./stub-chat-completions";
 
 process.env.ROUTING_PROVIDER = "mock";
+// Le défaut applicatif est désormais un service tiers réel (Photon) : cet
+// épinglage est ce qui garde la suite de tests hors réseau.
 process.env.GEOCODING_PROVIDER = "mock";
 process.env.GEOCODING_API_BASE_URL = "";
 process.env.GEOCODING_API_KEY = "";

@@ -940,3 +940,70 @@ describe("RideRequestForm (FR-014)", () => {
     ).toBeEnabled();
   });
 });
+
+describe("RideRequestForm — biais de proximité (FR-032)", () => {
+  it("biases the destination search with the start already chosen", async () => {
+    const geocode = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "http://localhost");
+      const query = url.searchParams.get("q")?.toLowerCase() ?? "";
+      const places = [granby, tremblant].filter((place) =>
+        place.label.toLowerCase().includes(query),
+      );
+      return new Response(JSON.stringify({ data: { places } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(geocode as unknown as typeof fetch);
+
+    // No `searchPlaces` prop: the form falls back to the real API client, the
+    // path a rider actually takes.
+    renderForm({ searchPlaces: undefined });
+    fireEvent.click(screen.getByRole("radio", { name: /Destination/ }));
+
+    await selectPlace("Point de départ", "Granby, QC");
+    fireEvent.change(screen.getByRole("combobox", { name: "Destination" }), {
+      target: { value: "mont" },
+    });
+    await screen.findByRole("option", { name: "Mont-Tremblant, QC" });
+
+    const destinationCall = geocode.mock.calls
+      .map((call) => new URL(String(call.at(0)), "http://localhost"))
+      .findLast((url) => url.searchParams.get("q") === "mont");
+
+    expect(destinationCall?.searchParams.get("latitude")).toBe("45.4001");
+    expect(destinationCall?.searchParams.get("longitude")).toBe("-72.7342");
+
+    fetcher.mockRestore();
+  });
+
+  it("searches without a bias while no start is known", async () => {
+    const geocode = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ data: { places: [granby] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(geocode as unknown as typeof fetch);
+
+    renderForm({ searchPlaces: undefined });
+    fireEvent.change(screen.getByRole("combobox", { name: "Point de départ" }), {
+      target: { value: "granby" },
+    });
+    await screen.findByRole("option", { name: "Granby, QC" });
+
+    const requested = new URL(
+      String(geocode.mock.calls.at(0)?.at(0)),
+      "http://localhost",
+    );
+    expect(requested.searchParams.get("latitude")).toBeNull();
+    expect(requested.searchParams.get("longitude")).toBeNull();
+
+    fetcher.mockRestore();
+  });
+});

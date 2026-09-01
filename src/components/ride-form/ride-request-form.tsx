@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { createForegroundLocationWatch } from "@/infrastructure/location/create-foreground-location-watch";
 import { createSpeechGuidance } from "@/infrastructure/voice/speech-guidance";
 import { createNavigationAudioCues } from "@/infrastructure/audio/navigation-audio-cues";
@@ -46,6 +53,7 @@ import {
   type GenerateRideClientOptions,
 } from "@/components/ride-form/request-generated-ride";
 import { requestRegeneratedRide } from "@/components/ride-form/request-regenerated-ride";
+import { searchPlacesFromApi } from "@/components/ride-form/search-places";
 import { cn } from "@/lib/utils";
 import { RIDE_STYLE_OPTIONS } from "@/domain/ride/style-catalog";
 import { ROUTE_PREFERENCE_SUPPORT } from "@/domain/ride/preference-support";
@@ -268,6 +276,18 @@ export function RideRequestForm({
     () => {},
   );
   const generationId = useRef(0);
+  // FR-032 — nearby results rank first. The bias comes only from a start the
+  // rider has already chosen or located: asking the browser for a position
+  // just to sharpen autocompletion would take it without an explicit action.
+  const proximity = start?.coordinates ?? null;
+  // Bound here so the field never talks to the geocoder itself.
+  const searchNearby = useCallback(
+    (query: string, signal?: AbortSignal) =>
+      searchPlaces
+        ? searchPlaces(query, signal)
+        : searchPlacesFromApi(query, signal, { proximity }),
+    [searchPlaces, proximity],
+  );
   const startRef = useRef(start);
   const onGeneratedRouteChangeRef = useRef(onGeneratedRouteChange);
   const onNavigatingChangeRef = useRef(onNavigatingChange);
@@ -480,7 +500,7 @@ export function RideRequestForm({
             error={errors.start}
             placeholder="Rechercher un lieu"
             debounceMs={debounceMs}
-            searchPlaces={searchPlaces}
+            searchPlaces={searchNearby}
             onQueryChange={(query) => {
               setStartQuery(query);
               setStart((current) =>
@@ -585,7 +605,7 @@ export function RideRequestForm({
               error={errors.destination}
               placeholder="Rechercher une destination"
               debounceMs={debounceMs}
-              searchPlaces={searchPlaces}
+              searchPlaces={searchNearby}
               onQueryChange={(query) => {
                 setDestinationQuery(query);
                 setDestination((current) =>

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Place } from "./types";
-import { placePrimaryName, placeSecondaryLine } from "./place-display";
+import {
+  joinPlaceLabelParts,
+  placePrimaryName,
+  placeSecondaryLine,
+} from "./place-display";
 
 describe("place display (FR-032)", () => {
   it("uses the explicit name and address to distinguish similar places", () => {
@@ -63,5 +67,31 @@ describe("same-name places (FR-032, FR-038)", () => {
     };
 
     expect(placeSecondaryLine(address)).toBe("Granby, Québec, Canada");
+  });
+});
+
+describe("place label assembly (FR-032)", () => {
+  it("drops empty fragments and repetitions, then joins with a comma", () => {
+    expect(
+      joinPlaceLabelParts([
+        "722 Rue des Bouleaux",
+        undefined,
+        "Roxton Pond",
+        "  ",
+        "Québec",
+        null,
+        "Canada",
+      ]),
+    ).toBe("722 Rue des Bouleaux, Roxton Pond, Québec, Canada");
+  });
+
+  it("keeps a municipality that repeats the place name only once", () => {
+    expect(joinPlaceLabelParts(["Granby", "Granby", "Québec"])).toBe(
+      "Granby, Québec",
+    );
+  });
+
+  it("returns an empty string when nothing is usable, so callers can fall back", () => {
+    expect(joinPlaceLabelParts([undefined, "", "   ", null])).toBe("");
   });
 });
