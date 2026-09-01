@@ -29,6 +29,11 @@ import {
 import { KART_ARCADE_DECOR_LAYER_PREFIX } from "./themes/kart-arcade-style";
 import { createLongPressRecognizer } from "./long-press";
 import {
+  ROUTE_ARROW_LAYER_ID,
+  ensureRouteArrowImage,
+  routeArrowLayer,
+} from "./route-arrows";
+import {
   RECORDED_TRACK_END_LABEL,
   RECORDED_TRACK_START_LABEL,
   type RecordedTrackOverlay,
@@ -281,6 +286,7 @@ export function createMapLibreEngine(
                 "line-width": routeLineWidth(overlayTheme.route.width),
               },
             });
+            addRouteArrows(map);
           }
 
           // FR-042 — dimmed "already ridden" line beneath the live route.
@@ -632,13 +638,42 @@ export function createMapLibreEngine(
             detach();
           }
         }
-        function onStyleHealthError() {
+        function onStyleHealthError(event?: { sourceId?: string }) {
+          // A theme has failed when its data cannot be had — a source that
+          // errors, or a style that never finishes loading. Anything reported
+          // once the style is up and not tied to a source is cosmetic (a
+          // missing image, a glyph range) and must not cost the rider a theme.
+          const sourceFailed = Boolean(event?.sourceId);
+          if (!sourceFailed && target.isStyleLoaded()) {
+            return;
+          }
           detach();
           onFailure();
         }
         target.on("error", onStyleHealthError);
         target.on("sourcedata", onSourceData);
         releaseStyleHealthWatch = detach;
+      }
+
+      /**
+       * FR-046 — chevrons on top of the route. Added right after the route
+       * line so they sit on it, and still under the DOM markers, which the
+       * browser always paints above the canvas.
+       */
+      function addRouteArrows(target: MapLibreMap) {
+        const { arrowColor, arrowOutline } = overlayTheme.route;
+        if (!arrowColor || target.getLayer?.(ROUTE_ARROW_LAYER_ID)) {
+          return;
+        }
+        try {
+          if (!ensureRouteArrowImage(target, arrowColor, arrowOutline)) {
+            // No 2D canvas: the route keeps its shape, just without chevrons.
+            return;
+          }
+          target.addLayer(routeArrowLayer());
+        } catch {
+          // Decoration on top of the route must never cost the route itself.
+        }
       }
 
       /** FR-046 — marks the container so the DOM markers follow the theme. */

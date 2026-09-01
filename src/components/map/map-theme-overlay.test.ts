@@ -34,9 +34,9 @@ describe("mapThemeOverlay (FR-046)", () => {
     for (const conflicting of [
       KART_ARCADE_PALETTE.water,
       KART_ARCADE_PALETTE.waterDeep,
-      KART_ARCADE_PALETTE.roadMain,
+      KART_ARCADE_PALETTE.roadLine,
       KART_ARCADE_PALETTE.motorway,
-      KART_ARCADE_PALETTE.roadLocal,
+      KART_ARCADE_PALETTE.asphalt,
     ]) {
       expect(route).not.toBe(conflicting);
     }

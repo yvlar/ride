@@ -77,6 +77,22 @@ function roadWidth(
   ];
 }
 
+/**
+ * A road is a bright warm line on an overview and a real asphalt surface up
+ * close, exactly as in the reference render. One crossfade, no second layer.
+ */
+function roadSurface(
+  far: string,
+  near: string,
+): DataDrivenPropertyValueSpecification<string> {
+  return ["interpolate", ["linear"], ["zoom"], 12.5, far, 14.5, near];
+}
+
+/**
+ * The guardrail is the signature of this theme, so it is sized to be seen: at
+ * riding zoom it leaves several pixels of white on each side of the roadway,
+ * not the hairline a simple ratio would give.
+ */
 function casingWidth(
   scale: number,
 ): DataDrivenPropertyValueSpecification<number> {
@@ -85,13 +101,13 @@ function casingWidth(
     ["exponential", 1.5],
     ["zoom"],
     5,
-    1.6 * scale,
+    1.8 * scale,
     10,
-    3.2 * scale,
+    3.8 * scale,
     14,
-    6.6 * scale,
+    8 * scale,
     18,
-    24 * scale,
+    30 * scale,
   ];
 }
 
@@ -262,6 +278,21 @@ export function kartArcadeStyleSpecification(
       },
     },
     {
+      // A pale band hugging the shore, blurred so it reads as shallow water
+      // rather than a second outline. One line layer, no extra geometry.
+      id: "kart-water-shore",
+      type: "line",
+      source: SOURCE,
+      "source-layer": "water",
+      minzoom: 6,
+      paint: {
+        "line-color": C.waterShallow,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 14],
+        "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 10],
+        "line-offset": ["interpolate", ["linear"], ["zoom"], 6, -1, 14, -7],
+      },
+    },
+    {
       id: "kart-water-edge",
       type: "line",
       source: SOURCE,
@@ -330,47 +361,65 @@ export function kartArcadeStyleSpecification(
     },
   ];
 
-  // Casings, then fills, class by class: every casing has to sit under every
-  // road surface or a junction shows a seam.
+  /*
+   * Three passes, because a junction shows a seam the moment one road's
+   * surface is painted over another road's rail: every guardrail first, then
+   * every roadway, then every centre line.
+   */
   const roadClasses: {
     id: string;
     classes: string[];
     scale: number;
-    fill: string;
-    casing: string;
+    /** Warm hue on an overview. */
+    far: string;
+    /** Asphalt up close. */
+    near: string;
+    rail: string;
+    /** Centre line, or null for a street too narrow to be marked. */
+    line: string | null;
     minzoom: number;
   }[] = [
     {
       id: "minor",
       classes: MINOR,
       scale: 0.55,
-      fill: C.roadLocal,
-      casing: C.roadEdge,
+      far: C.roadFar,
+      near: C.asphaltMinor,
+      rail: C.guardrail,
+      line: null,
       // Dense residential grids are noise on a zoomed-out map (FR-046).
       minzoom: 12,
     },
     {
       id: "secondary",
       classes: SECONDARY,
-      scale: 0.75,
-      fill: C.roadLocal,
-      casing: C.roadEdge,
+      scale: 0.8,
+      far: C.roadFar,
+      near: C.asphalt,
+      rail: C.guardrail,
+      line: C.roadLine,
       minzoom: 9,
     },
     {
       id: "primary",
       classes: PRIMARY,
-      scale: 0.95,
-      fill: C.roadMain,
-      casing: C.roadEdge,
+      scale: 1,
+      far: C.roadFarMain,
+      near: C.asphalt,
+      rail: C.guardrail,
+      line: C.roadLine,
       minzoom: 7,
     },
     {
       id: "motorway",
       classes: MOTORWAY,
-      scale: 1.15,
-      fill: C.motorway,
-      casing: C.motorwayEdge,
+      scale: 1.2,
+      // A motorway keeps its coral at every zoom: it is the strongest signal
+      // in the road hierarchy and it must not dissolve into the streets.
+      far: C.motorway,
+      near: C.motorway,
+      rail: C.guardrail,
+      line: C.motorwayEdge,
       minzoom: 5,
     },
   ];
@@ -385,24 +434,8 @@ export function kartArcadeStyleSpecification(
       minzoom: road.minzoom,
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
-        "line-color": C.roadCasing,
+        "line-color": road.rail,
         "line-width": casingWidth(road.scale),
-      },
-    } as LayerSpecification);
-  }
-  for (const road of roadClasses) {
-    layers.push({
-      id: `kart-road-${road.id}-edge`,
-      type: "line",
-      source: SOURCE,
-      "source-layer": "transportation",
-      filter: roadFilter(road.classes, "surface"),
-      minzoom: Math.max(road.minzoom, 10),
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": road.casing,
-        "line-width": roadWidth(road.scale * 1.35),
-        "line-opacity": 0.55,
       },
     } as LayerSpecification);
   }
@@ -416,14 +449,49 @@ export function kartArcadeStyleSpecification(
       minzoom: road.minzoom,
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
-        "line-color": road.fill,
+        "line-color": roadSurface(road.far, road.near),
         "line-width": roadWidth(road.scale),
       },
     } as LayerSpecification);
   }
+  for (const road of roadClasses) {
+    if (!road.line) {
+      continue;
+    }
+    layers.push({
+      id: `kart-road-${road.id}-line`,
+      type: "line",
+      source: SOURCE,
+      "source-layer": "transportation",
+      filter: roadFilter(road.classes, "surface"),
+      // A stripe only means something once the roadway is asphalt and wide.
+      minzoom: Math.max(road.minzoom, 13),
+      layout: { "line-cap": "butt", "line-join": "round" },
+      paint: {
+        "line-color": road.line,
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          13,
+          0.6,
+          18,
+          1.9 * road.scale,
+        ],
+        "line-dasharray": [6, 5],
+        "line-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          13.5,
+          0,
+          15,
+          0.95,
+        ],
+      },
+    } as LayerSpecification);
+  }
 
-  // Bridges ride above everything with a bolder casing, so a crossing reads as
-  // a crossing and not as an intersection.
   layers.push({
     id: "kart-road-bridge-casing",
     type: "line",
@@ -436,8 +504,8 @@ export function kartArcadeStyleSpecification(
     minzoom: 11,
     layout: { "line-cap": "butt", "line-join": "round" },
     paint: {
-      "line-color": C.roadCasing,
-      "line-width": casingWidth(1.05),
+      "line-color": C.guardrail,
+      "line-width": casingWidth(1.1),
     },
   } as LayerSpecification);
   layers.push({
@@ -452,15 +520,28 @@ export function kartArcadeStyleSpecification(
     minzoom: 11,
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
+      // One zoom-based interpolate, with the class test inside its stops:
+      // MapLibre allows only a single zoom subexpression per property.
       "line-color": [
-        "case",
-        ["in", ["get", "class"], ["literal", MOTORWAY]],
-        C.motorway,
-        ["in", ["get", "class"], ["literal", PRIMARY]],
-        C.roadMain,
-        C.roadLocal,
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        12.5,
+        [
+          "case",
+          ["in", ["get", "class"], ["literal", MINOR]],
+          C.roadFar,
+          C.roadFarMain,
+        ],
+        14.5,
+        [
+          "case",
+          ["in", ["get", "class"], ["literal", MINOR]],
+          C.asphaltMinor,
+          C.asphalt,
+        ],
       ],
-      "line-width": roadWidth(0.9),
+      "line-width": roadWidth(0.95),
     },
   } as LayerSpecification);
 

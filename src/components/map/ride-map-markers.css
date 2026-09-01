@@ -164,51 +164,74 @@
 }
 
 /*
- * FR-046 — Kart Arcade markers. Every shape here is drawn for Ride: a racing
- * chequered flag, a start chevron and a bolt badge. Nothing is traced from, or
+ * FR-046 — Kart Arcade markers: a round badge on a soft shadow, with the place
+ * name on a cream pill under it. Every shape is drawn for Ride — a chequered
+ * racing disc, a start chevron, a bolt — and nothing is traced from, or
  * modelled on, any published game's artwork.
  *
  * The class lands on the map container, so the theme reaches the DOM markers
  * MapLibre appends without a second marker implementation.
  */
 .ride-map-kart-arcade .ride-map-marker {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  background: #FFF9E8;
+  gap: 3px;
+  background: none;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
   color: #17324D;
-  border: 2px solid #17324D;
-  border-radius: 999px;
-  padding: 4px 11px 4px 8px;
-  font-weight: 700;
-  box-shadow: 0 3px 0 rgb(23 50 77 / 0.28);
 }
 
 .ride-map-kart-arcade .ride-map-marker::before {
   content: "";
-  width: 17px;
-  height: 17px;
-  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 3px solid #FFF9E8;
   background-repeat: no-repeat;
   background-position: center;
-  background-size: contain;
+  background-size: 34px 34px;
+  /* A flat drop keeps the badge on the ground without a costly blur. */
+  box-shadow:
+    0 3px 0 rgb(23 50 77 / 0.3),
+    0 0 0 1px rgb(23 50 77 / 0.22);
+}
+
+.ride-map-kart-arcade .ride-map-marker-label {
+  border-radius: 999px;
+  background: #FFF9E8;
+  border: 2px solid #17324D;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 rgb(23 50 77 / 0.25);
 }
 
 .ride-map-kart-arcade .ride-map-marker-start::before {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%229%22%20fill%3D%22%23147DFF%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M10%207.8l5.4%204.2-5.4%204.2z%22%20fill%3D%22%23FFFFFF%22%2F%3E%3C%2Fsvg%3E");
+  background-color: #147DFF;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M13%208.5%2022.5%2016%2013%2023.5z%22%20fill%3D%22%23FFFFFF%22%2F%3E%3C%2Fsvg%3E");
+  background-size: 26px 26px;
 }
 
 .ride-map-kart-arcade .ride-map-marker-destination::before {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20x%3D%223%22%20y%3D%222.5%22%20width%3D%222.4%22%20height%3D%2219%22%20rx%3D%221.2%22%20fill%3D%22%2317324D%22%2F%3E%3Cpath%20d%3D%22M6.6%204.2h13.2v10.2H6.6z%22%20fill%3D%22%23FFF9E8%22%2F%3E%3Cpath%20d%3D%22M6.6%204.2h3.3v3.4H6.6zM13.2%204.2h3.3v3.4h-3.3zM9.9%207.6h3.3V11H9.9zM16.5%207.6h3.3V11h-3.3zM6.6%2011h3.3v3.4H6.6zM13.2%2011h3.3v3.4h-3.3z%22%20fill%3D%22%2317324D%22%2F%3E%3C%2Fsvg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cdefs%3E%3CclipPath%20id%3D%22c%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2216%22%2F%3E%3C%2FclipPath%3E%3C%2Fdefs%3E%3Cg%20clip-path%3D%22url%28%23c%29%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%23FFF9E8%22%2F%3E%3Cg%20fill%3D%22%2317324D%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
 }
 
 .ride-map-kart-arcade .ride-map-marker-entry::before {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M13.6%202%205.2%2013.2h4.9L8.6%2022l8.6-11.4h-5z%22%20fill%3D%22%23FFD447%22%20stroke%3D%22%2317324D%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+  background-color: #FFD447;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M18.6%204%209%2018h5.6L13%2028l9.6-14H17z%22%20fill%3D%22%2317324D%22%2F%3E%3C%2Fsvg%3E");
+  background-size: 24px 24px;
 }
 
+/* Chevrons on the route itself are drawn on the canvas; these mark the
+   direction of travel between them and share their look. */
 .ride-map-kart-arcade .ride-map-arrow {
-  border-bottom-color: #FFD447;
-  filter: drop-shadow(0 0 1.5px #17324D);
+  border-bottom-color: #ffffff;
+  filter: drop-shadow(0 0 1.5px #147DFF) drop-shadow(0 0 1px #147DFF);
 }
 
 .ride-map-kart-arcade .ride-map-user-puck,
@@ -221,12 +244,12 @@
 }
 
 /* No looping animation anywhere in this theme; this only softens a redraw. */
-.ride-map-kart-arcade .ride-map-marker {
+.ride-map-kart-arcade .ride-map-marker-label {
   transition: box-shadow 120ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ride-map-kart-arcade .ride-map-marker {
+  .ride-map-kart-arcade .ride-map-marker-label {
     transition: none;
   }
 }

@@ -136,6 +136,7 @@ const {
       mapSetStyle(...args);
       this.addedSources.clear();
       this.addedLayers.clear();
+      this.addedImages.clear();
     };
     // MapLibre only returns a source once it has been added: the engine relies
     // on that to decide between addSource+addLayer and setData.
@@ -163,6 +164,12 @@ const {
         : mapState.style.layers.find((layer) => layer.id === id);
     setLayoutProperty = setLayoutProperty;
     setPaintProperty = setPaintProperty;
+    // Style images go with the style, like sources and layers do.
+    addedImages = new Set<string>();
+    hasImage = (id: string) => this.addedImages.has(id);
+    addImage = (id: string) => {
+      this.addedImages.add(id);
+    };
     fitBounds = fitBounds;
     easeTo = easeTo;
     isStyleLoaded = () => mapState.styleLoaded;
@@ -1319,6 +1326,60 @@ describe("MapLibre Kart Arcade overlay (FR-046)", () => {
     handle.destroy();
   });
 
+  it("draws direction chevrons on top of the route, and only there", async () => {
+    // jsdom ships no canvas backend; a minimal 2D context is enough to prove
+    // the wiring, and the real drawing is covered in route-arrows.test.ts.
+    const context = {
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+      fillStyle: "",
+      strokeStyle: "",
+      lineWidth: 0,
+      lineJoin: "",
+    };
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+
+    const { handle } = await mountArcade();
+    const ids = addedLayerIds();
+    expect(ids.indexOf("ride-route-arrows")).toBeGreaterThan(
+      ids.indexOf("ride-route-line"),
+    );
+    handle.destroy();
+
+    addLayer.mockClear();
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const plain = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+    expect(addedLayerIds()).not.toContain("ride-route-arrows");
+    plain.destroy();
+    getContext.mockRestore();
+  });
+
+  it("keeps the route drawn when the chevrons cannot be built", async () => {
+    // No canvas at all: exactly the jsdom default, and a real degraded device.
+    const { handle } = await mountArcade();
+
+    const ids = addedLayerIds();
+    expect(ids).toContain("ride-route-line");
+    expect(ids).not.toContain("ride-route-arrows");
+    handle.destroy();
+  });
+
   it("reverts when the style loads but its tiles never do (NFR-005)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } =
@@ -1350,8 +1411,9 @@ describe("MapLibre Kart Arcade overlay (FR-046)", () => {
     styleLoad?.();
     mapSetStyle.mockClear();
 
-    // Its tile source then failed, which MapLibre reports after style.load.
-    emit("error");
+    // Its tile source then failed, which MapLibre reports after style.load
+    // as an error naming the source.
+    emit("error", { sourceId: "openmaptiles" });
 
     expect(mapSetStyle).toHaveBeenCalledWith(
       "https://tiles.test/clair/style.json",
@@ -1381,9 +1443,58 @@ describe("MapLibre Kart Arcade overlay (FR-046)", () => {
 
     // A later tile hiccup is not a failed theme.
     mapState.styleLoaded = true;
-    emit("error");
+    emit("error", { sourceId: "openmaptiles" });
 
     expect(onMapStyleFallback).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("does not lose the theme over a missing image or glyph", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onMapStyleFallback },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+      },
+    );
+
+    // The style is up; this error names no source, so it is cosmetic.
+    mapState.styleLoaded = true;
+    emit("error", {});
+
+    expect(onMapStyleFallback).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("treats a style that never comes up as a failed theme", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onMapStyleFallback },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+      },
+    );
+
+    // A style rejected by the renderer never finishes loading.
+    mapState.styleLoaded = false;
+    emit("error", {});
+    mapState.styleLoaded = true;
+
+    expect(onMapStyleFallback).toHaveBeenCalledTimes(1);
     handle.destroy();
   });
 

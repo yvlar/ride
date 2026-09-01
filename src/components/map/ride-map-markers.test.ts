@@ -119,6 +119,9 @@ describe("Kart Arcade markers (FR-046)", () => {
     // Meaning never rests on the badge alone (NFR-001).
     expect(destination.textContent).toBe("Arrivée");
     expect(destination.getAttribute("aria-label")).toBe("Arrivée");
+    expect(
+      destination.querySelector(".ride-map-marker-label")?.textContent,
+    ).toBe("Arrivée");
   });
 
   it("defaults to the start kind, so existing callers are unchanged", () => {

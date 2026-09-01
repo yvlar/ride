@@ -1,3 +1,4 @@
+import { validateStyleMin } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
 import { KART_ARCADE_PALETTE } from "./kart-arcade-palette";
 import {
@@ -80,16 +81,66 @@ describe("kartArcadeStyleSpecification (FR-046)", () => {
     expect(background).toMatchObject({
       paint: { "background-color": KART_ARCADE_PALETTE.land },
     });
+    // A motorway keeps its coral at every zoom.
     const motorway = style.layers.find(
       (layer) => layer.id === "kart-road-motorway",
     );
     expect(motorway).toMatchObject({
-      paint: { "line-color": KART_ARCADE_PALETTE.motorway },
+      paint: {
+        "line-color": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12.5,
+          KART_ARCADE_PALETTE.motorway,
+          14.5,
+          KART_ARCADE_PALETTE.motorway,
+        ],
+      },
     });
-    const local = style.layers.find((layer) => layer.id === "kart-road-minor");
-    expect(local).toMatchObject({
-      paint: { "line-color": KART_ARCADE_PALETTE.roadLocal },
+  });
+
+  it("turns a warm overview road into asphalt as the map zooms in", () => {
+    const style = kartArcadeStyleSpecification();
+    for (const [id, far, near] of [
+      ["kart-road-minor", KART_ARCADE_PALETTE.roadFar, KART_ARCADE_PALETTE.asphaltMinor],
+      ["kart-road-secondary", KART_ARCADE_PALETTE.roadFar, KART_ARCADE_PALETTE.asphalt],
+      ["kart-road-primary", KART_ARCADE_PALETTE.roadFarMain, KART_ARCADE_PALETTE.asphalt],
+    ] as const) {
+      const layer = style.layers.find((candidate) => candidate.id === id);
+      expect(layer).toMatchObject({
+        paint: {
+          "line-color": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12.5,
+            far,
+            14.5,
+            near,
+          ],
+        },
+      });
+    }
+  });
+
+  it("gives a main road a white guardrail and a yellow centre line", () => {
+    const style = kartArcadeStyleSpecification();
+    expect(
+      style.layers.find((layer) => layer.id === "kart-road-primary-casing"),
+    ).toMatchObject({ paint: { "line-color": KART_ARCADE_PALETTE.guardrail } });
+    const line = style.layers.find(
+      (layer) => layer.id === "kart-road-primary-line",
+    );
+    expect(line).toMatchObject({
+      paint: { "line-color": KART_ARCADE_PALETTE.roadLine },
     });
+    // Markings only once the roadway has become asphalt and is wide enough.
+    expect(line?.minzoom ?? 0).toBeGreaterThanOrEqual(13);
+    // A residential street is not marked at all.
+    expect(
+      style.layers.some((layer) => layer.id === "kart-road-minor-line"),
+    ).toBe(false);
   });
 
   it("separates terrain, water, forest, buildings and every road class", () => {
@@ -167,6 +218,19 @@ describe("kartArcadeStyleSpecification (FR-046)", () => {
     expect(decor.length).toBeGreaterThan(0);
     // A road is never decoration.
     expect(decor).not.toContain("kart-road-motorway");
+  });
+
+  it("passes MapLibre's own style validation", () => {
+    // The renderer reports a bad expression as a load error at runtime, which
+    // costs the rider the theme. Catch it here instead.
+    for (const style of [
+      kartArcadeStyleSpecification(),
+      kartArcadeStyleSpecification({
+        terrainTilesUrl: "https://dem.example.test/{z}/{x}/{y}.png",
+      }),
+    ]) {
+      expect(validateStyleMin(style)).toEqual([]);
+    }
   });
 
   it("never gives a layer the same id twice", () => {

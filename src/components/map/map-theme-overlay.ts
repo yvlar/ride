@@ -22,6 +22,9 @@ export type MapOverlayTheme = {
     traveledColor: string;
     traveledWidth: number;
     connectorColor: string;
+    /** Direction chevrons riding on the route. `null` leaves a plain line. */
+    arrowColor: string | null;
+    arrowOutline: string;
   };
   buildings: {
     color: string;
@@ -49,6 +52,8 @@ export const STANDARD_MAP_OVERLAY_THEME: MapOverlayTheme = {
     traveledColor: "#64748b",
     traveledWidth: 6,
     connectorColor: "#f59e0b",
+    arrowColor: null,
+    arrowOutline: "#0f172a",
   },
   buildings: {
     color: "#94a3b8",
@@ -61,12 +66,15 @@ export const KART_ARCADE_MAP_OVERLAY_THEME: MapOverlayTheme = {
     // Electric blue over a white halo: the one thing that must stay obvious in
     // full sun, over warm roads and over turquoise water alike.
     color: KART_ARCADE_PALETTE.route,
-    width: 6,
+    // A ribbon, not a line: it has to outrank every road it crosses.
+    width: 8,
     casingColor: KART_ARCADE_PALETTE.routeHalo,
-    casingWidth: 12,
+    casingWidth: 16,
     traveledColor: KART_ARCADE_PALETTE.routeTraveled,
     traveledWidth: 8,
     connectorColor: KART_ARCADE_PALETTE.connector,
+    arrowColor: KART_ARCADE_PALETTE.routeHalo,
+    arrowOutline: KART_ARCADE_PALETTE.route,
   },
   buildings: {
     color: KART_ARCADE_PALETTE.building,

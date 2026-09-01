@@ -1217,8 +1217,8 @@ Rendu :
 - style **MapLibre vectoriel complet** au schéma OpenMapTiles. Le thème ne recolore pas des tuiles matricielles;
 - terrain vert chaleureux, avec des surfaces distinctes pour les zones urbaines, les champs, les forêts, les parcs et les plans d’eau;
 - eau turquoise, avec un rivage plus foncé;
-- routes chaudes et arrondies, hiérarchisées : autoroutes corail, routes principales dorées, routes secondaires et locales crème, chemins pointillés, ponts au contour renforcé, tunnels violets en tirets;
-- contour clair autour des routes, pour l’effet arcade et la lisibilité;
+- routes arrondies à **garde-fou blanc** de chaque côté et **ligne jaune centrale** sur les axes, comme sur la référence visuelle. La chaussée se fond du chaud vers l’asphalte à mesure qu’on approche : vue d’ensemble, une route est un trait de deux pixels qu’un gris sur fond vert ferait disparaître; en vue de rue, c’est une surface. Les autoroutes gardent leur corail à tous les niveaux, les chemins restent pointillés, les ponts ont un contour renforcé et les tunnels sont violets en tirets;
+- **chevrons de direction** sur le trajet, dessinés dans le code — Ride n’embarque pas de planche de sprites, et un thème ne doit jamais dépendre d’une ressource qui peut manquer (`NFR-005`). Un moteur sans canevas 2D affiche simplement le trajet sans chevrons;
 - épaisseur, contour, visibilité, densité et taille des libellés pilotés par des expressions de zoom : les petites rues n’apparaissent qu’en zoom rapproché;
 - bâtiments orangés, avec extrusion 3D légère pendant le suivi de navigation lorsque le style le permet (`FR-024`);
 - ombrage de relief **facultatif**, activé seulement si une source d’élévation est configurée; son absence n’est pas une erreur (`NFR-005`);

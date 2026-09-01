@@ -30,7 +30,12 @@ export function createPlaceMarkerElement(
   const element = document.createElement("div");
   element.className = `ride-map-marker ride-map-marker-${kind}`;
   element.dataset.markerKind = kind;
-  element.textContent = label;
+  // The label lives in its own node so a theme can stack a badge above it
+  // without losing the text. `textContent` still reads back as the label.
+  const text = document.createElement("span");
+  text.className = "ride-map-marker-label";
+  text.textContent = label;
+  element.append(text);
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", label);
   return element;

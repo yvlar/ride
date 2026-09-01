@@ -11,21 +11,39 @@ export const KART_ARCADE_PALETTE = {
   land: "#8ED081",
   landLight: "#B7E58A",
   /** Built-up ground, so a town reads as a town and not as a field. */
-  urban: "#D8E9B4",
+  urban: "#C7E39A",
   forest: "#2F8F46",
   forestDark: "#176B35",
   park: "#5FBE66",
   water: "#42CFF5",
   waterDeep: "#159FCB",
   waterEdge: "#0E7FA6",
+  /** Pale band where the water meets the shore, as in the reference render. */
+  waterShallow: "#8FE6FA",
   sand: "#F4E3B0",
   ice: "#E8F7FB",
-  roadLocal: "#FFF2C2",
-  roadMain: "#FFD447",
+
+  /*
+   * Roads are asphalt, not cream: the reference render draws a dark roadway
+   * with a bright yellow centre line and white guardrails, and that contrast
+   * is what makes the ribbon read as a racing circuit. The warm hues of the
+   * original brief survive where they belong — on the markings and the edges.
+   */
+  asphalt: "#48545F",
+  asphaltMinor: "#5E6B77",
+  /*
+   * Zoomed out, a road is a two-pixel thread: asphalt on green vanishes, so
+   * the warm arcade hues carry the hierarchy until the roadway is wide enough
+   * to be a surface. The style crossfades between the two.
+   */
+  roadFar: "#FFF2C2",
+  roadFarMain: "#FFD447",
+  /** Yellow centre line of a main road. */
+  roadLine: "#FFD447",
+  /** White guardrail running along both sides. */
+  guardrail: "#FFF9E8",
+  /** A motorway keeps the coral accent, carried by its rail and its markings. */
   motorway: "#FF665A",
-  roadCasing: "#FFF9E8",
-  /** Casing under a warm road needs a darker edge to stay a shape, not a glow. */
-  roadEdge: "#C8A33C",
   motorwayEdge: "#C8402F",
   track: "#E4C89A",
   path: "#B98C5A",
