@@ -9,11 +9,14 @@ export function addRideBuildingExtrusions(map: {
   getLayer: (id: string) => unknown;
   getStyle: () => Pick<StyleSpecification, "sources" | "layers">;
   addLayer: (layer: FillExtrusionLayerSpecification) => unknown;
-}): void {
+}, options: { color?: string; enabled?: boolean } = {}): void {
+  if (options.enabled === false) {
+    return;
+  }
   if (map.getLayer(RIDE_3D_BUILDINGS_LAYER_ID)) {
     return;
   }
-  const layer = buildingExtrusionLayer(map.getStyle());
+  const layer = buildingExtrusionLayer(map.getStyle(), options.color);
   if (layer) {
     map.addLayer(layer);
   }
@@ -25,6 +28,7 @@ export function addRideBuildingExtrusions(map: {
  */
 export function buildingExtrusionLayer(
   style: Pick<StyleSpecification, "sources" | "layers">,
+  color = "#94a3b8",
 ): FillExtrusionLayerSpecification | null {
   const layers = style.layers ?? [];
   if (layers.some((layer) => layer.type === "fill-extrusion")) {
@@ -51,7 +55,7 @@ export function buildingExtrusionLayer(
     "source-layer": "building",
     minzoom: 15,
     paint: {
-      "fill-extrusion-color": "#94a3b8",
+      "fill-extrusion-color": color,
       "fill-extrusion-height": [
         "coalesce",
         ["get", "render_height"],

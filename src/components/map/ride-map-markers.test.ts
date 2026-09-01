@@ -25,6 +25,22 @@ describe("ride map markers (FR-013)", () => {
     expect(element).toHaveTextContent("Départ");
     expect(element).toHaveAttribute("aria-label", "Départ");
   });
+
+  it("gives destination and GPX markers distinct semantic glyph hooks", () => {
+    const destination = createPlaceMarkerElement(
+      "Destination",
+      "destination",
+    );
+    const entry = createPlaceMarkerElement("Entrée GPX", "entry");
+
+    expect(destination).toHaveClass("ride-map-marker--destination");
+    expect(entry).toHaveClass("ride-map-marker--entry");
+    expect(destination.querySelector(".ride-map-marker-icon")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(destination).toHaveAttribute("aria-label", "Destination");
+  });
 });
 
 describe("motorcycle user puck (FR-022)", () => {

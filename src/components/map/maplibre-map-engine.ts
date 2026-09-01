@@ -13,7 +13,8 @@ import {
   MAP_UNAVAILABLE_MESSAGE,
   type MapEngine,
   type MapEngineHandle,
-  type MapStyleSource,
+  type MapStyleConfig,
+  type MapStyleInput,
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
 import { createLongPressRecognizer } from "./long-press";
@@ -47,6 +48,10 @@ import {
 } from "./ride-map-view-model";
 import { createCloudMarkerElement } from "./weather-markers";
 import { RADAR_LAYER_OPACITY, type WeatherMapOverlay } from "./weather-overlay";
+import {
+  KART_ARCADE_COLORS,
+  KART_ARCADE_ROUTE_PAINT,
+} from "./themes/kart-arcade-tokens";
 
 export {
   NAVIGATION_FOLLOW_DURATION_MS,
@@ -60,7 +65,14 @@ export const RADAR_SOURCE_ID = "ride-radar";
 export const RADAR_LAYER_ID = "ride-radar-tiles";
 
 /** Radar has to sit under the route: a cell must never hide the road. */
-const ROUTE_LAYER_IDS = ["ride-traveled-line", "ride-route-line"] as const;
+const ROUTE_LAYER_IDS = [
+  "ride-traveled-line",
+  "ride-route-halo",
+  "ride-route-line",
+] as const;
+
+export const MAP_THEME_FALLBACK_MESSAGE =
+  "Kart Arcade n’a pas pu être chargé. Le thème Standard a été restauré.";
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -89,9 +101,16 @@ export function createMapLibreEngine(
       let radarTemplate: string | null = null;
       let map: MapLibreMap | undefined;
       /** FR-045 — the basemap in place, so a re-render never reloads tiles. */
-      let currentStyleSource: MapStyleSource =
+      let currentStyle = normalizeMapStyle(
         mountOptions?.mapStyle ??
-        (process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE);
+          (process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE),
+      );
+      let styleTransition: {
+        requested: MapStyleConfig;
+        fallbackAttempted: boolean;
+      } | null = currentStyle.fallbackStyle
+        ? { requested: currentStyle, fallbackAttempted: false }
+        : null;
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
       let lastGeolocateHeadingDeg: number | null = null;
@@ -104,7 +123,7 @@ export function createMapLibreEngine(
       try {
         map = new MapLibreMap({
           container,
-          style: currentStyleSource,
+          style: currentStyle.style,
           attributionControl: { compact: true },
           bounds: camera.bounds,
           fitBoundsOptions: {
@@ -139,6 +158,8 @@ export function createMapLibreEngine(
           },
         };
       }
+
+      applyMapVisualState(container, currentStyle);
 
       function attachGeolocateControl() {
         if (!map || disposed || geolocateControl || !geolocateAllowed) {
@@ -189,7 +210,28 @@ export function createMapLibreEngine(
       attachGeolocateControl();
 
       map.on("error", () => {
-        if (disposed || !map || map.isStyleLoaded()) {
+        if (disposed || !map) {
+          return;
+        }
+        if (
+          styleTransition &&
+          !styleTransition.fallbackAttempted &&
+          styleTransition.requested.fallbackStyle
+        ) {
+          const failed = styleTransition.requested;
+          const fallback = fallbackMapStyle(failed);
+          styleTransition = { requested: fallback, fallbackAttempted: true };
+          currentStyle = fallback;
+          applyMapVisualState(container, fallback);
+          onWarning?.(MAP_THEME_FALLBACK_MESSAGE);
+          try {
+            map.setStyle(fallback.style, { diff: false });
+          } catch {
+            onError(MAP_UNAVAILABLE_MESSAGE);
+          }
+          return;
+        }
+        if (map.isStyleLoaded()) {
           return;
         }
         onError(MAP_UNAVAILABLE_MESSAGE);
@@ -219,6 +261,31 @@ export function createMapLibreEngine(
               type: "geojson",
               data,
             });
+            const routePaint = routePaintFor(currentStyle);
+            map.addLayer({
+              id: "ride-route-halo",
+              type: "line",
+              source: "ride-route",
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": routePaint.halo,
+                "line-width": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  5,
+                  currentStyle.visualMode === "navigation" ? 7 : 6,
+                  12,
+                  currentStyle.visualMode === "navigation" ? 11 : 9,
+                  18,
+                  currentStyle.visualMode === "navigation" ? 18 : 15,
+                ],
+                "line-opacity": 0.96,
+              },
+            });
             map.addLayer({
               id: "ride-route-line",
               type: "line",
@@ -228,8 +295,18 @@ export function createMapLibreEngine(
                 "line-join": "round",
               },
               paint: {
-                "line-color": "#38bdf8",
-                "line-width": 4,
+                "line-color": routePaint.color,
+                "line-width": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  5,
+                  currentStyle.visualMode === "navigation" ? 4.5 : 3.5,
+                  12,
+                  currentStyle.visualMode === "navigation" ? 7 : 5.5,
+                  18,
+                  currentStyle.visualMode === "navigation" ? 12 : 9,
+                ],
               },
             });
           }
@@ -258,12 +335,12 @@ export function createMapLibreEngine(
                   "line-join": "round",
                 },
                 paint: {
-                  "line-color": "#64748b",
+                  "line-color": routePaintFor(currentStyle).traveled,
                   "line-width": 6,
                   "line-opacity": 0.55,
                 },
               },
-              "ride-route-line",
+              "ride-route-halo",
             );
           }
 
@@ -299,7 +376,7 @@ export function createMapLibreEngine(
                 "line-join": "round",
               },
               paint: {
-                "line-color": "#f59e0b",
+                "line-color": routePaintFor(currentStyle).connector,
                 "line-width": 4,
                 "line-dasharray": [1.5, 1.5],
               },
@@ -311,20 +388,12 @@ export function createMapLibreEngine(
           }
           markers.length = 0;
           if (!next.idle) {
-            markers.push(placeMarker(map, next.start.label, next.start.coordinates));
+            markers.push(placeMarker(map, next.start));
             if (next.destination) {
-              markers.push(
-                placeMarker(
-                  map,
-                  next.destination.label,
-                  next.destination.coordinates,
-                ),
-              );
+              markers.push(placeMarker(map, next.destination));
             }
             if (next.entry) {
-              markers.push(
-                placeMarker(map, next.entry.label, next.entry.coordinates),
-              );
+              markers.push(placeMarker(map, next.entry));
             }
             for (const arrow of next.directionArrows) {
               markers.push(placeArrow(map, arrow));
@@ -377,14 +446,18 @@ export function createMapLibreEngine(
           }
           recordedMarkers.length = 0;
           if (recordedTrack?.startPoint) {
-            recordedMarkers.push(
-              placeMarker(map, RECORDED_TRACK_START_LABEL, recordedTrack.startPoint),
-            );
+            recordedMarkers.push(placeMarker(map, {
+              kind: "start",
+              label: RECORDED_TRACK_START_LABEL,
+              coordinates: recordedTrack.startPoint,
+            }));
           }
           if (recordedTrack?.endPoint) {
-            recordedMarkers.push(
-              placeMarker(map, RECORDED_TRACK_END_LABEL, recordedTrack.endPoint),
-            );
+            recordedMarkers.push(placeMarker(map, {
+              kind: "destination",
+              label: RECORDED_TRACK_END_LABEL,
+              coordinates: recordedTrack.endPoint,
+            }));
           }
 
           if (recordedTrack?.fitBounds && recordedTrack.bounds) {
@@ -530,7 +603,17 @@ export function createMapLibreEngine(
           return;
         }
         try {
-          addRideBuildingExtrusions(map);
+          addRideBuildingExtrusions(map, {
+            color:
+              currentStyle.visualTheme === "kart-arcade"
+                ? KART_ARCADE_COLORS.building
+                : undefined,
+            enabled:
+              currentStyle.visualTheme === "standard" ||
+              (currentStyle.visualMode === "exploration" &&
+                !reducedMotion &&
+                !prefersReducedDetail()),
+          });
         } catch {
           // Optional 3D buildings must not take down the street map (NFR-005).
         }
@@ -540,7 +623,19 @@ export function createMapLibreEngine(
         applyPendingFrame();
       }
 
-      map.on("load", renderStyleLayers);
+      let initialMapLoaded = false;
+      map.on("load", () => {
+        initialMapLoaded = true;
+        styleTransition = null;
+        renderStyleLayers();
+      });
+      map.on("style.load", () => {
+        if (!initialMapLoaded) {
+          return;
+        }
+        styleTransition = null;
+        renderStyleLayers();
+      });
 
       /**
        * Frame a route that could not be framed when it arrived. Deferred by a
@@ -829,25 +924,36 @@ export function createMapLibreEngine(
           }
         },
         setMapStyle(next) {
-          if (!map || disposed || next === currentStyleSource) {
+          const requested = normalizeMapStyle(next);
+          if (!map || disposed || requested.key === currentStyle.key) {
             return;
           }
-          const previous = currentStyleSource;
-          currentStyleSource = next;
+          const previous = currentStyle;
+          currentStyle = requested;
+          styleTransition = { requested, fallbackAttempted: false };
+          applyMapVisualState(container, requested);
           // The radar source goes with the old style; forget the template so
           // renderWeather rebuilds it instead of assuming it is still there.
           radarTemplate = null;
           try {
-            // Registered first: an inline style specification settles inside
-            // setStyle, so a handler added afterwards would miss the event.
-            map.once("style.load", renderStyleLayers);
-            map.setStyle(next, { diff: false });
+            map.setStyle(requested.style, { diff: false });
           } catch {
-            // Keep the basemap already on screen rather than an empty canvas
-            // (NFR-005); the route and its text are untouched either way, and
-            // the rider can pick the theme again.
-            currentStyleSource = previous;
-            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
+            const fallback = requested.fallbackStyle
+              ? fallbackMapStyle(requested)
+              : previous;
+            currentStyle = fallback;
+            styleTransition = { requested: fallback, fallbackAttempted: true };
+            applyMapVisualState(container, fallback);
+            onWarning?.(
+              requested.fallbackStyle
+                ? MAP_THEME_FALLBACK_MESSAGE
+                : MAP_UNAVAILABLE_MESSAGE,
+            );
+            try {
+              map.setStyle(fallback.style, { diff: false });
+            } catch {
+              onError(MAP_UNAVAILABLE_MESSAGE);
+            }
           }
         },
         setPickMarker(coordinates) {
@@ -962,15 +1068,63 @@ function labelGeolocateControl(container: HTMLElement): void {
 
 function placeMarker(
   map: MapLibreMap,
-  label: string,
-  coordinates: RideMapViewModel["start"]["coordinates"],
+  marker: Pick<RideMapViewModel["start"], "kind" | "label" | "coordinates">,
 ): Marker {
   return new Marker({
-    element: createPlaceMarkerElement(label),
+    element: createPlaceMarkerElement(marker.label, marker.kind),
     anchor: "bottom",
   })
-    .setLngLat(coordinatesToPosition(coordinates))
+    .setLngLat(coordinatesToPosition(marker.coordinates))
     .addTo(map);
+}
+
+function normalizeMapStyle(input: MapStyleInput): MapStyleConfig {
+  if (typeof input === "object" && "key" in input && "style" in input) {
+    return input;
+  }
+  return {
+    key: typeof input === "string" ? input : input.name ?? "inline-standard",
+    style: input,
+    visualTheme: "standard",
+    visualMode: "exploration",
+  };
+}
+
+function fallbackMapStyle(failed: MapStyleConfig): MapStyleConfig {
+  return {
+    key: `${failed.key}:standard-fallback`,
+    style: failed.fallbackStyle ?? FALLBACK_MAP_STYLE,
+    visualTheme: "standard",
+    visualMode: failed.visualMode,
+  };
+}
+
+function applyMapVisualState(
+  container: HTMLElement,
+  style: MapStyleConfig,
+): void {
+  container.dataset.mapTheme = style.visualTheme;
+  container.dataset.mapMode = style.visualMode;
+}
+
+function routePaintFor(style: MapStyleConfig) {
+  if (style.visualTheme === "kart-arcade") {
+    return KART_ARCADE_ROUTE_PAINT;
+  }
+  return {
+    color: "#38BDF8",
+    halo: "#FFFFFF",
+    traveled: "#64748B",
+    connector: "#F59E0B",
+  } as const;
+}
+
+function prefersReducedDetail(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    typeof navigator.hardwareConcurrency === "number" &&
+    navigator.hardwareConcurrency <= 4
+  );
 }
 
 function overviewFitBoundsOptions(frame: ReturnType<typeof mapCameraFrame>) {

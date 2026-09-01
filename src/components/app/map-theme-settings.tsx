@@ -33,6 +33,11 @@ const MAP_THEME_OPTIONS: {
     label: "Relief",
     description: "Courbes de niveau et relief; pas de bâtiments 3D.",
   },
+  {
+    value: "kart-arcade",
+    label: "Kart Arcade",
+    description: "Carte vectorielle colorée, ludique et lisible à moto.",
+  },
 ];
 
 /** FR-045 — le fond de carte choisi dans Réglages, conservé d’une session à l’autre. */
@@ -45,7 +50,7 @@ export function MapThemeSettings({
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Thème de la carte</legend>
+      <legend className="text-sm font-medium">Thème de carte</legend>
       <div className="grid grid-cols-2 gap-2">
         {MAP_THEME_OPTIONS.map((option) => {
           const selected = option.value === value;

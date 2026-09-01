@@ -24,7 +24,7 @@ describe("MapThemeSettings (FR-045)", () => {
     expect(onChange).toHaveBeenCalledWith("terrain");
   });
 
-  it("offers the five themes", () => {
+  it("offers the existing themes and Kart Arcade", () => {
     render(<MapThemeSettings value="dark" onChange={vi.fn()} />);
 
     for (const label of [
@@ -33,6 +33,7 @@ describe("MapThemeSettings (FR-045)", () => {
       /Sombre/,
       /Satellite/,
       /Relief/,
+      /Kart Arcade/,
     ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
