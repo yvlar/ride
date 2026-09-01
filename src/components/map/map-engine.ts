@@ -1,3 +1,4 @@
+import type { StyleSpecification } from "maplibre-gl";
 import type { Coordinates } from "@/domain/geo/types";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
@@ -5,6 +6,14 @@ import type { WeatherMapOverlay } from "./weather-overlay";
 
 export const MAP_UNAVAILABLE_MESSAGE =
   "Le service de cartographie ne répond pas. Les informations du trajet restent disponibles.";
+
+/** A MapLibre style: a URL, or an inline specification (FR-045). */
+export type MapStyleSource = string | StyleSpecification;
+
+export type MapMountOptions = {
+  /** FR-045 — the basemap the rider picked in Réglages, resolved to a style. */
+  mapStyle?: MapStyleSource;
+};
 
 export type MapEngineHandle = {
   destroy: () => void;
@@ -35,6 +44,11 @@ export type MapEngineHandle = {
   setPickEnabled?: (enabled: boolean) => void;
   /** Shows (or clears) the draggable destination marker (FR-038). */
   setPickMarker?: (coordinates: Coordinates | null) => void;
+  /**
+   * FR-045 — swap the basemap in place. The engine re-adds every source and
+   * layer it owns once the new style settles; the map is never remounted.
+   */
+  setMapStyle?: (style: MapStyleSource) => void;
 };
 
 export type MapEngineHandlers = {
@@ -55,5 +69,6 @@ export type MapEngine = {
     container: HTMLElement,
     viewModel: RideMapViewModel,
     handlers: MapEngineHandlers,
+    options?: MapMountOptions,
   ) => MapEngineHandle;
 };

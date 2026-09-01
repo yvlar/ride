@@ -5,7 +5,12 @@ import {
   type NavigationBrowserPlatform,
 } from "./browser-map-platform";
 import { createMapLibreEngine } from "./maplibre-map-engine";
-import type { MapEngine, MapEngineHandle, MapEngineHandlers } from "./map-engine";
+import type {
+  MapEngine,
+  MapEngineHandle,
+  MapEngineHandlers,
+  MapMountOptions,
+} from "./map-engine";
 import type { RideMapViewModel } from "./ride-map-view-model";
 
 export type { NavigationBrowserPlatform };
@@ -24,6 +29,7 @@ export type NavigationMapEngine = {
     container: HTMLElement,
     viewModel: RideMapViewModel,
     handlers: MapEngineHandlers,
+    options?: MapMountOptions,
   ) => NavigationMapHandle;
 };
 
@@ -58,8 +64,8 @@ export function createNavigationMapEngine(
   );
 
   return {
-    mount(container, viewModel, handlers): NavigationMapHandle {
-      const handle = base.mount(container, viewModel, handlers);
+    mount(container, viewModel, handlers, mountOptions): NavigationMapHandle {
+      const handle = base.mount(container, viewModel, handlers, mountOptions);
       return {
         destroy: handle.destroy,
         setUserLocation(coordinates, headingDeg) {
@@ -85,6 +91,9 @@ export function createNavigationMapEngine(
         },
         setRecordedTrack(overlay) {
           handle.setRecordedTrack?.(overlay);
+        },
+        setMapStyle(style) {
+          handle.setMapStyle?.(style);
         },
       };
     },

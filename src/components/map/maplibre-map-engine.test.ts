@@ -14,6 +14,8 @@ import {
 
 const {
   addControl,
+  mapOnce,
+  mapSetStyle,
   removeControl,
   mapRemove,
   mapOn,
@@ -34,6 +36,8 @@ const {
   const removeControl = vi.fn();
   const mapRemove = vi.fn();
   const mapOn = vi.fn();
+  const mapOnce = vi.fn();
+  const mapSetStyle = vi.fn();
   const geolocateOn = vi.fn();
   const geolocateOnRemove = vi.fn();
   const markerRemove = vi.fn();
@@ -94,6 +98,12 @@ const {
     removeControl = removeControl;
     remove = mapRemove;
     on = mapOn;
+    once = mapOnce;
+    // MapLibre drops every source and layer when the style is replaced.
+    setStyle = (...args: unknown[]) => {
+      mapSetStyle(...args);
+      this.addedSources.clear();
+    };
     // MapLibre only returns a source once it has been added: the engine relies
     // on that to decide between addSource+addLayer and setData.
     addedSources = new Set<string>();
@@ -173,6 +183,8 @@ const {
 
   return {
     addControl,
+    mapOnce,
+    mapSetStyle,
     removeControl,
     mapRemove,
     mapOn,
@@ -227,6 +239,8 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     removeControl.mockReset();
     mapRemove.mockReset();
     mapOn.mockReset();
+    mapOnce.mockReset();
+    mapSetStyle.mockReset();
     geolocateOn.mockReset();
     geolocateOnRemove.mockReset();
     markerRemove.mockReset();
@@ -977,6 +991,84 @@ describe("MapLibre destination picking (FR-038)", () => {
     handle.setPickMarker?.(null);
 
     expect(markerRemove.mock.calls.length).toBeGreaterThan(before);
+    handle.destroy();
+  });
+
+});
+
+describe("MapLibre basemap theme (FR-045)", () => {
+  beforeEach(() => {
+    mapOn.mockReset();
+    mapOnce.mockReset();
+    mapSetStyle.mockReset();
+    addLayer.mockReset();
+    createdMarkers.length = 0;
+    mapState.painterAvailable = true;
+    mapState.markerThrows = false;
+    mapState.lastOptions = undefined;
+    mapState.resetStyle();
+  });
+
+  it("loads the basemap the caller mounted with (FR-045)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/relief/style.json" },
+    );
+
+    expect(mapState.lastOptions?.style).toBe(
+      "https://tiles.test/relief/style.json",
+    );
+    handle.destroy();
+  });
+
+  it("swaps the basemap and redraws the route on it (FR-045)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+    addLayer.mockClear();
+
+    handle.setMapStyle?.("https://tiles.test/sombre/style.json");
+
+    expect(mapSetStyle).toHaveBeenCalledWith(
+      "https://tiles.test/sombre/style.json",
+      { diff: false },
+    );
+    const styleLoad = mapOnce.mock.calls.find(
+      (call) => call[0] === "style.load",
+    )?.[1] as (() => void) | undefined;
+    expect(styleLoad).toBeTypeOf("function");
+    styleLoad?.();
+
+    // The new style came up empty: the route has to go back on it.
+    expect(
+      addLayer.mock.calls.map((call) => (call[0] as { id?: string }).id),
+    ).toContain("ride-route-line");
+    handle.destroy();
+  });
+
+  it("does not reload tiles when the basemap is unchanged (FR-045)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
+    );
+
+    handle.setMapStyle?.("https://tiles.test/clair/style.json");
+
+    expect(mapSetStyle).not.toHaveBeenCalled();
     handle.destroy();
   });
 });

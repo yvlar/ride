@@ -21,6 +21,7 @@ const {
     sources: new Map<string, Record<string, unknown>>(),
     layers: new Set<string>(),
     loadHandlers: [] as Array<() => void>,
+    styleLoadHandlers: [] as Array<() => void>,
     styleLayers: [] as Array<{ id: string; type: string }>,
     /** MapLibre 5 raster sources can be retargeted; older ones cannot. */
     rasterSetTiles: true,
@@ -28,6 +29,7 @@ const {
       this.sources.clear();
       this.layers.clear();
       this.loadHandlers.length = 0;
+      this.styleLoadHandlers.length = 0;
       this.styleLayers = [];
       this.rasterSetTiles = true;
     },
@@ -45,6 +47,16 @@ const {
       if (event === "load") {
         mapState.loadHandlers.push(handler);
       }
+    }
+    once(event: string, handler: () => void) {
+      if (event === "style.load") {
+        mapState.styleLoadHandlers.push(handler);
+      }
+    }
+    setStyle() {
+      // MapLibre drops every source and layer when the style is replaced.
+      mapState.sources.clear();
+      mapState.layers.clear();
     }
     addSource(id: string, source: Record<string, unknown>) {
       mapState.sources.set(id, {
@@ -351,6 +363,28 @@ describe("MapLibre weather layer (FR-043)", () => {
     handle.setWeather?.(overlay);
 
     expect(cloudElements()).toHaveLength(0);
+  });
+
+  it("puts the radar back after a basemap change (FR-045, FR-043)", async () => {
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    expect(mapState.sources.has("ride-radar")).toBe(true);
+    addLayer.mockClear();
+
+    handle.setMapStyle?.("https://tiles.test/dark/style.json");
+    // setStyle wiped everything the engine had drawn on the old basemap.
+    expect(mapState.sources.has("ride-radar")).toBe(false);
+    for (const handler of mapState.styleLoadHandlers) {
+      handler();
+    }
+
+    expect(mapState.sources.get("ride-radar")).toMatchObject({
+      type: "raster",
+      tiles: ["https://tiles.test/latest/{z}/{x}/{y}.png"],
+    });
+    expect(
+      addLayer.mock.calls.map(([layer]) => layer.id),
+    ).toEqual(expect.arrayContaining(["ride-route-line", "ride-radar-tiles"]));
   });
 });
 

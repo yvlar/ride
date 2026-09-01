@@ -13,6 +13,7 @@ import {
   MAP_UNAVAILABLE_MESSAGE,
   type MapEngine,
   type MapEngineHandle,
+  type MapStyleSource,
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
 import { createLongPressRecognizer } from "./long-press";
@@ -76,6 +77,7 @@ export function createMapLibreEngine(
       container,
       viewModel,
       { onError, onWarning, onFollowUserChange, onPick },
+      mountOptions,
     ): MapEngineHandle {
       const markers: Marker[] = [];
       const recordedMarkers: Marker[] = [];
@@ -86,6 +88,10 @@ export function createMapLibreEngine(
       let weather: WeatherMapOverlay | null = null;
       let radarTemplate: string | null = null;
       let map: MapLibreMap | undefined;
+      /** FR-045 — the basemap in place, so a re-render never reloads tiles. */
+      let currentStyleSource: MapStyleSource =
+        mountOptions?.mapStyle ??
+        (process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE);
       let geolocateControl: GeolocateControl | undefined;
       let disposed = false;
       let lastGeolocateHeadingDeg: number | null = null;
@@ -98,7 +104,7 @@ export function createMapLibreEngine(
       try {
         map = new MapLibreMap({
           container,
-          style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE,
+          style: currentStyleSource,
           attributionControl: { compact: true },
           bounds: camera.bounds,
           fitBoundsOptions: {
@@ -514,7 +520,12 @@ export function createMapLibreEngine(
         renderWeather();
       });
 
-      map.on("load", () => {
+      /**
+       * Everything this engine owns on top of the basemap. Called on the first
+       * style load and again after a theme swap (FR-045): `setStyle` drops every
+       * source and layer, and `load` does not fire a second time.
+       */
+      function renderStyleLayers() {
         if (disposed || !map) {
           return;
         }
@@ -527,7 +538,9 @@ export function createMapLibreEngine(
         renderRecordedTrack();
         renderWeather();
         applyPendingFrame();
-      });
+      }
+
+      map.on("load", renderStyleLayers);
 
       /**
        * Frame a route that could not be framed when it arrived. Deferred by a
@@ -813,6 +826,28 @@ export function createMapLibreEngine(
           pickEnabled = enabled;
           if (!enabled) {
             longPress.cancel();
+          }
+        },
+        setMapStyle(next) {
+          if (!map || disposed || next === currentStyleSource) {
+            return;
+          }
+          const previous = currentStyleSource;
+          currentStyleSource = next;
+          // The radar source goes with the old style; forget the template so
+          // renderWeather rebuilds it instead of assuming it is still there.
+          radarTemplate = null;
+          try {
+            // Registered first: an inline style specification settles inside
+            // setStyle, so a handler added afterwards would miss the event.
+            map.once("style.load", renderStyleLayers);
+            map.setStyle(next, { diff: false });
+          } catch {
+            // Keep the basemap already on screen rather than an empty canvas
+            // (NFR-005); the route and its text are untouched either way, and
+            // the rider can pick the theme again.
+            currentStyleSource = previous;
+            onWarning?.(MAP_UNAVAILABLE_MESSAGE);
           }
         },
         setPickMarker(coordinates) {

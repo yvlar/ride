@@ -4,12 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Coordinates } from "@/domain/geo/types";
 import type { GpxMapOverlay } from "@/domain/gpx/types";
 import type { GeneratedRideRoute } from "@/domain/ride/types";
+import { useMapTheme } from "@/components/theme/map-theme-provider";
 import { cn } from "@/lib/utils";
 import {
   MAP_UNAVAILABLE_MESSAGE,
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
+import { mapThemeStyle } from "./map-theme-styles";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
@@ -67,6 +69,10 @@ export function RideMap({
 }: RideMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
+  /** FR-045 — the basemap picked in Réglages, resolved against the appearance. */
+  const { resolvedTheme } = useMapTheme();
+  const mapStyle = useMemo(() => mapThemeStyle(resolvedTheme), [resolvedTheme]);
+  const mapStyleRef = useRef(mapStyle);
   const viewModelRef = useRef(
     route ? toRideMapViewModel(route) : idleMapViewModel(),
   );
@@ -164,28 +170,33 @@ export function RideMap({
         if (cancelled) {
           return;
         }
-        handle = resolved.mount(container, initial, {
-          onError: (message) => {
-            if (!cancelled) {
-              setError(message);
-            }
+        handle = resolved.mount(
+          container,
+          initial,
+          {
+            onError: (message) => {
+              if (!cancelled) {
+                setError(message);
+              }
+            },
+            onWarning: (message) => {
+              if (!cancelled) {
+                setWarning(message);
+              }
+            },
+            onFollowUserChange: (following) => {
+              if (!cancelled) {
+                onFollowUserChangeRef.current?.(following);
+              }
+            },
+            onPick: (coordinates) => {
+              if (!cancelled) {
+                onPickRef.current?.(coordinates);
+              }
+            },
           },
-          onWarning: (message) => {
-            if (!cancelled) {
-              setWarning(message);
-            }
-          },
-          onFollowUserChange: (following) => {
-            if (!cancelled) {
-              onFollowUserChangeRef.current?.(following);
-            }
-          },
-          onPick: (coordinates) => {
-            if (!cancelled) {
-              onPickRef.current?.(coordinates);
-            }
-          },
-        });
+          { mapStyle: mapStyleRef.current },
+        );
         handleRef.current = handle;
         const latest = viewModelRef.current ?? initial;
         mountedViewModelRef.current = latest;
@@ -222,23 +233,28 @@ export function RideMap({
           if (cancelled) {
             return;
           }
-          handle = fallback.mount(container, initial, {
-            onError: (message) => {
-              if (!cancelled) {
-                setError(message);
-              }
+          handle = fallback.mount(
+            container,
+            initial,
+            {
+              onError: (message) => {
+                if (!cancelled) {
+                  setError(message);
+                }
+              },
+              onFollowUserChange: (following) => {
+                if (!cancelled) {
+                  onFollowUserChangeRef.current?.(following);
+                }
+              },
+              onPick: (coordinates) => {
+                if (!cancelled) {
+                  onPickRef.current?.(coordinates);
+                }
+              },
             },
-            onFollowUserChange: (following) => {
-              if (!cancelled) {
-                onFollowUserChangeRef.current?.(following);
-              }
-            },
-            onPick: (coordinates) => {
-              if (!cancelled) {
-                onPickRef.current?.(coordinates);
-              }
-            },
-          });
+            { mapStyle: mapStyleRef.current },
+          );
           handleRef.current = handle;
           const latest = viewModelRef.current ?? initial;
           mountedViewModelRef.current = latest;
@@ -309,6 +325,11 @@ export function RideMap({
     pickMarkerRef.current = pickMarker;
     handleRef.current?.setPickMarker?.(pickMarker ?? null);
   }, [pickMarker]);
+
+  useEffect(() => {
+    mapStyleRef.current = mapStyle;
+    handleRef.current?.setMapStyle?.(mapStyle);
+  }, [mapStyle]);
 
   useLayoutEffect(() => {
     handleRef.current?.setGeolocateEnabled?.(geolocateEnabled);

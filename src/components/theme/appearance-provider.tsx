@@ -13,14 +13,18 @@ import {
   appearanceClassNames,
   resolveAppearance,
   type AppearanceMode,
+  type ResolvedAppearance,
 } from "@/domain/appearance/appearance";
 
 const AppearanceContext = createContext<{
   mode: AppearanceMode;
   setMode: (mode: AppearanceMode) => void;
+  /** The appearance actually applied, `system` already resolved (FR-045). */
+  resolved: ResolvedAppearance;
 }>({
   mode: "dark",
   setMode: () => {},
+  resolved: "dark",
 });
 
 const PREFERS_DARK_QUERY = "(prefers-color-scheme: dark)";
@@ -79,11 +83,12 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
+  const resolved = resolveAppearance(mode, prefersDark);
+
   useEffect(() => {
     if (!hydrated) {
       return;
     }
-    const resolved = resolveAppearance(mode, prefersDark);
     const root = document.documentElement;
     root.classList.remove("dark", "night");
     for (const className of appearanceClassNames(resolved)) {
@@ -94,10 +99,10 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore.
     }
-  }, [hydrated, mode, prefersDark]);
+  }, [hydrated, mode, resolved]);
 
   return (
-    <AppearanceContext.Provider value={{ mode, setMode }}>
+    <AppearanceContext.Provider value={{ mode, setMode, resolved }}>
       {children}
     </AppearanceContext.Provider>
   );
