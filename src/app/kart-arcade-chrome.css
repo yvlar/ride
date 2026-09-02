@@ -80,7 +80,9 @@
   --secondary-foreground: oklch(0.97 0.03 95);
   --muted: oklch(0.38 0.04 250);
   --muted-foreground: oklch(0.85 0.03 95);
-  --accent: oklch(0.6 0.11 90);
+  /* Deep enough that the cream label on it clears 4.5:1 — a brighter yellow
+     here reads as arcade but fails a rider squinting at it in daylight. */
+  --accent: oklch(0.52 0.11 90);
   --accent-foreground: oklch(0.97 0.03 95);
   --border: oklch(0.98 0.03 95 / 28%);
   --input: oklch(0.98 0.03 95 / 32%);
@@ -89,52 +91,84 @@
   --kart-ink: oklch(0.18 0.04 250);
 }
 
-@layer components {
+/*
+ * The moulded-plate treatment, applied to the surfaces `globals.css` already
+ * defines. No component changes: the tab bar, the panels and the buttons all
+ * consume these same classes and tokens.
+ *
+ * Deliberately outside every cascade layer. Most of these surfaces are shadcn
+ * buttons, which carry Tailwind utilities (`border`, `shadow-lg`) that live in
+ * the `utilities` layer; a layered rule loses to them however specific it is,
+ * so the skin would land on the panels and silently skip every button. An
+ * unlayered rule outranks all of them, which is exactly what a whole-interface
+ * theme needs.
+ */
+:root[data-map-theme="kart-arcade"] .ride-glass,
+:root[data-map-theme="kart-arcade"] .ride-glass-strong {
+  background: var(--ride-glass);
   /*
-   * The moulded-plate treatment, applied to the surfaces `globals.css` already
-   * defines. No component changes: the tab bar, the panels and the buttons all
-   * consume these same classes and tokens.
+   * The cream guardrail and its ink liner are drawn as rings, not as a
+   * border. Most of these plates are buttons, and a button carries Tailwind's
+   * `border` utility — utilities outrank the components layer whatever the
+   * specificity, so a border here would apply to the panels and silently skip
+   * every button. A ring is beholden to no layer and looks the same on both.
    */
-  :root[data-map-theme="kart-arcade"] .ride-glass,
-  :root[data-map-theme="kart-arcade"] .ride-glass-strong {
-    border: 3px solid var(--kart-outline);
-    background: var(--ride-glass);
-    box-shadow: 0 0 0 2px oklch(0.33 0.06 250 / 42%), var(--ride-shadow);
-    /* An opaque plate has nothing to blur behind it. */
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
+  box-shadow:
+    0 0 0 2px var(--kart-outline),
+    0 0 0 4px oklch(0.33 0.06 250 / 38%),
+    var(--ride-shadow);
+  /* An opaque plate has nothing to blur behind it. */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 
-  :root[data-map-theme="kart-arcade"] .ride-glass-strong {
-    background: var(--ride-glass-strong);
-  }
+:root[data-map-theme="kart-arcade"] .ride-glass-strong {
+  background: var(--ride-glass-strong);
+}
 
-  :root[data-map-theme="kart-arcade"] .ride-control-row {
-    border-width: 2px;
-    box-shadow: var(--ride-shadow);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
+:root[data-map-theme="kart-arcade"] .ride-control-row {
+  box-shadow: 0 0 0 2px var(--kart-ink), var(--ride-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 
-  :root[data-map-theme="kart-arcade"] .ride-icon-well {
-    border: 2px solid var(--kart-outline);
-    background: oklch(0.33 0.06 250 / 22%);
-    box-shadow: 0 2px 0 oklch(0.33 0.06 250 / 38%);
-  }
+:root[data-map-theme="kart-arcade"] .ride-icon-well {
+  background: oklch(0.33 0.06 250 / 22%);
+  box-shadow:
+    0 0 0 2px var(--kart-outline),
+    0 2px 0 3px oklch(0.33 0.06 250 / 38%);
+}
 
-  :root[data-map-theme="kart-arcade"] .ride-panel-actions {
-    border-width: 2px;
-    box-shadow: var(--ride-shadow);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
+:root[data-map-theme="kart-arcade"] .ride-panel-actions {
+  box-shadow: 0 0 0 2px var(--kart-ink), var(--ride-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 
-  /* The soft green halo of the default look belongs to the default look. */
-  :root[data-map-theme="kart-arcade"] body {
-    background-image: radial-gradient(
-      circle at 50% -20%,
-      oklch(0.88 0.11 90 / 40%),
-      transparent 38rem
-    );
-  }
+/*
+ * The panels floating over the map carry their own token set, tuned green
+ * for the default look. Under the arcade they take the same asphalt plate
+ * the rest of the theme uses, or the map would be arcade and the panel on
+ * top of it would not.
+ */
+:root[data-map-theme="kart-arcade"] .ride-map-panel {
+  --foreground: oklch(0.98 0.03 95);
+  --card: oklch(0.4 0.035 250);
+  --card-foreground: oklch(0.98 0.03 95);
+  --muted: oklch(0.5 0.03 250);
+  --muted-foreground: oklch(0.9 0.025 95);
+  --border: oklch(0.98 0.03 95 / 42%);
+  --input: oklch(0.98 0.03 95 / 34%);
+  --primary: oklch(0.75 0.16 25);
+  --primary-foreground: oklch(0.24 0.05 250);
+  --ring: oklch(0.82 0.12 220);
+}
+
+/* The soft green halo of the default look belongs to the default look. */
+:root[data-map-theme="kart-arcade"] body {
+  background-image: radial-gradient(
+    circle at 50% -20%,
+    oklch(0.88 0.11 90 / 40%),
+    transparent 38rem
+  );
 }

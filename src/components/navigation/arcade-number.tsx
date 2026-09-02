@@ -10,6 +10,11 @@ export type ArcadeNumberProps = {
  * FR-046 — original arcade numerals for navigation metrics. The visible
  * glyphs are decorative, while the complete value remains one accessible
  * label for VoiceOver ("250 m", not three unrelated digits).
+ *
+ * Size floor: only on numerals of **1.25 rem or more**. The glyphs are drawn
+ * as a transparent fill inside a `0.075em` stroke, and below that size the
+ * stroke closes the counters of 0, 6 and 8 and the figure stops being
+ * readable. Never use it for slider ticks, table cells or captions.
  */
 export function ArcadeNumber({ text, className, testId }: ArcadeNumberProps) {
   return (
