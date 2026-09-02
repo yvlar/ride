@@ -1162,13 +1162,13 @@ Un bouton **Météo** superposé à la carte (cible ≥ 44 px, état `aria-press
 
 #### Échantillonnage
 
-Le ciel est échantillonné autour du pilote : sa position, puis deux anneaux de huit points à la moitié et à la totalité du rayon (17 points, un seul appel fournisseur). Rayon par défaut 45 km, borné à 5–200 km. La position est arrondie à une cellule d’environ 0,1° avant l’appel, de sorte qu’un relevé GPS ne déclenche pas une nouvelle requête; la couche se rafraîchit d’elle-même toutes les dix minutes.
+Le ciel est échantillonné autour du pilote : sa position, puis **trois anneaux dont la densité suit le rayon** — huit points sur le premier, seize sur le deuxième, vingt-quatre sur le troisième (**49 points**, un seul appel fournisseur). Un nombre fixe de points par anneau espacerait l’anneau extérieur trois fois plus que l’intérieur, et une cellule passerait entre deux relevés; en faisant croître le compte avec le rayon, deux voisins restent séparés d’une douzaine de kilomètres sur les trois anneaux. Le champ **couvre** ainsi la surface que l’imagerie radar dessine au lieu de la ponctuer. Rayon par défaut 45 km, borné à 5–200 km. La position est arrondie à une cellule d’environ 0,1° avant l’appel, de sorte qu’un relevé GPS ne déclenche pas une nouvelle requête; la couche se rafraîchit d’elle-même toutes les dix minutes.
 
 #### Nuages
 
 Chaque point non dégagé porte un nuage dont la teinte et les traits suivent le niveau — **nuageux**, **averses**, **pluie**, **orage** — déduit de la probabilité de précipitation, de l’intensité en mm/h, de la couverture nuageuse et du code orage du fournisseur. Le pourcentage de risque accompagne le nuage : **aucune information n’est portée par la seule couleur**, et chaque marqueur porte un nom accessible (« Pluie, 72 % de risque de pluie »). Un ciel dégagé ne reçoit aucun marqueur.
 
-Sous le thème **Kart Arcade** (`FR-046`), le nuage devient un personnage : un corps plein cerné d’encre, deux yeux, et une **humeur qui suit le niveau** — placide sous un ciel couvert, inquiet sous les averses, triste sous la pluie, fâché sous l’orage. L’humeur ne fait que **redire** ce que le niveau dit déjà : le pourcentage, le nom accessible et la règle ci-dessus sont identiques d’un thème à l’autre, et le dessin reste `aria-hidden`. Les autres thèmes gardent le marqueur sobre.
+Le nuage est un **personnage**, sur tous les thèmes de carte : un corps plein cerné d’encre, deux yeux, et une **humeur qui suit le niveau** — placide sous un ciel couvert, inquiet sous les averses, triste sous la pluie, fâché sous l’orage. Il est dessiné **assez grand** pour se lire d’un coup d’œil à travers une visière; à cette taille des nuages voisins peuvent se recouvrir sur un cadrage régional, ce qui est assumé — le marqueur est transparent aux gestes, et il n’intercepte donc jamais un déplacement de la carte. L’humeur ne fait que **redire** ce que le niveau dit déjà : le pourcentage et le nom accessible portent l’information (`NFR-001`), et le dessin reste `aria-hidden`.
 
 #### Images radar
 
@@ -1238,7 +1238,7 @@ Trajet actif :
 
 Ciel :
 
-- la couche météo (`FR-043`) suit le thème comme le reste : ses **nuages prennent un visage** dont l’humeur reprend le niveau de précipitation, avec les gouttes, la larme ou l’éclair du niveau. Les visages sont **dessinés dans le code**, originaux comme le damier et les chevrons, et **strictement immobiles** — l’interdiction d’animation permanente vaut ici aussi. Changer de thème les redessine sans démonter la carte (`FR-045`).
+- les nuages de la couche météo (`FR-043`) sont **dessinés dans le code**, originaux comme le damier et les chevrons, et **strictement immobiles** — l’interdiction d’animation permanente vaut pour eux aussi. Ils n’appartiennent pas à ce thème : leur visage est le marqueur météo de tous les thèmes, et changer de fond les redessine sans démonter la carte (`FR-045`).
 
 Deux niveaux de détail :
 

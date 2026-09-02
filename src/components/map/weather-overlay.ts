@@ -41,8 +41,9 @@ export type WeatherOverlayOptions = {
 
 /**
  * FR-043 — turn one observation into what the map draws. A `clear` sample gets
- * no marker: a cloudless sky is told by the absence of a cloud, and 17 icons
- * over a route would bury it.
+ * no marker: a cloudless sky is told by the absence of a cloud. With the field
+ * sampled densely enough to cover the ground the radar draws, that is also the
+ * only thing keeping a fair-weather map from being paved in icons.
  */
 export function toWeatherMapOverlay(
   observation: WeatherObservation | null,

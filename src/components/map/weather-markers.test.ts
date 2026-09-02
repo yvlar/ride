@@ -42,8 +42,10 @@ describe("createCloudMarkerElement (FR-043)", () => {
     const cloudy = createCloudMarkerElement(marker({ level: "cloudy" }));
     const raining = createCloudMarkerElement(marker({ level: "rain" }));
 
-    expect(cloudy.querySelectorAll("path")).toHaveLength(1);
-    expect(raining.querySelectorAll("path").length).toBeGreaterThan(1);
+    expect(cloudy.querySelectorAll(".ride-map-cloud-streak")).toHaveLength(0);
+    expect(
+      raining.querySelectorAll(".ride-map-cloud-streak").length,
+    ).toBeGreaterThan(0);
   });
 
   it("hides the drawing from assistive technology, the label carries it", () => {
@@ -54,37 +56,23 @@ describe("createCloudMarkerElement (FR-043)", () => {
   });
 });
 
-describe("arcade cloud faces (FR-046)", () => {
+describe("cloud faces (FR-043)", () => {
   function face(level: WeatherCloudMarker["level"]): HTMLElement {
-    return createCloudMarkerElement(marker({ level }), { faces: true });
+    return createCloudMarkerElement(marker({ level }));
   }
 
-  it("only puts on a face when the theme asks for one", () => {
-    expect(face("rain").classList.contains("ride-map-cloud--arcade")).toBe(true);
-    expect(
-      createCloudMarkerElement(marker()).classList.contains(
-        "ride-map-cloud--arcade",
-      ),
-    ).toBe(false);
-    expect(
-      createCloudMarkerElement(marker(), { faces: false }).querySelector(
-        ".ride-map-cloud-face",
-      ),
-    ).toBeNull();
-  });
+  it("carries the mood on the drawing and the level in the text (NFR-001)", () => {
+    const element = face("rain");
 
-  it("keeps the badge and the accessible name of the plain cloud (NFR-001)", () => {
-    const arcade = face("rain");
-    const plain = createCloudMarkerElement(marker());
-
-    expect(arcade.getAttribute("role")).toBe(plain.getAttribute("role"));
-    expect(arcade.getAttribute("aria-label")).toBe(
-      plain.getAttribute("aria-label"),
+    expect(element.querySelector(".ride-map-cloud-face")).not.toBeNull();
+    // The mood only repeats the level: the name and the badge still carry it.
+    expect(element.getAttribute("aria-label")).toBe(
+      "Pluie, 72 % de risque de pluie",
     );
-    expect(arcade.textContent).toBe(plain.textContent);
-    expect(arcade.dataset.level).toBe("rain");
+    expect(element.textContent).toContain("72 %");
+    expect(element.dataset.level).toBe("rain");
     // The mood is a drawing, so assistive technology never sees it.
-    expect(arcade.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+    expect(element.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
       "true",
     );
   });

@@ -3,50 +3,22 @@ import type { WeatherCloudMarker } from "./weather-overlay";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-/** Lucide Cloud / CloudRain / CloudLightning, trimmed to what reads at 28 px. */
-const CLOUD_BODY = "M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z";
-
-const RAIN_STREAKS: Record<PrecipitationLevel, string[]> = {
-  clear: [],
-  cloudy: [],
-  showers: ["M8 19v2", "M12 19v3"],
-  rain: ["M8 19v3", "M12 19v4", "M16 19v3"],
-  storm: ["m13 19-3 5h4l-3 5"],
-};
-
-export type CloudMarkerOptions = {
-  /**
-   * FR-046 — draw the cloud as an arcade character with a face instead of the
-   * plain glyph. Only the Kart Arcade theme asks for it.
-   */
-  faces?: boolean;
-};
-
 /**
- * FR-043 — the marker is the message: a pale cloud for an overcast sky, a
- * darker one with streaks as the chance of rain climbs, and a lightning bolt
- * for a storm. The percentage rides along so the rider never has to guess
- * what shade of grey they are looking at.
+ * FR-043 — the marker is the message: a cloud whose colour follows the level
+ * and whose face follows the mood of it, with the chance of rain riding along
+ * so the rider never has to guess what shade of blue they are looking at.
  */
 export function createCloudMarkerElement(
   marker: WeatherCloudMarker,
-  options: CloudMarkerOptions = {},
 ): HTMLElement {
   const element = document.createElement("div");
   element.className = `ride-map-cloud ride-map-cloud--${marker.level}`;
-  if (options.faces) {
-    element.classList.add("ride-map-cloud--arcade");
-  }
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", marker.label);
   element.dataset.level = marker.level;
   element.dataset.probability = String(marker.probability);
 
-  element.append(
-    options.faces
-      ? createArcadeCloudGlyph(marker.level)
-      : createCloudGlyph(marker.level),
-  );
+  element.append(createCloudGlyph(marker.level));
 
   const badge = document.createElement("span");
   badge.className = "ride-map-cloud-badge";
@@ -57,39 +29,15 @@ export function createCloudMarkerElement(
   return element;
 }
 
-function createCloudGlyph(level: PrecipitationLevel): SVGSVGElement {
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.classList.add("ride-map-cloud-icon");
-
-  const body = document.createElementNS(SVG_NS, "path");
-  body.setAttribute("d", CLOUD_BODY);
-  svg.append(body);
-
-  for (const streak of RAIN_STREAKS[level]) {
-    const path = document.createElementNS(SVG_NS, "path");
-    path.setAttribute("d", streak);
-    svg.append(path);
-  }
-
-  return svg;
-}
-
 /*
- * FR-046 — the Kart Arcade sky. Every other marker of this theme is a solid
- * shape with an ink outline; a thin Lucide outline floating over it read as a
- * leftover from another map. So the cloud becomes a character: a puffy body,
- * two eyes, and a mood that follows the level.
+ * FR-043 — the cloud is a character. A solid body with an ink edge reads at a
+ * glance where a thin outline does not, and a mood — placid overcast, worried
+ * showers, downcast rain, furious storm — is caught faster through a visor
+ * than a shade of blue.
  *
  * The mood is a *second* reading of what the badge and the accessible name
- * already say (FR-043, NFR-001) — a scowl is faster to catch through a visor
- * than a shade of blue, but nothing rests on it alone.
+ * already say (NFR-001): a scowl adds nothing the level did not, and nothing
+ * rests on it alone.
  *
  * Every curve below is drawn for Ride. Like the racing disc and the start
  * chevron of `ride-map-markers.css`, it is neither traced from nor modelled on
@@ -197,13 +145,13 @@ const CLOUD_WEATHER_ART: Record<PrecipitationLevel, CloudWeatherArt> = {
   },
 };
 
-function createArcadeCloudGlyph(level: PrecipitationLevel): SVGSVGElement {
+function createCloudGlyph(level: PrecipitationLevel): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", ARCADE_VIEW_BOX);
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
-  svg.classList.add("ride-map-cloud-icon", "ride-map-cloud-icon--arcade");
+  svg.classList.add("ride-map-cloud-icon");
 
   svg.append(pathNode(ARCADE_CLOUD_BODY, "ride-map-cloud-body"));
 

@@ -392,29 +392,23 @@ describe("MapLibre weather layer (FR-043)", () => {
   });
 });
 
-describe("Kart Arcade clouds (FR-046)", () => {
-  it("gives the clouds a face under the arcade theme, and only there", async () => {
-    const arcade = await mountEngine(KART_ARCADE_MAP_OVERLAY_THEME);
-    arcade.setWeather?.(overlay);
+describe("cloud faces on the map (FR-043)", () => {
+  it("gives every cloud a face, on every theme", async () => {
+    for (const theme of [undefined, KART_ARCADE_MAP_OVERLAY_THEME]) {
+      createdMarkers.length = 0;
+      const handle = await mountEngine(theme);
+      handle.setWeather?.(overlay);
 
-    const faces = cloudElements();
-    expect(faces).toHaveLength(2);
-    for (const element of faces) {
-      expect(element.classList.contains("ride-map-cloud--arcade")).toBe(true);
-      expect(element.querySelectorAll(".ride-map-cloud-eye")).toHaveLength(2);
-      // The badge and the accessible name are the same on every theme.
-      expect(element.getAttribute("aria-label")).toMatch(/risque de pluie$/);
-      expect(element.textContent).toMatch(/%$/);
-    }
-  });
-
-  it("leaves the plain glyph on every other theme", async () => {
-    const standard = await mountEngine();
-    standard.setWeather?.(overlay);
-
-    for (const element of cloudElements()) {
-      expect(element.classList.contains("ride-map-cloud--arcade")).toBe(false);
-      expect(element.querySelector(".ride-map-cloud-face")).toBeNull();
+      const drawn = cloudElements();
+      expect(drawn).toHaveLength(2);
+      for (const element of drawn) {
+        expect(element.querySelector(".ride-map-cloud-face")).not.toBeNull();
+        expect(element.querySelectorAll(".ride-map-cloud-eye")).toHaveLength(2);
+        // The badge and the accessible name never depend on the theme.
+        expect(element.getAttribute("aria-label")).toMatch(/risque de pluie$/);
+        expect(element.textContent).toMatch(/%$/);
+      }
+      handle.destroy();
     }
   });
 });

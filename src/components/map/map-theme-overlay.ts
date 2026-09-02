@@ -49,12 +49,6 @@ export type MapOverlayTheme = {
   /** Marks the map container so the DOM markers can follow the theme. */
   containerClassName?: string;
   /**
-   * FR-046 — draws the weather clouds (FR-043) as arcade characters with a
-   * face, whose mood follows the precipitation level. Absent, the marker keeps
-   * the plain glyph, which is what every built-in theme wants.
-   */
-  cloudFaces?: boolean;
-  /**
    * FR-046 — return to the previous basemap when this one cannot load. Set for
    * themes that depend on a source Ride does not control, so an unreachable
    * tile host leaves the rider on a working map rather than a blank one
@@ -122,7 +116,6 @@ export const KART_ARCADE_MAP_OVERLAY_THEME: MapOverlayTheme = {
   // Measured cost at the opening regional frame: 8 tiles instead of 6.
   explorationPitchDeg: 45,
   containerClassName: "ride-map-kart-arcade",
-  cloudFaces: true,
   revertOnLoadFailure: true,
 };
 

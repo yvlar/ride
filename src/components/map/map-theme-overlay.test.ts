@@ -48,9 +48,4 @@ describe("mapThemeOverlay (FR-046)", () => {
     );
     expect(mapThemeOverlay("dark").containerClassName).toBeUndefined();
   });
-
-  it("asks for arcade cloud faces on the weather layer (FR-043)", () => {
-    expect(mapThemeOverlay("kart-arcade").cloudFaces).toBe(true);
-    expect(mapThemeOverlay("dark").cloudFaces).toBeUndefined();
-  });
 });

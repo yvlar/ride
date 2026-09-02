@@ -1,6 +1,5 @@
 import { offsetCoordinates } from "@/domain/geo/distance";
 import type { BoundingBox, Coordinates } from "@/domain/geo/types";
-import { COMPASS_SECTORS, compassSectorBearingDeg } from "./compass";
 
 /**
  * FR-043 — how far around the rider the sky is sampled. Roughly half an hour
@@ -11,12 +10,22 @@ export const DEFAULT_WEATHER_RADIUS_KM = 45;
 export const MIN_WEATHER_RADIUS_KM = 5;
 export const MAX_WEATHER_RADIUS_KM = 200;
 
-/** Two rings plus the rider: 17 points, one provider call. */
-export const WEATHER_SAMPLE_RINGS = 2;
+/** Three rings plus the rider: 49 points, still one provider call. */
+export const WEATHER_SAMPLE_RINGS = 3;
 
 /**
- * FR-043 — the rider first, then rings of eight points outward. Keeping the
- * centre at index 0 lets every consumer read the local sky without a search.
+ * Points on ring `n`. A fixed count per ring would space the outer ring three
+ * times wider than the inner one — 35 km between neighbours at 45 km, wide
+ * enough to miss a whole cell. Scaling the count with the radius keeps the
+ * spacing constant all the way out, so the field covers the ground the radar
+ * imagery draws instead of dotting it.
+ */
+const POINTS_PER_RING_STEP = 8;
+
+/**
+ * FR-043 — the rider first, then rings outward, each denser than the last.
+ * Keeping the centre at index 0 lets every consumer read the local sky without
+ * a search, and every ring starts due north.
  */
 export function weatherSampleGrid(
   center: Coordinates,
@@ -29,14 +38,25 @@ export function weatherSampleGrid(
 
   for (let ring = 1; ring <= ringCount; ring += 1) {
     const distanceKm = (radius * ring) / ringCount;
-    for (const sector of COMPASS_SECTORS) {
-      points.push(
-        offsetCoordinates(center, compassSectorBearingDeg(sector), distanceKm),
-      );
+    const count = POINTS_PER_RING_STEP * ring;
+    for (let step = 0; step < count; step += 1) {
+      points.push(offsetCoordinates(center, (360 * step) / count, distanceKm));
     }
   }
 
   return points;
+}
+
+/** How many samples a grid of `rings` rings asks the provider for. */
+export function weatherSampleCount(
+  rings: number = WEATHER_SAMPLE_RINGS,
+): number {
+  const ringCount = Math.max(1, Math.floor(rings));
+  let total = 1;
+  for (let ring = 1; ring <= ringCount; ring += 1) {
+    total += POINTS_PER_RING_STEP * ring;
+  }
+  return total;
 }
 
 export function clampRadiusKm(radiusKm: number): number {
