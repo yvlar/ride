@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_WEATHER_RADIUS_KM } from "@/domain/weather/sample-grid";
+import {
+  DEFAULT_WEATHER_RADIUS_KM,
+  weatherSampleCount,
+} from "@/domain/weather/sample-grid";
 import type { WeatherSample } from "@/domain/weather/types";
 import type {
   RadarProvider,
@@ -48,7 +51,7 @@ describe("observeWeather (FR-043)", () => {
 
     expect(observation.field.center).toEqual(center);
     expect(observation.field.radiusKm).toBe(DEFAULT_WEATHER_RADIUS_KM);
-    expect(observation.field.samples).toHaveLength(17);
+    expect(observation.field.samples).toHaveLength(weatherSampleCount());
     expect(observation.field.observedAtIso).toBe("2026-08-29T15:04:00.000Z");
     expect(observation.radar.frames).toHaveLength(1);
   });
@@ -80,7 +83,7 @@ describe("observeWeather (FR-043)", () => {
       onRadarFailure,
     });
 
-    expect(observation.field.samples).toHaveLength(17);
+    expect(observation.field.samples).toHaveLength(weatherSampleCount());
     expect(observation.radar).toEqual({
       frames: [],
       attribution: null,

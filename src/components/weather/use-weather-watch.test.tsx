@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { haversineKm, initialBearingDeg } from "@/domain/geo/distance";
 import type { Coordinates } from "@/domain/geo/types";
 import type { WeatherSample } from "@/domain/weather/types";
 import { weatherSampleGrid } from "@/domain/weather/sample-grid";
@@ -8,18 +9,27 @@ import { WEATHER_REFRESH_MS, useWeatherWatch } from "./use-weather-watch";
 
 const center: Coordinates = { latitude: 45.5, longitude: -72.75 };
 
-/** Rain due south of the sampled centre, dry everywhere else. */
+/**
+ * Rain due south of the sampled centre, dry everywhere else. The wet point is
+ * picked by where it sits, not by its index, so a denser grid does not silently
+ * move the weather to another sector.
+ */
 function reportFor(anchor: Coordinates): WeatherReport {
   const samples: WeatherSample[] = weatherSampleGrid(anchor, 40).map(
-    (coordinates, index) => ({
-      coordinates,
-      precipitationProbability: index === 13 ? 90 : 5,
-      precipitationMmPerHour: index === 13 ? 4 : 0,
-      cloudCover: index === 13 ? 95 : 10,
-      thunder: false,
-      temperatureC: 19,
-      windSpeedKmh: 12,
-    }),
+    (coordinates) => {
+      const southern =
+        haversineKm(anchor, coordinates) > 35 &&
+        Math.abs(initialBearingDeg(anchor, coordinates) - 180) < 10;
+      return {
+        coordinates,
+        precipitationProbability: southern ? 90 : 5,
+        precipitationMmPerHour: southern ? 4 : 0,
+        cloudCover: southern ? 95 : 10,
+        thunder: false,
+        temperatureC: 19,
+        windSpeedKmh: 12,
+      };
+    },
   );
 
   return {

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { KART_ARCADE_MAP_OVERLAY_THEME } from "./map-theme-overlay";
+import type { MapOverlayTheme } from "./map-theme-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
 
@@ -192,12 +194,13 @@ const overlay: WeatherMapOverlay = {
   ],
 };
 
-async function mountEngine() {
+async function mountEngine(mapOverlay?: MapOverlayTheme) {
   const { createMapLibreEngine } = await import("./maplibre-map-engine");
   const handle = createMapLibreEngine().mount(
     document.createElement("div"),
     viewModel,
     { onError: vi.fn(), onWarning: vi.fn() },
+    mapOverlay ? { mapOverlay } : undefined,
   );
   for (const handler of mapState.loadHandlers) {
     handler();
@@ -386,6 +389,27 @@ describe("MapLibre weather layer (FR-043)", () => {
     expect(
       addLayer.mock.calls.map(([layer]) => layer.id),
     ).toEqual(expect.arrayContaining(["ride-route-line", "ride-radar-tiles"]));
+  });
+});
+
+describe("cloud faces on the map (FR-043)", () => {
+  it("gives every cloud a face, on every theme", async () => {
+    for (const theme of [undefined, KART_ARCADE_MAP_OVERLAY_THEME]) {
+      createdMarkers.length = 0;
+      const handle = await mountEngine(theme);
+      handle.setWeather?.(overlay);
+
+      const drawn = cloudElements();
+      expect(drawn).toHaveLength(2);
+      for (const element of drawn) {
+        expect(element.querySelector(".ride-map-cloud-face")).not.toBeNull();
+        expect(element.querySelectorAll(".ride-map-cloud-eye")).toHaveLength(2);
+        // The badge and the accessible name never depend on the theme.
+        expect(element.getAttribute("aria-label")).toMatch(/risque de pluie$/);
+        expect(element.textContent).toMatch(/%$/);
+      }
+      handle.destroy();
+    }
   });
 });
 

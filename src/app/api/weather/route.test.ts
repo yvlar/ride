@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { haversineKm, initialBearingDeg } from "@/domain/geo/distance";
+import { weatherSampleCount } from "@/domain/weather/sample-grid";
 import type { WeatherSample } from "@/domain/weather/types";
 import type {
   RadarProvider,
@@ -20,12 +22,20 @@ vi.mock("@/infrastructure/weather/get-weather-provider", () => ({
   getRadarProvider: () => providers.radar ?? undefined,
 }));
 
-/** A dry sky everywhere except due south, 45 km out. */
+const center = { latitude: 45.5, longitude: -72.75 };
+
+/**
+ * A dry sky everywhere except due south, on the outer ring. Picked by where a
+ * point actually is rather than by its index, so the grid can grow denser
+ * without this fixture turning into a second compass.
+ */
 function southernRain(): WeatherProvider {
   return {
     sample: async (points) =>
-      points.map<WeatherSample>((coordinates, index) => {
-        const southern = index === 13;
+      points.map<WeatherSample>((coordinates) => {
+        const southern =
+          haversineKm(center, coordinates) > 40 &&
+          Math.abs(initialBearingDeg(center, coordinates) - 180) < 10;
         return {
           coordinates,
           precipitationProbability: southern ? 90 : 5,
@@ -71,7 +81,7 @@ describe("GET /api/weather (FR-043)", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(body.data.field.samples).toHaveLength(17);
+    expect(body.data.field.samples).toHaveLength(weatherSampleCount());
     expect(body.data.field.center).toEqual({
       latitude: 45.5,
       longitude: -72.75,
@@ -137,7 +147,7 @@ describe("GET /api/weather (FR-043)", () => {
 
     expect(response.status).toBe(200);
     expect(body.data.radar.frames).toEqual([]);
-    expect(body.data.field.samples).toHaveLength(17);
+    expect(body.data.field.samples).toHaveLength(weatherSampleCount());
     errors.mockRestore();
   });
 
