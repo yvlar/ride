@@ -127,6 +127,9 @@ describe("RideApp weather layer (FR-043)", () => {
       level: "rain",
       probability: 88,
     });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Afficher les détails météo" }),
+    );
     expect(await screen.findByText(/sud/)).toBeInTheDocument();
   });
 

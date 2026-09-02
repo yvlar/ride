@@ -14,7 +14,12 @@ describe("MapQuickActions", () => {
     render(<MapQuickActions {...handlers} />);
 
     const region = screen.getByRole("region", { name: "Actions principales" });
-    expect(region).toHaveClass("grid-cols-2", "w-full", "max-w-md");
+    expect(region).toHaveClass(
+      "ride-quick-actions",
+      "grid-cols-2",
+      "w-full",
+      "max-w-md",
+    );
     expect(region).not.toHaveClass("bg-card", "bg-black", "bg-slate-950/55");
     const buttons = within(region).getAllByRole("button");
     expect(buttons).toHaveLength(4);
@@ -45,12 +50,15 @@ describe("MapQuickActions", () => {
     for (const button of buttons) {
       expect(button).toHaveClass(
         "ride-glass",
+        "ride-quick-action",
         "min-h-[clamp(4.5rem,11dvh,5.5rem)]",
         "min-w-0",
         "w-full",
         "justify-start",
       );
     }
+    expect(region.querySelectorAll(".ride-quick-action-icon")).toHaveLength(4);
+    expect(region.querySelectorAll(".ride-quick-action-label")).toHaveLength(4);
   });
 
   it("keeps resume available without changing the four primary actions", () => {

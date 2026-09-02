@@ -559,8 +559,8 @@ export function RideApp(props: RideAppProps) {
   );
 
   return (
-    <div className="relative flex h-dvh min-h-dvh flex-col bg-background text-foreground">
-      <div className="relative min-h-0 flex-1">
+    <div className="ride-app-shell relative flex h-dvh min-h-dvh flex-col bg-background text-foreground">
+      <div className="ride-map-stage relative min-h-0 flex-1">
         {tab === "explore" && !plannerOwnsMap ? (
           <>
             <div className="absolute inset-0">
@@ -619,7 +619,7 @@ export function RideApp(props: RideAppProps) {
                 }
               />
             </div>
-            <div className="pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 z-20 flex w-[min(22rem,calc(100%-1.5rem))]">
+            <div className="ride-weather-dock pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 z-20 flex w-[min(22rem,calc(100%-1.5rem))]">
               <WeatherMapControl
                 active={weatherActive}
                 onToggle={(next) => {
@@ -680,7 +680,7 @@ export function RideApp(props: RideAppProps) {
         {tab === "explore" && sheet === "home" && !navigating ? (
           <div
             data-testid="map-home-controls"
-            className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
+            className="ride-home-controls pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-3 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
           >
             {recorderNeedsReview ? null : (
               <MapQuickActions
