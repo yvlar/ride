@@ -37,6 +37,9 @@ export const KART_ARCADE_DECOR_LAYER_PREFIX = "kart-decor-";
 const FONT_BOLD = ["Noto Sans Bold"];
 const FONT_REGULAR = ["Noto Sans Regular"];
 
+/** FR-046 — roads stay twice as wide as the original arcade baseline. */
+export const KART_ARCADE_ROAD_WIDTH_SCALE = 2;
+
 /**
  * OpenMapTiles keeps the local name in `name`; `name:fr` wins when both exist.
  * Real place names only — the theme never renames what is on the ground.
@@ -67,13 +70,13 @@ function roadWidth(
     ["exponential", 1.5],
     ["zoom"],
     5,
-    0.6 * scale,
+    0.6 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
     10,
-    1.6 * scale,
+    1.6 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
     14,
-    4 * scale,
+    4 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
     18,
-    18 * scale,
+    18 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
   ];
 }
 
@@ -101,13 +104,13 @@ function casingWidth(
     ["exponential", 1.5],
     ["zoom"],
     5,
-    1.8 * scale,
+    1.8 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
     10,
-    3.8 * scale,
+    3.8 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
     14,
-    8 * scale,
+    8 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
     18,
-    30 * scale,
+    30 * scale * KART_ARCADE_ROAD_WIDTH_SCALE,
   ];
 }
 

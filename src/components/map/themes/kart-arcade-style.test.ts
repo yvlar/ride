@@ -7,6 +7,7 @@ import {
   KART_ARCADE_DECOR_LAYER_PREFIX,
   KART_ARCADE_DEFAULT_ATTRIBUTION,
   KART_ARCADE_OSM_ATTRIBUTION,
+  KART_ARCADE_ROAD_WIDTH_SCALE,
   kartArcadeStyleSpecification,
 } from "./kart-arcade-style";
 
@@ -122,6 +123,52 @@ describe("kartArcadeStyleSpecification (FR-046)", () => {
         },
       });
     }
+  });
+
+  it("keeps the complete road network twice as wide after merging main", () => {
+    const style = kartArcadeStyleSpecification();
+    const primary = style.layers.find(
+      (layer) => layer.id === "kart-road-primary",
+    );
+    const casing = style.layers.find(
+      (layer) => layer.id === "kart-road-primary-casing",
+    );
+
+    expect(KART_ARCADE_ROAD_WIDTH_SCALE).toBe(2);
+    expect(primary).toMatchObject({
+      paint: {
+        "line-width": [
+          "interpolate",
+          ["exponential", 1.5],
+          ["zoom"],
+          5,
+          1.2,
+          10,
+          3.2,
+          14,
+          8,
+          18,
+          36,
+        ],
+      },
+    });
+    expect(casing).toMatchObject({
+      paint: {
+        "line-width": [
+          "interpolate",
+          ["exponential", 1.5],
+          ["zoom"],
+          5,
+          3.6,
+          10,
+          7.6,
+          14,
+          16,
+          18,
+          60,
+        ],
+      },
+    });
   });
 
   it("gives a main road a white guardrail and a yellow centre line", () => {
