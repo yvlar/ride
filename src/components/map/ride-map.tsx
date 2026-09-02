@@ -11,6 +11,7 @@ import {
   type MapEngine,
   type MapEngineHandle,
 } from "./map-engine";
+import { mapThemeOverlay, type MapDetailLevel } from "./map-theme-overlay";
 import { mapThemeStyle } from "./map-theme-styles";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
 import { idleMapViewModel, toRideMapViewModel } from "./ride-map-view-model";
@@ -44,6 +45,12 @@ export type RideMapProps = {
   onPick?: (coordinates: Coordinates) => void;
   /** Accessible name, so a picker map is not announced as the route map. */
   label?: string;
+  /**
+   * FR-046 — exploration shows the full theme; navigation strips it back.
+   * Defaults to what `expanded` already means here: the follow camera is on,
+   * so a live session owns the screen.
+   */
+  detailLevel?: MapDetailLevel;
 };
 
 export function RideMap({
@@ -66,16 +73,23 @@ export function RideMap({
   pickMarker = null,
   onPick,
   label = "Carte du trajet",
+  detailLevel,
 }: RideMapProps) {
+  const resolvedDetailLevel: MapDetailLevel =
+    detailLevel ?? (expanded ? "navigation" : "exploration");
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<MapEngineHandle | undefined>(undefined);
   /** FR-045 — the basemap picked in Réglages, resolved against the appearance. */
-  const { resolvedTheme, standardTheme } = useMapTheme();
-  const mapStyle = useMemo(
-    () => mapThemeStyle(resolvedTheme, "exploration", standardTheme),
-    [resolvedTheme, standardTheme],
+  const { resolvedTheme, reportThemeFailure } = useMapTheme();
+  const mapStyle = useMemo(() => mapThemeStyle(resolvedTheme), [resolvedTheme]);
+  const mapOverlay = useMemo(
+    () => mapThemeOverlay(resolvedTheme),
+    [resolvedTheme],
   );
   const mapStyleRef = useRef(mapStyle);
+  const mapOverlayRef = useRef(mapOverlay);
+  const detailLevelRef = useRef(resolvedDetailLevel);
+  const reportThemeFailureRef = useRef(reportThemeFailure);
   const viewModelRef = useRef(
     route ? toRideMapViewModel(route) : idleMapViewModel(),
   );
@@ -197,8 +211,17 @@ export function RideMap({
                 onPickRef.current?.(coordinates);
               }
             },
+            onMapStyleFallback: () => {
+              if (!cancelled) {
+                reportThemeFailureRef.current();
+              }
+            },
           },
-          { mapStyle: mapStyleRef.current },
+          {
+            mapStyle: mapStyleRef.current,
+            mapOverlay: mapOverlayRef.current,
+            detailLevel: detailLevelRef.current,
+          },
         );
         handleRef.current = handle;
         const latest = viewModelRef.current ?? initial;
@@ -255,8 +278,17 @@ export function RideMap({
                   onPickRef.current?.(coordinates);
                 }
               },
+              onMapStyleFallback: () => {
+                if (!cancelled) {
+                  reportThemeFailureRef.current();
+                }
+              },
             },
-            { mapStyle: mapStyleRef.current },
+            {
+              mapStyle: mapStyleRef.current,
+              mapOverlay: mapOverlayRef.current,
+              detailLevel: detailLevelRef.current,
+            },
           );
           handleRef.current = handle;
           const latest = viewModelRef.current ?? initial;
@@ -330,9 +362,19 @@ export function RideMap({
   }, [pickMarker]);
 
   useEffect(() => {
+    reportThemeFailureRef.current = reportThemeFailure;
+  }, [reportThemeFailure]);
+
+  useEffect(() => {
     mapStyleRef.current = mapStyle;
-    handleRef.current?.setMapStyle?.(mapStyle);
-  }, [mapStyle]);
+    mapOverlayRef.current = mapOverlay;
+    handleRef.current?.setMapStyle?.(mapStyle, mapOverlay);
+  }, [mapStyle, mapOverlay]);
+
+  useEffect(() => {
+    detailLevelRef.current = resolvedDetailLevel;
+    handleRef.current?.setDetailLevel?.(resolvedDetailLevel);
+  }, [resolvedDetailLevel]);
 
   useLayoutEffect(() => {
     handleRef.current?.setGeolocateEnabled?.(geolocateEnabled);

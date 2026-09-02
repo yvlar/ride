@@ -16,21 +16,28 @@ const MOTORCYCLE_WHEELS = [
   { cx: 5, cy: 17, r: 3 },
 ] as const;
 
+/**
+ * FR-046 — what a marker *is*, not what it looks like. The theme stylesheet
+ * turns the kind into a badge; the text label always stays, so the meaning is
+ * never carried by colour or shape alone (NFR-001).
+ */
+export type PlaceMarkerKind = "start" | "destination" | "entry";
+
 export function createPlaceMarkerElement(
   label: string,
-  kind: "start" | "destination" | "entry" = "start",
+  kind: PlaceMarkerKind = "start",
 ): HTMLElement {
   const element = document.createElement("div");
-  element.className = `ride-map-marker ride-map-marker--${kind}`;
+  element.className = `ride-map-marker ride-map-marker-${kind}`;
+  element.dataset.markerKind = kind;
+  // The label lives in its own node so a theme can stack a badge above it
+  // without losing the text. `textContent` still reads back as the label.
+  const text = document.createElement("span");
+  text.className = "ride-map-marker-label";
+  text.textContent = label;
+  element.append(text);
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", label);
-  const icon = document.createElement("span");
-  icon.className = "ride-map-marker-icon";
-  icon.setAttribute("aria-hidden", "true");
-  const text = document.createElement("span");
-  text.className = "ride-map-marker-text";
-  text.textContent = label;
-  element.append(icon, text);
   return element;
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MAP_THEME,
+  isMapTheme,
   MAP_THEME_STORAGE_KEY,
   readStoredMapTheme,
   resolveMapTheme,
@@ -52,5 +53,26 @@ describe("resolveMapTheme (FR-045, FR-037)", () => {
   it("keeps an explicit choice whatever the appearance", () => {
     expect(resolveMapTheme("satellite", "light")).toBe("satellite");
     expect(resolveMapTheme("light", "night")).toBe("light");
+  });
+});
+
+describe("Kart Arcade (FR-046)", () => {
+  it("is a theme the rider can pick", () => {
+    expect(isMapTheme("kart-arcade")).toBe(true);
+  });
+
+  it("is never chosen for an existing rider by default", () => {
+    expect(DEFAULT_MAP_THEME).toBe("auto");
+    expect(readStoredMapTheme(null)).toBe("auto");
+    expect(readStoredMapTheme(storageWith(null))).toBe("auto");
+    // Automatique follows the appearance and never resolves to the arcade.
+    expect(resolveMapTheme("auto", "light")).toBe("light");
+    expect(resolveMapTheme("auto", "dark")).toBe("dark");
+  });
+
+  it("is restored when it is what the rider stored", () => {
+    expect(readStoredMapTheme(storageWith("kart-arcade"))).toBe("kart-arcade");
+    expect(resolveMapTheme("kart-arcade", "light")).toBe("kart-arcade");
+    expect(resolveMapTheme("kart-arcade", "dark")).toBe("kart-arcade");
   });
 });

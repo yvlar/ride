@@ -21,7 +21,9 @@ import {
 import type { NavigationStatus } from "@/domain/navigation/status";
 import type { RideGenerationError } from "@/domain/ride/types";
 import { Button } from "@/components/ui/button";
+import { useMapTheme } from "@/components/theme/map-theme-provider";
 import { cn } from "@/lib/utils";
+import { ArcadeNumber } from "./arcade-number";
 import {
   formatDistanceLabel,
   formatDurationLabel,
@@ -97,7 +99,15 @@ export function NavigationOverlay({
 }: NavigationOverlayProps) {
   const [confirmStop, setConfirmStop] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const { resolvedTheme } = useMapTheme();
+  const arcadeNumbers = resolvedTheme === "kart-arcade";
   const etaLabel = formatEta(nowMs, remainingMinutes);
+  const maneuverDistanceLabel = formatManeuverDistanceLabel(
+    distanceToManeuverKm,
+    accuracyMeters,
+  );
+  const durationLabel = formatDurationLabel(remainingMinutes);
+  const remainingDistanceLabel = formatDistanceLabel(remainingDistanceKm);
   const muteLabel = muted
     ? "Activer le guidage vocal"
     : voiceAvailable
@@ -141,7 +151,14 @@ export function NavigationOverlay({
             </p>
             <div className="min-w-0 flex-1">
               <p className="text-4xl font-semibold leading-none tracking-tight tabular-nums">
-                {formatManeuverDistanceLabel(distanceToManeuverKm, accuracyMeters)}
+                {arcadeNumbers ? (
+                  <ArcadeNumber
+                    text={maneuverDistanceLabel}
+                    testId="kart-arcade-maneuver-distance"
+                  />
+                ) : (
+                  maneuverDistanceLabel
+                )}
               </p>
               <p className="mt-1 truncate text-lg font-medium leading-6">
                 {instruction}
@@ -281,19 +298,27 @@ export function NavigationOverlay({
           <div className="grid grid-cols-3 gap-1 text-center">
             <div className="min-w-0">
               <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
-                {etaLabel}
+                {arcadeNumbers ? <ArcadeNumber text={etaLabel} /> : etaLabel}
               </p>
               <p className="text-xs leading-4 text-muted-foreground">arrivée</p>
             </div>
             <div className="min-w-0">
               <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
-                {formatDurationLabel(remainingMinutes)}
+                {arcadeNumbers ? (
+                  <ArcadeNumber text={durationLabel} />
+                ) : (
+                  durationLabel
+                )}
               </p>
               <p className="text-xs leading-4 text-muted-foreground">restant</p>
             </div>
             <div className="min-w-0">
               <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
-                {formatDistanceLabel(remainingDistanceKm)}
+                {arcadeNumbers ? (
+                  <ArcadeNumber text={remainingDistanceLabel} />
+                ) : (
+                  remainingDistanceLabel
+                )}
               </p>
               <p className="text-xs leading-4 text-muted-foreground">distance</p>
             </div>

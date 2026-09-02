@@ -36,7 +36,7 @@ const MAP_THEME_OPTIONS: {
   {
     value: "kart-arcade",
     label: "Kart Arcade",
-    description: "Carte vectorielle colorée, ludique et lisible à moto.",
+    description: "Couleurs vives de jeu de course; tracé bleu à halo blanc.",
   },
 ];
 
@@ -50,7 +50,7 @@ export function MapThemeSettings({
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Thème de carte</legend>
+      <legend className="text-sm font-medium">Thème de la carte</legend>
       <div className="grid grid-cols-2 gap-2">
         {MAP_THEME_OPTIONS.map((option) => {
           const selected = option.value === value;

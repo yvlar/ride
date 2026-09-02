@@ -1,6 +1,9 @@
 import type { ComponentProps } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { MAP_THEME_STORAGE_KEY } from "@/domain/map/map-theme";
+import { AppearanceProvider } from "@/components/theme/appearance-provider";
+import { MapThemeProvider } from "@/components/theme/map-theme-provider";
 import {
   FOLLOW_SUSPENDED_MESSAGE,
   RECENTER_LABEL,
@@ -52,6 +55,37 @@ function renderOverlay(
   return render(<NavigationOverlay {...props} />);
 }
 
+function renderArcadeOverlay() {
+  window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "kart-arcade");
+  return render(
+    <AppearanceProvider>
+      <MapThemeProvider>
+        <NavigationOverlay
+          arrow="→"
+          instruction="Tournez à droite"
+          distanceToManeuverKm={0.25}
+          remainingDistanceKm={8.4}
+          remainingMinutes={12}
+          nowMs={nowMs}
+          accuracyMeters={8}
+          status={NAVIGATING_STATUS}
+          hidden={false}
+          muted={false}
+          recalcError={null}
+          onMuteToggle={() => {}}
+          onRecenter={() => {}}
+          onStop={() => {}}
+          onRetryRecalculate={() => {}}
+        />
+      </MapThemeProvider>
+    </AppearanceProvider>,
+  );
+}
+
+afterEach(() => {
+  window.localStorage.removeItem(MAP_THEME_STORAGE_KEY);
+});
+
 describe("NavigationOverlay (FR-023, FR-024, FR-042, NFR-006)", () => {
   it("shows the maneuver card and the progress panel over the map (FR-024)", () => {
     renderOverlay();
@@ -71,6 +105,24 @@ describe("NavigationOverlay (FR-023, FR-024, FR-042, NFR-006)", () => {
     expect(screen.getByText(formatEta(nowMs, 12))).toBeInTheDocument();
     expect(screen.getByText("12 min")).toBeInTheDocument();
     expect(screen.getByText("8.4 km")).toBeInTheDocument();
+  });
+
+  it("uses multicolour outlined digits only with Kart Arcade (FR-046)", async () => {
+    renderArcadeOverlay();
+
+    const distance = await screen.findByTestId(
+      "kart-arcade-maneuver-distance",
+    );
+    expect(distance).toHaveAccessibleName("250 m");
+    expect(distance.querySelectorAll("[data-digit]")).toHaveLength(3);
+    expect(distance.querySelector('[data-digit="2"]')).toBeInTheDocument();
+    expect(distance.querySelector('[data-digit="5"]')).toBeInTheDocument();
+    expect(distance.querySelector('[data-digit="0"]')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("12 min")).toBeInTheDocument();
+      expect(screen.getByLabelText("8.4 km")).toBeInTheDocument();
+    });
   });
 
   it("shows the destination so the rider keeps their target in view (FR-042)", () => {

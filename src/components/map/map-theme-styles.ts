@@ -1,11 +1,8 @@
 import type { StyleSpecification } from "maplibre-gl";
 import type { ResolvedMapTheme } from "@/domain/map/map-theme";
 import { FALLBACK_MAP_STYLE } from "./fallback-style";
-import type { MapStyleConfig, MapStyleSource } from "./map-engine";
-import {
-  kartArcadeStyleFromPublicEnv,
-  type MapVisualMode,
-} from "./themes/kart-arcade-style";
+import type { MapStyleSource } from "./map-engine";
+import { kartArcadeStyleSpecification } from "./themes/kart-arcade-style";
 
 /**
  * Dark vector basemap, no API key. Its own style.json carries the OpenStreetMap
@@ -66,7 +63,34 @@ export const TERRAIN_MAP_STYLE: StyleSpecification = {
  * defines the light basemap, so a deployment keeps its configured style and an
  * unset variable keeps the OSM raster fallback (FR-013, NFR-005).
  */
-function standardStyleSource(theme: Exclude<ResolvedMapTheme, "kart-arcade">): MapStyleSource {
+/**
+ * FR-046 — the arcade style is a large object. Rebuilding it on every render
+ * would hand MapLibre a new identity each time and reload the basemap, so it is
+ * built once per configuration and reused.
+ */
+let kartArcadeStyleCache: { key: string; style: StyleSpecification } | null =
+  null;
+
+export function kartArcadeMapStyle(): StyleSpecification {
+  const options = {
+    tilesUrl: process.env.NEXT_PUBLIC_MAP_VECTOR_TILES_URL || undefined,
+    glyphsUrl: process.env.NEXT_PUBLIC_MAP_GLYPHS_URL || undefined,
+    terrainTilesUrl: process.env.NEXT_PUBLIC_MAP_TERRAIN_TILES_URL || undefined,
+  };
+  const key = JSON.stringify(options);
+  if (kartArcadeStyleCache?.key !== key) {
+    kartArcadeStyleCache = {
+      key,
+      style: kartArcadeStyleSpecification(options),
+    };
+  }
+  return kartArcadeStyleCache.style;
+}
+
+export function mapThemeStyle(theme: ResolvedMapTheme): MapStyleSource {
+  if (theme === "kart-arcade") {
+    return kartArcadeMapStyle();
+  }
   if (theme === "dark") {
     return DARK_MAP_STYLE_URL;
   }
@@ -77,26 +101,4 @@ function standardStyleSource(theme: Exclude<ResolvedMapTheme, "kart-arcade">): M
     return TERRAIN_MAP_STYLE;
   }
   return process.env.NEXT_PUBLIC_MAP_STYLE_URL || FALLBACK_MAP_STYLE;
-}
-
-export function mapThemeStyle(
-  theme: ResolvedMapTheme,
-  mode: MapVisualMode = "exploration",
-  standardFallback: "light" | "dark" = "light",
-): MapStyleConfig {
-  if (theme === "kart-arcade") {
-    return {
-      key: `kart-arcade:${mode}`,
-      style: kartArcadeStyleFromPublicEnv(mode),
-      fallbackStyle: standardStyleSource(standardFallback),
-      visualTheme: "kart-arcade",
-      visualMode: mode,
-    };
-  }
-  return {
-    key: `${theme}:${mode}`,
-    style: standardStyleSource(theme),
-    visualTheme: "standard",
-    visualMode: mode,
-  };
 }

@@ -1,14 +1,15 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GeneratedLoopRoute } from "@/domain/ride/types";
+import { mapThemeOverlay } from "@/components/map/map-theme-overlay";
+import { mapThemeStyle } from "@/components/map/map-theme-styles";
 import type { NavigationMapEngine } from "@/components/map/navigation-map-engine";
-import { NavigationMap } from "./navigation-map";
 import { AppearanceProvider } from "@/components/theme/appearance-provider";
 import {
   MapThemeProvider,
   useMapTheme,
 } from "@/components/theme/map-theme-provider";
-import { mapThemeStyle } from "@/components/map/map-theme-styles";
+import { NavigationMap } from "./navigation-map";
 
 const route: GeneratedLoopRoute = {
   id: "loop-1",
@@ -72,12 +73,43 @@ describe("NavigationMap (FR-023, FR-026, NFR-006)", () => {
     expect(destroy).not.toHaveBeenCalled();
     expect(setViewModel).toHaveBeenCalled();
   });
+});
 
-  it("changes to Kart Arcade without interrupting navigation or losing GPS", async () => {
+describe("NavigationMap Kart Arcade (FR-046)", () => {
+  function ArcadePicker() {
+    const { setTheme } = useMapTheme();
+    return (
+      <button type="button" onClick={() => setTheme("kart-arcade")}>
+        Kart Arcade
+      </button>
+    );
+  }
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("mounts a live session with the navigation detail level", () => {
+    const mount = vi.fn<NavigationMapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setUserLocation: vi.fn(),
+      setFollowUser: vi.fn(),
+      recenter: vi.fn(),
+      setViewModel: vi.fn(),
+    }));
+
+    render(<NavigationMap route={route} engine={{ mount } as NavigationMapEngine} />);
+
+    expect(mount.mock.calls[0]?.[3]).toMatchObject({
+      detailLevel: "navigation",
+    });
+  });
+
+  it("changes theme mid-navigation without interrupting the session", async () => {
     const destroy = vi.fn();
     const setMapStyle = vi.fn();
     const setUserLocation = vi.fn();
-    const mount = vi.fn(() => ({
+    const mount = vi.fn<NavigationMapEngine["mount"]>(() => ({
       destroy,
       setUserLocation,
       setFollowUser: vi.fn(),
@@ -85,47 +117,36 @@ describe("NavigationMap (FR-023, FR-026, NFR-006)", () => {
       setViewModel: vi.fn(),
       setMapStyle,
     }));
-    const engine: NavigationMapEngine = { mount };
-
-    function ThemeSwitcher() {
-      const { setTheme } = useMapTheme();
-      return (
-        <button type="button" onClick={() => setTheme("kart-arcade")}>
-          Kart Arcade
-        </button>
-      );
-    }
 
     render(
       <AppearanceProvider>
         <MapThemeProvider>
-          <ThemeSwitcher />
+          <ArcadePicker />
           <NavigationMap
             route={route}
-            engine={engine}
-            userLocation={{ latitude: 45.41, longitude: -72.72 }}
-            headingDeg={90}
+            engine={{ mount } as NavigationMapEngine}
+            userLocation={{ latitude: 45.4, longitude: -72.7 }}
+            headingDeg={12}
           />
         </MapThemeProvider>
       </AppearanceProvider>,
     );
-
     expect(mount).toHaveBeenCalledTimes(1);
+    setUserLocation.mockClear();
+
     act(() => {
       screen.getByRole("button", { name: "Kart Arcade" }).click();
     });
 
     await waitFor(() => {
       expect(setMapStyle).toHaveBeenCalledWith(
-        mapThemeStyle("kart-arcade", "navigation", "dark"),
+        mapThemeStyle("kart-arcade"),
+        mapThemeOverlay("kart-arcade"),
       );
     });
+    // The session keeps its engine, its camera and its GPS feed.
     expect(mount).toHaveBeenCalledTimes(1);
     expect(destroy).not.toHaveBeenCalled();
-    expect(setUserLocation).toHaveBeenCalledWith(
-      { latitude: 45.41, longitude: -72.72 },
-      90,
-    );
-    expect(setUserLocation).not.toHaveBeenCalledWith(null, expect.anything());
+    expect(setUserLocation).not.toHaveBeenCalled();
   });
 });

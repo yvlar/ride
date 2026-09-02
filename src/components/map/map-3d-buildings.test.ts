@@ -78,3 +78,45 @@ describe("addRideBuildingExtrusions (FR-024, NFR-005)", () => {
     expect(addLayer).not.toHaveBeenCalled();
   });
 });
+
+describe("themed building extrusions (FR-046)", () => {
+  const vectorStyle = {
+    sources: { openmaptiles: { type: "vector" as const, url: "https://t.test" } },
+    layers: [
+      {
+        id: "kart-building",
+        type: "fill" as const,
+        source: "openmaptiles",
+        "source-layer": "building",
+      },
+    ],
+  };
+
+  it("takes its colour from the active theme", () => {
+    const layer = buildingExtrusionLayer(vectorStyle, {
+      color: "#F39A62",
+      opacity: 0.55,
+    });
+
+    expect(layer?.paint).toMatchObject({
+      "fill-extrusion-color": "#F39A62",
+      "fill-extrusion-opacity": 0.55,
+    });
+  });
+
+  it("keeps the original slate look when no theme is given", () => {
+    expect(buildingExtrusionLayer(vectorStyle)?.paint).toMatchObject({
+      "fill-extrusion-color": "#94a3b8",
+      "fill-extrusion-opacity": 0.65,
+    });
+  });
+
+  it("stays off a raster basemap, so no theme can slow the map down", () => {
+    expect(
+      buildingExtrusionLayer({
+        sources: { osm: { type: "raster", tiles: ["https://t.test"] } },
+        layers: [{ id: "osm", type: "raster", source: "osm" }],
+      }),
+    ).toBeNull();
+  });
+});

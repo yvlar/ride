@@ -15,7 +15,7 @@ function installMatchMedia(matches: boolean) {
 }
 
 function ThemeProbe() {
-  const { theme, setTheme, resolvedTheme } = useMapTheme();
+  const { theme, setTheme, resolvedTheme, reportThemeFailure } = useMapTheme();
   const { setMode } = useAppearance();
   return (
     <div>
@@ -29,6 +29,9 @@ function ThemeProbe() {
       </button>
       <button type="button" onClick={() => setMode("light")}>
         Clair
+      </button>
+      <button type="button" onClick={reportThemeFailure}>
+        Échec du fond
       </button>
     </div>
   );
@@ -62,27 +65,13 @@ describe("MapThemeProvider (FR-045)", () => {
   });
 
   it("hydrates the stored theme", async () => {
-    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "kart-arcade");
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "terrain");
     renderProbe();
 
     await waitFor(() => {
-      expect(screen.getByTestId("theme")).toHaveTextContent("kart-arcade");
+      expect(screen.getByTestId("theme")).toHaveTextContent("terrain");
     });
-    expect(screen.getByTestId("resolved")).toHaveTextContent("kart-arcade");
-  });
-
-  it("persists the Kart Arcade opt-in", async () => {
-    renderProbe();
-
-    act(() => {
-      screen.getByRole("button", { name: "Kart Arcade" }).click();
-    });
-
-    await waitFor(() => {
-      expect(window.localStorage.getItem(MAP_THEME_STORAGE_KEY)).toBe(
-        "kart-arcade",
-      );
-    });
+    expect(screen.getByTestId("resolved")).toHaveTextContent("terrain");
   });
 
   it("persists a new choice", async () => {
@@ -97,6 +86,39 @@ describe("MapThemeProvider (FR-045)", () => {
       expect(window.localStorage.getItem(MAP_THEME_STORAGE_KEY)).toBe(
         "satellite",
       );
+    });
+  });
+
+  it("restores Kart Arcade after a restart (FR-046)", async () => {
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "kart-arcade");
+    renderProbe();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("kart-arcade");
+    });
+    // Unlike Automatique, the arcade theme does not follow the appearance.
+    expect(screen.getByTestId("resolved")).toHaveTextContent("kart-arcade");
+  });
+
+  it("falls back to the default theme when a basemap cannot load (FR-046)", async () => {
+    renderProbe();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+    await waitFor(() => {
+      expect(window.localStorage.getItem(MAP_THEME_STORAGE_KEY)).toBe(
+        "kart-arcade",
+      );
+    });
+
+    act(() => {
+      screen.getByRole("button", { name: "Échec du fond" }).click();
+    });
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("auto");
+    await waitFor(() => {
+      expect(window.localStorage.getItem(MAP_THEME_STORAGE_KEY)).toBe("auto");
     });
   });
 

@@ -15,6 +15,10 @@ import {
 const {
   addControl,
   mapOnce,
+  mapOff,
+  emit,
+  setLayoutProperty,
+  setPaintProperty,
   mapSetStyle,
   removeControl,
   mapRemove,
@@ -35,8 +39,31 @@ const {
   const addControl = vi.fn();
   const removeControl = vi.fn();
   const mapRemove = vi.fn();
-  const mapOn = vi.fn();
+  // A real listener registry: `off` has to actually detach, or a test cannot
+  // tell a live handler from a released one.
+  const listeners = new Map<string, Array<(payload?: unknown) => void>>();
+  const mapOn = vi.fn((event: string, handler: (payload?: unknown) => void) => {
+    const existing = listeners.get(event) ?? [];
+    existing.push(handler);
+    listeners.set(event, existing);
+  });
   const mapOnce = vi.fn();
+  const mapOff = vi.fn(
+    (event: string, handler: (payload?: unknown) => void) => {
+      const existing = listeners.get(event);
+      const index = existing?.indexOf(handler) ?? -1;
+      if (existing && index >= 0) {
+        existing.splice(index, 1);
+      }
+    },
+  );
+  const emit = (event: string, payload?: unknown) => {
+    for (const handler of [...(listeners.get(event) ?? [])]) {
+      handler(payload);
+    }
+  };
+  const setLayoutProperty = vi.fn();
+  const setPaintProperty = vi.fn();
   const mapSetStyle = vi.fn();
   const geolocateOn = vi.fn();
   const geolocateOnRemove = vi.fn();
@@ -61,6 +88,11 @@ const {
   const mapState = {
     painterAvailable: true,
     markerThrows: false,
+    // A basemap that never finishes loading is how MapLibre reports a broken
+    // style: the engine reads it to tell a failed theme from a tile hiccup.
+    styleLoaded: true,
+    /** The camera's lean, so a test can watch the theme tilt it (FR-046). */
+    pitch: 0,
     lastOptions: undefined as Record<string, unknown> | undefined,
     style: rasterStyle as {
       version: 8;
@@ -68,6 +100,8 @@ const {
       layers: Array<Record<string, unknown>>;
     },
     resetStyle() {
+      listeners.clear();
+      this.pitch = 0;
       this.style = {
         version: 8,
         sources: {
@@ -99,10 +133,13 @@ const {
     remove = mapRemove;
     on = mapOn;
     once = mapOnce;
+    off = mapOff;
     // MapLibre drops every source and layer when the style is replaced.
     setStyle = (...args: unknown[]) => {
       mapSetStyle(...args);
       this.addedSources.clear();
+      this.addedLayers.clear();
+      this.addedImages.clear();
     };
     // MapLibre only returns a source once it has been added: the engine relies
     // on that to decide between addSource+addLayer and setData.
@@ -110,20 +147,55 @@ const {
     addSource = vi.fn((id: string) => {
       this.addedSources.add(id);
     });
-    addLayer = addLayer;
+    // Layers the engine adds are real layers as far as getLayer is concerned;
+    // MapLibre drops them with the style, and so does this double.
+    addedLayers = new Set<string>();
+    addLayer = (...args: Parameters<typeof addLayer>) => {
+      const id = (args[0] as { id?: string })?.id;
+      if (id) {
+        this.addedLayers.add(id);
+      }
+      return addLayer(...args);
+    };
     getSource = vi.fn((id: string) =>
       this.addedSources.has(id) ? routeSource : undefined,
     );
     getStyle = () => mapState.style;
     getLayer = (id: string) =>
-      mapState.style.layers.find((layer) => layer.id === id);
-    fitBounds = fitBounds;
-    easeTo = easeTo;
-    isStyleLoaded = () => true;
+      this.addedLayers.has(id)
+        ? { id }
+        : mapState.style.layers.find((layer) => layer.id === id);
+    setLayoutProperty = setLayoutProperty;
+    setPaintProperty = setPaintProperty;
+    // Style images go with the style, like sources and layers do.
+    addedImages = new Set<string>();
+    hasImage = (id: string) => this.addedImages.has(id);
+    addImage = (id: string) => {
+      this.addedImages.add(id);
+    };
+    fitBounds = (...args: Parameters<typeof fitBounds>) => {
+      const pitch = (args[1] as { pitch?: number } | undefined)?.pitch;
+      if (typeof pitch === "number") {
+        mapState.pitch = pitch;
+      }
+      return fitBounds(...args);
+    };
+    easeTo = (...args: Parameters<typeof easeTo>) => {
+      const pitch = (args[0] as { pitch?: number } | undefined)?.pitch;
+      if (typeof pitch === "number") {
+        mapState.pitch = pitch;
+      }
+      return easeTo(...args);
+    };
+    getPitch = () => mapState.pitch;
+    isStyleLoaded = () => mapState.styleLoaded;
     unproject = ([x, y]: [number, number]) => ({ lng: x / 100, lat: y / 100 });
 
     constructor(options: Record<string, unknown>) {
       mapState.lastOptions = options;
+      if (typeof options.pitch === "number") {
+        mapState.pitch = options.pitch;
+      }
       this.painter = mapState.painterAvailable ? {} : undefined;
     }
   }
@@ -184,6 +256,10 @@ const {
   return {
     addControl,
     mapOnce,
+    mapOff,
+    emit,
+    setLayoutProperty,
+    setPaintProperty,
     mapSetStyle,
     removeControl,
     mapRemove,
@@ -240,6 +316,7 @@ describe("createMapLibreEngine GPS control (FR-022)", () => {
     mapRemove.mockReset();
     mapOn.mockReset();
     mapOnce.mockReset();
+    mapOff.mockReset();
     mapSetStyle.mockReset();
     geolocateOn.mockReset();
     geolocateOnRemove.mockReset();
@@ -903,7 +980,7 @@ describe("createMapLibreEngine navigation follow (FR-024, FR-028)", () => {
       (call) => (call[0] as { id?: string }).id === "ride-traveled-line",
     );
     expect(traveled).toBeDefined();
-    expect(traveled?.[1]).toBe("ride-route-halo");
+    expect(traveled?.[1]).toBe("ride-route-line");
   });
 });
 describe("MapLibre destination picking (FR-038)", () => {
@@ -1000,6 +1077,7 @@ describe("MapLibre basemap theme (FR-045)", () => {
   beforeEach(() => {
     mapOn.mockReset();
     mapOnce.mockReset();
+    mapOff.mockReset();
     mapSetStyle.mockReset();
     addLayer.mockReset();
     createdMarkers.length = 0;
@@ -1044,7 +1122,7 @@ describe("MapLibre basemap theme (FR-045)", () => {
       "https://tiles.test/sombre/style.json",
       { diff: false },
     );
-    const styleLoad = mapOn.mock.calls.find(
+    const styleLoad = mapOnce.mock.calls.find(
       (call) => call[0] === "style.load",
     )?.[1] as (() => void) | undefined;
     expect(styleLoad).toBeTypeOf("function");
@@ -1071,99 +1149,569 @@ describe("MapLibre basemap theme (FR-045)", () => {
     expect(mapSetStyle).not.toHaveBeenCalled();
     handle.destroy();
   });
+});
 
-  it("restores Standard when Kart Arcade emits a load error", async () => {
-    const { createMapLibreEngine, MAP_THEME_FALLBACK_MESSAGE } = await import(
-      "./maplibre-map-engine"
+describe("MapLibre Kart Arcade overlay (FR-046)", () => {
+  beforeEach(() => {
+    mapOn.mockReset();
+    mapOnce.mockReset();
+    mapOff.mockReset();
+    mapSetStyle.mockReset();
+    addLayer.mockReset();
+    setLayoutProperty.mockReset();
+    setPaintProperty.mockReset();
+    createdMarkers.length = 0;
+    mapState.painterAvailable = true;
+    mapState.markerThrows = false;
+    mapState.styleLoaded = true;
+    mapState.lastOptions = undefined;
+    mapState.resetStyle();
+  });
+
+  async function mountArcade(container = document.createElement("div")) {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
     );
-    const container = document.createElement("div");
-    const onWarning = vi.fn();
     const handle = createMapLibreEngine({ geolocate: false }).mount(
       container,
       viewModel,
-      { onError: vi.fn(), onWarning },
-      { mapStyle: "https://tiles.test/standard/style.json" },
+      { onError: vi.fn() },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+      },
     );
     const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
       | (() => void)
       | undefined;
     load?.();
+    return { handle, container, overlay: KART_ARCADE_MAP_OVERLAY_THEME };
+  }
 
-    handle.setMapStyle?.({
-      key: "kart-arcade:exploration",
-      style: {
-        version: 8,
-        name: "ride-kart-arcade-exploration",
-        sources: {},
-        layers: [],
-      },
-      fallbackStyle: "https://tiles.test/standard/style.json",
-      visualTheme: "kart-arcade",
-      visualMode: "exploration",
-    });
-    expect(container.dataset.mapTheme).toBe("kart-arcade");
+  function addedLayerIds() {
+    return addLayer.mock.calls.map((call) => (call[0] as { id: string }).id);
+  }
 
-    const error = mapOn.mock.calls.find((call) => call[0] === "error")?.[1] as
-      | (() => void)
-      | undefined;
-    error?.();
+  it("draws the white halo under the blue route, in that order", async () => {
+    const { handle, overlay } = await mountArcade();
 
-    expect(mapSetStyle).toHaveBeenLastCalledWith(
-      "https://tiles.test/standard/style.json",
-      { diff: false },
+    const ids = addedLayerIds();
+    expect(ids.indexOf("ride-route-casing")).toBeGreaterThanOrEqual(0);
+    expect(ids.indexOf("ride-route-casing")).toBeLessThan(
+      ids.indexOf("ride-route-line"),
     );
-    expect(container.dataset.mapTheme).toBe("standard");
-    expect(onWarning).toHaveBeenCalledWith(MAP_THEME_FALLBACK_MESSAGE);
+
+    const casing = addLayer.mock.calls.find(
+      (call) => (call[0] as { id: string }).id === "ride-route-casing",
+    )?.[0] as { paint: Record<string, unknown> };
+    const line = addLayer.mock.calls.find(
+      (call) => (call[0] as { id: string }).id === "ride-route-line",
+    )?.[0] as { paint: Record<string, unknown> };
+    expect(casing.paint["line-color"]).toBe(overlay.route.casingColor);
+    expect(line.paint["line-color"]).toBe(overlay.route.color);
     handle.destroy();
   });
 
-  it("keeps one style listener and one GPS puck across theme swaps", async () => {
+  it("keeps the standard themes on a single route line", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
     const handle = createMapLibreEngine({ geolocate: false }).mount(
       document.createElement("div"),
       viewModel,
       { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
     );
     const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
       | (() => void)
       | undefined;
     load?.();
-    handle.setUserLocation?.({ latitude: 45.41, longitude: -72.72 }, 90);
-    handle.setMapStyle?.("https://tiles.test/one/style.json");
-    handle.setMapStyle?.("https://tiles.test/two/style.json");
 
-    expect(
-      mapOn.mock.calls.filter((call) => call[0] === "style.load"),
-    ).toHaveLength(1);
-    expect(
-      createdMarkers.filter((marker) =>
-        marker.element?.classList.contains("ride-map-user-puck"),
-      ),
-    ).toHaveLength(1);
+    expect(addedLayerIds()).not.toContain("ride-route-casing");
     handle.destroy();
   });
 
-  it("orders traveled route, white halo and active line without duplicate layers", async () => {
+  it("marks the container so the markers follow the theme, and cleans up", async () => {
+    const { handle, container } = await mountArcade();
+
+    expect(container.classList.contains("ride-map-kart-arcade")).toBe(true);
+
+    handle.destroy();
+    expect(container.classList.contains("ride-map-kart-arcade")).toBe(false);
+  });
+
+  it("labels the start and the destination markers by kind", async () => {
+    const { handle } = await mountArcade();
+    handle.setViewModel?.({
+      ...viewModel,
+      destination: {
+        kind: "destination",
+        label: "Arrivée",
+        placeLabel: "Sutton, QC",
+        coordinates: { latitude: 45.1, longitude: -72.6 },
+      },
+    });
+
+    const classes = createdMarkers
+      .map((marker) => marker.element?.className)
+      .filter((name): name is string => Boolean(name));
+    expect(classes.some((name) => name.includes("ride-map-marker-start"))).toBe(
+      true,
+    );
+    expect(
+      classes.some((name) => name.includes("ride-map-marker-destination")),
+    ).toBe(true);
+    // The label text still carries the meaning, never the badge alone.
+    const destination = createdMarkers.find((marker) =>
+      marker.element?.className.includes("ride-map-marker-destination"),
+    );
+    expect(destination?.element?.getAttribute("aria-label")).toBe("Arrivée");
+    handle.destroy();
+  });
+
+  it("redraws the route and its halo exactly once after a theme swap", async () => {
+    const { handle } = await mountArcade();
+    addLayer.mockClear();
+
+    handle.setMapStyle?.("https://tiles.test/clair/style.json");
+    const styleLoad = mapOnce.mock.calls.find(
+      (call) => call[0] === "style.load",
+    )?.[1] as (() => void) | undefined;
+    styleLoad?.();
+
+    const ids = addedLayerIds();
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("ride-route-line");
+    handle.destroy();
+  });
+
+  it("does not stack style listeners when the rider taps through themes", async () => {
+    const { handle } = await mountArcade();
+    const before = mapOn.mock.calls.filter(
+      (call) => call[0] === "error",
+    ).length;
+
+    handle.setMapStyle?.("https://tiles.test/a/style.json");
+    handle.setMapStyle?.("https://tiles.test/b/style.json");
+    handle.setMapStyle?.("https://tiles.test/c/style.json");
+
+    // One error listener per swap, and each one is released by the next.
+    const after = mapOn.mock.calls.filter((call) => call[0] === "error").length;
+    expect(after - before).toBe(3);
+
+    const styleLoads = mapOnce.mock.calls.filter(
+      (call) => call[0] === "style.load",
+    );
+    // Only the last swap still owns a live handler: the earlier ones no-op.
+    addLayer.mockClear();
+    for (const [, handler] of styleLoads) {
+      (handler as () => void)();
+    }
+    const ids = addedLayerIds();
+    expect(ids.filter((id) => id === "ride-route-line")).toHaveLength(1);
+    handle.destroy();
+  });
+
+  it("returns to the previous basemap when a theme cannot load (NFR-005)", async () => {
     const { createMapLibreEngine } = await import("./maplibre-map-engine");
-    createMapLibreEngine({ geolocate: false }).mount(
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
       document.createElement("div"),
       viewModel,
-      { onError: vi.fn() },
+      { onError: vi.fn(), onMapStyleFallback },
+      { mapStyle: "https://tiles.test/clair/style.json" },
     );
     const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
       | (() => void)
       | undefined;
     load?.();
+    mapSetStyle.mockClear();
 
-    const layers = addLayer.mock.calls.map(
-      (call) => (call[0] as { id?: string }).id,
+    handle.setMapStyle?.("https://tiles.test/arcade/style.json");
+    const onError = mapOn.mock.calls
+      .filter((call) => call[0] === "error")
+      .at(-1)?.[1] as (() => void) | undefined;
+    expect(onError).toBeTypeOf("function");
+
+    // The style never came up. MapLibre reports it through an error event.
+    mapState.styleLoaded = false;
+    onError?.();
+    mapState.styleLoaded = true;
+
+    expect(mapSetStyle).toHaveBeenLastCalledWith(
+      "https://tiles.test/clair/style.json",
+      { diff: false },
     );
-    expect(layers.filter((id) => id === "ride-route-halo")).toHaveLength(1);
-    expect(layers.filter((id) => id === "ride-route-line")).toHaveLength(1);
+    expect(onMapStyleFallback).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it("draws direction chevrons on top of the route, and only there", async () => {
+    // jsdom ships no canvas backend; a minimal 2D context is enough to prove
+    // the wiring, and the real drawing is covered in route-arrows.test.ts.
+    const context = {
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+      fillStyle: "",
+      strokeStyle: "",
+      lineWidth: 0,
+      lineJoin: "",
+    };
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+
+    const { handle } = await mountArcade();
+    const ids = addedLayerIds();
+    expect(ids.indexOf("ride-route-arrows")).toBeGreaterThan(
+      ids.indexOf("ride-route-line"),
+    );
+    handle.destroy();
+
+    addLayer.mockClear();
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const plain = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+    expect(addedLayerIds()).not.toContain("ride-route-arrows");
+    plain.destroy();
+    getContext.mockRestore();
+  });
+
+  it("keeps the route drawn when the chevrons cannot be built", async () => {
+    // No canvas at all: exactly the jsdom default, and a real degraded device.
+    const { handle } = await mountArcade();
+
+    const ids = addedLayerIds();
+    expect(ids).toContain("ride-route-line");
+    expect(ids).not.toContain("ride-route-arrows");
+    handle.destroy();
+  });
+
+  it("reverts when the style loads but its tiles never do (NFR-005)", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } =
+      await import("./map-theme-overlay");
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onMapStyleFallback },
+      {
+        mapStyle: "https://tiles.test/clair/style.json",
+        mapOverlay: STANDARD_MAP_OVERLAY_THEME,
+      },
+    );
+    const load = mapOn.mock.calls.find((call) => call[0] === "load")?.[1] as
+      | (() => void)
+      | undefined;
+    load?.();
+    mapSetStyle.mockClear();
+
+    handle.setMapStyle?.(
+      { version: 8, name: "arcade", sources: {}, layers: [] },
+      KART_ARCADE_MAP_OVERLAY_THEME,
+    );
+    // The style document itself came up fine.
+    const styleLoad = mapOnce.mock.calls
+      .filter((call) => call[0] === "style.load")
+      .at(-1)?.[1] as (() => void) | undefined;
+    styleLoad?.();
+    mapSetStyle.mockClear();
+
+    // Its tile source then failed, which MapLibre reports after style.load
+    // as an error naming the source.
+    emit("error", { sourceId: "openmaptiles" });
+
+    expect(mapSetStyle).toHaveBeenCalledWith(
+      "https://tiles.test/clair/style.json",
+      { diff: false },
+    );
+    expect(onMapStyleFallback).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it("stops watching once the basemap actually comes up", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onMapStyleFallback },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+      },
+    );
+    expect(mapOn.mock.calls.some((call) => call[0] === "sourcedata")).toBe(true);
+    emit("sourcedata", { isSourceLoaded: true });
+
+    // A later tile hiccup is not a failed theme.
+    mapState.styleLoaded = true;
+    emit("error", { sourceId: "openmaptiles" });
+
+    expect(onMapStyleFallback).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("does not lose the theme over a missing image or glyph", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onMapStyleFallback },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+      },
+    );
+
+    // The style is up; this error names no source, so it is cosmetic.
+    mapState.styleLoaded = true;
+    emit("error", {});
+
+    expect(onMapStyleFallback).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("treats a style that never comes up as a failed theme", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const onMapStyleFallback = vi.fn();
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn(), onMapStyleFallback },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+      },
+    );
+
+    // A style rejected by the renderer never finishes loading.
+    mapState.styleLoaded = false;
+    emit("error", {});
+    mapState.styleLoaded = true;
+
+    expect(onMapStyleFallback).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it("leaves the built-in themes on their existing behaviour", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    createMapLibreEngine({ geolocate: false })
+      .mount(
+        document.createElement("div"),
+        viewModel,
+        { onError: vi.fn() },
+        { mapStyle: "https://tiles.test/clair/style.json" },
+      )
+      .destroy();
+
     expect(
-      addLayer.mock.calls.find(
-        (call) => (call[0] as { id?: string }).id === "ride-traveled-line",
-      )?.[1],
-    ).toBe("ride-route-halo");
+      mapOn.mock.calls.some((call) => call[0] === "sourcedata"),
+    ).toBe(false);
+  });
+
+  it("mounts the exploration camera leaning, and the built-in themes flat", async () => {
+    const { handle } = await mountArcade();
+    expect(mapState.lastOptions?.pitch).toBe(45);
+    expect(
+      (mapState.lastOptions?.fitBoundsOptions as { pitch?: number })?.pitch,
+    ).toBe(45);
+    handle.destroy();
+
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const plain = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      { mapStyle: "https://tiles.test/clair/style.json" },
+    );
+    expect(mapState.lastOptions?.pitch).toBe(0);
+    plain.destroy();
+  });
+
+  it("frames a whole route flat while navigating, however the theme leans", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME } = await import(
+      "./map-theme-overlay"
+    );
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      {
+        mapStyle: { version: 8, name: "arcade", sources: {}, layers: [] },
+        mapOverlay: KART_ARCADE_MAP_OVERLAY_THEME,
+        detailLevel: "navigation",
+      },
+    );
+
+    // A 90 km route seen edge-on is a smear: the overview reads it flat.
+    expect(mapState.lastOptions?.pitch).toBe(0);
+    fitBounds.mockClear();
+    handle.overview?.();
+    expect(fitBounds.mock.calls[0]?.[1]).toMatchObject({ pitch: 0 });
+    handle.destroy();
+  });
+
+  it("leans back up when navigation starts and down again when it ends", async () => {
+    const { handle } = await mountArcade();
+    easeTo.mockClear();
+
+    handle.setDetailLevel?.("navigation");
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ pitch: 0, essential: true }),
+    );
+
+    easeTo.mockClear();
+    handle.setDetailLevel?.("exploration");
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ pitch: 45, essential: true }),
+    );
+    handle.destroy();
+  });
+
+  it("leans the camera when the rider picks the theme, and back when they leave", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } =
+      await import("./map-theme-overlay");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      {
+        mapStyle: "https://tiles.test/clair/style.json",
+        mapOverlay: STANDARD_MAP_OVERLAY_THEME,
+      },
+    );
+    easeTo.mockClear();
+
+    handle.setMapStyle?.(
+      { version: 8, name: "arcade", sources: {}, layers: [] },
+      KART_ARCADE_MAP_OVERLAY_THEME,
+    );
+    expect(easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({ pitch: 45 }),
+    );
+
+    easeTo.mockClear();
+    handle.setMapStyle?.(
+      "https://tiles.test/clair/style.json",
+      STANDARD_MAP_OVERLAY_THEME,
+    );
+    expect(easeTo).toHaveBeenCalledWith(expect.objectContaining({ pitch: 0 }));
+    handle.destroy();
+  });
+
+  it("cuts to the new angle instead of sweeping under reduced motion (NFR-008)", async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: query.includes("prefers-reduced-motion"),
+        addEventListener() {},
+        removeEventListener() {},
+      }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
+    try {
+      const { handle } = await mountArcade();
+      easeTo.mockClear();
+
+      handle.setDetailLevel?.("navigation");
+
+      expect(easeTo).toHaveBeenCalledWith(
+        expect.objectContaining({ pitch: 0, duration: 0 }),
+      );
+      handle.destroy();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("never steals the camera from a rider being followed", async () => {
+    const { createMapLibreEngine } = await import("./maplibre-map-engine");
+    const { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } =
+      await import("./map-theme-overlay");
+    const handle = createMapLibreEngine({ geolocate: false }).mount(
+      document.createElement("div"),
+      viewModel,
+      { onError: vi.fn() },
+      {
+        mapStyle: "https://tiles.test/clair/style.json",
+        mapOverlay: STANDARD_MAP_OVERLAY_THEME,
+      },
+    );
+    handle.setFollowUser?.(true);
+    handle.setUserLocation?.({ latitude: 45.4, longitude: -72.73 }, 90);
+    easeTo.mockClear();
+
+    handle.setMapStyle?.(
+      { version: 8, name: "arcade", sources: {}, layers: [] },
+      KART_ARCADE_MAP_OVERLAY_THEME,
+    );
+
+    // The follow camera owns the pitch mid-ride; a theme swap must not jolt it.
+    expect(
+      easeTo.mock.calls.some(
+        ([options]) => (options as { pitch?: number })?.pitch === 45,
+      ),
+    ).toBe(false);
+    handle.destroy();
+  });
+
+  it("hides the decorative layers and thickens the route in navigation", async () => {
+    mapState.style.layers.push(
+      { id: "kart-decor-peak", type: "symbol" },
+      { id: "kart-road-motorway", type: "line" },
+    );
+    const { handle } = await mountArcade();
+    setLayoutProperty.mockClear();
+    setPaintProperty.mockClear();
+
+    handle.setDetailLevel?.("navigation");
+
+    expect(setLayoutProperty).toHaveBeenCalledWith(
+      "kart-decor-peak",
+      "visibility",
+      "none",
+    );
+    expect(setLayoutProperty).not.toHaveBeenCalledWith(
+      "kart-road-motorway",
+      "visibility",
+      "none",
+    );
+    expect(
+      setPaintProperty.mock.calls.map((call) => call[0]),
+    ).toEqual(expect.arrayContaining(["ride-route-line", "ride-route-casing"]));
+
+    setLayoutProperty.mockClear();
+    handle.setDetailLevel?.("exploration");
+    expect(setLayoutProperty).toHaveBeenCalledWith(
+      "kart-decor-peak",
+      "visibility",
+      "visible",
+    );
+    handle.destroy();
   });
 });

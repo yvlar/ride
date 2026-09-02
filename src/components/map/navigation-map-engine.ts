@@ -92,8 +92,11 @@ export function createNavigationMapEngine(
         setRecordedTrack(overlay) {
           handle.setRecordedTrack?.(overlay);
         },
-        setMapStyle(style) {
-          handle.setMapStyle?.(style);
+        setMapStyle(style, overlay) {
+          handle.setMapStyle?.(style, overlay);
+        },
+        setDetailLevel(level) {
+          handle.setDetailLevel?.(level);
         },
       };
     },

@@ -1,0 +1,113 @@
+.number {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: baseline;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.digit {
+  --digit-color: #ff4b3e;
+  --digit-highlight: #ff8b71;
+  --digit-tilt: -1deg;
+
+  display: inline-block;
+  color: var(--digit-color);
+  background-image: linear-gradient(
+    155deg,
+    var(--digit-highlight) 8%,
+    var(--digit-color) 56%,
+    color-mix(in srgb, var(--digit-color), black 20%) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.075em #151718;
+  paint-order: stroke fill;
+  text-shadow:
+    0.045em 0.055em 0 #151718,
+    0.105em 0.12em 0 rgb(0 0 0 / 48%),
+    -0.018em -0.025em 0 rgb(255 255 255 / 48%);
+  transform: rotate(var(--digit-tilt));
+  transform-origin: 50% 78%;
+}
+
+.plain {
+  display: inline-block;
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-shadow: 0 0.06em 0.12em rgb(0 0 0 / 42%);
+}
+
+.digit[data-digit="0"] {
+  --digit-color: #ff332d;
+  --digit-highlight: #ff7767;
+  --digit-tilt: -2deg;
+}
+
+.digit[data-digit="1"] {
+  --digit-color: #ffe521;
+  --digit-highlight: #fff66b;
+  --digit-tilt: 2deg;
+}
+
+.digit[data-digit="2"] {
+  --digit-color: #9be779;
+  --digit-highlight: #d0f5a4;
+  --digit-tilt: -1deg;
+}
+
+.digit[data-digit="3"] {
+  --digit-color: #82e9ee;
+  --digit-highlight: #d0ffff;
+  --digit-tilt: 2deg;
+}
+
+.digit[data-digit="4"] {
+  --digit-color: #ff9418;
+  --digit-highlight: #ffc148;
+  --digit-tilt: -2deg;
+}
+
+.digit[data-digit="5"] {
+  --digit-color: #ffc229;
+  --digit-highlight: #ffe16e;
+  --digit-tilt: 1deg;
+}
+
+.digit[data-digit="6"] {
+  --digit-color: #f6fff5;
+  --digit-highlight: #ffffff;
+  --digit-tilt: -1deg;
+}
+
+.digit[data-digit="7"] {
+  --digit-color: #f3a3ee;
+  --digit-highlight: #ffd0fb;
+  --digit-tilt: 2deg;
+}
+
+.digit[data-digit="8"] {
+  --digit-color: #9bc58c;
+  --digit-highlight: #d0e6b9;
+  --digit-tilt: -2deg;
+}
+
+.digit[data-digit="9"] {
+  --digit-color: #dc5b2f;
+  --digit-highlight: #f59155;
+  --digit-tilt: 1deg;
+}
+
+@media (prefers-contrast: more) {
+  .digit {
+    -webkit-text-stroke-width: 0.095em;
+    text-shadow:
+      0.05em 0.065em 0 #000,
+      0.115em 0.13em 0 rgb(0 0 0 / 68%);
+  }
+}
