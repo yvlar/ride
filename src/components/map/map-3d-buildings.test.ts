@@ -120,3 +120,49 @@ describe("themed building extrusions (FR-046)", () => {
     ).toBeNull();
   });
 });
+
+describe("toy volumes for the arcade camera (FR-046)", () => {
+  const vectorStyle = {
+    sources: { openmaptiles: { type: "vector" as const, url: "https://x.test" } },
+    layers: [
+      {
+        id: "building",
+        type: "fill" as const,
+        source: "openmaptiles",
+        "source-layer": "building",
+      },
+    ],
+  };
+
+  it("leaves the standard appearance exactly as it was", () => {
+    const layer = buildingExtrusionLayer(vectorStyle);
+    expect(layer?.minzoom).toBe(15);
+    expect(layer?.paint?.["fill-extrusion-color"]).toBe("#94a3b8");
+  });
+
+  it("brings the volumes out early and shades them by height", () => {
+    // A town seen at 45° from a regional zoom is a flat stain until the
+    // buildings have somewhere to stand.
+    const layer = buildingExtrusionLayer(vectorStyle, {
+      color: "#F39A62",
+      opacity: 0.55,
+      minzoom: 13.5,
+      highlightColor: "#FFD2A6",
+      verticalGradient: true,
+    });
+
+    expect(layer?.minzoom).toBe(13.5);
+    expect(layer?.paint?.["fill-extrusion-vertical-gradient"]).toBe(true);
+    // Tall blocks catch the light, low ones stay in the base colour, so a
+    // skyline reads as a skyline instead of as one orange mass.
+    expect(layer?.paint?.["fill-extrusion-color"]).toEqual([
+      "interpolate",
+      ["linear"],
+      ["coalesce", ["get", "render_height"], ["get", "height"], 0],
+      0,
+      "#F39A62",
+      60,
+      "#FFD2A6",
+    ]);
+  });
+});

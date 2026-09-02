@@ -1,4 +1,5 @@
 import type { ResolvedMapTheme } from "@/domain/map/map-theme";
+import type { BuildingExtrusionAppearance } from "./map-3d-buildings";
 import { KART_ARCADE_PALETTE } from "./themes/kart-arcade-palette";
 
 /**
@@ -25,11 +26,20 @@ export type MapOverlayTheme = {
     /** Direction chevrons riding on the route. `null` leaves a plain line. */
     arrowColor: string | null;
     arrowOutline: string;
+    /**
+     * FR-046 — checkered gates across the road at both ends of the route, and
+     * numbered boards every few kilometres between them. `null` leaves the
+     * route with neither, which is what every built-in theme wants.
+     */
+    gates: {
+      light: string;
+      dark: string;
+      milepostText: string;
+      milepostHalo: string;
+    } | null;
   };
-  buildings: {
-    color: string;
-    opacity: number;
-  };
+  /** Passed straight to the 3D extrusion; see `map-3d-buildings.ts`. */
+  buildings: BuildingExtrusionAppearance;
   /**
    * FR-046 — how far the exploration camera leans. `0` is Ride's flat map.
    * Navigation is never affected: the follow camera owns its own pitch, and
@@ -60,6 +70,7 @@ export const STANDARD_MAP_OVERLAY_THEME: MapOverlayTheme = {
     connectorColor: "#f59e0b",
     arrowColor: null,
     arrowOutline: "#0f172a",
+    gates: null,
   },
   buildings: {
     color: "#94a3b8",
@@ -82,10 +93,23 @@ export const KART_ARCADE_MAP_OVERLAY_THEME: MapOverlayTheme = {
     connectorColor: KART_ARCADE_PALETTE.connector,
     arrowColor: KART_ARCADE_PALETTE.routeHalo,
     arrowOutline: KART_ARCADE_PALETTE.route,
+    // Cream against the ink the map already labels with, so a gate reads the
+    // same over asphalt, over grass and over water.
+    gates: {
+      light: KART_ARCADE_PALETTE.guardrail,
+      dark: KART_ARCADE_PALETTE.textPrimary,
+      milepostText: KART_ARCADE_PALETTE.textPrimary,
+      milepostHalo: KART_ARCADE_PALETTE.textHalo,
+    },
   },
   buildings: {
     color: KART_ARCADE_PALETTE.building,
     opacity: 0.55,
+    // The camera leans at 45°, so the volumes have to be there before street
+    // zoom or a town reads as a flat stain.
+    minzoom: 13.5,
+    highlightColor: KART_ARCADE_PALETTE.buildingSecondary,
+    verticalGradient: true,
   },
   // Enough lean for the near-isometric look of the reference render, and far
   // enough from the horizon that the map keeps its shape and its tile budget.

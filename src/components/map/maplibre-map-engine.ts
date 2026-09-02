@@ -22,6 +22,15 @@ import {
 } from "./map-engine";
 import { addRideBuildingExtrusions } from "./map-3d-buildings";
 import {
+  ensureRouteGateImage,
+  routeGateFeatureCollection,
+  routeGateLayer,
+  routeMilepostFeatureCollection,
+  routeMilepostLayer,
+  ROUTE_GATE_SOURCE_ID,
+  ROUTE_MILEPOST_SOURCE_ID,
+} from "./route-gates";
+import {
   STANDARD_MAP_OVERLAY_THEME,
   type MapDetailLevel,
   type MapOverlayTheme,
@@ -84,6 +93,29 @@ const ROUTE_LAYER_IDS = [
 ] as const;
 
 export const ROUTE_CASING_LAYER_ID = "ride-route-casing";
+
+const EMPTY_FEATURE_COLLECTION = {
+  type: "FeatureCollection" as const,
+  features: [],
+};
+
+/**
+ * Updates a GeoJSON source in place when it is already on the map. Returns
+ * `false` when there is nothing to update, which is the caller's signal to add
+ * the source and its layer for the first time.
+ */
+function setGeoJsonData(
+  map: MapLibreMap,
+  sourceId: string,
+  data: unknown,
+): boolean {
+  const source = map.getSource(sourceId);
+  if (source && "setData" in source && typeof source.setData === "function") {
+    (source.setData as (value: unknown) => void)(data);
+    return true;
+  }
+  return false;
+}
 
 export type MapLibreEngineOptions = {
   /** Result maps opt in (FR-022). Navigation maps must stay false (NFR-006). */
@@ -299,6 +331,7 @@ export function createMapLibreEngine(
             });
             addRouteArrows(map);
           }
+          renderRouteGates(map, next);
 
           // FR-042 — dimmed "already ridden" line beneath the live route.
           const traveledSource = map.getSource("ride-traveled");
@@ -691,6 +724,52 @@ export function createMapLibreEngine(
       }
 
       /**
+       * FR-046 — the checkered gates at both ends of the route and the
+       * kilometre boards between them. Both are decoration over the route, so
+       * both follow the chevrons' contract: a style that cannot draw them
+       * simply does not get them (NFR-005).
+       */
+      function renderRouteGates(target: MapLibreMap, next: RideMapViewModel) {
+        const gates = overlayTheme.route.gates;
+        if (!gates) {
+          return;
+        }
+        // The gates mark the whole ride, not the part still ahead, so they take
+        // the full geometry rather than the live route source.
+        const geometry = next.idle ? null : next.geometry;
+        const gateData = geometry
+          ? routeGateFeatureCollection(geometry)
+          : EMPTY_FEATURE_COLLECTION;
+        const milepostData = geometry
+          ? routeMilepostFeatureCollection(geometry)
+          : EMPTY_FEATURE_COLLECTION;
+
+        try {
+          if (!setGeoJsonData(target, ROUTE_GATE_SOURCE_ID, gateData)) {
+            if (!ensureRouteGateImage(target, gates.light, gates.dark)) {
+              return;
+            }
+            target.addSource(ROUTE_GATE_SOURCE_ID, {
+              type: "geojson",
+              data: gateData,
+            });
+            target.addLayer(routeGateLayer());
+          }
+          if (!setGeoJsonData(target, ROUTE_MILEPOST_SOURCE_ID, milepostData)) {
+            target.addSource(ROUTE_MILEPOST_SOURCE_ID, {
+              type: "geojson",
+              data: milepostData,
+            });
+            target.addLayer(
+              routeMilepostLayer(gates.milepostText, gates.milepostHalo),
+            );
+          }
+        } catch {
+          // Decoration on top of the route must never cost the route itself.
+        }
+      }
+
+      /**
        * FR-046 — leans the camera to the theme's angle, or back upright. Only
        * while the rider is free-roaming: a live follow camera and a framing
        * already under way both own the pitch, and stealing it mid-ride would
@@ -736,6 +815,10 @@ export function createMapLibreEngine(
           return;
         }
         const navigating = detailLevel === "navigation";
+        // FR-046 — publish the level on the container so the map controls can
+        // follow it in CSS: riding calls for flat, opaque buttons, not frosted
+        // ones. Purely cosmetic, so it is set before anything that can throw.
+        container.dataset.mapMode = detailLevel;
         try {
           for (const layer of map.getStyle()?.layers ?? []) {
             if (!layer.id.startsWith(KART_ARCADE_DECOR_LAYER_PREFIX)) {
@@ -940,6 +1023,7 @@ export function createMapLibreEngine(
           disposed = true;
           releaseStyleHealthWatch?.();
           releaseStyleHealthWatch = null;
+          delete container.dataset.mapMode;
           if (overlayTheme.containerClassName) {
             container.classList.remove(overlayTheme.containerClassName);
           }
