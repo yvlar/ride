@@ -119,7 +119,7 @@ describe("DescribeRidePanel (FR-034)", () => {
     expect(slider).toHaveAttribute("aria-valuemin", "20");
     expect(slider).toHaveAttribute("aria-valuemax", "500");
     expect(slider).toHaveAttribute("aria-valuenow", "100");
-    expect(screen.getByText("100 km")).toBeInTheDocument();
+    expect(screen.getByLabelText("100 km")).toBeInTheDocument();
     expect(screen.getByLabelText("Boucle")).toBeChecked();
     expect(screen.queryByLabelText("Point de départ")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ma position" })).not.toBeInTheDocument();
@@ -144,7 +144,7 @@ describe("DescribeRidePanel (FR-034)", () => {
       name: "Distance du trajet en kilomètres",
     });
     fireEvent.change(slider, { target: { value: "180" } });
-    expect(screen.getByText("180 km")).toBeInTheDocument();
+    expect(screen.getByLabelText("180 km")).toBeInTheDocument();
     expect(slider).toHaveAttribute("aria-valuenow", "180");
   });
 
@@ -721,7 +721,7 @@ describe("DescribeRidePanel (FR-034)", () => {
       name: "Distance du trajet en kilomètres",
     });
     expect(slider).toHaveAttribute("aria-valuenow", "180");
-    expect(screen.getByText("180 km")).toBeInTheDocument();
+    expect(screen.getByLabelText("180 km")).toBeInTheDocument();
   });
 
   it("retries location after a denial (FR-034)", async () => {

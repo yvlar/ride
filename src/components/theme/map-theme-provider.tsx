@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   DEFAULT_MAP_THEME,
+  FALLBACK_MAP_THEME,
   isMapTheme,
   MAP_THEME_STORAGE_KEY,
   resolveMapTheme,
@@ -26,14 +27,14 @@ const MapThemeContext = createContext<{
   resolvedTheme: ResolvedMapTheme;
   /**
    * FR-046 — the map calls this when a basemap could not be loaded. The rider
-   * is returned to the default theme instead of being left on a setting that
+   * is returned to the automatic fallback instead of being left on a setting that
    * never applies, and the failed theme is not retried this session.
    */
   reportThemeFailure: () => void;
 }>({
   theme: DEFAULT_MAP_THEME,
   setTheme: () => {},
-  resolvedTheme: "dark",
+  resolvedTheme: "kart-arcade",
   reportThemeFailure: () => {},
 });
 
@@ -99,10 +100,10 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const reportThemeFailure = useCallback(() => {
-    if (themeRef.current === DEFAULT_MAP_THEME) {
+    if (themeRef.current === FALLBACK_MAP_THEME) {
       return;
     }
-    setTheme(DEFAULT_MAP_THEME);
+    setTheme(FALLBACK_MAP_THEME);
   }, []);
 
   const value = useMemo(

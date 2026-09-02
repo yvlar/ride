@@ -13,7 +13,7 @@ export function NativeChrome() {
     if (!Capacitor.isNativePlatform()) {
       return;
     }
-    void StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+    void StatusBar.setStyle({ style: Style.Light }).catch(() => {});
     void SplashScreen.hide().catch(() => {});
   }, []);
   return null;

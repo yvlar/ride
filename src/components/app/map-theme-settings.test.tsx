@@ -39,7 +39,7 @@ describe("MapThemeSettings (FR-045)", () => {
     }
   });
 
-  it("offers Kart Arcade as a deliberate choice, never the default (FR-046)", () => {
+  it("still lets the rider choose Kart Arcade explicitly (FR-046)", () => {
     const onChange = vi.fn();
     render(<MapThemeSettings value="auto" onChange={onChange} />);
 

@@ -337,10 +337,10 @@ describe("RideMap basemap theme (FR-045)", () => {
     await waitFor(() => {
       expect(mount).toHaveBeenCalledTimes(1);
     });
-    // The default appearance is dark, so Automatique picks the dark basemap.
+    // Kart Arcade is Ride's first-render identity.
     expect(mount.mock.calls[0]?.[3]).toEqual({
-      mapStyle: mapThemeStyle("dark"),
-      mapOverlay: mapThemeOverlay("dark"),
+      mapStyle: mapThemeStyle("kart-arcade"),
+      mapOverlay: mapThemeOverlay("kart-arcade"),
       detailLevel: "exploration",
     });
 
@@ -404,22 +404,22 @@ describe("RideMap Kart Arcade (FR-046)", () => {
     });
 
     act(() => {
-      screen.getByRole("button", { name: "Kart Arcade" }).click();
+      screen.getByRole("button", { name: "Automatique" }).click();
     });
     await waitFor(() => {
       expect(setMapStyle).toHaveBeenCalledWith(
-        mapThemeStyle("kart-arcade"),
-        mapThemeOverlay("kart-arcade"),
+        mapThemeStyle("dark"),
+        mapThemeOverlay("dark"),
       );
     });
 
     act(() => {
-      screen.getByRole("button", { name: "Automatique" }).click();
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
     });
     await waitFor(() => {
       expect(setMapStyle).toHaveBeenLastCalledWith(
-        mapThemeStyle("dark"),
-        mapThemeOverlay("dark"),
+        mapThemeStyle("kart-arcade"),
+        mapThemeOverlay("kart-arcade"),
       );
     });
 
@@ -456,7 +456,7 @@ describe("RideMap Kart Arcade (FR-046)", () => {
     setUserLocation.mockClear();
 
     act(() => {
-      screen.getByRole("button", { name: "Kart Arcade" }).click();
+      screen.getByRole("button", { name: "Automatique" }).click();
     });
     await waitFor(() => {
       expect(setMapStyle).toHaveBeenCalled();
@@ -469,7 +469,7 @@ describe("RideMap Kart Arcade (FR-046)", () => {
     expect(mount.mock.calls[0]?.[1]?.start.label).toBe("Départ");
   });
 
-  it("returns the rider to the default theme when the basemap fails", async () => {
+  it("returns the rider to the automatic fallback when the basemap fails", async () => {
     const mount = vi.fn<MapEngine["mount"]>(() => ({
       destroy: vi.fn(),
       setMapStyle: vi.fn(),

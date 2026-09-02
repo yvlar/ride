@@ -143,8 +143,12 @@ export function RideApp(props: RideAppProps) {
   const [sessionRides, setSessionRides] = useState<SavedRide[]>([]);
   const [formKey, setFormKey] = useState(0);
   const [voiceMuted, setVoiceMuted] = useState(false);
-  /** FR-043 — the weather layer is off until the rider asks for it. */
-  const [weatherActive, setWeatherActive] = useState(false);
+  /**
+   * FR-043 — the explorer opens with the live weather field visible. The
+   * compact headline remains folded, so the layer adds context without taking
+   * the map away from the rider.
+   */
+  const [weatherActive, setWeatherActive] = useState(true);
   const [radarFrameId, setRadarFrameId] = useState<string | null>(null);
   const [useKnowledgeRouting, setUseKnowledgeRouting] = useState(false);
   const requestRef = useRef(request);

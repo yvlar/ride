@@ -15,7 +15,7 @@ describe("DescribeDistanceSlider (FR-034)", () => {
     expect(slider).toHaveAttribute("aria-valuemax", "500");
     expect(slider).toHaveAttribute("aria-valuenow", "180");
     expect(slider).toHaveAttribute("aria-valuetext", "180 km");
-    expect(screen.getByText("180 km")).toBeInTheDocument();
+    expect(screen.getByLabelText("180 km")).toBeInTheDocument();
   });
 
   it("updates the displayed distance when the slider moves", () => {

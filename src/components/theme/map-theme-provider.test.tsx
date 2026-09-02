@@ -138,7 +138,7 @@ describe("MapThemeProvider (FR-045)", () => {
     expect(screen.getByTestId("resolved")).toHaveTextContent("kart-arcade");
   });
 
-  it("falls back to the default theme when a basemap cannot load (FR-046)", async () => {
+  it("falls back to the automatic basemap when a styled map cannot load (FR-046)", async () => {
     renderProbe();
 
     act(() => {
@@ -161,6 +161,7 @@ describe("MapThemeProvider (FR-045)", () => {
   });
 
   it("follows the appearance while automatique (FR-037)", () => {
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "auto");
     renderProbe();
 
     expect(screen.getByTestId("theme")).toHaveTextContent("auto");
@@ -171,5 +172,15 @@ describe("MapThemeProvider (FR-045)", () => {
     });
 
     expect(screen.getByTestId("resolved")).toHaveTextContent("light");
+  });
+
+  it("starts new installations directly in Kart Arcade", async () => {
+    renderProbe();
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("kart-arcade");
+    expect(screen.getByTestId("resolved")).toHaveTextContent("kart-arcade");
+    await waitFor(() => {
+      expect(document.documentElement.dataset.mapTheme).toBe("kart-arcade");
+    });
   });
 });
