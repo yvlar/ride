@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* FR-046 — the arcade skin, keyed on the basemap the rider chose. Its
+   selectors carry the theme attribute, so they outrank the defaults below
+   wherever they apply and cost nothing when they do not. */
+@import "./kart-arcade-chrome.css";
 
 @custom-variant dark (&:is(.dark *));
 

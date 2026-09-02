@@ -41,6 +41,28 @@ const FONT_REGULAR = ["Noto Sans Regular"];
 export const KART_ARCADE_ROAD_WIDTH_SCALE = 2;
 
 /**
+ * FR-046 — the sky the leaning exploration camera looks into.
+ *
+ * At 45° of pitch the top third of the screen is above the horizon, and a
+ * basemap has nothing to put there: the arcade ground stops at a hard edge
+ * against the page. A sky closes that edge — turquoise overhead, a pale band
+ * at the horizon, and the cream of the guardrails hazing the far ground so
+ * distance reads as distance instead of as more terrain.
+ *
+ * It is a static style property, not an animation: nothing here moves on its
+ * own, and navigation frames the map flat, so the sky costs the rider nothing
+ * while they are riding.
+ */
+export const KART_ARCADE_SKY: NonNullable<StyleSpecification["sky"]> = {
+  "sky-color": C.water,
+  "sky-horizon-blend": 0.6,
+  "horizon-color": C.waterShallow,
+  "horizon-fog-blend": 0.7,
+  "fog-color": C.guardrail,
+  "fog-ground-blend": 0.85,
+};
+
+/**
  * OpenMapTiles keeps the local name in `name`; `name:fr` wins when both exist.
  * Real place names only — the theme never renames what is on the ground.
  */
@@ -662,6 +684,7 @@ export function kartArcadeStyleSpecification(
     version: 8,
     name: "ride-kart-arcade",
     glyphs: glyphsUrl,
+    sky: KART_ARCADE_SKY,
     sources,
     layers: filtered,
   };

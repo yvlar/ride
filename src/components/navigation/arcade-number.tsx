@@ -10,6 +10,15 @@ export type ArcadeNumberProps = {
  * FR-046 — original arcade numerals for navigation metrics. The visible
  * glyphs are decorative, while the complete value remains one accessible
  * label for VoiceOver ("250 m", not three unrelated digits).
+ *
+ * Size band: only on numerals between roughly **1.25 rem and 3 rem**. The
+ * glyphs are a transparent fill inside a `0.075em` stroke, and that one ratio
+ * is what bounds them at both ends: below the floor the stroke closes the
+ * counters of 0, 6 and 8, and far above it the stroke dominates the glyph and
+ * every digit comes out near-black whatever its colour. So: never on slider
+ * ticks, table cells or captions, and never blown up to fill a screen — a
+ * display-sized figure wants a solid fill and a thin keyline instead, the way
+ * `arcade-countdown.module.css` draws its numbers.
  */
 export function ArcadeNumber({ text, className, testId }: ArcadeNumberProps) {
   return (

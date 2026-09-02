@@ -36,7 +36,9 @@ const MAP_THEME_OPTIONS: {
   {
     value: "kart-arcade",
     label: "Kart Arcade",
-    description: "Couleurs vives de jeu de course; tracé bleu à halo blanc.",
+    description:
+      "Couleurs vives de jeu de course, ciel et volumes, damier de départ et " +
+      "d’arrivée. L’interface suit le thème.",
   },
 ];
 

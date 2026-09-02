@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import type { ComponentProps } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { offsetCoordinates } from "@/domain/geo/distance";
 import type { Position } from "@/domain/geo/types";
 import { composeGpxRoute } from "@/domain/gpx/compose";
@@ -8,6 +9,12 @@ import { NAVIGATION_STATUS_MESSAGES } from "@/domain/navigation/status";
 import type { GenerateRideRequest, GeneratedLoopRoute } from "@/domain/ride/types";
 import type { CarPlayDisplay } from "@/infrastructure/carplay/carplay-display";
 import type { CarPlayDisplayEvent } from "@/infrastructure/carplay/types";
+import { MAP_THEME_STORAGE_KEY } from "@/domain/map/map-theme";
+import { AppearanceProvider } from "@/components/theme/appearance-provider";
+import {
+  MapThemeProvider,
+  useMapTheme,
+} from "@/components/theme/map-theme-provider";
 import { NavigationSession } from "./navigation-session";
 
 const route: GeneratedLoopRoute = {
@@ -108,6 +115,7 @@ function stubAudioCues() {
     setMuted: vi.fn(),
     unlock: vi.fn(),
     stop: vi.fn(),
+    setVoice: vi.fn(),
   };
 }
 
@@ -1879,5 +1887,189 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
     await waitFor(() => {
       expect(speech.unlock).toHaveBeenCalled();
     });
+  });
+});
+
+/** Lets a test flip the basemap the way Réglages does, mid-session. */
+function ThemeSwitch() {
+  const { setTheme } = useMapTheme();
+  return (
+    <button type="button" onClick={() => setTheme("kart-arcade")}>
+      Kart Arcade
+    </button>
+  );
+}
+
+describe("NavigationSession — Kart Arcade (FR-046)", () => {
+  afterEach(() => {
+    window.localStorage.removeItem(MAP_THEME_STORAGE_KEY);
+  });
+
+  function renderArcadeSession(
+    props: Partial<ComponentProps<typeof NavigationSession>> = {},
+  ) {
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "kart-arcade");
+    const { watch, emit } = createWatch();
+    const audioCues = stubAudioCues();
+    render(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <NavigationSession
+            route={route}
+            request={request}
+            onStop={() => {}}
+            locationWatch={watch}
+            speech={stubSpeech()}
+            audioCues={audioCues}
+            mapEngine={stubMapEngine()}
+            {...props}
+          />
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+    return { audioCues, emit };
+  }
+
+  const firstFix = {
+    type: "fix" as const,
+    fix: {
+      coordinates: { latitude: 45.4, longitude: -72.683 },
+      accuracyMeters: 8,
+      recordedAtMs: 1,
+    },
+  };
+
+  it("hands the arcade timbre to the running engine (FR-044)", async () => {
+    const { audioCues } = renderArcadeSession();
+
+    await waitFor(() => {
+      expect(audioCues.setVoice).toHaveBeenCalledWith("arcade");
+    });
+  });
+
+  it("keeps the standard timbre under every other basemap", async () => {
+    const { watch } = createWatch();
+    const audioCues = stubAudioCues();
+    render(
+      <NavigationSession
+        route={route}
+        request={request}
+        onStop={() => {}}
+        locationWatch={watch}
+        speech={stubSpeech()}
+        audioCues={audioCues}
+        mapEngine={stubMapEngine()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(audioCues.setVoice).toHaveBeenCalledWith("standard");
+    });
+    expect(audioCues.setVoice).not.toHaveBeenCalledWith("arcade");
+  });
+
+  it("counts down from three on the first GPS fix", async () => {
+    const { audioCues, emit } = renderArcadeSession();
+    // Nothing before the fix: a countdown started at mount would run out while
+    // the screen still reads "Recherche de la position…".
+    expect(screen.queryByTestId("arcade-countdown")).toBeNull();
+
+    act(() => {
+      emit(firstFix);
+    });
+
+    const stage = await screen.findByTestId("arcade-countdown");
+    expect(stage.textContent).toBe("3");
+    await waitFor(() => {
+      expect(audioCues.play).toHaveBeenCalledWith("countdown");
+    });
+  });
+
+  it("runs once, however many fixes arrive", async () => {
+    // `hasFix` is set on every fix, so only the session's own guard stops the
+    // countdown restarting for the whole ride.
+    const { audioCues, emit } = renderArcadeSession();
+
+    act(() => {
+      emit(firstFix);
+    });
+    await screen.findByTestId("arcade-countdown");
+    const afterFirst = audioCues.play.mock.calls.filter(
+      (call) => call[0] === "countdown",
+    ).length;
+
+    act(() => {
+      emit({
+        type: "fix",
+        fix: {
+          coordinates: { latitude: 45.401, longitude: -72.682 },
+          accuracyMeters: 8,
+          recordedAtMs: 2,
+        },
+      });
+    });
+
+    expect(
+      audioCues.play.mock.calls.filter((call) => call[0] === "countdown").length,
+    ).toBe(afterFirst);
+  });
+
+  it("never starts a countdown when the theme is picked mid-ride", async () => {
+    // Switching to Kart Arcade forty kilometres in must not announce a start
+    // that already happened: the first fix spends the countdown whatever the
+    // basemap was at the time.
+    const { watch, emit } = createWatch();
+    const audioCues = stubAudioCues();
+    render(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <ThemeSwitch />
+          <NavigationSession
+            route={route}
+            request={request}
+            onStop={() => {}}
+            locationWatch={watch}
+            speech={stubSpeech()}
+            audioCues={audioCues}
+            mapEngine={stubMapEngine()}
+          />
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+
+    act(() => {
+      emit(firstFix);
+    });
+    expect(screen.queryByTestId("arcade-countdown")).toBeNull();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+
+    await waitFor(() => {
+      expect(audioCues.setVoice).toHaveBeenCalledWith("arcade");
+    });
+    // The timbre followed the theme; the countdown did not come back.
+    expect(screen.queryByTestId("arcade-countdown")).toBeNull();
+    expect(audioCues.play).not.toHaveBeenCalledWith("countdown");
+  });
+
+  it("stays silent while a vehicle screen owns the audio (FR-028)", async () => {
+    const carPlay = stubCarPlay();
+    const { audioCues, emit } = renderArcadeSession({ carPlay: carPlay.display });
+
+    await waitFor(() => {
+      expect(carPlay.display.subscribe).toHaveBeenCalled();
+    });
+    act(() => {
+      carPlay.emit({ type: "connection", connected: true });
+    });
+    act(() => {
+      emit(firstFix);
+    });
+
+    // The countdown is still drawn on the phone; only its sound stands down.
+    await screen.findByTestId("arcade-countdown");
+    expect(audioCues.play).not.toHaveBeenCalledWith("countdown");
   });
 });

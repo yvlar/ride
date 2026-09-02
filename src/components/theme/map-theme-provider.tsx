@@ -71,6 +71,28 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [hydrated, theme]);
 
+  const resolvedTheme = resolveMapTheme(theme, resolved);
+
+  /**
+   * FR-046 — the basemap choice is published on the document so the rest of
+   * the interface can follow it in CSS alone. The appearance already stamps
+   * `.dark` / `.night` this way; a theme is data on the root element, not a
+   * prop threaded through every panel.
+   *
+   * Only after hydration: before it, the server and the client must agree on
+   * the default (FR-045).
+   */
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    const root = document.documentElement;
+    root.dataset.mapTheme = resolvedTheme;
+    return () => {
+      delete root.dataset.mapTheme;
+    };
+  }, [hydrated, resolvedTheme]);
+
   const themeRef = useRef(theme);
   useEffect(() => {
     themeRef.current = theme;
@@ -87,10 +109,10 @@ export function MapThemeProvider({ children }: { children: ReactNode }) {
     () => ({
       theme,
       setTheme,
-      resolvedTheme: resolveMapTheme(theme, resolved),
+      resolvedTheme,
       reportThemeFailure,
     }),
-    [theme, resolved, reportThemeFailure],
+    [theme, resolvedTheme, reportThemeFailure],
   );
 
   return (

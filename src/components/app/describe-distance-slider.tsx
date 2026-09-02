@@ -1,6 +1,8 @@
 "use client";
 
+import { ArcadeNumber } from "@/components/navigation/arcade-number";
 import { Label } from "@/components/ui/label";
+import { useMapTheme } from "@/components/theme/map-theme-provider";
 import {
   DESCRIBE_DISTANCE_MAX_KM,
   DESCRIBE_DISTANCE_MIN_KM,
@@ -21,6 +23,10 @@ export function DescribeDistanceSlider({
 }) {
   const snapped = snapDescribeDistanceKm(value);
   const label = formatDescribeDistanceLabel(snapped);
+  // FR-046 — the target distance is the headline figure of this panel and sits
+  // well above the numerals' legibility floor, so it takes the arcade dial.
+  const { resolvedTheme } = useMapTheme();
+  const arcadeNumbers = resolvedTheme === "kart-arcade";
 
   return (
     <div className="space-y-3">
@@ -33,7 +39,7 @@ export function DescribeDistanceSlider({
           className="text-2xl font-semibold tabular-nums"
           aria-live="polite"
         >
-          {label}
+          {arcadeNumbers ? <ArcadeNumber text={label} /> : label}
         </p>
       </div>
       <div className="flex min-h-14 items-center">

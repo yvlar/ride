@@ -1,0 +1,174 @@
+/*
+ * FR-046 — the Kart Arcade skin, outside the map.
+ *
+ * `MapThemeProvider` publishes the resolved basemap on the document root, so
+ * the whole interface can follow the chosen theme without a single component
+ * knowing its name. Everything here hangs off that one attribute and reverts
+ * the moment the rider picks another basemap.
+ *
+ * The hues are the ones the map already draws with — the palette in
+ * `src/components/map/themes/kart-arcade-palette.ts` is the source of truth,
+ * and these are its values expressed in oklch so they mix with the base tokens
+ * of `globals.css`. An original arcade-racing look: nothing here is derived
+ * from any published game.
+ */
+
+:root[data-map-theme="kart-arcade"] {
+  /* #FFF9E8 guardrail cream, the ground every panel sits on. */
+  --background: oklch(0.98 0.03 95);
+  /* #17324D ink, the same the map labels are drawn in. */
+  --foreground: oklch(0.33 0.06 250);
+  --card: oklch(1 0.012 95);
+  --card-foreground: oklch(0.33 0.06 250);
+  --popover: oklch(1 0.012 95);
+  --popover-foreground: oklch(0.33 0.06 250);
+
+  /* #FF665A motorway coral. Dark ink on it, never white: at this lightness a
+     white label would sit under 3:1. */
+  --primary: oklch(0.68 0.185 25);
+  --primary-foreground: oklch(0.26 0.05 250);
+
+  --secondary: oklch(0.93 0.06 95);
+  --secondary-foreground: oklch(0.33 0.06 250);
+  --muted: oklch(0.95 0.035 95);
+  --muted-foreground: oklch(0.48 0.05 250);
+
+  /* #FFD447 centre-line yellow. */
+  --accent: oklch(0.88 0.15 90);
+  --accent-foreground: oklch(0.28 0.055 250);
+
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.33 0.06 250 / 26%);
+  --input: oklch(0.33 0.06 250 / 32%);
+  /* #42CFF5 water turquoise, so focus never reads as an error next to coral. */
+  --ring: oklch(0.78 0.13 220);
+
+  /* Chunky moulded corners rather than the restrained default. */
+  --radius: 1.25rem;
+
+  --nav-banner: oklch(0.44 0.045 250);
+
+  /* Opaque asphalt instead of frosted glass: a painted plate reads in full sun,
+     and skipping the backdrop filter spares the compositor on a phone strapped
+     to a handlebar. */
+  --ride-glass: oklch(0.44 0.035 250);
+  --ride-glass-strong: oklch(0.38 0.035 250);
+  --ride-glass-border: oklch(0.98 0.03 95);
+  --ride-glass-highlight: oklch(1 0 0 / 0%);
+
+  /* The signature of the theme: a hard offset shadow, no blur. That single
+     choice is what makes a surface read as a moulded sticker. */
+  --ride-shadow: 0 4px 0 oklch(0.33 0.06 250 / 34%);
+  --kart-outline: oklch(0.98 0.03 95);
+  --kart-ink: oklch(0.33 0.06 250);
+}
+
+/*
+ * The basemap is chosen independently of the interface appearance, so both
+ * attributes can hold at once. Kart Arcade is a deliberate, explicit pick and
+ * wins over the automatic dark palette.
+ */
+:root[data-map-theme="kart-arcade"].dark,
+:root[data-map-theme="kart-arcade"].night {
+  --background: oklch(0.28 0.045 250);
+  --foreground: oklch(0.97 0.03 95);
+  --card: oklch(0.34 0.04 250);
+  --card-foreground: oklch(0.97 0.03 95);
+  --popover: oklch(0.34 0.04 250);
+  --popover-foreground: oklch(0.97 0.03 95);
+  --secondary: oklch(0.4 0.045 250);
+  --secondary-foreground: oklch(0.97 0.03 95);
+  --muted: oklch(0.38 0.04 250);
+  --muted-foreground: oklch(0.85 0.03 95);
+  /* Deep enough that the cream label on it clears 4.5:1 — a brighter yellow
+     here reads as arcade but fails a rider squinting at it in daylight. */
+  --accent: oklch(0.52 0.11 90);
+  --accent-foreground: oklch(0.97 0.03 95);
+  --border: oklch(0.98 0.03 95 / 28%);
+  --input: oklch(0.98 0.03 95 / 32%);
+  --ride-shadow: 0 4px 0 oklch(0.16 0.04 250 / 60%);
+  --kart-outline: oklch(0.97 0.03 95);
+  --kart-ink: oklch(0.18 0.04 250);
+}
+
+/*
+ * The moulded-plate treatment, applied to the surfaces `globals.css` already
+ * defines. No component changes: the tab bar, the panels and the buttons all
+ * consume these same classes and tokens.
+ *
+ * Deliberately outside every cascade layer. Most of these surfaces are shadcn
+ * buttons, which carry Tailwind utilities (`border`, `shadow-lg`) that live in
+ * the `utilities` layer; a layered rule loses to them however specific it is,
+ * so the skin would land on the panels and silently skip every button. An
+ * unlayered rule outranks all of them, which is exactly what a whole-interface
+ * theme needs.
+ */
+:root[data-map-theme="kart-arcade"] .ride-glass,
+:root[data-map-theme="kart-arcade"] .ride-glass-strong {
+  background: var(--ride-glass);
+  /*
+   * The cream guardrail and its ink liner are drawn as rings, not as a
+   * border. Most of these plates are buttons, and a button carries Tailwind's
+   * `border` utility — utilities outrank the components layer whatever the
+   * specificity, so a border here would apply to the panels and silently skip
+   * every button. A ring is beholden to no layer and looks the same on both.
+   */
+  box-shadow:
+    0 0 0 2px var(--kart-outline),
+    0 0 0 4px oklch(0.33 0.06 250 / 38%),
+    var(--ride-shadow);
+  /* An opaque plate has nothing to blur behind it. */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-glass-strong {
+  background: var(--ride-glass-strong);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-control-row {
+  box-shadow: 0 0 0 2px var(--kart-ink), var(--ride-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-icon-well {
+  background: oklch(0.33 0.06 250 / 22%);
+  box-shadow:
+    0 0 0 2px var(--kart-outline),
+    0 2px 0 3px oklch(0.33 0.06 250 / 38%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-panel-actions {
+  box-shadow: 0 0 0 2px var(--kart-ink), var(--ride-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/*
+ * The panels floating over the map carry their own token set, tuned green
+ * for the default look. Under the arcade they take the same asphalt plate
+ * the rest of the theme uses, or the map would be arcade and the panel on
+ * top of it would not.
+ */
+:root[data-map-theme="kart-arcade"] .ride-map-panel {
+  --foreground: oklch(0.98 0.03 95);
+  --card: oklch(0.4 0.035 250);
+  --card-foreground: oklch(0.98 0.03 95);
+  --muted: oklch(0.5 0.03 250);
+  --muted-foreground: oklch(0.9 0.025 95);
+  --border: oklch(0.98 0.03 95 / 42%);
+  --input: oklch(0.98 0.03 95 / 34%);
+  --primary: oklch(0.75 0.16 25);
+  --primary-foreground: oklch(0.24 0.05 250);
+  --ring: oklch(0.82 0.12 220);
+}
+
+/* The soft green halo of the default look belongs to the default look. */
+:root[data-map-theme="kart-arcade"] body {
+  background-image: radial-gradient(
+    circle at 50% -20%,
+    oklch(0.88 0.11 90 / 40%),
+    transparent 38rem
+  );
+}

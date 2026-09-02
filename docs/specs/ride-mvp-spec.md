@@ -1147,6 +1147,7 @@ Règles :
 - elle se déclenche **quand le moteur vocal est absent ou en erreur**; tant que la voix fonctionne, elle reste silencieuse pour ne pas doubler l’instruction;
 - l’arrivée n’est annoncée qu’une fois; un trajet recalculé peut de nouveau être atteint;
 - le contexte audio est déverrouillé par le même geste que la voix, et deux indications ne se superposent jamais;
+- le **timbre** des tonalités peut suivre le thème de carte (`FR-046`) : la forme d’onde appartient à la tonalité, dans le domaine, et un afficheur choisit une **voix** parmi celles qu’il décrit. Le thème ne change ni le moment où une indication se déclenche, ni son volume, ni la règle de repli ci-dessus, et changer de thème en roulant ne coupe jamais le son;
 - le bouton de coupure du son de l’écran de navigation coupe la voix **et** les indications sonores;
 - lorsque la voix est indisponible, le bouton le nomme explicitement, plutôt que de laisser croire à un silence choisi (`FR-042`);
 - l’absence de Web Audio ne dégrade que le son : la navigation visuelle continue (`NFR-006`).
@@ -1220,13 +1221,17 @@ Rendu :
 - routes arrondies à **garde-fou blanc** de chaque côté et **ligne jaune centrale** sur les axes, comme sur la référence visuelle. La chaussée se fond du chaud vers l’asphalte à mesure qu’on approche : vue d’ensemble, une route est un trait de deux pixels qu’un gris sur fond vert ferait disparaître; en vue de rue, c’est une surface. Les autoroutes gardent leur corail à tous les niveaux, les chemins restent pointillés, les ponts ont un contour renforcé et les tunnels sont violets en tirets;
 - **chevrons de direction** sur le trajet, dessinés dans le code — Ride n’embarque pas de planche de sprites, et un thème ne doit jamais dépendre d’une ressource qui peut manquer (`NFR-005`). Un moteur sans canevas 2D affiche simplement le trajet sans chevrons;
 - épaisseur, contour, visibilité, densité et taille des libellés pilotés par des expressions de zoom : les petites rues n’apparaissent qu’en zoom rapproché;
-- bâtiments orangés, avec extrusion 3D légère pendant le suivi de navigation lorsque le style le permet (`FR-024`);
+- **ciel dégradé** au-dessus de l’horizon — turquoise en hauteur, bande pâle à l’horizon, brume claire sur le sol lointain. La caméra inclinée regarde dans un décor plutôt que dans le vide; la brume reste assez lointaine pour ne jamais délaver la route sous le motocycliste;
+- bâtiments orangés, extrudés en volumes dès que la ville est à l’écran et nuancés selon leur hauteur, de sorte qu’une agglomération vue de haut se lise en blocs et non en aplat. L’extrusion reste disponible pendant le suivi de navigation lorsque le style le permet (`FR-024`);
 - ombrage de relief **facultatif**, activé seulement si une source d’élévation est configurée; son absence n’est pas une erreur (`NFR-005`);
 - libellés en encre foncée sur halo clair, hiérarchisés par importance, avec les accents français rendus correctement. Les noms réels des lieux ne sont jamais remplacés.
 
 Trajet actif :
 
 - bleu électrique sur un halo blanc plus large, sous les marqueurs et au-dessus du fond;
+- **damier de départ et d’arrivée** posé en travers de la route, orienté par le cap réel du tracé à chaque extrémité. Une boucle en reçoit deux : les caps diffèrent, et c’est ainsi que le sens de parcours se lit;
+- **bornes kilométriques** entre les deux, espacées d’un nombre rond de kilomètres choisi pour qu’un trajet n’en porte jamais plus d’une douzaine, quelle que soit sa longueur. Chaque borne affiche sa distance et son unité. Aucune ne se pose dans la dernière demi-portion, pour ne pas heurter le damier d’arrivée;
+- damier et bornes sont **dessinés dans le code**, comme les chevrons : Ride n’embarque aucune planche de sprites, et un moteur sans canevas 2D affiche simplement le trajet sans eux (`NFR-005`);
 - la géométrie reste exactement celle du moteur de routage : le thème ne touche ni au calcul, ni au recalcul, ni au guidage.
 
 Deux niveaux de détail :
@@ -1241,6 +1246,21 @@ La caméra :
 - un **aperçu de trajet complet est toujours cadré à plat**, quel que soit le thème : un tracé de 90 km vu en enfilade est illisible;
 - `prefers-reduced-motion` remplace le mouvement de caméra par une coupe instantanée (`NFR-008`);
 - le motocycliste peut redresser ou incliner la carte lui-même; son geste a toujours le dernier mot.
+
+Départ :
+
+- au **premier point GPS** d’une session, un **compte à rebours ponctuel** 3‑2‑1‑GO ! s’affiche au centre de l’écran, sous ce thème seulement. C’est le moment où le guidage commence réellement; un rebours lancé plus tôt se terminerait pendant « Recherche de la position… »;
+- il est **strictement décoratif et ne retarde rien** : itinéraire, caméra et voix démarrent en parallèle. Il est transparent aux touches et ne masque ni l’instruction de manœuvre ni le bouton **Terminer**, que le motocycliste peut presser pendant qu’il défile;
+- il ne joue **qu’une fois par session**, jamais en boucle — l’interdiction d’animation permanente porte sur la boucle, pas sur un éclat ponctuel;
+- il est `aria-hidden` : l’état de la session est déjà annoncé par sa zone `role="status"`, et le rebours ne doit pas parler par-dessus;
+- chaque palier porte une tonalité (`FR-044`). Contrairement aux indications de manœuvre, ce court signal n’en double aucune et sonne donc même quand la voix fonctionne. Le bouton de coupure du son le fait taire, et il reste muet quand un écran de véhicule pilote le son (`FR-028`);
+- `prefers-reduced-motion` supprime le mouvement sans supprimer les paliers : les chiffres défilent, ils ne grossissent plus (`NFR-008`).
+
+Portée dans l’interface :
+
+- le fond de carte résolu est **publié sur le document**, comme l’apparence (`FR-037`) y pose déjà ses classes. Toute la peau du thème en découle en CSS seul : aucun composant ne connaît le nom du thème, et changer de fond suffit à rendre l’interface à son apparence normale;
+- sous Kart Arcade, panneaux, contrôles, boutons et barre d’onglets prennent le **contour épais et l’ombre dure** du thème, avec un jeu de jetons complet pour l’apparence claire comme sombre. Le choix du fond et le choix de l’apparence restent indépendants;
+- les **chiffres arcade** peuvent habiller les mesures les plus visibles hors navigation. Ils ne s’appliquent qu’au-dessus de 1,25 rem : plus petit, le contour ferme les contrepoinçons et le chiffre cesse d’être lisible. La valeur complète reste toujours un libellé accessible unique.
 
 Règles :
 

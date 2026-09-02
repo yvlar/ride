@@ -132,3 +132,113 @@ export function createCircleLineString(
   }
   return { type: "LineString", coordinates };
 }
+
+/**
+ * FR-046 — the heading a route leaves its start on, and the heading it arrives
+ * at its end on. A gate drawn across the road has to sit square to the
+ * traffic, and the first two vertices give that far more reliably than the
+ * straight line between the two endpoints — which on a loop is undefined.
+ *
+ * `null` when the geometry has no direction to speak of (fewer than two
+ * distinct points).
+ */
+export function endpointBearingsDeg(
+  geometry: LineString,
+): { start: number; end: number } | null {
+  const points = geometry.coordinates.map(positionToCoordinates);
+  if (points.length < 2) {
+    return null;
+  }
+
+  const first = points[0];
+  const outbound = points.find(
+    (point) => haversineKm(first, point) > BEARING_MIN_SPAN_KM,
+  );
+
+  const last = points[points.length - 1];
+  const inbound = [...points]
+    .reverse()
+    .find((point) => haversineKm(last, point) > BEARING_MIN_SPAN_KM);
+
+  if (!outbound || !inbound) {
+    return null;
+  }
+
+  return {
+    start: initialBearingDeg(first, outbound),
+    // The arrival heading, not the direction back down the route.
+    end: initialBearingDeg(inbound, last),
+  };
+}
+
+/**
+ * Routing engines emit near-duplicate vertices; two of them a metre apart give
+ * a bearing that is mostly rounding noise. Step out until the span is real.
+ */
+const BEARING_MIN_SPAN_KM = 0.005;
+
+/**
+ * FR-046 — points spaced every `intervalKm` along a route, for the kilometre
+ * markers. The start is never one (it has its own gate) and a marker is never
+ * placed within half an interval of the end, so the last one does not collide
+ * with the finish gate.
+ *
+ * Each point carries the distance it stands for, so the caller can label it
+ * without walking the line a second time.
+ */
+export function pointsAtIntervalKm(
+  geometry: LineString,
+  intervalKm: number,
+): { coordinates: Coordinates; distanceKm: number }[] {
+  if (intervalKm <= 0 || geometry.coordinates.length < 2) {
+    return [];
+  }
+
+  const points = geometry.coordinates.map(positionToCoordinates);
+  const totalKm = lineStringLengthKm(geometry);
+  const markers: { coordinates: Coordinates; distanceKm: number }[] = [];
+
+  let travelledKm = 0;
+  let nextMarkKm = intervalKm;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1];
+    const to = points[index];
+    const segmentKm = haversineKm(from, to);
+    if (segmentKm === 0) {
+      continue;
+    }
+
+    // A single long segment can hold several marks.
+    while (nextMarkKm <= travelledKm + segmentKm) {
+      if (nextMarkKm > totalKm - intervalKm / 2) {
+        return markers;
+      }
+      const ratio = (nextMarkKm - travelledKm) / segmentKm;
+      markers.push({
+        coordinates: interpolateCoordinates(from, to, ratio),
+        distanceKm: nextMarkKm,
+      });
+      nextMarkKm += intervalKm;
+    }
+
+    travelledKm += segmentKm;
+  }
+
+  return markers;
+}
+
+/**
+ * Straight-line interpolation between two points. Over the sub-kilometre spans
+ * a marker lands in, the error against a great circle is well under a metre.
+ */
+function interpolateCoordinates(
+  from: Coordinates,
+  to: Coordinates,
+  ratio: number,
+): Coordinates {
+  return {
+    latitude: from.latitude + (to.latitude - from.latitude) * ratio,
+    longitude: from.longitude + (to.longitude - from.longitude) * ratio,
+  };
+}

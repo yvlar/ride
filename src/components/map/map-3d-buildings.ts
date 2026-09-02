@@ -1,4 +1,6 @@
 import type {
+  ColorSpecification,
+  DataDrivenPropertyValueSpecification,
   FillExtrusionLayerSpecification,
   StyleSpecification,
 } from "maplibre-gl";
@@ -9,7 +11,23 @@ export const RIDE_3D_BUILDINGS_LAYER_ID = "ride-3d-buildings";
 export type BuildingExtrusionAppearance = {
   color: string;
   opacity: number;
+  /**
+   * FR-046 — the zoom the volumes appear at. The default waits for street
+   * zoom, where buildings are context for a maneuver. A theme that leans its
+   * camera wants them earlier: at 45° a flat town is a stain, and the same
+   * town in blocks is a place.
+   */
+  minzoom?: number;
+  /**
+   * Colour of the roofs, blended in as a wall rises. `null` keeps every face
+   * the same flat colour.
+   */
+  highlightColor?: string | null;
+  /** Shades each wall from its base upward, the way a moulded toy catches light. */
+  verticalGradient?: boolean;
 };
+
+const DEFAULT_BUILDING_MINZOOM = 15;
 
 export const DEFAULT_BUILDING_EXTRUSION_APPEARANCE: BuildingExtrusionAppearance =
   {
@@ -32,6 +50,28 @@ export function addRideBuildingExtrusions(
   if (layer) {
     map.addLayer(layer);
   }
+}
+
+/**
+ * FR-046 — a tall block is lighter than a low one, so a skyline reads as a
+ * skyline from above rather than as one orange mass. Without a highlight the
+ * colour stays exactly the flat value it has always been.
+ */
+function buildingColor(
+  appearance: BuildingExtrusionAppearance,
+): DataDrivenPropertyValueSpecification<ColorSpecification> {
+  if (!appearance.highlightColor) {
+    return appearance.color;
+  }
+  return [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["get", "render_height"], ["get", "height"], 0],
+    0,
+    appearance.color,
+    60,
+    appearance.highlightColor,
+  ];
 }
 
 /**
@@ -65,9 +105,10 @@ export function buildingExtrusionLayer(
     type: "fill-extrusion",
     source: building.source,
     "source-layer": "building",
-    minzoom: 15,
+    minzoom: appearance.minzoom ?? DEFAULT_BUILDING_MINZOOM,
     paint: {
-      "fill-extrusion-color": appearance.color,
+      "fill-extrusion-color": buildingColor(appearance),
+      "fill-extrusion-vertical-gradient": appearance.verticalGradient ?? true,
       "fill-extrusion-height": [
         "coalesce",
         ["get", "render_height"],

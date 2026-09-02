@@ -280,6 +280,19 @@ describe("kartArcadeStyleSpecification (FR-046)", () => {
     }
   });
 
+  it("closes the horizon the leaning camera looks into (FR-046)", () => {
+    // At 45° the top of the screen is above the ground plane; without a sky
+    // the arcade world ends at a hard edge against the page.
+    const sky = kartArcadeStyleSpecification().sky;
+    expect(sky).toBeDefined();
+    expect(sky?.["sky-color"]).toBe(KART_ARCADE_PALETTE.water);
+    expect(sky?.["horizon-color"]).toBe(KART_ARCADE_PALETTE.waterShallow);
+    expect(sky?.["fog-color"]).toBe(KART_ARCADE_PALETTE.guardrail);
+    // High enough that the haze stays in the distance: it must never wash out
+    // the road the rider is actually on.
+    expect(sky?.["fog-ground-blend"]).toBeGreaterThanOrEqual(0.8);
+  });
+
   it("never gives a layer the same id twice", () => {
     const ids = layerIds(kartArcadeStyleSpecification());
     expect(new Set(ids).size).toBe(ids.length);

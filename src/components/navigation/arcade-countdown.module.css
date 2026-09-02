@@ -1,0 +1,100 @@
+/*
+ * FR-046 — the start countdown's one-shot flourish.
+ *
+ * These are the repository's only `@keyframes`, and they are compatible with
+ * the theme's "no permanent animation" rule because nothing here loops: every
+ * animation runs once, on an element that is unmounted a moment later.
+ *
+ * Reduced motion needs no branch here. `globals.css` already clamps every
+ * animation to 0.001ms under `prefers-reduced-motion`, and the countdown is
+ * paced by timers in the session rather than by CSS — so the numbers still step
+ * at their own rhythm, they simply stop growing (NFR-008).
+ */
+
+.stage {
+  /* Above the map, below the panels the rider actually touches. */
+  z-index: 5;
+}
+
+.count,
+.go {
+  margin: 0;
+  text-align: center;
+  line-height: 1;
+  font-family: Impact, Haettenschweiler, "Arial Black", sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  /*
+   * The plate: a solid fill inside a dark keyline, over a hard offset shadow —
+   * the same recipe as the rest of the theme, and the reason it reads over
+   * asphalt, grass and water alike. The stroke stays thin (0.045em) because a
+   * figure this large would otherwise be all keyline and no colour.
+   */
+  -webkit-text-stroke: 0.045em #151718;
+  paint-order: stroke fill;
+  text-shadow:
+    0.035em 0.045em 0 #151718,
+    0.075em 0.09em 0 rgb(0 0 0 / 45%);
+}
+
+.count {
+  /*
+   * A single glyph reads far smaller than a word, so the numbers need more
+   * size than "GO !" to carry the same weight on screen.
+   */
+  font-size: clamp(6rem, 46vmin, 14rem);
+  animation: countdown-pop 600ms ease-out 1 both;
+}
+
+/* The colours of a starting light, counting down to green. */
+.count[data-step="3"] {
+  color: #ff4b3e;
+}
+
+.count[data-step="2"] {
+  color: #ffc229;
+}
+
+.count[data-step="1"] {
+  color: #9be779;
+}
+
+.go {
+  font-size: clamp(3.5rem, 22vmin, 7rem);
+  color: #ffd447;
+  animation: countdown-launch 420ms cubic-bezier(0.2, 1.6, 0.4, 1) 1 both;
+}
+
+@keyframes countdown-pop {
+  0% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.25;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes countdown-launch {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

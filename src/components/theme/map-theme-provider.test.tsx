@@ -62,6 +62,44 @@ describe("MapThemeProvider (FR-045)", () => {
     window.matchMedia = originalMatchMedia;
     window.localStorage.clear();
     document.documentElement.classList.remove("dark", "night");
+    delete document.documentElement.dataset.mapTheme;
+  });
+
+  it("publishes the resolved basemap on the document (FR-046)", async () => {
+    // The arcade skin outside the map is pure CSS hanging off this attribute,
+    // so it is the whole contract between the provider and the interface.
+    renderProbe();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.mapTheme).toBe("kart-arcade");
+    });
+
+    act(() => {
+      screen.getByRole("button", { name: "Satellite" }).click();
+    });
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.mapTheme).toBe("satellite");
+    });
+  });
+
+  it("takes the theme off the document when it unmounts (FR-046)", async () => {
+    const view = renderProbe();
+
+    act(() => {
+      screen.getByRole("button", { name: "Kart Arcade" }).click();
+    });
+    await waitFor(() => {
+      expect(document.documentElement.dataset.mapTheme).toBe("kart-arcade");
+    });
+
+    view.unmount();
+
+    expect(document.documentElement.dataset.mapTheme).toBeUndefined();
   });
 
   it("hydrates the stored theme", async () => {

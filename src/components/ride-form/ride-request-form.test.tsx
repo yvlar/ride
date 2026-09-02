@@ -752,6 +752,7 @@ describe("RideRequestForm (FR-014)", () => {
       setMuted: vi.fn(),
       unlock: vi.fn(),
       stop: vi.fn(),
+      setVoice: vi.fn(),
     };
     const destroyPreviewMap = vi.fn();
     const setGeolocateEnabled = vi.fn();
