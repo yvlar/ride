@@ -25,6 +25,10 @@ import { useMapTheme } from "@/components/theme/map-theme-provider";
 import { cn } from "@/lib/utils";
 import { ArcadeNumber } from "./arcade-number";
 import {
+  ArcadeCountdown,
+  type ArcadeCountdownStep,
+} from "./arcade-countdown";
+import {
   formatDistanceLabel,
   formatDurationLabel,
   formatEta,
@@ -57,6 +61,11 @@ export type NavigationOverlayProps = {
   hidden: boolean;
   carPlayConnected?: boolean;
   muted: boolean;
+  /**
+   * FR-046 — the step of the arcade start countdown, or `null` when it is not
+   * running. Ignored under every other basemap.
+   */
+  countdownStep?: ArcadeCountdownStep | null;
   /** False while the rider is panning the map themselves. */
   followingUser?: boolean;
   destinationLabel?: string | null;
@@ -86,6 +95,7 @@ export function NavigationOverlay({
   hidden,
   carPlayConnected = false,
   muted,
+  countdownStep = null,
   followingUser = true,
   destinationLabel = null,
   recalcError,
@@ -100,7 +110,8 @@ export function NavigationOverlay({
   const [confirmStop, setConfirmStop] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const { resolvedTheme } = useMapTheme();
-  const arcadeNumbers = resolvedTheme === "kart-arcade";
+  // FR-046 — gates the arcade numerals and the start countdown alike.
+  const arcade = resolvedTheme === "kart-arcade";
   const etaLabel = formatEta(nowMs, remainingMinutes);
   const maneuverDistanceLabel = formatManeuverDistanceLabel(
     distanceToManeuverKm,
@@ -129,6 +140,11 @@ export function NavigationOverlay({
         "landscape:flex-row landscape:items-stretch landscape:justify-between landscape:gap-3",
       )}
     >
+      {/* ── Départ : 3, 2, 1, GO ! (FR-046) ────────────────────────── */}
+      {arcade && countdownStep !== null ? (
+        <ArcadeCountdown step={countdownStep} />
+      ) : null}
+
       {/* ── Prochaine manœuvre ─────────────────────────────────────── */}
       <div
         className={cn(
@@ -151,7 +167,7 @@ export function NavigationOverlay({
             </p>
             <div className="min-w-0 flex-1">
               <p className="text-4xl font-semibold leading-none tracking-tight tabular-nums">
-                {arcadeNumbers ? (
+                {arcade ? (
                   <ArcadeNumber
                     text={maneuverDistanceLabel}
                     testId="kart-arcade-maneuver-distance"
@@ -298,13 +314,13 @@ export function NavigationOverlay({
           <div className="grid grid-cols-3 gap-1 text-center">
             <div className="min-w-0">
               <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
-                {arcadeNumbers ? <ArcadeNumber text={etaLabel} /> : etaLabel}
+                {arcade ? <ArcadeNumber text={etaLabel} /> : etaLabel}
               </p>
               <p className="text-xs leading-4 text-muted-foreground">arrivée</p>
             </div>
             <div className="min-w-0">
               <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
-                {arcadeNumbers ? (
+                {arcade ? (
                   <ArcadeNumber text={durationLabel} />
                 ) : (
                   durationLabel
@@ -314,7 +330,7 @@ export function NavigationOverlay({
             </div>
             <div className="min-w-0">
               <p className="overflow-hidden text-[1.35rem] font-semibold leading-8 whitespace-nowrap tabular-nums landscape:text-xl">
-                {arcadeNumbers ? (
+                {arcade ? (
                   <ArcadeNumber text={remainingDistanceLabel} />
                 ) : (
                   remainingDistanceLabel

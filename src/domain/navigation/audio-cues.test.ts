@@ -2,10 +2,75 @@ import { describe, expect, it } from "vitest";
 import {
   cueDurationMs,
   cueForAnnouncementPhase,
+  cueTones,
   decideNavigationCue,
   emptyCueMemory,
   NAVIGATION_CUE_TONES,
+  NAVIGATION_CUE_VOICES,
+  type CueVoice,
+  type NavigationCue,
 } from "./audio-cues";
+
+const VOICES = Object.keys(NAVIGATION_CUE_VOICES) as CueVoice[];
+
+describe("navigation cue voices (FR-044, FR-046)", () => {
+  it("gives every voice every cue", () => {
+    // A display picks a voice, not a cue list: a hole in one of them would go
+    // silent at exactly the moment the rider needed telling.
+    const cues = Object.keys(NAVIGATION_CUE_TONES).sort();
+    for (const voice of VOICES) {
+      expect(Object.keys(NAVIGATION_CUE_VOICES[voice]).sort()).toEqual(cues);
+    }
+  });
+
+  it("holds every voice to the same limits as the original", () => {
+    for (const voice of VOICES) {
+      for (const tones of Object.values(NAVIGATION_CUE_VOICES[voice])) {
+        expect(tones.length).toBeGreaterThan(0);
+        for (const tone of tones) {
+          // A theme may change how a cue sounds, never how loud it is.
+          expect(tone.gain).toBeGreaterThan(0);
+          expect(tone.gain).toBeLessThanOrEqual(0.2);
+          expect(tone.durationMs).toBeGreaterThan(0);
+          expect(tone.frequencyHz).toBeGreaterThan(0);
+          if (tone.waveform !== undefined) {
+            expect(["sine", "triangle", "square"]).toContain(tone.waveform);
+          }
+        }
+        const offsets = tones.map((tone) => tone.startOffsetMs);
+        expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
+        expect(offsets[0]).toBe(0);
+      }
+    }
+  });
+
+  it("keeps every cue of every voice short enough to precede a maneuver", () => {
+    for (const voice of VOICES) {
+      for (const cue of Object.keys(NAVIGATION_CUE_VOICES[voice]) as NavigationCue[]) {
+        expect(cueDurationMs(cue, voice)).toBeLessThanOrEqual(600);
+      }
+    }
+  });
+
+  it("leaves the standard voice on a plain sine, as it always was", () => {
+    for (const tones of Object.values(NAVIGATION_CUE_VOICES.standard)) {
+      for (const tone of tones) {
+        expect(tone.waveform).toBeUndefined();
+      }
+    }
+    expect(cueTones("imminent")).toBe(NAVIGATION_CUE_TONES.imminent);
+  });
+
+  it("spares the helmet the square wave until the turn is here", () => {
+    // A square wave nags; the early warnings stay on a triangle and only the
+    // cues that must cut through get the harsher timbre.
+    const shapeOf = (cue: NavigationCue) =>
+      cueTones(cue, "arcade").map((tone) => tone.waveform);
+    expect(shapeOf("prepare")).toEqual(["triangle"]);
+    expect(shapeOf("approach")).toEqual(["triangle", "triangle"]);
+    expect(shapeOf("imminent")).toEqual(["square", "square", "square"]);
+  });
+});
 
 describe("navigation cue tones (FR-044)", () => {
   it("stays under the voice and never starts a tone before the previous one", () => {

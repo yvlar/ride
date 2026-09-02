@@ -1,5 +1,6 @@
 import {
-  NAVIGATION_CUE_TONES,
+  cueTones,
+  type CueVoice,
   type NavigationCue,
 } from "@/domain/navigation/audio-cues";
 
@@ -40,6 +41,14 @@ export type NavigationAudioCues = {
   /** Play one cue; overlapping cues are cut so two never pile up. */
   play: (cue: NavigationCue) => void;
   setMuted: (muted: boolean) => void;
+  /**
+   * FR-046 — the timbre follows the map theme. Changing it never rebuilds the
+   * `AudioContext`: a fresh one is born suspended on iOS, far from the gesture
+   * that unlocked the first, and the rider would lose every cue for the rest of
+   * the ride. So the voice is a setting on the running engine, not a
+   * constructor argument.
+   */
+  setVoice: (voice: CueVoice) => void;
   /** Resume the context during the gesture that starts navigation (FR-044). */
   unlock: () => void;
   stop: () => void;
@@ -79,6 +88,7 @@ export function createNavigationAudioCues(
   let context: AudioContextLike | null = null;
   let resolved = false;
   let muted = false;
+  let voice: CueVoice = "standard";
   let playing: OscillatorLike[] = [];
 
   function audioContext(): AudioContextLike | null {
@@ -110,6 +120,9 @@ export function createNavigationAudioCues(
 
   return {
     available: Boolean(resolve),
+    setVoice(next) {
+      voice = next;
+    },
     setMuted(next) {
       muted = next;
       if (muted) {
@@ -145,13 +158,13 @@ export function createNavigationAudioCues(
       }
       stopScheduled();
       const startedAt = ctx.currentTime;
-      for (const tone of NAVIGATION_CUE_TONES[cue]) {
+      for (const tone of cueTones(cue, voice)) {
         try {
           const oscillator = ctx.createOscillator();
           const gain = ctx.createGain();
           const start = startedAt + tone.startOffsetMs / 1_000;
           const end = start + tone.durationMs / 1_000;
-          oscillator.type = "sine";
+          oscillator.type = tone.waveform ?? "sine";
           oscillator.frequency.setValueAtTime(tone.frequencyHz, start);
           gain.gain.setValueAtTime(0, start);
           gain.gain.linearRampToValueAtTime(tone.gain, start + RAMP_S);

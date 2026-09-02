@@ -551,6 +551,7 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       setMuted: vi.fn(),
       unlock: vi.fn(),
       stop: vi.fn(),
+      setVoice: vi.fn(),
     };
     const destroy = vi.fn();
     const recenter = vi.fn();

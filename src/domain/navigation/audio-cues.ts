@@ -15,10 +15,33 @@ export type NavigationCue =
   | "approach"
   | "imminent"
   | "reroute"
-  | "arrival";
+  | "arrival"
+  /*
+   * FR-046 — the two sounds of the start countdown: a pip on 3, 2 and 1, then
+   * the launch chord on GO. `decideNavigationCue` never returns them — the
+   * countdown plays them directly — but they share the engine, so muting the
+   * session silences them like everything else.
+   */
+  | "countdown"
+  | "go";
+
+/**
+ * FR-044 — the shape of an oscillator. A square wave is fatiguing in a helmet
+ * speaker, so it belongs to the tone rather than to the voice: that way a voice
+ * can be bright on the cues that must cut through and stay gentle on the ones
+ * that merely warn, instead of choosing once for all five.
+ */
+export type CueWaveform = "sine" | "triangle" | "square";
+
+/**
+ * FR-044, FR-046 — a set of timbres a display can pick. This is a *sound*, not
+ * a map theme: the domain must not learn the name of a basemap (`BR-004`), so
+ * mapping a theme to a voice is the interface's job.
+ */
+export type CueVoice = "standard" | "arcade";
 
 export type CueTone = {
-  /** Sine pitch in hertz. */
+  /** Pitch in hertz. */
   frequencyHz: number;
   /** How long the pitch is held. */
   durationMs: number;
@@ -26,13 +49,15 @@ export type CueTone = {
   gain: number;
   /** Delay from the start of the cue. */
   startOffsetMs: number;
+  /** Defaults to a sine, which is what every cue sounded like originally. */
+  waveform?: CueWaveform;
 };
 
 /** Under the voice: a cue leads an instruction, it never masks it. */
 const CUE_GAIN = 0.12;
 const SOFT_CUE_GAIN = 0.09;
 
-export const NAVIGATION_CUE_TONES: Record<NavigationCue, readonly CueTone[]> = {
+const STANDARD_CUE_TONES: Record<NavigationCue, readonly CueTone[]> = {
   // A single soft tone: the maneuver is still 500 m away.
   prepare: [
     { frequencyHz: 880, durationMs: 130, gain: SOFT_CUE_GAIN, startOffsetMs: 0 },
@@ -59,7 +84,172 @@ export const NAVIGATION_CUE_TONES: Record<NavigationCue, readonly CueTone[]> = {
     { frequencyHz: 880, durationMs: 120, gain: CUE_GAIN, startOffsetMs: 130 },
     { frequencyHz: 1320, durationMs: 220, gain: CUE_GAIN, startOffsetMs: 260 },
   ],
+  // The standard look has no countdown, so these are never heard today. They
+  // are defined anyway: the table is total, and a future display that wants a
+  // countdown inherits something sober rather than nothing.
+  countdown: [
+    { frequencyHz: 880, durationMs: 110, gain: SOFT_CUE_GAIN, startOffsetMs: 0 },
+  ],
+  go: [
+    { frequencyHz: 1320, durationMs: 200, gain: CUE_GAIN, startOffsetMs: 0 },
+  ],
 };
+
+/**
+ * FR-046 — the arcade timbre. Same cues, same moments, same gains: only the
+ * shape of the wave and the intervals change, so nothing about when a rider is
+ * warned is altered by a choice of basemap.
+ *
+ * The intervals are the common stock of racing-cabinet sound — rising fourths
+ * and fifths, a pip on a plain square wave. Nothing here transcribes a melody
+ * from any published game.
+ */
+const ARCADE_CUE_TONES: Record<NavigationCue, readonly CueTone[]> = {
+  // Soft triangle: a square this early would nag.
+  prepare: [
+    {
+      frequencyHz: 784,
+      durationMs: 130,
+      gain: SOFT_CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "triangle",
+    },
+  ],
+  // Rising fourth, still on a triangle.
+  approach: [
+    {
+      frequencyHz: 784,
+      durationMs: 110,
+      gain: CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "triangle",
+    },
+    {
+      frequencyHz: 1047,
+      durationMs: 130,
+      gain: CUE_GAIN,
+      startOffsetMs: 140,
+      waveform: "triangle",
+    },
+  ],
+  // Now the square: the turn is here, and this one has to cut through.
+  imminent: [
+    {
+      frequencyHz: 1047,
+      durationMs: 80,
+      gain: CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 1047,
+      durationMs: 80,
+      gain: CUE_GAIN,
+      startOffsetMs: 110,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 1568,
+      durationMs: 120,
+      gain: CUE_GAIN,
+      startOffsetMs: 220,
+      waveform: "square",
+    },
+  ],
+  // Descending square: something went wrong.
+  reroute: [
+    {
+      frequencyHz: 622,
+      durationMs: 120,
+      gain: CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 415,
+      durationMs: 180,
+      gain: CUE_GAIN,
+      startOffsetMs: 140,
+      waveform: "square",
+    },
+  ],
+  // Rising arpeggio: the finish line.
+  arrival: [
+    {
+      frequencyHz: 784,
+      durationMs: 90,
+      gain: CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 1047,
+      durationMs: 90,
+      gain: CUE_GAIN,
+      startOffsetMs: 100,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 1319,
+      durationMs: 90,
+      gain: CUE_GAIN,
+      startOffsetMs: 200,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 1568,
+      durationMs: 180,
+      gain: CUE_GAIN,
+      startOffsetMs: 300,
+      waveform: "square",
+    },
+  ],
+  // The starting lights: one flat pip per number.
+  countdown: [
+    {
+      frequencyHz: 784,
+      durationMs: 140,
+      gain: CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "square",
+    },
+  ],
+  // Lights out: an octave above the pips, held, so GO is unmistakably the end.
+  go: [
+    {
+      frequencyHz: 1568,
+      durationMs: 150,
+      gain: CUE_GAIN,
+      startOffsetMs: 0,
+      waveform: "square",
+    },
+    {
+      frequencyHz: 2093,
+      durationMs: 280,
+      gain: CUE_GAIN,
+      startOffsetMs: 160,
+      waveform: "square",
+    },
+  ],
+};
+
+export const NAVIGATION_CUE_VOICES: Record<
+  CueVoice,
+  Record<NavigationCue, readonly CueTone[]>
+> = {
+  standard: STANDARD_CUE_TONES,
+  arcade: ARCADE_CUE_TONES,
+};
+
+/** The voice Ride has always had, for callers that never chose one. */
+export const NAVIGATION_CUE_TONES = STANDARD_CUE_TONES;
+
+export function cueTones(
+  cue: NavigationCue,
+  voice: CueVoice = "standard",
+): readonly CueTone[] {
+  return NAVIGATION_CUE_VOICES[voice][cue];
+}
 
 export type NavigationCueEvent =
   | { type: "announcement"; phase: AnnouncementPhase }
@@ -88,8 +278,11 @@ export function cueForAnnouncementPhase(phase: AnnouncementPhase): NavigationCue
   return phase;
 }
 
-export function cueDurationMs(cue: NavigationCue): number {
-  return NAVIGATION_CUE_TONES[cue].reduce(
+export function cueDurationMs(
+  cue: NavigationCue,
+  voice: CueVoice = "standard",
+): number {
+  return cueTones(cue, voice).reduce(
     (longest, tone) => Math.max(longest, tone.startOffsetMs + tone.durationMs),
     0,
   );

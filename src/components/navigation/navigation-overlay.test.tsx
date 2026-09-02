@@ -55,28 +55,32 @@ function renderOverlay(
   return render(<NavigationOverlay {...props} />);
 }
 
-function renderArcadeOverlay() {
+function renderArcadeOverlay(
+  overrides: Partial<ComponentProps<typeof NavigationOverlay>> = {},
+) {
   window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "kart-arcade");
+  const props: ComponentProps<typeof NavigationOverlay> = {
+    arrow: "→",
+    instruction: "Tournez à droite",
+    distanceToManeuverKm: 0.25,
+    remainingDistanceKm: 8.4,
+    remainingMinutes: 12,
+    nowMs,
+    accuracyMeters: 8,
+    status: NAVIGATING_STATUS,
+    hidden: false,
+    muted: false,
+    recalcError: null,
+    onMuteToggle: () => {},
+    onRecenter: () => {},
+    onStop: () => {},
+    onRetryRecalculate: () => {},
+    ...overrides,
+  };
   return render(
     <AppearanceProvider>
       <MapThemeProvider>
-        <NavigationOverlay
-          arrow="→"
-          instruction="Tournez à droite"
-          distanceToManeuverKm={0.25}
-          remainingDistanceKm={8.4}
-          remainingMinutes={12}
-          nowMs={nowMs}
-          accuracyMeters={8}
-          status={NAVIGATING_STATUS}
-          hidden={false}
-          muted={false}
-          recalcError={null}
-          onMuteToggle={() => {}}
-          onRecenter={() => {}}
-          onStop={() => {}}
-          onRetryRecalculate={() => {}}
-        />
+        <NavigationOverlay {...props} />
       </MapThemeProvider>
     </AppearanceProvider>,
   );
@@ -315,5 +319,43 @@ describe("NavigationOverlay (FR-023, FR-024, FR-042, NFR-006)", () => {
   it("shows the GPX phase label (FR-039)", () => {
     renderOverlay({ statusLabel: "Rejoindre le trajet GPX" });
     expect(screen.getByText("Rejoindre le trajet GPX")).toBeInTheDocument();
+  });
+});
+
+describe("start countdown (FR-046)", () => {
+  it("shows the countdown over the map under Kart Arcade", async () => {
+    renderArcadeOverlay({ countdownStep: 3 });
+
+    const stage = await screen.findByTestId("arcade-countdown");
+    expect(stage.textContent).toBe("3");
+    // Absolutely positioned, or it would become a third column in landscape and
+    // squeeze the maneuver card and the progress panel.
+    expect(stage.className).toContain("absolute");
+  });
+
+  it("shows nothing once the countdown is over", () => {
+    renderArcadeOverlay({ countdownStep: null });
+
+    expect(screen.queryByTestId("arcade-countdown")).toBeNull();
+  });
+
+  it("never shows a countdown under another basemap", async () => {
+    renderOverlay({ countdownStep: 3 });
+
+    // The maneuver card proves the overlay rendered at all.
+    expect(
+      screen.getByRole("banner", { name: "Prochaine manœuvre" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("arcade-countdown")).toBeNull();
+  });
+
+  it("leaves the maneuver instruction and Terminer reachable while it runs", async () => {
+    renderArcadeOverlay({ countdownStep: 1 });
+
+    await screen.findByTestId("arcade-countdown");
+    expect(screen.getByText("Tournez à droite")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Terminer la navigation" }),
+    ).toBeInTheDocument();
   });
 });

@@ -1147,6 +1147,7 @@ Règles :
 - elle se déclenche **quand le moteur vocal est absent ou en erreur**; tant que la voix fonctionne, elle reste silencieuse pour ne pas doubler l’instruction;
 - l’arrivée n’est annoncée qu’une fois; un trajet recalculé peut de nouveau être atteint;
 - le contexte audio est déverrouillé par le même geste que la voix, et deux indications ne se superposent jamais;
+- le **timbre** des tonalités peut suivre le thème de carte (`FR-046`) : la forme d’onde appartient à la tonalité, dans le domaine, et un afficheur choisit une **voix** parmi celles qu’il décrit. Le thème ne change ni le moment où une indication se déclenche, ni son volume, ni la règle de repli ci-dessus, et changer de thème en roulant ne coupe jamais le son;
 - le bouton de coupure du son de l’écran de navigation coupe la voix **et** les indications sonores;
 - lorsque la voix est indisponible, le bouton le nomme explicitement, plutôt que de laisser croire à un silence choisi (`FR-042`);
 - l’absence de Web Audio ne dégrade que le son : la navigation visuelle continue (`NFR-006`).
@@ -1245,6 +1246,15 @@ La caméra :
 - un **aperçu de trajet complet est toujours cadré à plat**, quel que soit le thème : un tracé de 90 km vu en enfilade est illisible;
 - `prefers-reduced-motion` remplace le mouvement de caméra par une coupe instantanée (`NFR-008`);
 - le motocycliste peut redresser ou incliner la carte lui-même; son geste a toujours le dernier mot.
+
+Départ :
+
+- au **premier point GPS** d’une session, un **compte à rebours ponctuel** 3‑2‑1‑GO ! s’affiche au centre de l’écran, sous ce thème seulement. C’est le moment où le guidage commence réellement; un rebours lancé plus tôt se terminerait pendant « Recherche de la position… »;
+- il est **strictement décoratif et ne retarde rien** : itinéraire, caméra et voix démarrent en parallèle. Il est transparent aux touches et ne masque ni l’instruction de manœuvre ni le bouton **Terminer**, que le motocycliste peut presser pendant qu’il défile;
+- il ne joue **qu’une fois par session**, jamais en boucle — l’interdiction d’animation permanente porte sur la boucle, pas sur un éclat ponctuel;
+- il est `aria-hidden` : l’état de la session est déjà annoncé par sa zone `role="status"`, et le rebours ne doit pas parler par-dessus;
+- chaque palier porte une tonalité (`FR-044`). Contrairement aux indications de manœuvre, ce court signal n’en double aucune et sonne donc même quand la voix fonctionne. Le bouton de coupure du son le fait taire, et il reste muet quand un écran de véhicule pilote le son (`FR-028`);
+- `prefers-reduced-motion` supprime le mouvement sans supprimer les paliers : les chiffres défilent, ils ne grossissent plus (`NFR-008`).
 
 Portée dans l’interface :
 

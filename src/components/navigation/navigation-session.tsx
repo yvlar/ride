@@ -19,6 +19,7 @@ import {
   decideNavigationCue,
   emptyCueMemory,
   resetCueMemory,
+  type NavigationCue,
   type NavigationCueEvent,
 } from "@/domain/navigation/audio-cues";
 import { formatFrenchInstruction, roadLabel } from "@/domain/navigation/instructions";
@@ -43,8 +44,10 @@ import {
   createNavigationAudioCues,
   type NavigationAudioCues,
 } from "@/infrastructure/audio/navigation-audio-cues";
+import { useMapTheme } from "@/components/theme/map-theme-provider";
 import { NavigationMap, type NavigationMapProps } from "./navigation-map";
 import { NavigationOverlay } from "./navigation-overlay";
+import type { ArcadeCountdownStep } from "./arcade-countdown";
 import { maneuverArrow } from "./maneuver-arrow";
 import {
   requestRecalculatedRide,
@@ -83,6 +86,11 @@ import {
   type LiveGpxRuntime,
 } from "@/domain/gpx/navigation";
 import type { ProviderRouteResult } from "@/infrastructure/routing/routing-provider";
+
+/** FR-046 — how long each number of the start countdown is held. */
+const COUNTDOWN_STEP_MS = 600;
+/** GO lingers a little longer, then the countdown is gone for good. */
+const COUNTDOWN_GO_MS = 900;
 
 export type NavigationSessionProps = {
   route: GeneratedRideRoute;
@@ -175,6 +183,17 @@ export function NavigationSession({
   const [recalculating, setRecalculating] = useState(false);
   const [offRoute, setOffRoute] = useState(false);
   const [hasFix, setHasFix] = useState(false);
+  /**
+   * FR-046 — the step of the start countdown, or `null` when it is not running.
+   * Purely decorative: nothing in the session waits on it.
+   */
+  const [countdownStep, setCountdownStep] = useState<ArcadeCountdownStep | null>(
+    null,
+  );
+  /** `hasFix` is set on every fix; this is what makes the countdown a one-shot. */
+  const countdownDoneRef = useRef(false);
+  /** Read at the first fix, so a later theme change cannot start a countdown. */
+  const arcadeRef = useRef(false);
   const [online, setOnline] = useState(true);
   const [hidden, setHidden] = useState(false);
   const [carPlayConnected, setCarPlayConnected] = useState(false);
@@ -226,6 +245,10 @@ export function NavigationSession({
   const fetchGpxJoinRef = useRef<
     (from: Coordinates, to: Coordinates) => Promise<void>
   >(async () => {});
+
+  /** FR-046 — the basemap decides the earcon timbre and the start countdown. */
+  const { resolvedTheme } = useMapTheme();
+  const arcade = resolvedTheme === "kart-arcade";
 
   const speechEngine = useMemo(
     () => speech ?? createSpeechGuidance(),
@@ -313,6 +336,77 @@ export function NavigationSession({
     speechEngine.setMuted(muted);
     cueEngine.setMuted(muted);
   }, [cueEngine, muted, speechEngine]);
+
+  /*
+   * FR-044, FR-046 — the earcon timbre follows the basemap. Setting it on the
+   * running engine rather than rebuilding one keeps the unlocked `AudioContext`
+   * alive, so switching theme mid-ride never costs the rider the cues.
+   */
+  useEffect(() => {
+    arcadeRef.current = arcade;
+    cueEngine.setVoice(arcade ? "arcade" : "standard");
+  }, [arcade, cueEngine]);
+
+  /*
+   * FR-046 — the start countdown, once per session, on the first GPS fix. That
+   * is the moment guidance truly begins; started any earlier it would finish
+   * while the screen still reads "Recherche de la position…".
+   *
+   * It is decoration and nothing waits on it: the route, the camera and the
+   * voice are already running alongside.
+   *
+   * Two things make this a genuine rising edge. `hasFix` is set on *every* fix,
+   * so the ref is what stops it firing again; and the ref is spent on the first
+   * fix whatever the basemap, with the theme read from a ref rather than from
+   * the dependency list — otherwise a rider switching to Kart Arcade forty
+   * kilometres in would be shown a start countdown mid-ride.
+   */
+  useEffect(() => {
+    if (!hasFix || countdownDoneRef.current) {
+      return;
+    }
+    countdownDoneRef.current = true;
+    if (!arcadeRef.current) {
+      return;
+    }
+
+    const play = (cue: NavigationCue) => {
+      // A vehicle screen owns the audio when it is attached, exactly as
+      // `playFallbackCue` and the announcement path already assume. Muting is
+      // handled by the engine itself.
+      if (ownsVoiceRef.current) {
+        return;
+      }
+      cueEngine.play(cue);
+    };
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const at = (delayMs: number, run: () => void) => {
+      timers.push(setTimeout(run, delayMs));
+    };
+
+    setCountdownStep(3);
+    play("countdown");
+    at(COUNTDOWN_STEP_MS, () => {
+      setCountdownStep(2);
+      play("countdown");
+    });
+    at(COUNTDOWN_STEP_MS * 2, () => {
+      setCountdownStep(1);
+      play("countdown");
+    });
+    at(COUNTDOWN_STEP_MS * 3, () => {
+      setCountdownStep(0);
+      play("go");
+    });
+    at(COUNTDOWN_STEP_MS * 3 + COUNTDOWN_GO_MS, () => setCountdownStep(null));
+
+    return () => {
+      for (const timer of timers) {
+        clearTimeout(timer);
+      }
+    };
+  }, [cueEngine, hasFix]);
 
   /* FR-042 — a dropped connection must be named, not left to a frozen map. */
   useEffect(() => {
@@ -1149,6 +1243,7 @@ export function NavigationSession({
         hidden={hidden}
         carPlayConnected={carPlayConnected}
         muted={muted}
+        countdownStep={countdownStep}
         followingUser={followingUser}
         destinationLabel={destinationLabel}
         recalcError={recalcError}
