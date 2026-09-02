@@ -620,7 +620,9 @@ export function createMapLibreEngine(
         for (const cloud of weather?.clouds ?? []) {
           cloudMarkers.push(
             new Marker({
-              element: createCloudMarkerElement(cloud),
+              element: createCloudMarkerElement(cloud, {
+                faces: overlayTheme.cloudFaces,
+              }),
               anchor: "center",
             })
               .setLngLat(coordinatesToPosition(cloud.coordinates))

@@ -270,3 +270,102 @@
     transition: none;
   }
 }
+
+/*
+ * FR-046 — the Kart Arcade sky. Under this theme the weather cloud (FR-043)
+ * stops being a thin outline over a solid map and becomes a character: a
+ * filled body with an ink edge, two eyes, and a mood that follows the level —
+ * placid overcast, worried showers, downcast rain, furious storm.
+ *
+ * The mood only repeats what the badge and the accessible name already say, so
+ * nothing is carried by the drawing alone (FR-043, NFR-001). Every shape is
+ * drawn for Ride and is neither traced from, nor modelled on, any published
+ * game's artwork. Nothing here animates.
+ *
+ * Hues mirror KART_ARCADE_PALETTE (themes/kart-arcade-palette.ts); a static
+ * stylesheet cannot read the module, so each one names the token it echoes.
+ */
+.ride-map-cloud--arcade {
+  /* Flat drop, like the arcade place badges: a shadow, not a costly blur. */
+  filter: drop-shadow(0 2px 0 rgb(23 50 77 / 0.3));
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-icon {
+  width: 38px;
+  height: 34px;
+}
+
+/* The level tints the body; every ink line stays the map's text colour. */
+.ride-map-cloud--arcade .ride-map-cloud-body {
+  fill: currentColor;
+  stroke: #17324D; /* textPrimary */
+  stroke-width: 2.5;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-eye {
+  fill: #FFF9E8; /* guardrail */
+  stroke: #17324D;
+  stroke-width: 1.6;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-pupil {
+  fill: #17324D;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-brow,
+.ride-map-cloud--arcade .ride-map-cloud-lid,
+.ride-map-cloud--arcade .ride-map-cloud-mouth {
+  fill: none;
+  stroke: #17324D;
+  /* Thin enough that two brows keep a gap between them at 38 px. */
+  stroke-width: 1.8;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-mouth--open {
+  fill: #17324D;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-streak {
+  fill: none;
+  stroke: #147DFF; /* route */
+  stroke-width: 2.6;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-tear {
+  fill: #147DFF;
+}
+
+.ride-map-cloud--arcade .ride-map-cloud-bolt {
+  fill: #FFD447; /* roadLine */
+  stroke: #17324D;
+  stroke-width: 2;
+}
+
+/*
+ * Body tints. Cream for a dry overcast, then colder and heavier as the rain
+ * becomes likely, ending on the bruised purple of a storm.
+ */
+.ride-map-cloud--arcade.ride-map-cloud--cloudy .ride-map-cloud-icon {
+  color: #FFF9E8; /* guardrail */
+}
+
+.ride-map-cloud--arcade.ride-map-cloud--showers .ride-map-cloud-icon {
+  color: #8FE6FA; /* waterShallow */
+}
+
+.ride-map-cloud--arcade.ride-map-cloud--rain .ride-map-cloud-icon {
+  color: #5AB4E8;
+}
+
+.ride-map-cloud--arcade.ride-map-cloud--storm .ride-map-cloud-icon {
+  color: #9A8CC0;
+}
+
+/* The badge joins the theme rather than staying a dark chip on a cream cloud. */
+.ride-map-cloud--arcade .ride-map-cloud-badge {
+  background: #FFF9E8;
+  border: 2px solid #17324D;
+  color: #17324D;
+  padding: 0 7px;
+  box-shadow: none;
+}

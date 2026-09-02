@@ -53,3 +53,70 @@ describe("createCloudMarkerElement (FR-043)", () => {
     expect(svg?.getAttribute("aria-hidden")).toBe("true");
   });
 });
+
+describe("arcade cloud faces (FR-046)", () => {
+  function face(level: WeatherCloudMarker["level"]): HTMLElement {
+    return createCloudMarkerElement(marker({ level }), { faces: true });
+  }
+
+  it("only puts on a face when the theme asks for one", () => {
+    expect(face("rain").classList.contains("ride-map-cloud--arcade")).toBe(true);
+    expect(
+      createCloudMarkerElement(marker()).classList.contains(
+        "ride-map-cloud--arcade",
+      ),
+    ).toBe(false);
+    expect(
+      createCloudMarkerElement(marker(), { faces: false }).querySelector(
+        ".ride-map-cloud-face",
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps the badge and the accessible name of the plain cloud (NFR-001)", () => {
+    const arcade = face("rain");
+    const plain = createCloudMarkerElement(marker());
+
+    expect(arcade.getAttribute("role")).toBe(plain.getAttribute("role"));
+    expect(arcade.getAttribute("aria-label")).toBe(
+      plain.getAttribute("aria-label"),
+    );
+    expect(arcade.textContent).toBe(plain.textContent);
+    expect(arcade.dataset.level).toBe("rain");
+    // The mood is a drawing, so assistive technology never sees it.
+    expect(arcade.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+  });
+
+  it("gives every drawn level a pair of eyes", () => {
+    for (const level of ["cloudy", "showers", "rain", "storm"] as const) {
+      const element = face(level);
+
+      expect(element.querySelector(".ride-map-cloud-face")).not.toBeNull();
+      expect(element.querySelectorAll(".ride-map-cloud-eye")).toHaveLength(2);
+      expect(element.querySelectorAll(".ride-map-cloud-pupil")).toHaveLength(2);
+      expect(element.querySelector(".ride-map-cloud-body")).not.toBeNull();
+    }
+  });
+
+  it("wears a different mood for each level", () => {
+    const moods = (["cloudy", "showers", "rain", "storm"] as const).map(
+      (level) => face(level).querySelector(".ride-map-cloud-face")?.innerHTML,
+    );
+
+    expect(new Set(moods).size).toBe(4);
+  });
+
+  it("keeps the weather itself on the cloud: streaks, a tear, a bolt", () => {
+    expect(
+      face("cloudy").querySelectorAll(".ride-map-cloud-streak"),
+    ).toHaveLength(0);
+    expect(
+      face("showers").querySelectorAll(".ride-map-cloud-streak").length,
+    ).toBeGreaterThan(0);
+    expect(face("rain").querySelector(".ride-map-cloud-tear")).not.toBeNull();
+    expect(face("storm").querySelector(".ride-map-cloud-bolt")).not.toBeNull();
+    expect(face("rain").querySelector(".ride-map-cloud-bolt")).toBeNull();
+  });
+});

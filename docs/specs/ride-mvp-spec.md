@@ -1168,6 +1168,8 @@ Le ciel est échantillonné autour du pilote : sa position, puis deux anneaux de
 
 Chaque point non dégagé porte un nuage dont la teinte et les traits suivent le niveau — **nuageux**, **averses**, **pluie**, **orage** — déduit de la probabilité de précipitation, de l’intensité en mm/h, de la couverture nuageuse et du code orage du fournisseur. Le pourcentage de risque accompagne le nuage : **aucune information n’est portée par la seule couleur**, et chaque marqueur porte un nom accessible (« Pluie, 72 % de risque de pluie »). Un ciel dégagé ne reçoit aucun marqueur.
 
+Sous le thème **Kart Arcade** (`FR-046`), le nuage devient un personnage : un corps plein cerné d’encre, deux yeux, et une **humeur qui suit le niveau** — placide sous un ciel couvert, inquiet sous les averses, triste sous la pluie, fâché sous l’orage. L’humeur ne fait que **redire** ce que le niveau dit déjà : le pourcentage, le nom accessible et la règle ci-dessus sont identiques d’un thème à l’autre, et le dessin reste `aria-hidden`. Les autres thèmes gardent le marqueur sobre.
+
 #### Images radar
 
 Les tuiles radar sont dessinées **sous** le tracé du trajet, jamais au-dessus : une cellule ne masque pas la route. Le pilote peut passer d’une image observée à la prévision immédiate (« Maintenant », « +20 min »), qui est ce qui montre **où va** la cellule. L’attribution du fournisseur d’imagerie est affichée avec la couche.
@@ -1233,6 +1235,10 @@ Trajet actif :
 - **bornes kilométriques** entre les deux, espacées d’un nombre rond de kilomètres choisi pour qu’un trajet n’en porte jamais plus d’une douzaine, quelle que soit sa longueur. Chaque borne affiche sa distance et son unité. Aucune ne se pose dans la dernière demi-portion, pour ne pas heurter le damier d’arrivée;
 - damier et bornes sont **dessinés dans le code**, comme les chevrons : Ride n’embarque aucune planche de sprites, et un moteur sans canevas 2D affiche simplement le trajet sans eux (`NFR-005`);
 - la géométrie reste exactement celle du moteur de routage : le thème ne touche ni au calcul, ni au recalcul, ni au guidage.
+
+Ciel :
+
+- la couche météo (`FR-043`) suit le thème comme le reste : ses **nuages prennent un visage** dont l’humeur reprend le niveau de précipitation, avec les gouttes, la larme ou l’éclair du niveau. Les visages sont **dessinés dans le code**, originaux comme le damier et les chevrons, et **strictement immobiles** — l’interdiction d’animation permanente vaut ici aussi. Changer de thème les redessine sans démonter la carte (`FR-045`).
 
 Deux niveaux de détail :
 

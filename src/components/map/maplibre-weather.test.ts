@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { KART_ARCADE_MAP_OVERLAY_THEME } from "./map-theme-overlay";
+import type { MapOverlayTheme } from "./map-theme-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
 
@@ -192,12 +194,13 @@ const overlay: WeatherMapOverlay = {
   ],
 };
 
-async function mountEngine() {
+async function mountEngine(mapOverlay?: MapOverlayTheme) {
   const { createMapLibreEngine } = await import("./maplibre-map-engine");
   const handle = createMapLibreEngine().mount(
     document.createElement("div"),
     viewModel,
     { onError: vi.fn(), onWarning: vi.fn() },
+    mapOverlay ? { mapOverlay } : undefined,
   );
   for (const handler of mapState.loadHandlers) {
     handler();
@@ -386,6 +389,33 @@ describe("MapLibre weather layer (FR-043)", () => {
     expect(
       addLayer.mock.calls.map(([layer]) => layer.id),
     ).toEqual(expect.arrayContaining(["ride-route-line", "ride-radar-tiles"]));
+  });
+});
+
+describe("Kart Arcade clouds (FR-046)", () => {
+  it("gives the clouds a face under the arcade theme, and only there", async () => {
+    const arcade = await mountEngine(KART_ARCADE_MAP_OVERLAY_THEME);
+    arcade.setWeather?.(overlay);
+
+    const faces = cloudElements();
+    expect(faces).toHaveLength(2);
+    for (const element of faces) {
+      expect(element.classList.contains("ride-map-cloud--arcade")).toBe(true);
+      expect(element.querySelectorAll(".ride-map-cloud-eye")).toHaveLength(2);
+      // The badge and the accessible name are the same on every theme.
+      expect(element.getAttribute("aria-label")).toMatch(/risque de pluie$/);
+      expect(element.textContent).toMatch(/%$/);
+    }
+  });
+
+  it("leaves the plain glyph on every other theme", async () => {
+    const standard = await mountEngine();
+    standard.setWeather?.(overlay);
+
+    for (const element of cloudElements()) {
+      expect(element.classList.contains("ride-map-cloud--arcade")).toBe(false);
+      expect(element.querySelector(".ride-map-cloud-face")).toBeNull();
+    }
   });
 });
 
