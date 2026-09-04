@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { composeDestinationRide } from "@/application/compose-destination-ride";
 import {
   formatDistanceLabel,
@@ -86,6 +86,23 @@ function locationStatusMessage(
 export const MAP_PICK_HINT =
   "Ou placez la destination directement sur la carte : appui long (clic sur ordinateur), puis déplacez le marqueur.";
 
+const PREVIEW_DETAILS_LABEL = "Détails du trajet";
+const PREVIEW_DETAILS_HIDE_LABEL = "Masquer les détails";
+
+/**
+ * FR-038 — the preview floats over the trajet it describes, so it shows only
+ * what the rider decides with: where they are going, and the three numbers.
+ * Roads, shares and warnings are one tap away rather than covering the map,
+ * and the label counts the warnings so none of them folds away unannounced.
+ */
+function previewDetailsLabel(warningCount: number): string {
+  if (warningCount === 0) {
+    return PREVIEW_DETAILS_LABEL;
+  }
+  const noun = warningCount === 1 ? "avertissement" : "avertissements";
+  return `${PREVIEW_DETAILS_LABEL} · ${warningCount} ${noun}`;
+}
+
 export type FindDestinationPanelProps = {
   generateRide?: (
     request: GenerateRideRequest,
@@ -138,6 +155,8 @@ export function FindDestinationPanel({
     { destination: initialDestination, destinationQuery: initialQuery },
     createDestinationSearchState,
   );
+  /* Collapsed by default: the map behind this pane is the point (FR-038). */
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const locateGeneration = useRef(0);
   const pickGeneration = useRef(0);
   const reversePlaceRef = useRef(reversePlace);
@@ -157,6 +176,17 @@ export function FindDestinationPanel({
   const showGenerate = showsGenerateDestinationAction(state);
   const showDestinationCard =
     state.stage === "selected" && state.destination !== null;
+  /*
+   * While a trajet is on the map, neither the search field nor the recap card
+   * is shown: the preview names the destination itself and "Modifier la
+   * destination" reopens the search. A regeneration keeps them folded, so the
+   * pane does not grow and shrink under the rider's thumb; a failed generation
+   * brings them straight back, since changing the destination is then exactly
+   * what is left to do (FR-038).
+   */
+  const previewOwnsPane =
+    preview !== null &&
+    (state.phase === "routePreview" || state.phase === "generating");
   // Changing the destination mid-generation is allowed: it aborts the in-flight
   // request rather than waiting for it (FR-038). Only a cancellation in
   // progress freezes the controls.
@@ -517,8 +547,8 @@ export function FindDestinationPanel({
         </div>
       ) : null}
 
-      <div className="mt-3">
-        {showDestinationCard && state.destination ? (
+      <div className={previewOwnsPane ? undefined : "mt-3"}>
+        {previewOwnsPane ? null : showDestinationCard && state.destination ? (
           <SelectedDestinationCard
             destination={state.destination}
             disabled={destinationLocked}
@@ -593,66 +623,84 @@ export function FindDestinationPanel({
       ) : null}
 
       {preview ? (
-        <section aria-label="Trajet généré" className="mt-4 space-y-3">
+        <section aria-label="Trajet généré" className="mt-3 space-y-2">
           {/* Keep the target in view: it is what the rider is deciding about. */}
           {state.destination ? (
-            <p className="truncate text-base font-medium leading-6">
+            <p className="truncate text-sm font-medium leading-5">
               Vers {state.destination.label}
             </p>
           ) : null}
           <dl className="grid grid-cols-3 gap-2 text-center">
             <div>
-              <dd className="text-xl font-semibold leading-7 tabular-nums">
+              <dd className="text-lg font-semibold leading-6 tabular-nums">
                 {formatDistanceLabel(preview.distanceKm)}
               </dd>
               <dt className="text-xs leading-4 text-muted-foreground">distance</dt>
             </div>
             <div>
-              <dd className="text-xl font-semibold leading-7 tabular-nums">
+              <dd className="text-lg font-semibold leading-6 tabular-nums">
                 {formatDurationLabel(preview.durationMinutes)}
               </dd>
               <dt className="text-xs leading-4 text-muted-foreground">durée</dt>
             </div>
             <div>
-              <dd className="text-xl font-semibold leading-7 tabular-nums">
+              <dd className="text-lg font-semibold leading-6 tabular-nums">
                 {formatEta(now(), preview.durationMinutes)}
               </dd>
               <dt className="text-xs leading-4 text-muted-foreground">arrivée</dt>
             </div>
           </dl>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {generatedRouteTypeLabel(preview.type)} ·{" "}
-            {RIDE_STYLE_LABELS[preview.style ?? "scenic"]}
-          </p>
-          {(() => {
-            const shares = routeShareSummary(preview.segments);
-            const roads = principalRoadNames(preview.segments);
-            return (
-              <>
-                {roads.length > 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Routes : {roads.join(", ")}
-                  </p>
-                ) : null}
-                {shares.highwayPercent !== null ? (
-                  <p className="text-sm text-muted-foreground">
-                    Autoroute : {shares.highwayPercent} %
-                  </p>
-                ) : null}
-                {shares.unpavedPercent !== null ? (
-                  <p className="text-sm text-muted-foreground">
-                    Non asphalté : {shares.unpavedPercent} %
-                  </p>
-                ) : null}
-              </>
-            );
-          })()}
-          {preview.warnings.length > 0 ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              {preview.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
+          {/* Nothing is hidden silently: the toggle counts the warnings it folds
+              away, so a rider knows there is something to read (FR-038). */}
+          <Button
+            type="button"
+            variant="ghost"
+            className="min-h-11 w-full justify-center text-sm"
+            aria-expanded={detailsOpen}
+            aria-controls="find-destination-details"
+            onClick={() => setDetailsOpen((open) => !open)}
+          >
+            {detailsOpen
+              ? PREVIEW_DETAILS_HIDE_LABEL
+              : previewDetailsLabel(preview.warnings.length)}
+          </Button>
+          {detailsOpen ? (
+            <div id="find-destination-details" className="space-y-1">
+              <p className="text-sm leading-6 text-muted-foreground">
+                {generatedRouteTypeLabel(preview.type)} ·{" "}
+                {RIDE_STYLE_LABELS[preview.style ?? "scenic"]}
+              </p>
+              {(() => {
+                const shares = routeShareSummary(preview.segments);
+                const roads = principalRoadNames(preview.segments);
+                return (
+                  <>
+                    {roads.length > 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Routes : {roads.join(", ")}
+                      </p>
+                    ) : null}
+                    {shares.highwayPercent !== null ? (
+                      <p className="text-sm text-muted-foreground">
+                        Autoroute : {shares.highwayPercent} %
+                      </p>
+                    ) : null}
+                    {shares.unpavedPercent !== null ? (
+                      <p className="text-sm text-muted-foreground">
+                        Non asphalté : {shares.unpavedPercent} %
+                      </p>
+                    ) : null}
+                  </>
+                );
+              })()}
+              {preview.warnings.length > 0 ? (
+                <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {preview.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </section>
       ) : null}

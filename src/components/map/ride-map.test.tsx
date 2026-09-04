@@ -342,6 +342,7 @@ describe("RideMap basemap theme (FR-045)", () => {
       mapStyle: mapThemeStyle("kart-arcade"),
       mapOverlay: mapThemeOverlay("kart-arcade"),
       detailLevel: "exploration",
+      frameInsets: { bottom: 0 },
     });
 
     act(() => {
@@ -513,6 +514,37 @@ describe("RideMap Kart Arcade (FR-046)", () => {
     await waitFor(() => {
       expect(navMount.mock.calls[0]?.[3]?.detailLevel).toBe("navigation");
     });
+  });
+
+  it("tells the engine how much of the map the panel covers (FR-038)", async () => {
+    const setFrameInsets = vi.fn();
+    const mount = vi.fn<MapEngine["mount"]>(() => ({
+      destroy: vi.fn(),
+      setFrameInsets,
+    }));
+    const engine: MapEngine = { mount };
+
+    const { rerender } = renderWithTheme(
+      <RideMap route={loop} engine={engine} bottomInset={120} />,
+    );
+    await waitFor(() => {
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
+    expect(mount.mock.calls[0]?.[3]?.frameInsets).toEqual({ bottom: 120 });
+
+    rerender(
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <ArcadePicker />
+          <RideMap route={loop} engine={engine} bottomInset={320} />
+        </MapThemeProvider>
+      </AppearanceProvider>,
+    );
+
+    await waitFor(() => {
+      expect(setFrameInsets).toHaveBeenCalledWith({ bottom: 320 });
+    });
+    expect(mount).toHaveBeenCalledTimes(1);
   });
 
   it("switches the detail level in place when navigation starts", async () => {
