@@ -172,3 +172,193 @@
     transparent 38rem
   );
 }
+
+/*
+ * Explorer home chrome.
+ *
+ * These named hooks keep the exact home composition independent from the
+ * utility classes used by the panels. The resulting silhouette mirrors the
+ * map itself: cream guardrails around slate road plates, one coral weather
+ * control, and a red recording light. Other basemap themes never see these
+ * rules.
+ */
+:root[data-map-theme="kart-arcade"] .ride-app-shell {
+  isolation: isolate;
+  background: #17324d;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-map-stage {
+  overflow: hidden;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-dock {
+  top: max(0.875rem, env(safe-area-inset-top));
+  left: max(0.875rem, env(safe-area-inset-left));
+  width: min(22rem, calc(100% - 4rem));
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-control {
+  gap: 0.75rem;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-toggle {
+  min-height: 3rem;
+  border: 2px solid rgb(23 50 77 / 18%);
+  border-radius: 1.35rem;
+  padding-inline: 1.125rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  box-shadow: 0 4px 0 rgb(23 50 77 / 28%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-toggle[aria-pressed="true"] {
+  background: #ff665a;
+  color: #17324d;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-panel {
+  width: 100%;
+  max-width: none;
+  border-radius: 1.75rem;
+  background: #405267;
+  padding: 0.75rem 0.875rem;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-panel[data-expanded="false"] {
+  min-height: 3.5rem;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-weather-headline {
+  text-wrap: balance;
+  letter-spacing: -0.012em;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-home-controls {
+  bottom: max(0.875rem, env(safe-area-inset-bottom));
+  gap: clamp(0.65rem, 1.6dvh, 0.9rem);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-quick-actions {
+  max-width: 28rem;
+  gap: clamp(0.55rem, 1.5vw, 0.75rem);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-quick-action {
+  min-height: clamp(4.35rem, 10.5dvh, 5.25rem);
+  gap: clamp(0.55rem, 2vw, 0.75rem);
+  border-radius: 1.75rem;
+  background: #485b70;
+  padding: 0.55rem 0.7rem;
+  transition: transform 140ms ease, background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-quick-action:hover {
+  background: #52667b;
+  transform: translateY(-1px);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-quick-action:active {
+  background: #3f5267;
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 2px var(--kart-outline),
+    0 0 0 4px oklch(0.33 0.06 250 / 38%),
+    0 2px 0 oklch(0.33 0.06 250 / 34%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-quick-action-icon {
+  width: clamp(2.75rem, 12vw, 3.4rem);
+  height: clamp(2.75rem, 12vw, 3.4rem);
+  background: rgb(23 50 77 / 30%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-quick-action-label {
+  max-width: 9rem;
+  text-wrap: balance;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-record-button {
+  width: clamp(4rem, 17vw, 4.75rem);
+  height: clamp(4rem, 17vw, 4.75rem);
+  border-color: #aeb6c1;
+  background: #596578;
+  box-shadow:
+    0 0 0 2px #fff9e8,
+    0 0 0 6px #667286,
+    0 0 0 8px rgb(23 50 77 / 58%),
+    0 6px 0 rgb(23 50 77 / 35%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-record-button:hover {
+  background: #647186;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-record-dot {
+  background: #f12f3d;
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 28%),
+    0 0 0 1px rgb(23 50 77 / 20%),
+    0 0 1rem rgb(241 47 61 / 55%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-tab-bar {
+  min-height: 4.35rem;
+  border-radius: 1.85rem 1.85rem 0 0;
+  background: #33475c;
+  padding-top: 0.45rem;
+}
+
+:root[data-map-theme="kart-arcade"] .ride-tab-button {
+  min-height: 3.35rem;
+  color: rgb(255 249 232 / 70%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-tab-button-active {
+  background: #53677d;
+  color: #fff9e8;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+:root[data-map-theme="kart-arcade"] .ride-tab-label {
+  letter-spacing: -0.01em;
+}
+
+/* Keep the map useful on short browser/PWA viewports such as iPhone SE. */
+@media (max-height: 700px) {
+  :root[data-map-theme="kart-arcade"] .ride-quick-action {
+    min-height: 3.9rem;
+  }
+
+  :root[data-map-theme="kart-arcade"] .ride-quick-action-icon {
+    width: 2.7rem;
+    height: 2.7rem;
+  }
+
+  :root[data-map-theme="kart-arcade"] .ride-record-button {
+    width: 3.9rem;
+    height: 3.9rem;
+  }
+}
+
+@media (max-width: 360px), (max-height: 600px) {
+  :root[data-map-theme="kart-arcade"] .ride-home-controls {
+    gap: 0.55rem;
+  }
+
+  :root[data-map-theme="kart-arcade"] .ride-quick-action {
+    min-height: 3.55rem;
+    border-radius: 1.35rem;
+    font-size: 0.75rem;
+  }
+
+  :root[data-map-theme="kart-arcade"] .ride-quick-action-icon {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  :root[data-map-theme="kart-arcade"] .ride-record-button {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+}

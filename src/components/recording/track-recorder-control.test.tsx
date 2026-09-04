@@ -97,7 +97,8 @@ describe("TrackRecorderControl (FR-041)", () => {
     });
     expect(startButton).toBeInTheDocument();
     expect(startButton).toHaveAttribute("title", "Démarrer l’enregistrement");
-    expect(startButton).toHaveClass("rounded-full");
+    expect(startButton).toHaveClass("ride-record-button", "rounded-full");
+    expect(startButton.querySelector(".ride-record-dot")).toBeInTheDocument();
     expect(
       screen.queryByText("Démarrer l’enregistrement"),
     ).not.toBeInTheDocument();

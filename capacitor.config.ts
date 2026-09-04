@@ -17,12 +17,12 @@ export function createCapacitorConfig(
     plugins: {
       SplashScreen: {
         launchAutoHide: true,
-        backgroundColor: "#252525",
+        backgroundColor: "#17324D",
         showSpinner: false,
       },
       StatusBar: {
-        style: "DARK",
-        backgroundColor: "#252525",
+        style: "LIGHT",
+        backgroundColor: "#17324D",
       },
       Keyboard: {
         resizeOnFullScreen: true,

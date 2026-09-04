@@ -83,7 +83,7 @@ afterEach(() => {
 });
 
 describe("RideApp weather layer (FR-043)", () => {
-  it("offers the layer on the explorer map without fetching anything", async () => {
+  it("opens the explorer with the live weather layer visible", async () => {
     const fetcher = stubFetch();
     const { engine, overlays } = weatherEngine();
 
@@ -95,14 +95,14 @@ describe("RideApp weather layer (FR-043)", () => {
 
     expect(
       screen.getByRole("button", { name: "Météo" }),
-    ).toHaveAttribute("aria-pressed", "false");
+    ).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => {
-      expect(overlays).toContainEqual(null);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(overlays.at(-1)?.clouds).toHaveLength(1);
     });
-    expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it("draws the clouds and names the direction to avoid once turned on", async () => {
+  it("draws the clouds and names the direction to avoid", async () => {
     const fetcher = stubFetch();
     const { engine, overlays } = weatherEngine();
 
@@ -111,8 +111,6 @@ describe("RideApp weather layer (FR-043)", () => {
         <RideApp mapEngine={engine} />
       </AppearanceProvider>,
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Météo" }));
 
     await waitFor(() => {
       expect(fetcher).toHaveBeenCalledTimes(1);
@@ -127,6 +125,9 @@ describe("RideApp weather layer (FR-043)", () => {
       level: "rain",
       probability: 88,
     });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Afficher les détails météo" }),
+    );
     expect(await screen.findByText(/sud/)).toBeInTheDocument();
   });
 
@@ -140,7 +141,6 @@ describe("RideApp weather layer (FR-043)", () => {
       </AppearanceProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Météo" }));
     await waitFor(() => {
       expect(overlays.at(-1)?.clouds).toHaveLength(1);
     });

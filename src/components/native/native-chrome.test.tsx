@@ -10,7 +10,7 @@ vi.mock("@capacitor/core", () => ({
 }));
 
 vi.mock("@capacitor/status-bar", () => ({
-  Style: { Dark: "DARK" },
+  Style: { Light: "LIGHT" },
   StatusBar: { setStyle: (options: unknown) => setStyle(options) },
 }));
 
@@ -33,7 +33,7 @@ describe("NativeChrome (FR-027)", () => {
     const { NativeChrome } = await import("./native-chrome");
     render(<NativeChrome />);
     await vi.waitFor(() => {
-      expect(setStyle).toHaveBeenCalled();
+      expect(setStyle).toHaveBeenCalledWith({ style: "LIGHT" });
       expect(hide).toHaveBeenCalled();
     });
   });

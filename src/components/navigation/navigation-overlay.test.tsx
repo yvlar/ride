@@ -33,6 +33,7 @@ const NAVIGATING_STATUS = deriveNavigationStatus({
 function renderOverlay(
   overrides: Partial<ComponentProps<typeof NavigationOverlay>> = {},
 ) {
+  window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "auto");
   const props: ComponentProps<typeof NavigationOverlay> = {
     arrow: "→",
     instruction: "Tournez à droite",
@@ -52,7 +53,13 @@ function renderOverlay(
     onRetryRecalculate: () => {},
     ...overrides,
   };
-  return render(<NavigationOverlay {...props} />);
+  return render(
+    <AppearanceProvider>
+      <MapThemeProvider>
+        <NavigationOverlay {...props} />
+      </MapThemeProvider>
+    </AppearanceProvider>,
+  );
 }
 
 function renderArcadeOverlay(
