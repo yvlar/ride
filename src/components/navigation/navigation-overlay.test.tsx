@@ -118,10 +118,16 @@ describe("NavigationOverlay (FR-023, FR-024, FR-042, NFR-006)", () => {
     expect(distance.querySelector('[data-digit="2"]')).toBeInTheDocument();
     expect(distance.querySelector('[data-digit="5"]')).toBeInTheDocument();
     expect(distance.querySelector('[data-digit="0"]')).toBeInTheDocument();
+    expect(distance.querySelector('[data-letter="m"]')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("12 min")).toBeInTheDocument();
-      expect(screen.getByLabelText("8.4 km")).toBeInTheDocument();
+      const duration = screen.getByLabelText("12 min");
+      const remaining = screen.getByLabelText("8.4 km");
+      expect(duration.querySelectorAll("[data-letter]")).toHaveLength(3);
+      expect(duration.querySelector('[data-letter="i"]')).toBeInTheDocument();
+      expect(duration.querySelector('[data-letter="n"]')).toBeInTheDocument();
+      expect(remaining.querySelector('[data-letter="k"]')).toBeInTheDocument();
+      expect(remaining.querySelector('[data-letter="m"]')).toBeInTheDocument();
     });
   });
 
