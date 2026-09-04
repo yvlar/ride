@@ -6,7 +6,8 @@
   white-space: nowrap;
 }
 
-.digit {
+.digit,
+.letter {
   --digit-color: #ff4b3e;
   --digit-highlight: #ff8b71;
   --digit-tilt: -1deg;
@@ -33,6 +34,10 @@
     -0.018em -0.025em 0 rgb(255 255 255 / 48%);
   transform: rotate(var(--digit-tilt));
   transform-origin: 50% 78%;
+}
+
+.letter {
+  margin-inline: 0.015em;
 }
 
 .plain {
@@ -103,8 +108,39 @@
   --digit-tilt: 1deg;
 }
 
+.letter[data-letter="m"] {
+  --digit-color: #ff9418;
+  --digit-highlight: #ffc148;
+  --digit-tilt: -1deg;
+}
+
+.letter[data-letter="k"] {
+  --digit-color: #82e9ee;
+  --digit-highlight: #d0ffff;
+  --digit-tilt: 2deg;
+}
+
+.letter[data-letter="i"] {
+  --digit-color: #ffe521;
+  --digit-highlight: #fff66b;
+  --digit-tilt: 1deg;
+}
+
+.letter[data-letter="n"] {
+  --digit-color: #9be779;
+  --digit-highlight: #d0f5a4;
+  --digit-tilt: -2deg;
+}
+
+.letter[data-letter="h"] {
+  --digit-color: #f3a3ee;
+  --digit-highlight: #ffd0fb;
+  --digit-tilt: 2deg;
+}
+
 @media (prefers-contrast: more) {
-  .digit {
+  .digit,
+  .letter {
     -webkit-text-stroke-width: 0.095em;
     text-shadow:
       0.05em 0.065em 0 #000,
