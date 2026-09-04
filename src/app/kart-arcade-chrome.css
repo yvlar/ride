@@ -383,13 +383,17 @@
 }
 
 :root[data-map-theme="kart-arcade"] .ride-quick-action-label {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 0.06rem;
   max-width: none;
+  /* One word centred in what the badge leaves, the way the plate is lettered
+     on the map itself. */
+  flex: 1;
   color: #fff9e8;
+  font-size: clamp(0.95rem, 4.4vw, 1.2rem);
+  font-weight: 900;
+  line-height: 1.05;
   letter-spacing: 0.005em;
+  text-align: center;
   text-transform: uppercase;
   text-wrap: balance;
   /*
@@ -416,17 +420,6 @@
   }
 }
 
-:root[data-map-theme="kart-arcade"] .ride-quick-action-verb {
-  font-size: clamp(0.85rem, 3.9vw, 1.08rem);
-  font-weight: 900;
-  line-height: 1.05;
-}
-
-:root[data-map-theme="kart-arcade"] .ride-quick-action-object {
-  font-size: clamp(0.7rem, 3.1vw, 0.86rem);
-  font-weight: 800;
-  line-height: 1.1;
-}
 
 :root[data-map-theme="kart-arcade"] .ride-record-button {
   width: clamp(4rem, 17vw, 4.75rem);
@@ -546,18 +539,11 @@
     height: 1.1rem;
   }
 
+  /* Small enough that "Découvrir" — the longest of the four — still lands on
+     one line beside the badge at 360 CSS pixels. */
   :root[data-map-theme="kart-arcade"] .ride-quick-action-label {
+    font-size: 0.85rem;
     letter-spacing: -0.01em;
-  }
-
-  :root[data-map-theme="kart-arcade"] .ride-quick-action-verb {
-    font-size: 0.76rem;
-  }
-
-  /* Small enough that "des trajets moto" — the longest of the four — still
-     lands on one line beside the badge at 360 CSS pixels. */
-  :root[data-map-theme="kart-arcade"] .ride-quick-action-object {
-    font-size: 0.6rem;
   }
 
   :root[data-map-theme="kart-arcade"] .ride-record-button {

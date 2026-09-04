@@ -61,7 +61,7 @@ describe("MapQuickActions", () => {
     expect(region.querySelectorAll(".ride-quick-action-label")).toHaveLength(4);
   });
 
-  it("labels each action with its own colour hook and a two-line label", () => {
+  it("labels each action with its own colour hook and a single word", () => {
     render(
       <MapQuickActions
         onSearch={vi.fn()}
@@ -78,18 +78,17 @@ describe("MapQuickActions", () => {
       ),
     ).toEqual(["search", "describe", "catalog", "gpx"]);
 
-    const lines = [...region.querySelectorAll(".ride-quick-action-label")].map(
-      (label) => [
-        label.querySelector(".ride-quick-action-verb")?.textContent,
-        label.querySelector(".ride-quick-action-object")?.textContent,
-      ],
-    );
-    expect(lines).toEqual([
-      ["Rechercher", "une destination"],
-      ["Décrire", "mon trajet"],
-      ["Découvrir", "des trajets moto"],
-      ["Importer un", "fichier GPX"],
-    ]);
+    // One word on the plate, the full wording only on the accessible name.
+    expect(
+      [...region.querySelectorAll(".ride-quick-action-label")].map(
+        (label) => label.textContent,
+      ),
+    ).toEqual(["Destination", "Décrire", "Découvrir", "Importer"]);
+    expect(
+      within(region)
+        .getByRole("button", { name: "Rechercher une destination" })
+        .textContent,
+    ).toBe("Destination");
   });
 
   it("keeps resume available without changing the four primary actions", () => {

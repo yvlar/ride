@@ -8,19 +8,13 @@ const iconClassName =
   "ride-quick-action-icon ride-icon-well size-[clamp(2.75rem,12vw,3.5rem)] [&_svg]:size-[clamp(1.3rem,5vw,1.65rem)]";
 
 /*
- * Each action carries its label on two lines — the verb, then what it acts on.
- * The skin leans on that split to set the verb larger, the way the arcade
- * plates on the map are lettered, so the four actions can be told apart at a
- * glance from a handlebar mount. Themes that do not style the two spans simply
- * get the same words wrapped where they were always going to wrap.
+ * One word on the plate. A rider glancing down from a handlebar mount reads a
+ * colour and a single word, not a sentence — the badge and the hue already say
+ * which action it is. The full wording stays on `aria-label`, so a screen
+ * reader still hears "Rechercher une destination" rather than "Destination".
  */
-function QuickActionLabel({ verb, object }: { verb: string; object: string }) {
-  return (
-    <span className="ride-quick-action-label">
-      <span className="ride-quick-action-verb">{verb}</span>
-      <span className="ride-quick-action-object">{object}</span>
-    </span>
-  );
+function QuickActionLabel({ word }: { word: string }) {
+  return <span className="ride-quick-action-label">{word}</span>;
 }
 
 export function MapQuickActions({
@@ -50,7 +44,7 @@ export function MapQuickActions({
         onClick={onSearch}
       >
         <span className={iconClassName}><Search aria-hidden="true" /></span>
-        <QuickActionLabel verb="Rechercher" object="une destination" />
+        <QuickActionLabel word="Destination" />
       </Button>
       <Button
         type="button"
@@ -63,7 +57,7 @@ export function MapQuickActions({
         <span className={iconClassName}>
           <Star aria-hidden="true" fill="currentColor" />
         </span>
-        <QuickActionLabel verb="Décrire" object="mon trajet" />
+        <QuickActionLabel word="Décrire" />
       </Button>
       <Button
         type="button"
@@ -74,7 +68,7 @@ export function MapQuickActions({
         onClick={onCatalog}
       >
         <span className={iconClassName}><Compass aria-hidden="true" /></span>
-        <QuickActionLabel verb="Découvrir" object="des trajets moto" />
+        <QuickActionLabel word="Découvrir" />
       </Button>
       <Button
         type="button"
@@ -85,7 +79,7 @@ export function MapQuickActions({
         onClick={onImportGpx}
       >
         <span className={iconClassName}><Map aria-hidden="true" /></span>
-        <QuickActionLabel verb="Importer un" object="fichier GPX" />
+        <QuickActionLabel word="Importer" />
       </Button>
       {onResume ? (
         <Button
