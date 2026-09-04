@@ -25,10 +25,11 @@ describe("createCloudMarkerElement (FR-043)", () => {
     );
   });
 
-  it("shows the chance of rain next to the cloud", () => {
+  it("keeps the chance of rain off the map", () => {
     const element = createCloudMarkerElement(marker());
 
-    expect(element.textContent).toContain("72 %");
+    expect(element.textContent).toBe("");
+    expect(element.querySelector(".ride-map-cloud-badge")).toBeNull();
   });
 
   it("carries the level so the stylesheet can colour it", () => {
@@ -65,11 +66,10 @@ describe("cloud faces (FR-043)", () => {
     const element = face("rain");
 
     expect(element.querySelector(".ride-map-cloud-face")).not.toBeNull();
-    // The mood only repeats the level: the name and the badge still carry it.
+    // The mood only repeats the level: the accessible name still carries it.
     expect(element.getAttribute("aria-label")).toBe(
       "Pluie, 72 % de risque de pluie",
     );
-    expect(element.textContent).toContain("72 %");
     expect(element.dataset.level).toBe("rain");
     // The mood is a drawing, so assistive technology never sees it.
     expect(element.querySelector("svg")?.getAttribute("aria-hidden")).toBe(

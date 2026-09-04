@@ -136,9 +136,10 @@
 }
 
 /*
- * FR-043 — weather clouds. The body colour carries the level, the face carries
- * its mood, and the badge carries the number, so the marker stays readable
- * through a visor at a glance. Meaning never rests on the drawing (NFR-001).
+ * FR-043 — weather clouds. The body colour carries the level and the face
+ * carries its mood, so the marker stays readable through a visor at a glance.
+ * Meaning never rests on the drawing alone: the accessible name says it in
+ * words (NFR-001).
  *
  * Hues mirror KART_ARCADE_PALETTE (themes/kart-arcade-palette.ts); a static
  * stylesheet cannot read the module, so each one names the token it echoes.
@@ -157,18 +158,6 @@
 .ride-map-cloud-icon {
   width: 76px;
   height: 68px;
-}
-
-.ride-map-cloud-badge {
-  border-radius: 999px;
-  background: #FFF9E8;
-  border: 4px solid #17324D;
-  color: #17324D;
-  padding: 0 14px;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 30px;
-  white-space: nowrap;
 }
 
 /* The level tints the body; every ink line stays the map's text colour. */

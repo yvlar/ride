@@ -404,9 +404,10 @@ describe("cloud faces on the map (FR-043)", () => {
       for (const element of drawn) {
         expect(element.querySelector(".ride-map-cloud-face")).not.toBeNull();
         expect(element.querySelectorAll(".ride-map-cloud-eye")).toHaveLength(2);
-        // The badge and the accessible name never depend on the theme.
+        // The accessible name never depends on the theme, and no theme puts
+        // the chance of rain back on the map.
         expect(element.getAttribute("aria-label")).toMatch(/risque de pluie$/);
-        expect(element.textContent).toMatch(/%$/);
+        expect(element.textContent).toBe("");
       }
       handle.destroy();
     }
