@@ -61,6 +61,36 @@ describe("MapQuickActions", () => {
     expect(region.querySelectorAll(".ride-quick-action-label")).toHaveLength(4);
   });
 
+  it("labels each action with its own colour hook and a single word", () => {
+    render(
+      <MapQuickActions
+        onSearch={vi.fn()}
+        onDescribe={vi.fn()}
+        onCatalog={vi.fn()}
+        onImportGpx={vi.fn()}
+      />,
+    );
+
+    const region = screen.getByRole("region", { name: "Actions principales" });
+    expect(
+      [...region.querySelectorAll("[data-quick-action]")].map((button) =>
+        button.getAttribute("data-quick-action"),
+      ),
+    ).toEqual(["search", "describe", "catalog", "gpx"]);
+
+    // One word on the plate, the full wording only on the accessible name.
+    expect(
+      [...region.querySelectorAll(".ride-quick-action-label")].map(
+        (label) => label.textContent,
+      ),
+    ).toEqual(["Destination", "Décrire", "Découvrir", "Importer"]);
+    expect(
+      within(region)
+        .getByRole("button", { name: "Rechercher une destination" })
+        .textContent,
+    ).toBe("Destination");
+  });
+
   it("keeps resume available without changing the four primary actions", () => {
     const onResume = vi.fn();
     render(
