@@ -1,4 +1,4 @@
-import { Compass, FileUp, Navigation, Search, Sparkles } from "lucide-react";
+import { Compass, Map, Navigation, Search, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const glassButtonClassName =
@@ -6,6 +6,22 @@ const glassButtonClassName =
 
 const iconClassName =
   "ride-quick-action-icon ride-icon-well size-[clamp(2.75rem,12vw,3.5rem)] [&_svg]:size-[clamp(1.3rem,5vw,1.65rem)]";
+
+/*
+ * Each action carries its label on two lines — the verb, then what it acts on.
+ * The skin leans on that split to set the verb larger, the way the arcade
+ * plates on the map are lettered, so the four actions can be told apart at a
+ * glance from a handlebar mount. Themes that do not style the two spans simply
+ * get the same words wrapped where they were always going to wrap.
+ */
+function QuickActionLabel({ verb, object }: { verb: string; object: string }) {
+  return (
+    <span className="ride-quick-action-label">
+      <span className="ride-quick-action-verb">{verb}</span>
+      <span className="ride-quick-action-object">{object}</span>
+    </span>
+  );
+}
 
 export function MapQuickActions({
   onSearch,
@@ -29,41 +45,47 @@ export function MapQuickActions({
         type="button"
         variant="ghost"
         aria-label="Rechercher une destination"
+        data-quick-action="search"
         className={glassButtonClassName}
         onClick={onSearch}
       >
         <span className={iconClassName}><Search aria-hidden="true" /></span>
-        <span className="ride-quick-action-label">Rechercher une destination</span>
+        <QuickActionLabel verb="Rechercher" object="une destination" />
       </Button>
       <Button
         type="button"
         variant="ghost"
         aria-label="Décrire mon trajet"
+        data-quick-action="describe"
         className={glassButtonClassName}
         onClick={onDescribe}
       >
-        <span className={iconClassName}><Sparkles aria-hidden="true" /></span>
-        <span className="ride-quick-action-label">Décrire mon trajet</span>
+        <span className={iconClassName}>
+          <Star aria-hidden="true" fill="currentColor" />
+        </span>
+        <QuickActionLabel verb="Décrire" object="mon trajet" />
       </Button>
       <Button
         type="button"
         variant="ghost"
         aria-label="Découvrir des trajets moto"
+        data-quick-action="catalog"
         className={glassButtonClassName}
         onClick={onCatalog}
       >
         <span className={iconClassName}><Compass aria-hidden="true" /></span>
-        <span className="ride-quick-action-label">Découvrir des trajets moto</span>
+        <QuickActionLabel verb="Découvrir" object="des trajets moto" />
       </Button>
       <Button
         type="button"
         variant="ghost"
         aria-label="Importer un fichier GPX"
+        data-quick-action="gpx"
         className={glassButtonClassName}
         onClick={onImportGpx}
       >
-        <span className={iconClassName}><FileUp aria-hidden="true" /></span>
-        <span className="ride-quick-action-label">Importer un fichier GPX</span>
+        <span className={iconClassName}><Map aria-hidden="true" /></span>
+        <QuickActionLabel verb="Importer un" object="fichier GPX" />
       </Button>
       {onResume ? (
         <Button
