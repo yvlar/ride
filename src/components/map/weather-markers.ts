@@ -5,8 +5,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 /**
  * FR-043 — the marker is the message: a cloud whose colour follows the level
- * and whose face follows the mood of it, with the chance of rain riding along
- * so the rider never has to guess what shade of blue they are looking at.
+ * and whose face follows the mood of it. The number stays out of the map; the
+ * accessible name still says what the drawing means, so nothing rests on the
+ * shade of blue alone.
  */
 export function createCloudMarkerElement(
   marker: WeatherCloudMarker,
@@ -20,12 +21,6 @@ export function createCloudMarkerElement(
 
   element.append(createCloudGlyph(marker.level));
 
-  const badge = document.createElement("span");
-  badge.className = "ride-map-cloud-badge";
-  badge.setAttribute("aria-hidden", "true");
-  badge.textContent = `${marker.probability} %`;
-  element.append(badge);
-
   return element;
 }
 
@@ -35,9 +30,9 @@ export function createCloudMarkerElement(
  * showers, downcast rain, furious storm — is caught faster through a visor
  * than a shade of blue.
  *
- * The mood is a *second* reading of what the badge and the accessible name
- * already say (NFR-001): a scowl adds nothing the level did not, and nothing
- * rests on it alone.
+ * The mood is a *second* reading of what the accessible name already says
+ * (NFR-001): a scowl adds nothing the level did not, and nothing rests on it
+ * alone.
  *
  * Every curve below is drawn for Ride. Like the racing disc and the start
  * chevron of `ride-map-markers.css`, it is neither traced from nor modelled on
