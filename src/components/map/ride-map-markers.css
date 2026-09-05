@@ -155,9 +155,15 @@
   filter: drop-shadow(0 4px 0 rgb(23 50 77 / 0.3));
 }
 
+/*
+ * FR-043 — the size follows the fusion: a lone sample keeps the base box, a
+ * cloud that swallowed its overlapping neighbours grows with the count the
+ * marker sets on `--ride-map-cloud-scale` (weather-cloud-clusters.ts owns the
+ * width the overlap is measured with).
+ */
 .ride-map-cloud-icon {
-  width: 76px;
-  height: 68px;
+  width: calc(76px * var(--ride-map-cloud-scale, 1));
+  height: calc(68px * var(--ride-map-cloud-scale, 1));
 }
 
 /* The level tints the body; every ink line stays the map's text colour. */

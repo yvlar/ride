@@ -57,6 +57,39 @@ describe("createCloudMarkerElement (FR-043)", () => {
   });
 });
 
+describe("merged cloud markers (FR-043)", () => {
+  it("draws a fused cloud bigger than a lone one", () => {
+    const lone = createCloudMarkerElement(marker());
+    const fused = createCloudMarkerElement({
+      ...marker(),
+      label: "Pluie, 72 % de risque de pluie, 4 zones regroupées",
+      count: 4,
+      scale: 1.75,
+    });
+
+    expect(lone.style.getPropertyValue("--ride-map-cloud-scale")).toBe("1");
+    expect(fused.style.getPropertyValue("--ride-map-cloud-scale")).toBe("1.75");
+    expect(fused.classList.contains("ride-map-cloud--merged")).toBe(true);
+    expect(lone.classList.contains("ride-map-cloud--merged")).toBe(false);
+  });
+
+  it("says in words how many zones it stands for (NFR-001)", () => {
+    const fused = createCloudMarkerElement({
+      ...marker(),
+      label: "Pluie, 72 % de risque de pluie, 4 zones regroupées",
+      count: 4,
+      scale: 1.75,
+    });
+
+    expect(fused.getAttribute("aria-label")).toBe(
+      "Pluie, 72 % de risque de pluie, 4 zones regroupées",
+    );
+    expect(fused.dataset.count).toBe("4");
+    // The count is drawn as a size, never as a number on the map.
+    expect(fused.textContent).toBe("");
+  });
+});
+
 describe("cloud faces (FR-043)", () => {
   function face(level: WeatherCloudMarker["level"]): HTMLElement {
     return createCloudMarkerElement(marker({ level }));

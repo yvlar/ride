@@ -25,6 +25,9 @@ const {
     loadHandlers: [] as Array<() => void>,
     styleLoadHandlers: [] as Array<() => void>,
     styleLayers: [] as Array<{ id: string; type: string }>,
+    zoomHandlers: [] as Array<() => void>,
+    /** Null stands for a map that cannot report a zoom: no cloud fusion. */
+    zoom: null as number | null,
     /** MapLibre 5 raster sources can be retargeted; older ones cannot. */
     rasterSetTiles: true,
     reset() {
@@ -33,6 +36,8 @@ const {
       this.loadHandlers.length = 0;
       this.styleLoadHandlers.length = 0;
       this.styleLayers = [];
+      this.zoomHandlers.length = 0;
+      this.zoom = null;
       this.rasterSetTiles = true;
     },
   };
@@ -45,9 +50,13 @@ const {
     fitBounds = vi.fn();
     easeTo = vi.fn();
     isStyleLoaded = () => true;
+    getZoom = () => mapState.zoom;
     on(event: string, handler: () => void) {
       if (event === "load") {
         mapState.loadHandlers.push(handler);
+      }
+      if (event === "zoomend") {
+        mapState.zoomHandlers.push(handler);
       }
     }
     once(event: string, handler: () => void) {
@@ -411,6 +420,62 @@ describe("cloud faces on the map (FR-043)", () => {
       }
       handle.destroy();
     }
+  });
+});
+
+describe("overlapping clouds on the map (FR-043)", () => {
+  it("fuses the clouds that would overlap into one bigger cloud", async () => {
+    // Zoomed far enough out that both samples land on the same patch of screen.
+    mapState.zoom = 5;
+    const handle = await mountEngine();
+
+    handle.setWeather?.(overlay);
+
+    const drawn = cloudElements();
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0].dataset.count).toBe("2");
+    // The fusion keeps the worse of the two skies, never the kinder one.
+    expect(drawn[0].dataset.level).toBe("rain");
+    expect(drawn[0].getAttribute("aria-label")).toBe(
+      "Pluie, 72 % de risque de pluie, 2 zones regroupées",
+    );
+    expect(
+      Number(drawn[0].style.getPropertyValue("--ride-map-cloud-scale")),
+    ).toBeGreaterThan(1);
+    handle.destroy();
+  });
+
+  it("gives each cloud back its own face once the rider zooms in", async () => {
+    mapState.zoom = 5;
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    expect(cloudElements()).toHaveLength(1);
+
+    mapState.zoom = 10;
+    for (const handler of mapState.zoomHandlers) {
+      handler();
+    }
+
+    const drawn = cloudElements();
+    expect(drawn).toHaveLength(2);
+    expect(drawn.map((element) => element.dataset.count)).toEqual(["1", "1"]);
+    handle.destroy();
+  });
+
+  it("leaves the sky alone when the zoom barely moved", async () => {
+    mapState.zoom = 5;
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    const drawn = cloudElements();
+
+    mapState.zoom = 5.02;
+    for (const handler of mapState.zoomHandlers) {
+      handler();
+    }
+
+    // Same elements, not a rebuilt pair: a nudge must not make the sky blink.
+    expect(cloudElements()).toEqual(drawn);
+    handle.destroy();
   });
 });
 

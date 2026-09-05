@@ -73,6 +73,7 @@ import {
   type MapFrameInsets,
   type RideMapViewModel,
 } from "./ride-map-view-model";
+import { mergeOverlappingClouds } from "./weather-cloud-clusters";
 import { createCloudMarkerElement } from "./weather-markers";
 import { RADAR_LAYER_OPACITY, type WeatherMapOverlay } from "./weather-overlay";
 
@@ -83,6 +84,13 @@ export {
   NAVIGATION_FOLLOW_ZOOM,
   NAVIGATION_MAX_PITCH,
 } from "./navigation-follow-camera";
+
+/**
+ * FR-043 — how far the zoom has to move before the clouds are fused again.
+ * A tenth of a level is well under what it takes to change which of them
+ * overlap, and it keeps a nudge of the camera from rebuilding the markers.
+ */
+const CLOUD_REFUSION_ZOOM_STEP = 0.1;
 
 export const RADAR_SOURCE_ID = "ride-radar";
 export const RADAR_LAYER_ID = "ride-radar-tiles";
@@ -144,6 +152,12 @@ export function createMapLibreEngine(
       let pendingFitCamera = false;
       let weather: WeatherMapOverlay | null = null;
       let radarTemplate: string | null = null;
+      /**
+       * FR-043 — zoom the clouds were last fused at. Whether two of them
+       * overlap is a question about pixels, so the answer changes with the
+       * zoom and the drawing has to be rebuilt when it does.
+       */
+      let cloudZoom: number | null = null;
       let map: MapLibreMap | undefined;
       /** FR-045 — the basemap in place, so a re-render never reloads tiles. */
       let currentStyleSource: MapStyleSource =
@@ -642,12 +656,21 @@ export function createMapLibreEngine(
         }
       }
 
+      /**
+       * FR-043 — one cloud per sampled point, except where two of them would
+       * overlap at this zoom: those fuse into a single, bigger cloud rather
+       * than a pile of faces hiding one another.
+       */
       function renderClouds(target: MapLibreMap) {
         for (const marker of cloudMarkers) {
           marker.remove();
         }
         cloudMarkers.length = 0;
-        for (const cloud of weather?.clouds ?? []) {
+        cloudZoom = readZoom(target);
+        for (const cloud of mergeOverlappingClouds(
+          weather?.clouds ?? [],
+          cloudZoom,
+        )) {
           cloudMarkers.push(
             new Marker({
               element: createCloudMarkerElement(cloud),
@@ -658,6 +681,35 @@ export function createMapLibreEngine(
           );
         }
       }
+
+      /** A map that cannot report its zoom leaves every cloud where it is. */
+      function readZoom(target: MapLibreMap): number | null {
+        if (typeof target.getZoom !== "function") {
+          return null;
+        }
+        const zoom = target.getZoom();
+        return Number.isFinite(zoom) ? zoom : null;
+      }
+
+      /*
+       * Zooming out brings the clouds together and zooming in pulls them
+       * apart, so the fusions have to be recomputed — but only once the
+       * gesture has settled, and only when the zoom really moved: rebuilding
+       * the markers mid-pinch would make the sky flicker.
+       */
+      map.on("zoomend", () => {
+        if (disposed || !map || !weather?.clouds.length) {
+          return;
+        }
+        const zoom = readZoom(map);
+        if (zoom === null || cloudZoom === null) {
+          return;
+        }
+        if (Math.abs(zoom - cloudZoom) < CLOUD_REFUSION_ZOOM_STEP) {
+          return;
+        }
+        renderClouds(map);
+      });
 
       // A style that settles late (slow or failing tiles) would otherwise leave
       // the radar undrawn: retry once it is ready, and only while it is
