@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RideMap } from "@/components/map/ride-map";
 import { DEFAULT_EXPLORER_CENTER } from "@/components/map/ride-map-view-model";
 import { toWeatherMapOverlay } from "@/components/map/weather-overlay";
@@ -118,6 +118,13 @@ export function RideApp(props: RideAppProps) {
   const [searchPlace, setSearchPlace] = useState<Place | null>(null);
   const [searchSession, setSearchSession] = useState(0);
   const [gpsLabel, setGpsLabel] = useState("Position non demandée");
+  /**
+   * FR-038 — how much of the map the open sheet covers. The map frames a
+   * generated trajet above it, so the rider sees the whole route while
+   * deciding, instead of the half the panel leaves showing.
+   */
+  const [sheetInset, setSheetInset] = useState(0);
+  const sheetObserverRef = useRef<ResizeObserver | null>(null);
   const [navUserLocation, setNavUserLocation] = useState<Coordinates | null>(
     null,
   );
@@ -516,6 +523,35 @@ export function RideApp(props: RideAppProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribe once per display
   }, [carPlay]);
 
+  /**
+   * Measures the sheet floating over the map. A callback ref rather than an
+   * effect: the sheets mount and unmount as the rider moves between them, and
+   * an unmounted sheet must drop the inset back to zero.
+   */
+  const measureSheet = useCallback((node: HTMLDivElement | null) => {
+    sheetObserverRef.current?.disconnect();
+    sheetObserverRef.current = null;
+    if (!node || typeof ResizeObserver === "undefined") {
+      setSheetInset(0);
+      return;
+    }
+    const measure = () => {
+      setSheetInset(Math.round(node.getBoundingClientRect().height));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    sheetObserverRef.current = observer;
+  }, []);
+
+  useEffect(
+    () => () => {
+      sheetObserverRef.current?.disconnect();
+      sheetObserverRef.current = null;
+    },
+    [],
+  );
+
   const planner = (
     <RideRequestForm
       key={formKey}
@@ -592,6 +628,7 @@ export function RideApp(props: RideAppProps) {
                       : null
                 }
                 traveledKm={explorerOwnsNavigation ? navProgressKm : 0}
+                bottomInset={explorerOwnsNavigation ? 0 : sheetInset}
                 onFollowUserChange={setNavFollowingUser}
                 onRecenterReady={(recenter) => {
                   mapRecenterRef.current = recenter;
@@ -715,6 +752,7 @@ export function RideApp(props: RideAppProps) {
 
         {tab === "explore" && sheet === "planner" ? (
           <div
+            ref={navigating ? undefined : measureSheet}
             className={
               navigating
                 ? "absolute inset-0 z-40"
@@ -753,6 +791,7 @@ export function RideApp(props: RideAppProps) {
 
         {tab === "explore" && sheet !== "planner" ? (
           <div
+            ref={navigating ? undefined : measureSheet}
             className={
               navigating
                 ? "hidden"
@@ -764,7 +803,9 @@ export function RideApp(props: RideAppProps) {
                 title="Trouver une destination"
                 titleHidden
                 variant="floating"
-                className={route ? "max-h-[58dvh]" : undefined}
+                /* A trajet on the map owns the screen: the pane keeps half of
+                   it at most, and scrolls its own details (FR-038). */
+                className={route ? "max-h-[50dvh]" : undefined}
               >
                 <FindDestinationPanel
                   key={searchSession}

@@ -541,6 +541,105 @@ describe("FindDestinationPanel (FR-038)", () => {
     expect(screen.getByText(/Vers Mont-Tremblant/)).toBeInTheDocument();
   });
 
+  it("keeps the preview to the decision and folds the rest away (FR-038)", async () => {
+    const detailed: GeneratedDestinationRoute = {
+      ...route,
+      warnings: ["Section non asphaltée", "Traversier saisonnier"],
+      segments: [
+        {
+          id: "s1",
+          geometry: route.geometry,
+          distanceKm: 80,
+          durationMinutes: 70,
+          roadName: "Route 243",
+          roadClass: "secondary",
+          surface: "paved",
+        },
+        {
+          id: "s2",
+          geometry: route.geometry,
+          distanceKm: 38.4,
+          durationMinutes: 35,
+          roadName: "Chemin du Lac",
+          roadClass: "residential",
+          surface: "unpaved",
+        },
+      ],
+    };
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route: detailed,
+    }));
+    renderPanel({ generateRide });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    await screen.findByRole("button", { name: "Démarrer la navigation" });
+
+    // The trajet on the map is what the rider reads: the pane keeps the three
+    // numbers and the destination, nothing else.
+    expect(screen.getByText(/118\.4 km/)).toBeInTheDocument();
+    expect(screen.getByText(/Vers Mont-Tremblant/)).toBeInTheDocument();
+    expect(screen.queryByText(/Routes :/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Non asphalté :/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Section non asphaltée")).not.toBeInTheDocument();
+    // The recap card of the destination is redundant with "Vers …" here.
+    expect(
+      screen.queryByTestId("selected-destination"),
+    ).not.toBeInTheDocument();
+
+    // Nothing is hidden silently: the toggle says how many warnings it folds.
+    const details = screen.getByRole("button", {
+      name: "Détails du trajet · 2 avertissements",
+    });
+    expect(details).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(details);
+    expect(screen.getByText(/Routes : Route 243, Chemin du Lac/)).toBeInTheDocument();
+    expect(screen.getByText(/Non asphalté : 32 %/)).toBeInTheDocument();
+    expect(screen.getByText("Section non asphaltée")).toBeInTheDocument();
+    expect(screen.getByText("Traversier saisonnier")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Masquer les détails" }));
+    expect(screen.queryByText(/Routes :/)).not.toBeInTheDocument();
+  });
+
+  it("brings the destination back when a regeneration fails (FR-038)", async () => {
+    const generateRide = vi.fn(async (): Promise<GenerateRideResult> => ({
+      ok: true,
+      route,
+    }));
+    const regenerateRide = vi.fn(
+      async (): Promise<GenerateRideResult> => ({
+        ok: false,
+        error: {
+          code: "PROVIDER_ERROR",
+          message: "Le service de cartographie ne répond pas.",
+          suggestions: ["Réessayez."],
+        },
+      }),
+    );
+    renderPanel({ generateRide, regenerateRide });
+    await screen.findByText(/Position détectée/);
+    await selectTremblant();
+    fireEvent.click(screen.getByRole("button", { name: "Générer le trajet" }));
+    await screen.findByRole("button", { name: "Démarrer la navigation" });
+    expect(
+      screen.queryByTestId("selected-destination"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Régénérer" }));
+
+    // Changing the destination is what is left to do, so the recap card and
+    // its Modifier / Effacer actions come straight back.
+    expect(
+      await screen.findByText("Le service de cartographie ne répond pas."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("selected-destination")).toHaveTextContent(
+      "Mont-Tremblant",
+    );
+  });
+
   it("finds a destination by full address, by city and by postal code (FR-038)", async () => {
     const address: Place = {
       label: "125 Rue Principale, Granby, Québec, Canada",

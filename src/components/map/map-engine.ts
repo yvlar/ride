@@ -2,7 +2,7 @@ import type { StyleSpecification } from "maplibre-gl";
 import type { Coordinates } from "@/domain/geo/types";
 import type { MapDetailLevel, MapOverlayTheme } from "./map-theme-overlay";
 import type { RecordedTrackOverlay } from "./recorded-track-overlay";
-import type { RideMapViewModel } from "./ride-map-view-model";
+import type { MapFrameInsets, RideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
 
 export const MAP_UNAVAILABLE_MESSAGE =
@@ -18,6 +18,8 @@ export type MapMountOptions = {
   mapOverlay?: MapOverlayTheme;
   /** FR-046 — how much atmosphere the map may show. Defaults to exploration. */
   detailLevel?: MapDetailLevel;
+  /** Chrome covering the map, so a framed route clears it (FR-038). */
+  frameInsets?: MapFrameInsets;
 };
 
 export type MapEngineHandle = {
@@ -59,6 +61,13 @@ export type MapEngineHandle = {
    * layers so the road, the manoeuvre and the rider own the screen.
    */
   setDetailLevel?: (level: MapDetailLevel) => void;
+  /**
+   * FR-038 — how much of the map is covered by the panel floating over it.
+   * Every framing then fits the route into what is left visible, and a route
+   * already framed by the engine is re-fitted, unless the rider has since
+   * moved the camera themselves.
+   */
+  setFrameInsets?: (insets: MapFrameInsets) => void;
 };
 
 export type MapEngineHandlers = {

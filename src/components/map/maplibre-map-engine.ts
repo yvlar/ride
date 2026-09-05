@@ -66,9 +66,11 @@ import {
 } from "./ride-map-markers";
 import "./ride-map-markers.css";
 import {
+  BASE_FRAME_PADDING,
   mapCameraFrame,
   rideRouteFeatureCollection,
   rideTraveledFeatureCollection,
+  type MapFrameInsets,
   type RideMapViewModel,
 } from "./ride-map-view-model";
 import { createCloudMarkerElement } from "./weather-markers";
@@ -151,6 +153,14 @@ export function createMapLibreEngine(
       let overlayTheme: MapOverlayTheme =
         mountOptions?.mapOverlay ?? STANDARD_MAP_OVERLAY_THEME;
       let detailLevel: MapDetailLevel = mountOptions?.detailLevel ?? "exploration";
+      /** FR-038 — chrome covering the map that a framed route has to clear. */
+      let frameInsets: MapFrameInsets = mountOptions?.frameInsets ?? {};
+      /**
+       * Set as soon as the rider moves the camera themselves, cleared by every
+       * framing the engine performs. A panel that grows or folds only re-frames
+       * a view the engine still owns: a map the rider panned stays put.
+       */
+      let cameraUserAdjusted = false;
       /**
        * Guards the listeners a theme swap registers: a rider tapping through
        * the themes must not leave a stack of `style.load` handlers behind.
@@ -174,11 +184,30 @@ export function createMapLibreEngine(
           : overlayTheme.explorationPitchDeg;
       }
 
+      /**
+       * FR-038 — the panel floating over the map, in CSS pixels. Clamped
+       * against the container: padding taller than the viewport leaves
+       * MapLibre nothing to fit the route into.
+       */
+      function framedCamera(bounds: RideMapViewModel["bounds"]) {
+        const requested = Math.max(0, frameInsets.bottom ?? 0);
+        const height = container.clientHeight;
+        if (!height) {
+          // No layout yet: nothing to clamp against, and the first frame is
+          // replaced as soon as a route arrives.
+          return mapCameraFrame(bounds, { bottom: requested });
+        }
+        const room = Math.max(0, height - 2 * BASE_FRAME_PADDING);
+        return mapCameraFrame(bounds, {
+          bottom: Math.min(requested, Math.floor(room * 0.6)),
+        });
+      }
+
       ensureMapLibreWorkerUrl();
       if (overlayTheme.containerClassName) {
         container.classList.add(overlayTheme.containerClassName);
       }
-      let camera = mapCameraFrame(viewModel.bounds);
+      let camera = framedCamera(viewModel.bounds);
       let currentViewModel = viewModel;
 
       try {
@@ -280,7 +309,7 @@ export function createMapLibreEngine(
         options: { fitCamera?: boolean } = {},
       ) {
         currentViewModel = next;
-        camera = mapCameraFrame(next.bounds);
+        camera = framedCamera(next.bounds);
         if (!map || disposed || !map.isStyleLoaded()) {
           // A route restored from a session, or one that simply beat the tiles,
           // must still be framed: remember the request for the load event
@@ -442,6 +471,7 @@ export function createMapLibreEngine(
           // during load can throw inside MapLibre's camera ease (NFR-006).
           if (options.fitCamera) {
             pendingFitCamera = false;
+            cameraUserAdjusted = false;
             map.fitBounds(
               camera.bounds,
               overviewFitBoundsOptions(camera, framingPitchDeg()),
@@ -508,7 +538,7 @@ export function createMapLibreEngine(
           }
 
           if (recordedTrack?.fitBounds && recordedTrack.bounds) {
-            const frame = mapCameraFrame(recordedTrack.bounds);
+            const frame = framedCamera(recordedTrack.bounds);
             // Framing the recorded track takes the camera away from the rider:
             // report it so the UI can offer the recentre affordance (FR-042).
             setFollowUserState(false);
@@ -876,6 +906,7 @@ export function createMapLibreEngine(
             return;
           }
           try {
+            cameraUserAdjusted = false;
             map.fitBounds(
               camera.bounds,
               overviewFitBoundsOptions(camera, framingPitchDeg()),
@@ -929,6 +960,7 @@ export function createMapLibreEngine(
         if (!map || disposed) {
           return;
         }
+        cameraUserAdjusted = false;
         map.fitBounds(camera.bounds, {
           ...overviewFitBoundsOptions(camera, framingPitchDeg()),
           duration: followCameraDurationMs(reducedMotion),
@@ -938,6 +970,7 @@ export function createMapLibreEngine(
 
       function onUserCameraInteraction(event?: { originalEvent?: Event }) {
         if (event?.originalEvent) {
+          cameraUserAdjusted = true;
           setFollowUserState(false);
         }
       }
@@ -1052,6 +1085,38 @@ export function createMapLibreEngine(
           const mapToRemove = map;
           map = undefined;
           removeMapSafely(mapToRemove);
+        },
+        setFrameInsets(next) {
+          if (disposed) {
+            return;
+          }
+          const bottom = Math.max(0, Math.round(next.bottom ?? 0));
+          if (bottom === Math.max(0, Math.round(frameInsets.bottom ?? 0))) {
+            return;
+          }
+          frameInsets = { ...frameInsets, bottom };
+          camera = framedCamera(currentViewModel.bounds);
+          /*
+           * FR-038 — the panel grew or folded over a trajet the engine framed:
+           * fit it again so it stays readable beside the panel. A followed
+           * rider, a street camera, an idle map or a camera the rider moved
+           * themselves are all left exactly where they are.
+           */
+          if (
+            !map ||
+            !map.isStyleLoaded() ||
+            followUser ||
+            streetCameraActive ||
+            cameraUserAdjusted ||
+            currentViewModel.idle
+          ) {
+            return;
+          }
+          try {
+            applyOverviewCamera();
+          } catch {
+            // The trajet is drawn either way; the rider can still frame it.
+          }
         },
         setViewModel(next) {
           if (disposed) {
