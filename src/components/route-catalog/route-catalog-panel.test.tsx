@@ -195,7 +195,10 @@ describe("RouteCatalogPanel", () => {
     expect(card).toHaveTextContent("Boucle Estrie");
     expect(card).toHaveTextContent("Estrie");
     expect(card).toHaveTextContent("Intermédiaire");
-    expect(document.activeElement).toBe(card);
+    /* The card is focused from an effect, which React flushes after the
+       commit that renders it — so wait for the focus rather than reading
+       it in the same tick the card appears. */
+    await waitFor(() => expect(document.activeElement).toBe(card));
     // Looking at one trajet leaves Retour as the only way out of the card.
     expect(
       screen.queryByRole("button", { name: "Fermer" }),
