@@ -18,7 +18,7 @@ describe("MapQuickActions", () => {
       "ride-quick-actions",
       "grid-cols-2",
       "w-full",
-      "max-w-md",
+      "max-w-sm",
     );
     expect(region).not.toHaveClass("bg-card", "bg-black", "bg-slate-950/55");
     const buttons = within(region).getAllByRole("button");
@@ -51,7 +51,7 @@ describe("MapQuickActions", () => {
       expect(button).toHaveClass(
         "ride-glass",
         "ride-quick-action",
-        "min-h-[clamp(4.5rem,11dvh,5.5rem)]",
+        "min-h-[clamp(3.25rem,7.5dvh,3.9rem)]",
         "min-w-0",
         "w-full",
         "justify-start",
