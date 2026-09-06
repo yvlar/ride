@@ -93,7 +93,7 @@ describe("Home explorer (FR-014, FR-031)", () => {
     renderHome();
     expect(
       screen.getByRole("button", { name: "Rechercher une destination" }),
-    ).toHaveClass("min-h-[clamp(4.5rem,11dvh,5.5rem)]");
+    ).toHaveClass("min-h-[clamp(3.25rem,7.5dvh,3.9rem)]");
     expect(
       screen.getByRole("button", { name: "Démarrer l’enregistrement" }),
     ).toHaveClass("size-[clamp(3.75rem,16vw,4.5rem)]");

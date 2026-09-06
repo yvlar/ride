@@ -254,8 +254,8 @@
  * clear two of them plus air.
  */
 :root[data-map-theme="kart-arcade"] .ride-quick-actions {
-  max-width: 28rem;
-  gap: clamp(1.4rem, 4.5vw, 1.75rem);
+  max-width: 21rem;
+  gap: clamp(0.95rem, 3.2vw, 1.2rem);
 }
 
 :root[data-map-theme="kart-arcade"] .ride-quick-action {
@@ -268,13 +268,13 @@
   --kart-guardrail: #f4e7cd;
 
   position: relative;
-  min-height: clamp(4.25rem, 10.5dvh, 5rem);
-  gap: clamp(0.5rem, 2.2vw, 0.8rem);
+  min-height: clamp(3.1rem, 7.5dvh, 3.6rem);
+  gap: clamp(0.4rem, 1.6vw, 0.6rem);
   /* Round enough to read as a moulded plate, straight enough along the top
      and bottom to carry two lines of label. */
   border: 0;
-  border-radius: clamp(1.4rem, 5.5vw, 1.9rem);
-  padding: 0.45rem 0.7rem 0.45rem 0.4rem;
+  border-radius: clamp(1.05rem, 4vw, 1.4rem);
+  padding: 0.3rem 0.5rem 0.3rem 0.3rem;
   background:
     linear-gradient(
       180deg,
@@ -290,11 +290,11 @@
       var(--kart-face-bottom)
     );
   box-shadow:
-    inset 0 -0.3rem 0 rgb(23 50 77 / 18%),
-    0 0 0 3px var(--kart-liner),
-    0 0 0 7px var(--kart-guardrail),
-    0 0 0 9px rgb(23 50 77 / 62%),
-    0 6px 0 9px rgb(16 32 50 / 38%);
+    inset 0 -0.22rem 0 rgb(23 50 77 / 18%),
+    0 0 0 2px var(--kart-liner),
+    0 0 0 5px var(--kart-guardrail),
+    0 0 0 6px rgb(23 50 77 / 62%),
+    0 4px 0 6px rgb(16 32 50 / 38%);
   transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
 
@@ -337,20 +337,20 @@
 
 /* Pressed: the plate travels down onto its shadow instead of dimming. */
 :root[data-map-theme="kart-arcade"] .ride-quick-action:active {
-  transform: translateY(4px);
+  transform: translateY(3px);
   filter: brightness(0.96);
   box-shadow:
-    inset 0 -0.3rem 0 rgb(23 50 77 / 18%),
-    0 0 0 3px var(--kart-liner),
-    0 0 0 7px var(--kart-guardrail),
-    0 0 0 9px rgb(23 50 77 / 62%),
-    0 2px 0 9px rgb(16 32 50 / 38%);
+    inset 0 -0.22rem 0 rgb(23 50 77 / 18%),
+    0 0 0 2px var(--kart-liner),
+    0 0 0 5px var(--kart-guardrail),
+    0 0 0 6px rgb(23 50 77 / 62%),
+    0 1px 0 6px rgb(16 32 50 / 38%);
 }
 
 /* The badge repeats the plate's build one size down: liner, guardrail, gloss. */
 :root[data-map-theme="kart-arcade"] .ride-quick-action-icon {
-  width: clamp(2.4rem, 10.5vw, 3rem);
-  height: clamp(2.4rem, 10.5vw, 3rem);
+  width: clamp(1.85rem, 7.5vw, 2.25rem);
+  height: clamp(1.85rem, 7.5vw, 2.25rem);
   border: 0;
   border-radius: 999px;
   background:
@@ -363,14 +363,14 @@
   box-shadow:
     inset 0 -2px 0 rgb(23 50 77 / 25%),
     0 0 0 2px var(--kart-liner),
-    0 0 0 5px var(--kart-guardrail),
-    0 0 0 6px rgb(23 50 77 / 55%);
+    0 0 0 4px var(--kart-guardrail),
+    0 0 0 5px rgb(23 50 77 / 55%);
   color: #fff9e8;
 }
 
 :root[data-map-theme="kart-arcade"] .ride-quick-action-icon svg {
-  width: clamp(1.25rem, 5.2vw, 1.55rem);
-  height: clamp(1.25rem, 5.2vw, 1.55rem);
+  width: clamp(0.95rem, 4vw, 1.2rem);
+  height: clamp(0.95rem, 4vw, 1.2rem);
   stroke-width: 2.5;
   filter: drop-shadow(0 1px 0 rgb(23 50 77 / 55%));
 }
@@ -389,7 +389,7 @@
      on the map itself. */
   flex: 1;
   color: #fff9e8;
-  font-size: clamp(0.95rem, 4.4vw, 1.2rem);
+  font-size: clamp(0.8rem, 3.3vw, 0.95rem);
   font-weight: 900;
   line-height: 1.05;
   letter-spacing: 0.005em;
@@ -402,20 +402,20 @@
    * honoured a real stroke is cleaner at small sizes and takes over below.
    */
   text-shadow:
-    -2px 0 0 var(--kart-liner),
-    2px 0 0 var(--kart-liner),
-    0 -2px 0 var(--kart-liner),
-    0 2px 0 var(--kart-liner),
-    -1.5px -1.5px 0 var(--kart-liner),
-    1.5px -1.5px 0 var(--kart-liner),
-    -1.5px 1.5px 0 var(--kart-liner),
-    1.5px 1.5px 0 var(--kart-liner);
+    -1.5px 0 0 var(--kart-liner),
+    1.5px 0 0 var(--kart-liner),
+    0 -1.5px 0 var(--kart-liner),
+    0 1.5px 0 var(--kart-liner),
+    -1px -1px 0 var(--kart-liner),
+    1px -1px 0 var(--kart-liner),
+    -1px 1px 0 var(--kart-liner),
+    1px 1px 0 var(--kart-liner);
 }
 
 @supports (paint-order: stroke) {
   :root[data-map-theme="kart-arcade"] .ride-quick-action-label {
     paint-order: stroke fill;
-    -webkit-text-stroke: 3px var(--kart-liner);
+    -webkit-text-stroke: 2.25px var(--kart-liner);
     text-shadow: 0 2px 0 rgb(23 50 77 / 40%);
   }
 }
@@ -470,16 +470,16 @@
 /* Keep the map useful on short browser/PWA viewports such as iPhone SE. */
 @media (max-height: 700px) {
   :root[data-map-theme="kart-arcade"] .ride-quick-actions {
-    gap: 1.25rem;
+    gap: 0.9rem;
   }
 
   :root[data-map-theme="kart-arcade"] .ride-quick-action {
-    min-height: 3.8rem;
+    min-height: 3rem;
   }
 
   :root[data-map-theme="kart-arcade"] .ride-quick-action-icon {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 1.85rem;
+    height: 1.85rem;
   }
 
   :root[data-map-theme="kart-arcade"] .ride-record-button {
@@ -499,14 +499,14 @@
    * it just stops shouting.
    */
   :root[data-map-theme="kart-arcade"] .ride-quick-actions {
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   :root[data-map-theme="kart-arcade"] .ride-quick-action {
-    min-height: 3.5rem;
-    gap: 0.4rem;
-    border-radius: 1.2rem;
-    padding-inline: 0.4rem 0.4rem;
+    min-height: 3rem;
+    gap: 0.35rem;
+    border-radius: 1rem;
+    padding-inline: 0.3rem 0.3rem;
     box-shadow:
       inset 0 -0.25rem 0 rgb(23 50 77 / 18%),
       0 0 0 2px var(--kart-liner),
@@ -525,8 +525,8 @@
   }
 
   :root[data-map-theme="kart-arcade"] .ride-quick-action-icon {
-    width: 2.1rem;
-    height: 2.1rem;
+    width: 1.7rem;
+    height: 1.7rem;
     box-shadow:
       inset 0 -2px 0 rgb(23 50 77 / 25%),
       0 0 0 2px var(--kart-liner),
@@ -535,14 +535,14 @@
   }
 
   :root[data-map-theme="kart-arcade"] .ride-quick-action-icon svg {
-    width: 1.1rem;
-    height: 1.1rem;
+    width: 0.95rem;
+    height: 0.95rem;
   }
 
   /* Small enough that "Découvrir" — the longest of the four — still lands on
      one line beside the badge at 360 CSS pixels. */
   :root[data-map-theme="kart-arcade"] .ride-quick-action-label {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     letter-spacing: -0.01em;
   }
 
