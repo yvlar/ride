@@ -630,8 +630,10 @@ export function createMapLibreEngine(
         const template = asClouds
           ? radarCloudTileTemplate(originalTemplate, weather?.radarMaxZoom ?? null)
           : originalTemplate;
+        // Clouds are drawn see-through like the radar sheet they replace: the
+        // street stays readable under them, and the echo keeps its own colour.
         const opacity = asClouds
-          ? 0.9
+          ? 0.6
           : weather?.radarOpacity ?? RADAR_LAYER_OPACITY;
 
         const source = target.getSource(RADAR_SOURCE_ID);

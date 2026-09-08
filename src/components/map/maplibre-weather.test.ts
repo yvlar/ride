@@ -440,7 +440,7 @@ describe("Kart Arcade radar clouds", () => {
     });
     expect(cloudElements()).toHaveLength(0);
     const layer = addLayer.mock.calls.find(([layer]) => layer.id === "ride-radar-tiles");
-    expect(layer?.[0].paint).toEqual({ "raster-opacity": 0.9, "raster-fade-duration": 0 });
+    expect(layer?.[0].paint).toEqual({ "raster-opacity": 0.6, "raster-fade-duration": 0 });
     expect(layer?.[1]).toBe("ride-route-casing");
 
     const next = "https://tiles.test/next/{z}/{x}/{y}.png";

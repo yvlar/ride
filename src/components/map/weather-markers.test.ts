@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { CLOUD_MARKER_WIDTH_PX } from "./weather-cloud-clusters";
 import { createCloudMarkerElement } from "./weather-markers";
 import type { WeatherCloudMarker } from "./weather-overlay";
 
@@ -139,5 +142,38 @@ describe("cloud faces (FR-043)", () => {
     expect(face("rain").querySelector(".ride-map-cloud-tear")).not.toBeNull();
     expect(face("storm").querySelector(".ride-map-cloud-bolt")).not.toBeNull();
     expect(face("rain").querySelector(".ride-map-cloud-bolt")).toBeNull();
+  });
+});
+
+describe("how a cloud sits on the map", () => {
+  const stylesheet = readFileSync(
+    path.join(process.cwd(), "src/components/map/ride-map-markers.css"),
+    "utf8",
+  );
+
+  /*
+   * The fusion measures an overlap in pixels, so the constant it measures with
+   * has to be the box the stylesheet actually draws. Read one against the
+   * other: a size changed on one side alone would silently fuse the wrong
+   * clouds.
+   */
+  it("measures overlaps with the width the stylesheet draws", () => {
+    expect(stylesheet).toContain(
+      `width: calc(${CLOUD_MARKER_WIDTH_PX}px * var(--ride-map-cloud-scale, 1))`,
+    );
+  });
+
+  it("stays translucent, so the map reads under a cloud", () => {
+    const cloud = stylesheet.slice(
+      stylesheet.indexOf(".ride-map-cloud {"),
+      stylesheet.indexOf(".ride-map-cloud-icon {"),
+    );
+    const opacity = cloud.match(/opacity:\s*([\d.]+)/)?.[1];
+
+    expect(Number(opacity)).toBeGreaterThan(0);
+    expect(Number(opacity)).toBeLessThan(1);
+    // Transparency only: a tint or a filter would move the hue the level owns.
+    expect(cloud).not.toContain("grayscale");
+    expect(cloud).not.toContain("saturate");
   });
 });

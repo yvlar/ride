@@ -4,7 +4,14 @@ import { drawRadarCloud } from "./weather-markers";
 export const RADAR_CLOUD_PROTOCOL = "ride-radar-clouds";
 export const RADAR_CLOUD_MAX_ZOOM = 22;
 const TILE_SIZE = 256;
-const CELL_SIZE = 64;
+/*
+ * One cloud per cell, twice the former box so the faces read from further
+ * away. Fewer, bigger clouds per tile — the cell still inspects every source
+ * pixel it covers, so an isolated echo is never lost to the coarser grid.
+ */
+const CELL_SIZE = 128;
+/** Drawn width of a radar cloud, with the margin the cell leaves around it. */
+const CLOUD_WIDTH = 96;
 const MERCATOR_HALF_WORLD = Math.PI * 6378137;
 const CACHE_LIMIT = 16;
 
@@ -99,8 +106,8 @@ export function radarCloudCells(pixels: Pixels, crop: Crop): RadarCloudCell[] {
       if (strongest >= 0) {
         const [r, g, b] = pixels.data.slice(strongest, strongest + 3);
         cells.push({
-          x: col * CELL_SIZE + 8,
-          y: row * CELL_SIZE + 10,
+          x: col * CELL_SIZE + 16,
+          y: row * CELL_SIZE + 20,
           color: `rgb(${r}, ${g}, ${b})`,
         });
       }
@@ -204,7 +211,7 @@ export function ensureRadarCloudProtocol(): void {
     const context = canvasContext(TILE_SIZE * 2);
     context.scale(2, 2);
     for (const cell of radarCloudCells(pixels, crop)) {
-      drawRadarCloud(context, cell.color, cell.x, cell.y, 48);
+      drawRadarCloud(context, cell.color, cell.x, cell.y, CLOUD_WIDTH);
     }
     const blob = await new Promise<Blob>((resolve, reject) => {
       context.canvas.toBlob((result) => {

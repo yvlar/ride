@@ -61,15 +61,15 @@ describe("actual radar echoes to clouds", () => {
   it("finds isolated echoes between sampling points and keeps a real colour", () => {
     const image = pixels();
     paint(image, 73, 149);
-    expect(radarCloudCells(image, whole)).toEqual([{ x: 72, y: 138, color: "rgb(20, 80, 230)" }]);
+    expect(radarCloudCells(image, whole)).toEqual([{ x: 16, y: 148, color: "rgb(20, 80, 230)" }]);
   });
   it("covers the entire rainy tile with a bounded, evenly spaced cloud field", () => {
     const image = pixels();
     image.data.fill(255);
     const cells = radarCloudCells(image, whole);
-    expect(cells).toHaveLength(16);
-    expect(new Set(cells.map(({ x, y }) => `${x},${y}`)).size).toBe(16);
-    expect(cells.every(({ x, y }) => x >= 0 && y >= 0 && x + 48 < 256 && y + 48 < 256)).toBe(true);
+    expect(cells).toHaveLength(4);
+    expect(new Set(cells.map(({ x, y }) => `${x},${y}`)).size).toBe(4);
+    expect(cells.every(({ x, y }) => x >= 0 && y >= 0 && x + 96 < 256 && y + 96 < 256)).toBe(true);
   });
   it("does not move a rain cell into a neighbouring overscaled child", () => {
     const image = pixels(512);
@@ -82,8 +82,8 @@ describe("actual radar echoes to clouds", () => {
     const next = pixels();
     paint(previous, 5, 5);
     paint(next, 250, 250);
-    expect(radarCloudCells(previous, whole)[0]).toMatchObject({ x: 8, y: 10 });
-    expect(radarCloudCells(next, whole)[0]).toMatchObject({ x: 200, y: 202 });
+    expect(radarCloudCells(previous, whole)[0]).toMatchObject({ x: 16, y: 20 });
+    expect(radarCloudCells(next, whole)[0]).toMatchObject({ x: 144, y: 148 });
   });
 });
 

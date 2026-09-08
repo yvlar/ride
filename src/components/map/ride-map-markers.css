@@ -153,6 +153,12 @@
   pointer-events: none;
   /* Flat drop, like the place badges: a shadow, not a costly blur. */
   filter: drop-shadow(0 4px 0 rgb(23 50 77 / 0.3));
+  /*
+   * Semi-transparent, so the street stays readable under a sky that now
+   * covers twice the ground. `opacity` fades the whole character at once
+   * without touching a single hue: the level still reads in its own colour.
+   */
+  opacity: 0.6;
 }
 
 /*
@@ -162,8 +168,8 @@
  * width the overlap is measured with).
  */
 .ride-map-cloud-icon {
-  width: calc(76px * var(--ride-map-cloud-scale, 1));
-  height: calc(68px * var(--ride-map-cloud-scale, 1));
+  width: calc(152px * var(--ride-map-cloud-scale, 1));
+  height: calc(136px * var(--ride-map-cloud-scale, 1));
 }
 
 /* Kart Arcade keeps the forecast fallback as clouds only, like its radar. */

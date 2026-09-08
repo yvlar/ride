@@ -19,7 +19,7 @@ export type WeatherCloudCluster = WeatherCloudMarker & {
 };
 
 /** Drawn width of one cloud, in CSS pixels — mirrors `.ride-map-cloud-icon`. */
-export const CLOUD_MARKER_WIDTH_PX = 76;
+export const CLOUD_MARKER_WIDTH_PX = 152;
 
 /**
  * Half the drawn width: two clouds touch once their centres are closer than
