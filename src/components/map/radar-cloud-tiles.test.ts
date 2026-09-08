@@ -15,17 +15,33 @@ function pixels(size = 256): ImageData {
 function paint(image: ImageData, x: number, y: number, rgba = [20, 80, 230, 255]) {
   image.data.set(rgba, (y * image.width + x) * 4);
 }
+/**
+ * A cloud sits in the middle of its cell whatever size it drew — to the pixel
+ * its integer box allows, so an odd width may land half a pixel off centre.
+ */
+function expectCentredOn(
+  cell: { x: number; y: number; width: number },
+  centre: [number, number],
+) {
+  expect(cell.x + cell.width / 2).toBeLessThanOrEqual(centre[0] + 1);
+  expect(cell.x + cell.width / 2).toBeGreaterThanOrEqual(centre[0] - 1);
+  const middleY = cell.y + (cell.width * 38) / 42 / 2;
+  expect(middleY).toBeLessThanOrEqual(centre[1] + 1);
+  expect(middleY).toBeGreaterThanOrEqual(centre[1] - 1);
+}
 
 describe("radar cloud tile coordinates", () => {
   it("preserves the exact frame, colour scheme and XYZ at the provider zoom", () => {
     expect(resolveRadarCloudTile(request(xyz, 7, 38, 47))).toEqual({
-      url: "https://tiles.test/frame/512/7/38/47/2/1_1.png", crop: whole,
+      url: "https://tiles.test/frame/512/7/38/47/2/1_1.png", crop: whole, seed: "7/38/47",
     });
   });
   it("crops the correct parent quadrant without requesting unsupported zooms", () => {
     expect(resolveRadarCloudTile(request(xyz, 9, 153, 190))).toEqual({
       url: "https://tiles.test/frame/512/7/38/47/2/1_1.png",
       crop: { x: 0.25, y: 0.5, size: 0.25 },
+      // The requested child, so two children of one parent draw a different sky.
+      seed: "9/153/190",
     });
   });
   it("keeps street-level glyph density using a small part of the real source", () => {
@@ -61,7 +77,10 @@ describe("actual radar echoes to clouds", () => {
   it("finds isolated echoes between sampling points and keeps a real colour", () => {
     const image = pixels();
     paint(image, 73, 149);
-    expect(radarCloudCells(image, whole)).toEqual([{ x: 16, y: 148, color: "rgb(20, 80, 230)" }]);
+    const [cell] = radarCloudCells(image, whole);
+    // The echo sits in the lower-left cell, and the cloud is centred in it.
+    expect(cell).toMatchObject({ color: "rgb(20, 80, 230)" });
+    expectCentredOn(cell, [64, 192]);
   });
   it("covers the entire rainy tile with a bounded, evenly spaced cloud field", () => {
     const image = pixels();
@@ -69,8 +88,25 @@ describe("actual radar echoes to clouds", () => {
     const cells = radarCloudCells(image, whole);
     expect(cells).toHaveLength(4);
     expect(new Set(cells.map(({ x, y }) => `${x},${y}`)).size).toBe(4);
-    expect(cells.every(({ x, y }) => x >= 0 && y >= 0 && x + 96 < 256 && y + 96 < 256)).toBe(true);
+    // Every stray still fits inside the tile, however big it drew.
+    expect(
+      cells.every(({ x, y, width }) => x >= 0 && y >= 0 && x + width <= 256 && y + width <= 256),
+    ).toBe(true);
   });
+  it("draws a tile's clouds at different sizes, and the same ones every time", () => {
+    const image = pixels();
+    image.data.fill(255);
+    const widths = radarCloudCells(image, whole, "9/153/190").map((cell) => cell.width);
+
+    // A sky, not a stamped grid — and the neighbouring tile is not a copy.
+    expect(new Set(widths).size).toBeGreaterThan(1);
+    expect(radarCloudCells(image, whole, "9/154/190").map((cell) => cell.width))
+      .not.toEqual(widths);
+    // Redrawing the same tile of the same frame gives back the same sky.
+    expect(radarCloudCells(image, whole, "9/153/190").map((cell) => cell.width))
+      .toEqual(widths);
+  });
+
   it("does not move a rain cell into a neighbouring overscaled child", () => {
     const image = pixels(512);
     paint(image, 330, 20);
@@ -82,8 +118,8 @@ describe("actual radar echoes to clouds", () => {
     const next = pixels();
     paint(previous, 5, 5);
     paint(next, 250, 250);
-    expect(radarCloudCells(previous, whole)[0]).toMatchObject({ x: 16, y: 20 });
-    expect(radarCloudCells(next, whole)[0]).toMatchObject({ x: 144, y: 148 });
+    expectCentredOn(radarCloudCells(previous, whole)[0], [64, 64]);
+    expectCentredOn(radarCloudCells(next, whole)[0], [192, 192]);
   });
 });
 

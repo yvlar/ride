@@ -1,4 +1,5 @@
 import { addProtocol } from "maplibre-gl";
+import { cloudSizeJitter } from "./cloud-size-jitter";
 import { drawRadarCloud } from "./weather-markers";
 
 export const RADAR_CLOUD_PROTOCOL = "ride-radar-clouds";
@@ -10,15 +11,17 @@ const TILE_SIZE = 256;
  * pixel it covers, so an isolated echo is never lost to the coarser grid.
  */
 const CELL_SIZE = 128;
-/** Drawn width of a radar cloud, with the margin the cell leaves around it. */
+/** Base drawn width of a radar cloud, before its cell's own stray. */
 const CLOUD_WIDTH = 96;
+/** The silhouette is drawn in a 42 × 38 box (see ARCADE_VIEW_BOX). */
+const CLOUD_ASPECT = 38 / 42;
 const MERCATOR_HALF_WORLD = Math.PI * 6378137;
 const CACHE_LIMIT = 16;
 
 type Tile = { z: number; x: number; y: number };
 type Crop = { x: number; y: number; size: number };
 type Pixels = Pick<ImageData, "data" | "width" | "height">;
-type RadarCloudCell = { x: number; y: number; color: string };
+type RadarCloudCell = { x: number; y: number; width: number; color: string };
 
 /** Keep the provider template encoded until our protocol resolves the tile. */
 export function radarCloudTileTemplate(
@@ -33,7 +36,9 @@ export function radarCloudTileTemplate(
  * MapLibre can still request its native zoom: glyphs keep their screen size
  * instead of becoming enormous when navigating at street level.
  */
-export function resolveRadarCloudTile(url: string): { url: string; crop: Crop } {
+export function resolveRadarCloudTile(
+  url: string,
+): { url: string; crop: Crop; seed: string } {
   const parsed = new URL(url);
   const [x, y] = parsed.pathname.slice(1).split("/").map(Number);
   const tile: Tile = { z: Number(parsed.hostname), x, y };
@@ -68,6 +73,9 @@ export function resolveRadarCloudTile(url: string): { url: string; crop: Crop } 
   return {
     url: resolved,
     crop: { x: (x % scale) / scale, y: (y % scale) / scale, size: 1 / scale },
+    // The requested tile, not its parent: neighbours must not draw the same
+    // handful of sizes over and over, which would read as a pattern.
+    seed: `${tile.z}/${x}/${y}`,
   };
 }
 
@@ -76,8 +84,17 @@ export function resolveRadarCloudTile(url: string): { url: string; crop: Crop } 
  * echoes that nearest-neighbour downsampling would miss. Transparent cells
  * stay empty. Keep a real pixel colour (the most opaque echo), without guessing
  * a provider-specific dBZ scale or mixing colours into an invented severity.
+ *
+ * No two neighbours are drawn at quite the same size: each cell strays from
+ * the base width by an amount `seed` fixes for good, so the same frame of the
+ * same tile always comes back identical. Every stray still fits its cell, so a
+ * bigger cloud never spills onto the one next to it.
  */
-export function radarCloudCells(pixels: Pixels, crop: Crop): RadarCloudCell[] {
+export function radarCloudCells(
+  pixels: Pixels,
+  crop: Crop,
+  seed = "",
+): RadarCloudCell[] {
   const cells: RadarCloudCell[] = [];
   const across = TILE_SIZE / CELL_SIZE;
   for (let row = 0; row < across; row += 1) {
@@ -105,9 +122,14 @@ export function radarCloudCells(pixels: Pixels, crop: Crop): RadarCloudCell[] {
       }
       if (strongest >= 0) {
         const [r, g, b] = pixels.data.slice(strongest, strongest + 3);
+        const width = Math.round(
+          CLOUD_WIDTH * (1 + cloudSizeJitter(`${seed}:${col},${row}`)),
+        );
         cells.push({
-          x: col * CELL_SIZE + 16,
-          y: row * CELL_SIZE + 20,
+          // Centred in its cell, so a cloud that drew big grows on both sides.
+          x: Math.round(col * CELL_SIZE + (CELL_SIZE - width) / 2),
+          y: Math.round(row * CELL_SIZE + (CELL_SIZE - width * CLOUD_ASPECT) / 2),
+          width,
           color: `rgb(${r}, ${g}, ${b})`,
         });
       }
@@ -204,14 +226,14 @@ export function ensureRadarCloudProtocol(): void {
   if (registered) return;
   const readPixels = createRadarPixelCache();
   addProtocol(RADAR_CLOUD_PROTOCOL, async (request, controller) => {
-    const { url, crop } = resolveRadarCloudTile(request.url);
+    const { url, crop, seed } = resolveRadarCloudTile(request.url);
     const pixels = await readPixels(url, controller.signal);
     controller.signal.throwIfAborted();
     // 2x artwork stays sharp on iPhone; the logical tile size remains 256.
     const context = canvasContext(TILE_SIZE * 2);
     context.scale(2, 2);
-    for (const cell of radarCloudCells(pixels, crop)) {
-      drawRadarCloud(context, cell.color, cell.x, cell.y, CLOUD_WIDTH);
+    for (const cell of radarCloudCells(pixels, crop, seed)) {
+      drawRadarCloud(context, cell.color, cell.x, cell.y, cell.width);
     }
     const blob = await new Promise<Blob>((resolve, reject) => {
       context.canvas.toBlob((result) => {

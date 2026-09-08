@@ -3,6 +3,7 @@ import type { Coordinates } from "@/domain/geo/types";
 import { precipitationLevelLabel } from "@/domain/weather/precipitation";
 import { PRECIPITATION_LEVELS } from "@/domain/weather/types";
 import type { PrecipitationLevel } from "@/domain/weather/types";
+import { cloudSizeJitter } from "./cloud-size-jitter";
 import type { WeatherCloudMarker } from "./weather-overlay";
 
 /**
@@ -14,7 +15,10 @@ import type { WeatherCloudMarker } from "./weather-overlay";
 export type WeatherCloudCluster = WeatherCloudMarker & {
   /** How many sampled points this cloud stands for. 1 = an untouched sample. */
   count: number;
-  /** Multiplier on the drawn size, so a merged cloud reads as the bigger one. */
+  /**
+   * Multiplier on the drawn size: the fusion count, plus the small stray that
+   * keeps neighbouring clouds from looking stamped from one mould.
+   */
   scale: number;
 };
 
@@ -50,6 +54,16 @@ export function cloudScale(count: number): number {
   );
 }
 
+/**
+ * The size a cloud is actually drawn at: what its count earns it, offset by
+ * the stray its identity always gives it. The offset is added rather than
+ * multiplied, and stays smaller than half a fusion step, so the order holds —
+ * a merged cloud is bigger than every lone one, whatever they drew.
+ */
+export function clusterScale(id: string, count: number): number {
+  return Math.min(MAX_CLOUD_SCALE, cloudScale(count) + cloudSizeJitter(id));
+}
+
 /** Ground covered by one screen pixel, which is what decides an overlap. */
 export function metersPerPixel(latitude: number, zoom: number): number {
   const cosLatitude = Math.cos((latitude * Math.PI) / 180);
@@ -65,6 +79,17 @@ type WorkingCluster = {
   level: PrecipitationLevel;
   probability: number;
 };
+
+/**
+ * Every member's id, so the same fusion keeps the same identity — and so the
+ * same drawn size — between renders however the samples were ordered.
+ */
+function clusterId(members: readonly WeatherCloudMarker[]): string {
+  return members
+    .map((member) => member.id)
+    .sort()
+    .join("+");
+}
 
 /**
  * FR-043 — fuse the clouds that would overlap at `zoom` into single, larger
@@ -125,10 +150,15 @@ function overlaps(
   return haversineKm(first.coordinates, second.coordinates) < reach;
 }
 
-/** How far a cloud reaches on the ground, from its centre to its edge. */
+/**
+ * How far a cloud reaches on the ground, from its centre to its edge. Measured
+ * at the size it is drawn, stray included: a cloud that drew big really does
+ * cover more of its neighbour.
+ */
 function footprintKm(cluster: WorkingCluster, zoom: number): number {
   const radiusPx =
-    CLOUD_FOOTPRINT_RADIUS_PX * cloudScale(cluster.members.length);
+    CLOUD_FOOTPRINT_RADIUS_PX *
+    clusterScale(clusterId(cluster.members), cluster.members.length);
   return (radiusPx * metersPerPixel(cluster.coordinates.latitude, zoom)) / 1000;
 }
 
@@ -174,7 +204,7 @@ function worstLevel(
 }
 
 function toSingleCluster(cloud: WeatherCloudMarker): WeatherCloudCluster {
-  return { ...cloud, count: 1, scale: 1 };
+  return { ...cloud, count: 1, scale: clusterScale(cloud.id, 1) };
 }
 
 function toCluster(cluster: WorkingCluster): WeatherCloudCluster {
@@ -182,18 +212,14 @@ function toCluster(cluster: WorkingCluster): WeatherCloudCluster {
   if (count === 1) {
     return toSingleCluster(cluster.members[0]);
   }
+  const id = clusterId(cluster.members);
   return {
-    // Every member's id, so the same fusion keeps the same identity between
-    // renders however the samples were ordered.
-    id: cluster.members
-      .map((member) => member.id)
-      .sort()
-      .join("+"),
+    id,
     coordinates: cluster.coordinates,
     level: cluster.level,
     probability: cluster.probability,
     label: `${precipitationLevelLabel(cluster.level)}, ${cluster.probability} % de risque de pluie, ${count} zones regroupées`,
     count,
-    scale: cloudScale(count),
+    scale: clusterScale(id, count),
   };
 }

@@ -4,6 +4,7 @@ import type { Coordinates } from "@/domain/geo/types";
 import {
   MAX_CLOUD_SCALE,
   cloudScale,
+  clusterScale,
   mergeOverlappingClouds,
   metersPerPixel,
 } from "./weather-cloud-clusters";
@@ -41,7 +42,10 @@ describe("mergeOverlappingClouds (FR-043)", () => {
 
     expect(clusters).toHaveLength(2);
     expect(clusters.every((cluster) => cluster.count === 1)).toBe(true);
-    expect(clusters.every((cluster) => cluster.scale === 1)).toBe(true);
+    // A lone cloud is drawn near its base size, give or take its own stray.
+    expect(clusters.every((cluster) => Math.abs(cluster.scale - 1) < 0.2)).toBe(
+      true,
+    );
   });
 
   it("fuses two overlapping clouds into one bigger cloud", () => {
@@ -119,6 +123,29 @@ describe("mergeOverlappingClouds (FR-043)", () => {
     expect(mergeOverlappingClouds(clouds, 12)).toHaveLength(2);
   });
 
+  it("gives two clouds of the same sky two different sizes", () => {
+    const clusters = mergeOverlappingClouds(
+      [cloud("cloud-0", CENTER), cloud("cloud-1", east(40))],
+      9,
+    );
+
+    expect(clusters[0].scale).not.toBe(clusters[1].scale);
+  });
+
+  it("draws the same cloud at the same size on every render", () => {
+    const clouds = [cloud("cloud-0", CENTER), cloud("cloud-1", east(2))];
+
+    // Two renders of one sky — a zoom that settles, a weather refresh — must
+    // not reshuffle the sizes under the rider.
+    expect(mergeOverlappingClouds(clouds, 9)).toEqual(
+      mergeOverlappingClouds(clouds, 9),
+    );
+    // Nor does the order the samples arrived in change what is drawn.
+    expect(mergeOverlappingClouds([...clouds].reverse(), 9)[0].scale).toBe(
+      mergeOverlappingClouds(clouds, 9)[0].scale,
+    );
+  });
+
   it("leaves every cloud in place when the map cannot report a zoom", () => {
     const clusters = mergeOverlappingClouds(
       [cloud("cloud-0", CENTER), cloud("cloud-1", east(1))],
@@ -137,6 +164,38 @@ describe("mergeOverlappingClouds (FR-043)", () => {
     expect(cloudScale(2)).toBeGreaterThan(1);
     expect(cloudScale(3)).toBeGreaterThan(cloudScale(2));
     expect(cloudScale(40)).toBe(MAX_CLOUD_SCALE);
+  });
+});
+
+describe("clusterScale (FR-043)", () => {
+  const ids = Array.from({ length: 200 }, (_, index) => `cloud-${index}`);
+
+  it("never lets a lone cloud outgrow a merged one", () => {
+    // The size is a second reading of the count the label gives in words
+    // (NFR-001): the stray may not turn that reading into a lie.
+    const lone = ids.map((id) => clusterScale(id, 1));
+    const fused = ids.map((id) => clusterScale(id, 2));
+
+    expect(Math.max(...lone)).toBeLessThan(Math.min(...fused));
+  });
+
+  it("keeps every cloud within a cap that still fits the screen", () => {
+    expect(
+      ids.every((id) => clusterScale(id, 40) <= MAX_CLOUD_SCALE),
+    ).toBe(true);
+  });
+
+  it("spreads the sizes instead of stamping one mould", () => {
+    // A dozen neighbours of one forecast run, which is what a rider sees at
+    // once: near-identical ids must still come back as a dozen sizes.
+    const neighbours = Array.from({ length: 12 }, (_, index) => `cloud-${index}`);
+    const scales = new Set(neighbours.map((id) => clusterScale(id, 1)));
+
+    expect(scales.size).toBe(neighbours.length);
+    // Spread on both sides of the base size, and none of them absurd.
+    expect(neighbours.some((id) => clusterScale(id, 1) > 1)).toBe(true);
+    expect(neighbours.some((id) => clusterScale(id, 1) < 1)).toBe(true);
+    expect(ids.every((id) => clusterScale(id, 1) > 0.5)).toBe(true);
   });
 });
 
