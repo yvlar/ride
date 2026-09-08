@@ -171,6 +171,11 @@
   white-space: nowrap;
 }
 
+/* Kart Arcade keeps the forecast fallback as clouds only, like its radar. */
+.ride-map-kart-arcade .ride-map-cloud-badge {
+  display: none;
+}
+
 /* The level tints the body; every ink line stays the map's text colour. */
 .ride-map-cloud-body {
   fill: currentColor;

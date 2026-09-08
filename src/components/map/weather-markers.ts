@@ -228,3 +228,53 @@ function pathNode(d: string, className: string): SVGPathElement {
   path.setAttribute("d", d);
   return path;
 }
+
+/**
+ * The radar uses the same original artwork as the forecast markers. Its body
+ * keeps an observed echo colour; it does not invent a rain probability or
+ * infer thunder from a radar colour palette. Draw directly to canvas so no
+ * extra image request or SVG decoding is needed for each tile.
+ */
+export function drawRadarCloud(
+  context: CanvasRenderingContext2D,
+  color: string,
+  x: number,
+  y: number,
+  width: number,
+): void {
+  const face = CLOUD_FACES.worried;
+  context.save();
+  context.translate(x, y);
+  context.scale(width / 42, width / 42);
+  context.translate(-3, -4);
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.strokeStyle = "#17324D";
+  context.lineWidth = 2.5;
+  context.fillStyle = color;
+  const body = new Path2D(ARCADE_CLOUD_BODY);
+  context.fill(body);
+  context.stroke(body);
+  for (const centerX of [EYE.leftX, EYE.rightX]) {
+    context.beginPath();
+    context.ellipse(centerX, EYE.y, EYE.rx, EYE.ry, 0, 0, Math.PI * 2);
+    context.fillStyle = "#FFF9E8";
+    context.lineWidth = 1.6;
+    context.fill();
+    context.stroke();
+    context.beginPath();
+    context.arc(centerX, EYE.y + face.pupilOffsetY, PUPIL_RADIUS, 0, Math.PI * 2);
+    context.fillStyle = "#17324D";
+    context.fill();
+  }
+  context.lineWidth = 1.8;
+  for (const path of [...face.brows, face.mouth]) {
+    context.stroke(new Path2D(path));
+  }
+  context.strokeStyle = "#147DFF";
+  context.lineWidth = 2.6;
+  for (const streak of CLOUD_WEATHER_ART.showers.streaks) {
+    context.stroke(new Path2D(streak));
+  }
+  context.restore();
+}

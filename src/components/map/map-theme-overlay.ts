@@ -14,6 +14,8 @@ export type MapDetailLevel = "exploration" | "navigation";
  * second theme impossible without branching on its name in the renderer.
  */
 export type MapOverlayTheme = {
+  /** Draw actual radar echoes as arcade clouds instead of continuous imagery. */
+  radarRendering?: "clouds" | "raster";
   route: {
     color: string;
     width: number;
@@ -80,6 +82,7 @@ export const STANDARD_MAP_OVERLAY_THEME: MapOverlayTheme = {
 };
 
 export const KART_ARCADE_MAP_OVERLAY_THEME: MapOverlayTheme = {
+  radarRendering: "clouds",
   route: {
     // Electric blue over a white halo: the one thing that must stay obvious in
     // full sun, over warm roads and over turquoise water alike.

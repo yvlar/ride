@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { KART_ARCADE_MAP_OVERLAY_THEME } from "./map-theme-overlay";
+import { KART_ARCADE_MAP_OVERLAY_THEME, STANDARD_MAP_OVERLAY_THEME } from "./map-theme-overlay";
+import { radarCloudTileTemplate } from "./radar-cloud-tiles";
 import type { MapOverlayTheme } from "./map-theme-overlay";
 import type { RideMapViewModel } from "./ride-map-view-model";
 import type { WeatherMapOverlay } from "./weather-overlay";
@@ -24,6 +25,7 @@ const {
     layers: new Set<string>(),
     loadHandlers: [] as Array<() => void>,
     styleLoadHandlers: [] as Array<() => void>,
+    errorHandlers: [] as Array<(event: { sourceId: string }) => void>,
     styleLayers: [] as Array<{ id: string; type: string }>,
     /** MapLibre 5 raster sources can be retargeted; older ones cannot. */
     rasterSetTiles: true,
@@ -32,6 +34,7 @@ const {
       this.layers.clear();
       this.loadHandlers.length = 0;
       this.styleLoadHandlers.length = 0;
+      this.errorHandlers.length = 0;
       this.styleLayers = [];
       this.rasterSetTiles = true;
     },
@@ -44,11 +47,13 @@ const {
     remove = vi.fn();
     fitBounds = vi.fn();
     easeTo = vi.fn();
+    getPitch = () => 0;
     isStyleLoaded = () => true;
     on(event: string, handler: () => void) {
       if (event === "load") {
         mapState.loadHandlers.push(handler);
       }
+      if (event === "error") mapState.errorHandlers.push(handler);
     }
     once(event: string, handler: () => void) {
       if (event === "style.load") {
@@ -138,6 +143,7 @@ const {
 });
 
 vi.mock("maplibre-gl", () => ({
+  addProtocol: vi.fn(),
   Map: FakeMap,
   Marker: FakeMarker,
   GeolocateControl: class {
@@ -194,12 +200,12 @@ const overlay: WeatherMapOverlay = {
   ],
 };
 
-async function mountEngine(mapOverlay?: MapOverlayTheme) {
+async function mountEngine(mapOverlay?: MapOverlayTheme, callbacks = { onError: vi.fn(), onWarning: vi.fn(), onMapStyleFallback: vi.fn() }) {
   const { createMapLibreEngine } = await import("./maplibre-map-engine");
   const handle = createMapLibreEngine().mount(
     document.createElement("div"),
     viewModel,
-    { onError: vi.fn(), onWarning: vi.fn() },
+    callbacks,
     mapOverlay ? { mapOverlay } : undefined,
   );
   for (const handler of mapState.loadHandlers) {
@@ -393,11 +399,11 @@ describe("MapLibre weather layer (FR-043)", () => {
 });
 
 describe("cloud faces on the map (FR-043)", () => {
-  it("gives every cloud a face, on every theme", async () => {
+  it("gives forecast clouds a face, including when radar imagery is unavailable", async () => {
     for (const theme of [undefined, KART_ARCADE_MAP_OVERLAY_THEME]) {
       createdMarkers.length = 0;
       const handle = await mountEngine(theme);
-      handle.setWeather?.(overlay);
+      handle.setWeather?.({ ...overlay, radarTileUrlTemplate: null });
 
       const drawn = cloudElements();
       expect(drawn).toHaveLength(2);
@@ -410,6 +416,76 @@ describe("cloud faces on the map (FR-043)", () => {
       }
       handle.destroy();
     }
+  });
+});
+
+describe("Kart Arcade radar clouds", () => {
+  it("converts the selected radar frame instead of overlaying current forecasts", async () => {
+    const handle = await mountEngine(KART_ARCADE_MAP_OVERLAY_THEME);
+    handle.setWeather?.(overlay);
+    expect(mapState.sources.get("ride-radar")).toMatchObject({
+      tiles: [radarCloudTileTemplate(overlay.radarTileUrlTemplate!, 7)],
+      maxzoom: 22,
+      attribution: overlay.attribution,
+    });
+    expect(cloudElements()).toHaveLength(0);
+    const layer = addLayer.mock.calls.find(([layer]) => layer.id === "ride-radar-tiles");
+    expect(layer?.[0].paint).toEqual({ "raster-opacity": 0.9, "raster-fade-duration": 0 });
+    expect(layer?.[1]).toBe("ride-route-casing");
+
+    const next = "https://tiles.test/next/{z}/{x}/{y}.png";
+    handle.setWeather?.({ ...overlay, radarTileUrlTemplate: next });
+    expect(mapState.sources.get("ride-radar")?.tiles).toEqual([radarCloudTileTemplate(next, 7)]);
+    handle.destroy();
+  });
+
+  it("switches both ways between radar imagery and clouds without leaving old layers", async () => {
+    const handle = await mountEngine();
+    handle.setWeather?.(overlay);
+    handle.setMapStyle?.("kart", KART_ARCADE_MAP_OVERLAY_THEME);
+    mapState.styleLoadHandlers.splice(0).forEach((handler) => handler());
+    expect(mapState.sources.get("ride-radar")?.tiles).toEqual([
+      radarCloudTileTemplate(overlay.radarTileUrlTemplate!, 7),
+    ]);
+    expect(cloudElements()).toHaveLength(0);
+
+    handle.setMapStyle?.("standard", STANDARD_MAP_OVERLAY_THEME);
+    mapState.styleLoadHandlers.splice(0).forEach((handler) => handler());
+    expect(mapState.sources.get("ride-radar")).toMatchObject({
+      tiles: [overlay.radarTileUrlTemplate], maxzoom: 7,
+    });
+    expect(cloudElements()).toHaveLength(2);
+    handle.destroy();
+  });
+
+  it("removes the converted tiles when weather is disabled", async () => {
+    const handle = await mountEngine(KART_ARCADE_MAP_OVERLAY_THEME);
+    handle.setWeather?.(overlay);
+    handle.setWeather?.(null);
+    expect(mapState.sources.has("ride-radar")).toBe(false);
+    expect(mapState.layers.has("ride-radar-tiles")).toBe(false);
+    expect(cloudElements()).toHaveLength(0);
+    handle.destroy();
+  });
+
+  it("announces a radar failure, shows forecast clouds and preserves the theme", async () => {
+    const callbacks = { onError: vi.fn(), onWarning: vi.fn(), onMapStyleFallback: vi.fn() };
+    const handle = await mountEngine(KART_ARCADE_MAP_OVERLAY_THEME, callbacks);
+    handle.setWeather?.(overlay);
+    mapState.errorHandlers.forEach((handler) => handler({ sourceId: "ride-radar" }));
+    expect(callbacks.onError).not.toHaveBeenCalled();
+    expect(callbacks.onMapStyleFallback).not.toHaveBeenCalled();
+    expect(callbacks.onWarning).toHaveBeenCalledWith(expect.stringContaining("prévisions actuelles"));
+    expect(mapState.sources.has("ride-radar")).toBe(false);
+    expect(cloudElements()).toHaveLength(2);
+
+    // The next refresh can recover; a transient tile failure is not sticky.
+    handle.setWeather?.(overlay);
+    expect(cloudElements()).toHaveLength(0);
+    expect(mapState.sources.get("ride-radar")?.tiles).toEqual([
+      radarCloudTileTemplate(overlay.radarTileUrlTemplate!, 7),
+    ]);
+    handle.destroy();
   });
 });
 
