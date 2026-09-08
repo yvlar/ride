@@ -44,19 +44,55 @@ export type RideMapViewModel = {
   remainingGeometry?: LineString;
 };
 
-export type MapCameraFrame = {
-  bounds: [[number, number], [number, number]];
-  fitBoundsOptions: { padding: number; duration: number };
+export type MapCameraPadding = {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
 };
 
+export type MapCameraFrame = {
+  bounds: [[number, number], [number, number]];
+  fitBoundsOptions: { padding: MapCameraPadding; duration: number };
+};
+
+/**
+ * Chrome drawn over the map, in CSS pixels. A framed route has to clear it:
+ * the bottom sheet of the explorer covers the lower part of the map, and a
+ * trajet fitted to the full viewport would sit half-hidden behind it (FR-038).
+ */
+export type MapFrameInsets = {
+  bottom?: number;
+};
+
+/** Breathing room around a framed route, before any overlay inset. */
+export const BASE_FRAME_PADDING = 48;
+
+function inset(value: number | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : 0;
+}
+
 /** Initial camera so the map never opens on the default world view (FR-013). */
-export function mapCameraFrame(bounds: BoundingBox): MapCameraFrame {
+export function mapCameraFrame(
+  bounds: BoundingBox,
+  insets: MapFrameInsets = {},
+): MapCameraFrame {
   return {
     bounds: [
       [bounds.west, bounds.south],
       [bounds.east, bounds.north],
     ],
-    fitBoundsOptions: { padding: 48, duration: 0 },
+    fitBoundsOptions: {
+      padding: {
+        top: BASE_FRAME_PADDING,
+        right: BASE_FRAME_PADDING,
+        bottom: BASE_FRAME_PADDING + inset(insets.bottom),
+        left: BASE_FRAME_PADDING,
+      },
+      duration: 0,
+    },
   };
 }
 

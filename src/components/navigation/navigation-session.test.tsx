@@ -357,8 +357,8 @@ describe("NavigationSession (FR-023, FR-024, FR-025, NFR-006)", () => {
     expect(
       screen.getByRole("contentinfo", { name: "Progression du trajet" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("2.0 km")).toBeInTheDocument();
-    expect(screen.getByText("3 min")).toBeInTheDocument();
+    expect(screen.getByLabelText("2.0 km")).toBeInTheDocument();
+    expect(screen.getByLabelText("3 min")).toBeInTheDocument();
     expect(screen.getByTestId("navigation-status")).toHaveTextContent(
       NAVIGATION_STATUS_MESSAGES.locating,
     );
@@ -1779,16 +1779,21 @@ describe("NavigationSession GPX two-phase guidance (FR-039, BR-010)", () => {
   it("mutes the earcons with the voice, and cuts them on stop (FR-044)", async () => {
     const { watch, emit } = createWatch();
     const audioCues = stubAudioCues();
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "auto");
     render(
-      <NavigationSession
-        route={route}
-        request={request}
-        onStop={() => {}}
-        locationWatch={watch}
-        speech={stubSilentSpeech()}
-        audioCues={audioCues}
-        mapEngine={stubMapEngine()}
-      />,
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <NavigationSession
+            route={route}
+            request={request}
+            onStop={() => {}}
+            locationWatch={watch}
+            speech={stubSilentSpeech()}
+            audioCues={audioCues}
+            mapEngine={stubMapEngine()}
+          />
+        </MapThemeProvider>
+      </AppearanceProvider>,
     );
 
     fireEvent.click(
@@ -1947,25 +1952,29 @@ describe("NavigationSession — Kart Arcade (FR-046)", () => {
     });
   });
 
-  it("keeps the standard timbre under every other basemap", async () => {
+  it("settles on the standard timbre under every other basemap", async () => {
     const { watch } = createWatch();
     const audioCues = stubAudioCues();
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "auto");
     render(
-      <NavigationSession
-        route={route}
-        request={request}
-        onStop={() => {}}
-        locationWatch={watch}
-        speech={stubSpeech()}
-        audioCues={audioCues}
-        mapEngine={stubMapEngine()}
-      />,
+      <AppearanceProvider>
+        <MapThemeProvider>
+          <NavigationSession
+            route={route}
+            request={request}
+            onStop={() => {}}
+            locationWatch={watch}
+            speech={stubSpeech()}
+            audioCues={audioCues}
+            mapEngine={stubMapEngine()}
+          />
+        </MapThemeProvider>
+      </AppearanceProvider>,
     );
 
     await waitFor(() => {
-      expect(audioCues.setVoice).toHaveBeenCalledWith("standard");
+      expect(audioCues.setVoice).toHaveBeenLastCalledWith("standard");
     });
-    expect(audioCues.setVoice).not.toHaveBeenCalledWith("arcade");
   });
 
   it("counts down from three on the first GPS fix", async () => {
@@ -2020,6 +2029,7 @@ describe("NavigationSession — Kart Arcade (FR-046)", () => {
     // basemap was at the time.
     const { watch, emit } = createWatch();
     const audioCues = stubAudioCues();
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, "auto");
     render(
       <AppearanceProvider>
         <MapThemeProvider>

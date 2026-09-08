@@ -34,6 +34,11 @@ export type RideMapProps = {
   fill?: boolean;
   /** FR-042 — distance ridden, to dim the portion already behind. */
   traveledKm?: number;
+  /**
+   * FR-038 — height in CSS pixels of the panel floating over the bottom of the
+   * map. A framed route is fitted above it instead of half-hidden behind it.
+   */
+  bottomInset?: number;
   onRecenterReady?: (recenter: () => void) => void;
   onOverviewReady?: (overview: () => void) => void;
   onGeolocateReady?: (setEnabled: (enabled: boolean) => void) => void;
@@ -65,6 +70,7 @@ export function RideMap({
   expanded = false,
   fill = false,
   traveledKm = 0,
+  bottomInset = 0,
   onRecenterReady,
   onOverviewReady,
   onGeolocateReady,
@@ -104,6 +110,7 @@ export function RideMap({
   const geolocateEnabled = !expanded && !recordingActive;
   const geolocateEnabledRef = useRef(geolocateEnabled);
   const expandedRef = useRef(expanded);
+  const bottomInsetRef = useRef(bottomInset);
   const onPickRef = useRef(onPick);
   const pickModeRef = useRef(pickMode);
   const pickMarkerRef = useRef(pickMarker);
@@ -221,6 +228,7 @@ export function RideMap({
             mapStyle: mapStyleRef.current,
             mapOverlay: mapOverlayRef.current,
             detailLevel: detailLevelRef.current,
+            frameInsets: { bottom: bottomInsetRef.current },
           },
         );
         handleRef.current = handle;
@@ -375,6 +383,11 @@ export function RideMap({
     detailLevelRef.current = resolvedDetailLevel;
     handleRef.current?.setDetailLevel?.(resolvedDetailLevel);
   }, [resolvedDetailLevel]);
+
+  useEffect(() => {
+    bottomInsetRef.current = bottomInset;
+    handleRef.current?.setFrameInsets?.({ bottom: bottomInset });
+  }, [bottomInset]);
 
   useLayoutEffect(() => {
     handleRef.current?.setGeolocateEnabled?.(geolocateEnabled);

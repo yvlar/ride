@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MAP_THEME,
+  FALLBACK_MAP_THEME,
   isMapTheme,
   MAP_THEME_STORAGE_KEY,
   readStoredMapTheme,
@@ -13,9 +14,9 @@ function storageWith(value: string | null) {
 }
 
 describe("map theme storage (FR-045)", () => {
-  it("defaults to automatique without storage", () => {
-    expect(readStoredMapTheme(null)).toBe("auto");
-    expect(DEFAULT_MAP_THEME).toBe("auto");
+  it("defaults to Kart Arcade without a v2 preference", () => {
+    expect(readStoredMapTheme(null)).toBe("kart-arcade");
+    expect(DEFAULT_MAP_THEME).toBe("kart-arcade");
   });
 
   it("reads a stored theme", () => {
@@ -25,8 +26,8 @@ describe("map theme storage (FR-045)", () => {
   });
 
   it("falls back to the default on an unknown value", () => {
-    expect(readStoredMapTheme(storageWith("bleu"))).toBe("auto");
-    expect(readStoredMapTheme(storageWith(null))).toBe("auto");
+    expect(readStoredMapTheme(storageWith("bleu"))).toBe("kart-arcade");
+    expect(readStoredMapTheme(storageWith(null))).toBe("kart-arcade");
   });
 
   it("writes under the durable settings key", () => {
@@ -61,13 +62,12 @@ describe("Kart Arcade (FR-046)", () => {
     expect(isMapTheme("kart-arcade")).toBe(true);
   });
 
-  it("is never chosen for an existing rider by default", () => {
-    expect(DEFAULT_MAP_THEME).toBe("auto");
-    expect(readStoredMapTheme(null)).toBe("auto");
-    expect(readStoredMapTheme(storageWith(null))).toBe("auto");
-    // Automatique follows the appearance and never resolves to the arcade.
-    expect(resolveMapTheme("auto", "light")).toBe("light");
-    expect(resolveMapTheme("auto", "dark")).toBe("dark");
+  it("is the Ride identity for new and migrated installations", () => {
+    expect(DEFAULT_MAP_THEME).toBe("kart-arcade");
+    expect(FALLBACK_MAP_THEME).toBe("auto");
+    expect(MAP_THEME_STORAGE_KEY).toBe("ride.settings.mapTheme.v2");
+    expect(readStoredMapTheme(null)).toBe("kart-arcade");
+    expect(readStoredMapTheme(storageWith(null))).toBe("kart-arcade");
   });
 
   it("is restored when it is what the rider stored", () => {

@@ -10,6 +10,10 @@ describe("createCapacitorConfig (FR-027)", () => {
     expect(config.webDir).toBe("public");
     expect(config.server).toBeUndefined();
     expect(config.ios).toMatchObject({ contentInset: "never" });
+    expect(config.plugins).toMatchObject({
+      SplashScreen: { backgroundColor: "#17324D" },
+      StatusBar: { backgroundColor: "#17324D", style: "LIGHT" },
+    });
   });
 
   it("loads the Next.js origin only when CAPACITOR_SERVER_URL is set", () => {

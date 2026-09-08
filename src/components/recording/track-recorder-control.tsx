@@ -74,12 +74,12 @@ export function TrackRecorderControl({
           variant="ghost"
           aria-label={RECORDING_START_LABEL}
           title={RECORDING_START_LABEL}
-          className="ride-glass relative size-[clamp(3.75rem,16vw,4.5rem)] rounded-full border-[3px] border-white/55 p-1.5 shadow-[0_0_1.25rem_rgba(239,68,68,0.35)] hover:bg-ride-glass-strong focus-visible:border-white/80"
+          className="ride-record-button ride-glass relative size-[clamp(3.75rem,16vw,4.5rem)] rounded-full border-[3px] border-white/55 p-1.5 shadow-[0_0_1.25rem_rgba(239,68,68,0.35)] hover:bg-ride-glass-strong focus-visible:border-white/80"
           onClick={recorder.start}
         >
           <span
             aria-hidden="true"
-            className="size-full rounded-full bg-red-500/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_0.75rem_rgba(239,68,68,0.65)]"
+            className="ride-record-dot size-full rounded-full bg-red-500/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_0_0.75rem_rgba(239,68,68,0.65)]"
           />
         </Button>
       </section>

@@ -135,9 +135,17 @@ describe("RideApp mobile shell (FR-031, FR-035)", () => {
       screen.queryByRole("region", { name: "Explorer" }),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("map-home-controls")).toHaveClass(
+      "ride-home-controls",
       "bottom-[max(0.75rem,env(safe-area-inset-bottom))]",
       "pl-[max(0.75rem,env(safe-area-inset-left))]",
       "pr-[max(0.75rem,env(safe-area-inset-right))]",
+    );
+    const tabBar = screen.getByRole("navigation", {
+      name: "Navigation principale",
+    });
+    expect(tabBar).toHaveClass("ride-tab-bar");
+    expect(screen.getByRole("button", { name: "Explorer" })).toHaveClass(
+      "ride-tab-button-active",
     );
   });
 

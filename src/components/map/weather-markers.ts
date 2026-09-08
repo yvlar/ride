@@ -1,30 +1,39 @@
 import type { PrecipitationLevel } from "@/domain/weather/types";
+import type { WeatherCloudCluster } from "./weather-cloud-clusters";
 import type { WeatherCloudMarker } from "./weather-overlay";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /**
  * FR-043 — the marker is the message: a cloud whose colour follows the level
- * and whose face follows the mood of it, with the chance of rain riding along
- * so the rider never has to guess what shade of blue they are looking at.
+ * and whose face follows the mood of it. The number stays out of the map; the
+ * accessible name still says what the drawing means, so nothing rests on the
+ * shade of blue alone.
+ *
+ * A cloud that swallowed its overlapping neighbours is drawn bigger, in
+ * proportion to how many it stands for: the size is a second reading of the
+ * count its accessible name already gives in words (NFR-001).
  */
 export function createCloudMarkerElement(
-  marker: WeatherCloudMarker,
+  marker: WeatherCloudMarker | WeatherCloudCluster,
 ): HTMLElement {
+  const count = "count" in marker ? marker.count : 1;
+  const scale = "scale" in marker ? marker.scale : 1;
+
   const element = document.createElement("div");
   element.className = `ride-map-cloud ride-map-cloud--${marker.level}`;
+  if (count > 1) {
+    element.classList.add("ride-map-cloud--merged");
+  }
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", marker.label);
   element.dataset.level = marker.level;
   element.dataset.probability = String(marker.probability);
+  element.dataset.count = String(count);
+  // The stylesheet owns the base size; the fusion only scales it.
+  element.style.setProperty("--ride-map-cloud-scale", String(scale));
 
   element.append(createCloudGlyph(marker.level));
-
-  const badge = document.createElement("span");
-  badge.className = "ride-map-cloud-badge";
-  badge.setAttribute("aria-hidden", "true");
-  badge.textContent = `${marker.probability} %`;
-  element.append(badge);
 
   return element;
 }
@@ -35,9 +44,9 @@ export function createCloudMarkerElement(
  * showers, downcast rain, furious storm — is caught faster through a visor
  * than a shade of blue.
  *
- * The mood is a *second* reading of what the badge and the accessible name
- * already say (NFR-001): a scowl adds nothing the level did not, and nothing
- * rests on it alone.
+ * The mood is a *second* reading of what the accessible name already says
+ * (NFR-001): a scowl adds nothing the level did not, and nothing rests on it
+ * alone.
  *
  * Every curve below is drawn for Ride. Like the racing disc and the start
  * chevron of `ride-map-markers.css`, it is neither traced from nor modelled on

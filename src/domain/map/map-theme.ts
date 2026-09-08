@@ -12,9 +12,16 @@ export type MapTheme =
 /** A theme the map engine can actually load: `auto` is resolved away first. */
 export type ResolvedMapTheme = Exclude<MapTheme, "auto">;
 
-export const MAP_THEME_STORAGE_KEY = "ride.settings.mapTheme.v1";
+/**
+ * v2 intentionally starts existing installations on the new Ride identity.
+ * The v1 preference predates Kart Arcade as the application's primary look.
+ */
+export const MAP_THEME_STORAGE_KEY = "ride.settings.mapTheme.v2";
 
-export const DEFAULT_MAP_THEME: MapTheme = "auto";
+export const DEFAULT_MAP_THEME: MapTheme = "kart-arcade";
+
+/** A reliable basemap when an optional styled source cannot be loaded. */
+export const FALLBACK_MAP_THEME: MapTheme = "auto";
 
 const MAP_THEMES: readonly MapTheme[] = [
   "auto",

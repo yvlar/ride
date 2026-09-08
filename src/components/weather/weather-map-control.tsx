@@ -52,12 +52,15 @@ export function WeatherMapControl({
    * FR-043 — the panel sits over the very sky it describes. The headline is
    * what a rider reads at a glance, so everything else folds away behind it.
    */
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <section
       aria-label="Météo sur la carte"
-      className={cn("pointer-events-auto flex flex-col items-start gap-2", className)}
+      className={cn(
+        "ride-weather-control pointer-events-auto flex flex-col items-start gap-2",
+        className,
+      )}
     >
       <Button
         type="button"
@@ -65,14 +68,17 @@ export function WeatherMapControl({
         size="lg"
         aria-pressed={active}
         title={WEATHER_TOGGLE_HINT}
-        className="min-h-12 min-w-12 rounded-2xl px-4 text-base shadow-lg"
+        className="ride-weather-toggle min-h-12 min-w-12 rounded-2xl px-4 text-base shadow-lg"
         onClick={() => onToggle(!active)}
       >
         {WEATHER_TOGGLE_LABEL}
       </Button>
 
       {active ? (
-        <div className="ride-map-panel ride-glass-strong w-full max-w-sm rounded-3xl p-3">
+        <div
+          data-expanded={expanded ? "true" : "false"}
+          className="ride-weather-panel ride-map-panel ride-glass-strong w-full max-w-sm rounded-3xl p-3"
+        >
           {status === "loading" && !advice ? (
             <p role="status" className="text-sm leading-6">
               {WEATHER_LOADING_MESSAGE}
@@ -87,7 +93,7 @@ export function WeatherMapControl({
 
           {advice ? (
             <div className="flex items-start gap-2">
-              <p className="flex-1 text-base leading-6 font-medium">
+              <p className="ride-weather-headline flex-1 text-base leading-6 font-medium">
                 {advice.headline}
               </p>
               <Button

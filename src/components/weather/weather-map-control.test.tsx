@@ -80,6 +80,10 @@ function renderControl(props: Partial<Parameters<typeof WeatherMapControl>[0]> =
   return { onToggle, onFrameChange };
 }
 
+function expandDetails() {
+  fireEvent.click(screen.getByRole("button", { name: WEATHER_EXPAND_LABEL }));
+}
+
 describe("WeatherMapControl (FR-043)", () => {
   it("offers the layer without turning it on", () => {
     const { onToggle } = renderControl({
@@ -120,11 +124,15 @@ describe("WeatherMapControl (FR-043)", () => {
     expect(onToggle).toHaveBeenCalledWith(false);
   });
 
-  it("names the direction to avoid and the one that is open", () => {
+  it("keeps the useful headline visible without covering the map", () => {
     renderControl();
 
     expect(screen.getByText(advice.headline)).toBeInTheDocument();
-    expect(screen.getByText(advice.detail)).toBeInTheDocument();
+    expect(screen.queryByText(advice.detail)).not.toBeInTheDocument();
+    expect(screen.getByText(advice.headline).closest("[data-expanded]")).toHaveAttribute(
+      "data-expanded",
+      "false",
+    );
   });
 
   it("says it is reading the sky before the first answer", () => {
@@ -150,6 +158,7 @@ describe("WeatherMapControl (FR-043)", () => {
 
   it("lets the rider step to the frame that shows where the cell is going", () => {
     const { onFrameChange } = renderControl();
+    expandDetails();
 
     const frames = screen.getByRole("group", { name: "Image radar" });
     expect(frames).toHaveTextContent("Maintenant");
@@ -160,6 +169,7 @@ describe("WeatherMapControl (FR-043)", () => {
 
   it("marks the frame the map is drawing", () => {
     renderControl({ frameId: "forecast-1" });
+    expandDetails();
 
     expect(screen.getByRole("button", { name: "+20 min" })).toHaveAttribute(
       "aria-pressed",
@@ -171,12 +181,8 @@ describe("WeatherMapControl (FR-043)", () => {
     );
   });
 
-  it("folds everything but the headline away, over the sky it covers", () => {
+  it("starts folded with everything but the headline away", () => {
     renderControl();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: WEATHER_COLLAPSE_LABEL }),
-    );
 
     expect(screen.getByText(advice.headline)).toBeInTheDocument();
     expect(screen.queryByText(advice.detail)).not.toBeInTheDocument();
@@ -189,10 +195,7 @@ describe("WeatherMapControl (FR-043)", () => {
   it("brings the details back", () => {
     renderControl();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: WEATHER_COLLAPSE_LABEL }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: WEATHER_EXPAND_LABEL }));
+    expandDetails();
 
     expect(screen.getByText(advice.detail)).toBeInTheDocument();
     expect(
@@ -204,12 +207,19 @@ describe("WeatherMapControl (FR-043)", () => {
     renderControl();
 
     expect(
+      screen.getByRole("button", { name: WEATHER_EXPAND_LABEL }),
+    ).toHaveAttribute("aria-expanded", "false");
+
+    expandDetails();
+
+    expect(
       screen.getByRole("button", { name: WEATHER_COLLAPSE_LABEL }),
     ).toHaveAttribute("aria-expanded", "true");
   });
 
   it("credits the imagery it shows", () => {
     renderControl();
+    expandDetails();
 
     expect(screen.getByText("Images radar © Test")).toBeInTheDocument();
   });
@@ -221,6 +231,7 @@ describe("WeatherMapControl (FR-043)", () => {
         radar: { frames: [], attribution: null, maxZoom: null },
       },
     });
+    expandDetails();
 
     expect(screen.getByText(WEATHER_NO_RADAR_MESSAGE)).toBeInTheDocument();
     expect(
