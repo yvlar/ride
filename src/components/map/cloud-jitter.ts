@@ -1,13 +1,14 @@
 /**
- * FR-043 — a sky of identical clouds reads as wallpaper. Each cloud strays a
- * little from the base size so the layer looks like weather rather than a
- * grid.
+ * FR-043 — a sky of identical clouds, evenly spaced, reads as wallpaper. Each
+ * cloud strays a little from the base size, and the radar ones from the spot
+ * their sampling cell would have put them on, so the layer looks like weather
+ * rather than a grid.
  *
- * The stray is *derived*, never drawn: the same cloud gets the same size on
- * every render, so a zoom, a theme swap (FR-045) or a weather refresh redraws
- * the same sky instead of reshuffling it under the rider. `Math.random` would
- * make the clouds breathe on every repaint, which the theme forbids as much as
- * any other permanent animation.
+ * The stray is *derived*, never drawn: the same cloud gets the same size and
+ * the same place on every render, so a zoom, a theme swap (FR-045) or a
+ * weather refresh redraws the same sky instead of reshuffling it under the
+ * rider. `Math.random` would make the clouds crawl on every repaint, which the
+ * theme forbids as much as any other permanent animation.
  */
 
 /**
@@ -20,8 +21,8 @@
  */
 export const MAX_CLOUD_SIZE_JITTER = 0.12;
 
-/** The size offset a given cloud always gets, within ±`amplitude`. */
-export function cloudSizeJitter(
+/** The offset a given cloud always gets, within ±`amplitude`. */
+export function cloudJitter(
   seed: string,
   amplitude: number = MAX_CLOUD_SIZE_JITTER,
 ): number {

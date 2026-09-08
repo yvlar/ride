@@ -3,7 +3,7 @@ import type { Coordinates } from "@/domain/geo/types";
 import { precipitationLevelLabel } from "@/domain/weather/precipitation";
 import { PRECIPITATION_LEVELS } from "@/domain/weather/types";
 import type { PrecipitationLevel } from "@/domain/weather/types";
-import { cloudSizeJitter } from "./cloud-size-jitter";
+import { cloudJitter } from "./cloud-jitter";
 import type { WeatherCloudMarker } from "./weather-overlay";
 
 /**
@@ -61,7 +61,7 @@ export function cloudScale(count: number): number {
  * a merged cloud is bigger than every lone one, whatever they drew.
  */
 export function clusterScale(id: string, count: number): number {
-  return Math.min(MAX_CLOUD_SCALE, cloudScale(count) + cloudSizeJitter(id));
+  return Math.min(MAX_CLOUD_SCALE, cloudScale(count) + cloudJitter(id));
 }
 
 /** Ground covered by one screen pixel, which is what decides an overlap. */

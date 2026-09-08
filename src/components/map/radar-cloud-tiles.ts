@@ -1,5 +1,5 @@
 import { addProtocol } from "maplibre-gl";
-import { cloudSizeJitter } from "./cloud-size-jitter";
+import { cloudJitter } from "./cloud-jitter";
 import { drawRadarCloud } from "./weather-markers";
 
 export const RADAR_CLOUD_PROTOCOL = "ride-radar-clouds";
@@ -85,10 +85,19 @@ export function resolveRadarCloudTile(
  * stay empty. Keep a real pixel colour (the most opaque echo), without guessing
  * a provider-specific dBZ scale or mixing colours into an invented severity.
  *
- * No two neighbours are drawn at quite the same size: each cell strays from
- * the base width by an amount `seed` fixes for good, so the same frame of the
- * same tile always comes back identical. Every stray still fits its cell, so a
- * bigger cloud never spills onto the one next to it.
+ * A cell decides *whether* there is a cloud here and what colour it is; where
+ * inside the cell it lands is drawn from `seed`, not the middle — the middle
+ * is what lines the sky up in rows and columns. Nothing in the data can put
+ * the grid back: a flat downpour reports the same echo in every cell, and a
+ * front sliding east puts every cell's peak on its own east edge, so a cloud
+ * that followed its echo would line up all the same. The cell is the
+ * resolution of this drawing anyway — one colour, one cloud — so within it the
+ * place is free.
+ *
+ * Sizes stray too, and both strays are fixed for good by `seed`, so the same
+ * frame of the same tile always comes back identical. Every cloud lands whole
+ * inside its tile: one clipped at the edge would leave a seam against the tile
+ * next to it.
  */
 export function radarCloudCells(
   pixels: Pixels,
@@ -122,13 +131,11 @@ export function radarCloudCells(
       }
       if (strongest >= 0) {
         const [r, g, b] = pixels.data.slice(strongest, strongest + 3);
-        const width = Math.round(
-          CLOUD_WIDTH * (1 + cloudSizeJitter(`${seed}:${col},${row}`)),
-        );
+        const cell = `${seed}:${col},${row}`;
+        const width = Math.round(CLOUD_WIDTH * (1 + cloudJitter(cell)));
         cells.push({
-          // Centred in its cell, so a cloud that drew big grows on both sides.
-          x: Math.round(col * CELL_SIZE + (CELL_SIZE - width) / 2),
-          y: Math.round(row * CELL_SIZE + (CELL_SIZE - width * CLOUD_ASPECT) / 2),
+          x: place(col, width, `${cell}:x`),
+          y: place(row, width * CLOUD_ASPECT, `${cell}:y`),
           width,
           color: `rgb(${r}, ${g}, ${b})`,
         });
@@ -136,6 +143,20 @@ export function radarCloudCells(
     }
   }
   return cells;
+}
+
+/**
+ * Where a cell's cloud is drawn along one axis: anywhere in the cell, drawn
+ * from `seed`.
+ *
+ * The spot is then laid out over the room the cloud leaves in the tile rather
+ * than clamped to it. A clamp would stack every cloud that fell near an edge
+ * against that border, trading the grid for a line.
+ */
+function place(index: number, drawn: number, seed: string): number {
+  const middle = (index + 0.5) * CELL_SIZE;
+  const spot = middle + cloudJitter(seed, CELL_SIZE / 2);
+  return Math.round((spot / TILE_SIZE) * (TILE_SIZE - drawn));
 }
 
 function canvasContext(size: number): CanvasRenderingContext2D {

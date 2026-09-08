@@ -15,19 +15,24 @@ function pixels(size = 256): ImageData {
 function paint(image: ImageData, x: number, y: number, rgba = [20, 80, 230, 255]) {
   image.data.set(rgba, (y * image.width + x) * 4);
 }
+type Cell = { x: number; y: number; width: number };
+
+/** Where a cloud actually sits, whatever size it drew. */
+function centre(cell: Cell): [number, number] {
+  return [cell.x + cell.width / 2, cell.y + (cell.width * 38) / 42 / 2];
+}
+
 /**
- * A cloud sits in the middle of its cell whatever size it drew — to the pixel
- * its integer box allows, so an odd width may land half a pixel off centre.
+ * A cloud lands somewhere in the cell that found it — never outside it, so the
+ * drawing still says where the rain is, and never at a fixed spot in it.
  */
-function expectCentredOn(
-  cell: { x: number; y: number; width: number },
-  centre: [number, number],
-) {
-  expect(cell.x + cell.width / 2).toBeLessThanOrEqual(centre[0] + 1);
-  expect(cell.x + cell.width / 2).toBeGreaterThanOrEqual(centre[0] - 1);
-  const middleY = cell.y + (cell.width * 38) / 42 / 2;
-  expect(middleY).toBeLessThanOrEqual(centre[1] + 1);
-  expect(middleY).toBeGreaterThanOrEqual(centre[1] - 1);
+function expectInCell(cell: Cell, [col, row]: [number, number]) {
+  const spanX = (256 - cell.width) / 2;
+  expect(cell.x).toBeGreaterThanOrEqual(col * spanX - 1);
+  expect(cell.x).toBeLessThanOrEqual((col + 1) * spanX + 1);
+  const spanY = (256 - (cell.width * 38) / 42) / 2;
+  expect(cell.y).toBeGreaterThanOrEqual(row * spanY - 1);
+  expect(cell.y).toBeLessThanOrEqual((row + 1) * spanY + 1);
 }
 
 describe("radar cloud tile coordinates", () => {
@@ -78,9 +83,10 @@ describe("actual radar echoes to clouds", () => {
     const image = pixels();
     paint(image, 73, 149);
     const [cell] = radarCloudCells(image, whole);
-    // The echo sits in the lower-left cell, and the cloud is centred in it.
+    // The echo is in the lower-left cell, and so is its cloud — but not in the
+    // middle of it, which is what would line the sky up.
     expect(cell).toMatchObject({ color: "rgb(20, 80, 230)" });
-    expectCentredOn(cell, [64, 192]);
+    expectInCell(cell, [0, 1]);
   });
   it("covers the entire rainy tile with a bounded, evenly spaced cloud field", () => {
     const image = pixels();
@@ -88,23 +94,46 @@ describe("actual radar echoes to clouds", () => {
     const cells = radarCloudCells(image, whole);
     expect(cells).toHaveLength(4);
     expect(new Set(cells.map(({ x, y }) => `${x},${y}`)).size).toBe(4);
-    // Every stray still fits inside the tile, however big it drew.
+    // Every cloud lands whole inside its tile, however big it drew: one clipped
+    // at the edge would leave a seam against the tile next to it.
     expect(
-      cells.every(({ x, y, width }) => x >= 0 && y >= 0 && x + width <= 256 && y + width <= 256),
+      cells.every(
+        ({ x, y, width }) =>
+          x >= 0 && y >= 0 && x + width <= 256 && y + (width * 38) / 42 <= 256,
+      ),
     ).toBe(true);
+    // And no two of them share a row or a column: rain, not a grid.
+    expect(new Set(cells.map(({ x }) => x)).size).toBe(cells.length);
+    expect(new Set(cells.map(({ y }) => y)).size).toBe(cells.length);
   });
-  it("draws a tile's clouds at different sizes, and the same ones every time", () => {
+  it("draws a tile's clouds at different sizes and places, the same ones every time", () => {
     const image = pixels();
     image.data.fill(255);
-    const widths = radarCloudCells(image, whole, "9/153/190").map((cell) => cell.width);
+    const drawn = radarCloudCells(image, whole, "9/153/190");
 
     // A sky, not a stamped grid — and the neighbouring tile is not a copy.
-    expect(new Set(widths).size).toBeGreaterThan(1);
-    expect(radarCloudCells(image, whole, "9/154/190").map((cell) => cell.width))
-      .not.toEqual(widths);
+    expect(new Set(drawn.map((cell) => cell.width)).size).toBeGreaterThan(1);
+    expect(radarCloudCells(image, whole, "9/154/190")).not.toEqual(drawn);
     // Redrawing the same tile of the same frame gives back the same sky.
-    expect(radarCloudCells(image, whole, "9/153/190").map((cell) => cell.width))
-      .toEqual(widths);
+    expect(radarCloudCells(image, whole, "9/153/190")).toEqual(drawn);
+  });
+
+  it("scatters a flat downpour, which reports the very same echo everywhere", () => {
+    // The case the placement has to survive: identical data in every cell, so
+    // nothing but the seed can keep the sampling grid from showing through.
+    const image = pixels();
+    image.data.fill(255);
+    const cells = radarCloudCells(image, whole, "9/153/190");
+
+    // Neither row shares a height, neither column shares a left edge.
+    expect(cells[0].y).not.toBe(cells[1].y);
+    expect(cells[2].y).not.toBe(cells[3].y);
+    expect(cells[0].x).not.toBe(cells[2].x);
+    expect(cells[1].x).not.toBe(cells[3].x);
+    // And the next tile over does not repeat this one's layout.
+    expect(radarCloudCells(image, whole, "9/154/190").map(centre)).not.toEqual(
+      cells.map(centre),
+    );
   });
 
   it("does not move a rain cell into a neighbouring overscaled child", () => {
@@ -118,8 +147,8 @@ describe("actual radar echoes to clouds", () => {
     const next = pixels();
     paint(previous, 5, 5);
     paint(next, 250, 250);
-    expectCentredOn(radarCloudCells(previous, whole)[0], [64, 64]);
-    expectCentredOn(radarCloudCells(next, whole)[0], [192, 192]);
+    expectInCell(radarCloudCells(previous, whole)[0], [0, 0]);
+    expectInCell(radarCloudCells(next, whole)[0], [1, 1]);
   });
 });
 
