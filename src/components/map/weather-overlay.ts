@@ -33,6 +33,7 @@ export type WeatherMapOverlay = {
 
 /** Radar under a route line has to stay readable without hiding the road. */
 export const RADAR_LAYER_OPACITY = 0.6;
+export const RADAR_UNAVAILABLE_MESSAGE = "Radar indisponible pour cette zone ou cette heure.";
 
 export type WeatherOverlayOptions = {
   /** Radar frame to draw. Defaults to the most recent observed frame. */

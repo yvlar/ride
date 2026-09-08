@@ -75,7 +75,16 @@ import {
 } from "./ride-map-view-model";
 import { mergeOverlappingClouds } from "./weather-cloud-clusters";
 import { createCloudMarkerElement } from "./weather-markers";
-import { RADAR_LAYER_OPACITY, type WeatherMapOverlay } from "./weather-overlay";
+import {
+  RADAR_LAYER_OPACITY,
+  RADAR_UNAVAILABLE_MESSAGE,
+  type WeatherMapOverlay,
+} from "./weather-overlay";
+import {
+  ensureRadarCloudProtocol,
+  radarCloudTileTemplate,
+  RADAR_CLOUD_MAX_ZOOM,
+} from "./radar-cloud-tiles";
 
 export {
   NAVIGATION_FOLLOW_DURATION_MS,
@@ -152,6 +161,7 @@ export function createMapLibreEngine(
       let pendingFitCamera = false;
       let weather: WeatherMapOverlay | null = null;
       let radarTemplate: string | null = null;
+      let radarCloudFailed = false;
       /**
        * FR-043 — zoom the clouds were last fused at. Whether two of them
        * overlap is a question about pixels, so the answer changes with the
@@ -311,7 +321,23 @@ export function createMapLibreEngine(
 
       attachGeolocateControl();
 
-      map.on("error", () => {
+      map.on("error", (event: { sourceId?: string }) => {
+        if (event?.sourceId === RADAR_SOURCE_ID) {
+          if (!disposed) {
+            if (map && overlayTheme.radarRendering === "clouds") {
+              radarCloudFailed = true;
+              removeRadar(map);
+              radarTemplate = weather?.radarTileUrlTemplate ?? null;
+              renderClouds(map);
+              onWarning?.(
+                "Radar indisponible : les nuages affichés proviennent des prévisions actuelles.",
+              );
+            } else {
+              onWarning?.(RADAR_UNAVAILABLE_MESSAGE);
+            }
+          }
+          return;
+        }
         if (disposed || !map || map.isStyleLoaded()) {
           return;
         }
@@ -589,14 +615,29 @@ export function createMapLibreEngine(
       }
 
       function renderRadar(target: MapLibreMap) {
-        const template = weather?.radarTileUrlTemplate ?? null;
-        if (!template) {
+        const originalTemplate = weather?.radarTileUrlTemplate ?? null;
+        if (!originalTemplate) {
           removeRadar(target);
           return;
         }
+        const asClouds = overlayTheme.radarRendering === "clouds";
+        if (asClouds && radarCloudFailed) {
+          removeRadar(target);
+          radarTemplate = originalTemplate;
+          return;
+        }
+        if (asClouds) ensureRadarCloudProtocol();
+        const template = asClouds
+          ? radarCloudTileTemplate(originalTemplate, weather?.radarMaxZoom ?? null)
+          : originalTemplate;
+        // Clouds are drawn see-through like the radar sheet they replace: the
+        // street stays readable under them, and the echo keeps its own colour.
+        const opacity = asClouds
+          ? 0.6
+          : weather?.radarOpacity ?? RADAR_LAYER_OPACITY;
 
         const source = target.getSource(RADAR_SOURCE_ID);
-        if (source && template !== radarTemplate) {
+        if (source && originalTemplate !== radarTemplate) {
           if ("setTiles" in source && typeof source.setTiles === "function") {
             source.setTiles([template]);
           } else {
@@ -613,7 +654,11 @@ export function createMapLibreEngine(
             tileSize: 256,
             // Without this the map requests zooms the provider does not serve
             // and paints its placeholder image over the route.
-            ...(weather?.radarMaxZoom ? { maxzoom: weather.radarMaxZoom } : {}),
+            ...(asClouds
+              ? { maxzoom: RADAR_CLOUD_MAX_ZOOM }
+              : weather?.radarMaxZoom != null
+                ? { maxzoom: weather.radarMaxZoom }
+                : {}),
             ...(weather?.attribution
               ? { attribution: weather.attribution }
               : {}),
@@ -624,7 +669,10 @@ export function createMapLibreEngine(
               type: "raster",
               source: RADAR_SOURCE_ID,
               paint: {
-                "raster-opacity": weather?.radarOpacity ?? RADAR_LAYER_OPACITY,
+                "raster-opacity": opacity,
+                // Crossfading time frames would leave clouds from two times
+                // superimposed and blur their faces during zoom changes.
+                ...(asClouds ? { "raster-fade-duration": 0 } : {}),
               },
             },
             radarBeforeLayerId(target),
@@ -633,11 +681,11 @@ export function createMapLibreEngine(
           target.setPaintProperty(
             RADAR_LAYER_ID,
             "raster-opacity",
-            weather?.radarOpacity ?? RADAR_LAYER_OPACITY,
+            opacity,
           );
         }
 
-        radarTemplate = template;
+        radarTemplate = originalTemplate;
       }
 
       function removeRadar(target: MapLibreMap) {
@@ -666,6 +714,15 @@ export function createMapLibreEngine(
           marker.remove();
         }
         cloudMarkers.length = 0;
+        // Radar tiles already cover the entire visible area in Kart Arcade.
+        // Current forecast markers must not sit over a historical radar frame.
+        if (
+          overlayTheme.radarRendering === "clouds" &&
+          weather?.radarTileUrlTemplate &&
+          !radarCloudFailed
+        ) {
+          return;
+        }
         cloudZoom = readZoom(target);
         for (const cloud of mergeOverlappingClouds(
           weather?.clouds ?? [],
@@ -768,6 +825,8 @@ export function createMapLibreEngine(
           }
         }
         function onStyleHealthError(event?: { sourceId?: string }) {
+          // An optional radar download must never revert the selected theme.
+          if (event?.sourceId === RADAR_SOURCE_ID) return;
           // A theme has failed when its data cannot be had — a source that
           // errors, or a style that never finishes loading. Anything reported
           // once the style is up and not tied to a source is cosmetic (a
@@ -1233,6 +1292,7 @@ export function createMapLibreEngine(
             return;
           }
           weather = overlay;
+          radarCloudFailed = false;
           renderWeather();
         },
         setGeolocateEnabled(enabled) {
@@ -1290,6 +1350,7 @@ export function createMapLibreEngine(
           // The radar source goes with the old style; forget the template so
           // renderWeather rebuilds it instead of assuming it is still there.
           radarTemplate = null;
+          radarCloudFailed = false;
           // Every swap invalidates the listeners of the one before it, so a
           // rider tapping through themes never stacks handlers (FR-046).
           const swapId = ++styleSwapId;
@@ -1312,7 +1373,8 @@ export function createMapLibreEngine(
             onMapStyleFallback?.();
           };
 
-          function onStyleError() {
+          function onStyleError(event?: { sourceId?: string }) {
+            if (event?.sourceId === RADAR_SOURCE_ID) return;
             // Only a style that never finished loading is a failed theme; tile
             // hiccups afterwards are not, and the handler is gone by then.
             if (!map || disposed || swapId !== styleSwapId || map.isStyleLoaded()) {
