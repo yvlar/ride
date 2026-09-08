@@ -53,3 +53,6 @@ next-env.d.ts
 /ios/App/App/public
 /ios/DerivedData
 xcuserdata/
+
+# graphify — the generated knowledge graph is rebuilt from source, not committed
+graphify-out/
