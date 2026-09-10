@@ -31,15 +31,24 @@ export function AppTabBar({
   return (
     <>
       {value === "explore" ? (
-        <button
-          type="button"
-          aria-label="Réglages"
-          data-testid="explorer-settings-button"
-          className="maplibregl-ctrl maplibregl-ctrl-group fixed right-[max(0.75rem,env(safe-area-inset-right))] top-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] z-50 flex size-11 items-center justify-center overflow-hidden rounded-[4px] border-0 bg-white p-0 text-slate-700 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] transition-colors hover:bg-slate-50 active:bg-slate-100"
-          onClick={() => onChange("settings")}
-        >
-          <Settings aria-hidden="true" className="size-5" />
-        </button>
+        <>
+          <style>{`
+            /* Explorer map controls: location left, app settings right. */
+            .maplibregl-ctrl-top-right {
+              left: max(0.75rem, env(safe-area-inset-left, 0px));
+              right: auto;
+            }
+          `}</style>
+          <button
+            type="button"
+            aria-label="Réglages"
+            data-testid="explorer-settings-button"
+            className="maplibregl-ctrl maplibregl-ctrl-group fixed right-[max(0.75rem,env(safe-area-inset-right))] top-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] z-50 flex size-11 items-center justify-center overflow-hidden rounded-[4px] border-0 bg-white p-0 text-slate-700 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] transition-colors hover:bg-slate-50 active:bg-slate-100"
+            onClick={() => onChange("settings")}
+          >
+            <Settings aria-hidden="true" className="size-5" />
+          </button>
+        </>
       ) : null}
       <nav
         aria-label="Navigation principale"
