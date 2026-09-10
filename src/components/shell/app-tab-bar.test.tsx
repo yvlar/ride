@@ -27,6 +27,17 @@ describe("AppTabBar", () => {
     expect(screen.getByRole("button", { name: "Enregistrés" })).toBeInTheDocument();
   });
 
+  it("places the MapLibre location control on the top-left in explorer", () => {
+    render(<AppTabBar value="explore" onChange={vi.fn()} />);
+
+    const style = document.querySelector("style");
+    expect(style?.textContent).toContain(".maplibregl-ctrl-top-right");
+    expect(style?.textContent).toContain(
+      "left: max(0.75rem, env(safe-area-inset-left, 0px));",
+    );
+    expect(style?.textContent).toContain("right: auto;");
+  });
+
   it("removes the settings control from the bottom navigation", () => {
     const onChange = vi.fn();
 
