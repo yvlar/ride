@@ -30,7 +30,7 @@ describe("MapQuickActions", () => {
       }),
     );
     fireEvent.click(
-      within(region).getByRole("button", { name: "Décrire mon trajet" }),
+      within(region).getByRole("button", { name: "Mes trajets" }),
     );
     fireEvent.click(
       within(region).getByRole("button", {
@@ -39,7 +39,7 @@ describe("MapQuickActions", () => {
     );
     fireEvent.click(
       within(region).getByRole("button", {
-        name: "Importer un fichier GPX",
+        name: "Enregistrer le trajet",
       }),
     );
 
@@ -76,14 +76,14 @@ describe("MapQuickActions", () => {
       [...region.querySelectorAll("[data-quick-action]")].map((button) =>
         button.getAttribute("data-quick-action"),
       ),
-    ).toEqual(["search", "describe", "catalog", "gpx"]);
+    ).toEqual(["search", "rides", "catalog", "save"]);
 
-    // One word on the plate, the full wording only on the accessible name.
+    // The visible labels stay short; accessible names carry the full action.
     expect(
       [...region.querySelectorAll(".ride-quick-action-label")].map(
         (label) => label.textContent,
       ),
-    ).toEqual(["Destination", "Décrire", "Découvrir", "Importer"]);
+    ).toEqual(["Destination", "Mes Trajets", "Découvrir", "Enregistrer"]);
     expect(
       within(region)
         .getByRole("button", { name: "Rechercher une destination" })
