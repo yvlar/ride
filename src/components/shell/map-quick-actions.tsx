@@ -10,8 +10,7 @@ const iconClassName =
 /*
  * One word on the plate. A rider glancing down from a handlebar mount reads a
  * colour and a single word, not a sentence — the badge and the hue already say
- * which action it is. The full wording stays on `aria-label`, so a screen
- * reader still hears "Rechercher une destination" rather than "Destination".
+ * which action it is. The full wording stays on `aria-label` for accessibility.
  */
 function QuickActionLabel({ word }: { word: string }) {
   return <span className="ride-quick-action-label">{word}</span>;
@@ -49,15 +48,15 @@ export function MapQuickActions({
       <Button
         type="button"
         variant="ghost"
-        aria-label="Décrire mon trajet"
-        data-quick-action="describe"
+        aria-label="Mes trajets"
+        data-quick-action="rides"
         className={glassButtonClassName}
         onClick={onDescribe}
       >
         <span className={iconClassName}>
           <Star aria-hidden="true" fill="currentColor" />
         </span>
-        <QuickActionLabel word="Décrire" />
+        <QuickActionLabel word="Mes Trajets" />
       </Button>
       <Button
         type="button"
@@ -73,13 +72,13 @@ export function MapQuickActions({
       <Button
         type="button"
         variant="ghost"
-        aria-label="Importer un fichier GPX"
-        data-quick-action="gpx"
+        aria-label="Enregistrer le trajet"
+        data-quick-action="save"
         className={glassButtonClassName}
         onClick={onImportGpx}
       >
         <span className={iconClassName}><Map aria-hidden="true" /></span>
-        <QuickActionLabel word="Importer" />
+        <QuickActionLabel word="Enregistrer" />
       </Button>
       {onResume ? (
         <Button
