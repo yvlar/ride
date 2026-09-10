@@ -1,4 +1,4 @@
-import { Compass, Map, Navigation, Search, Star } from "lucide-react";
+import { Bookmark, Compass, MapPinned, Navigation, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const glassButtonClassName =
@@ -54,7 +54,7 @@ export function MapQuickActions({
         onClick={onDescribe}
       >
         <span className={iconClassName}>
-          <Star aria-hidden="true" fill="currentColor" />
+          <MapPinned aria-hidden="true" />
         </span>
         <QuickActionLabel word="Mes Trajets" />
       </Button>
@@ -77,7 +77,7 @@ export function MapQuickActions({
         className={glassButtonClassName}
         onClick={onImportGpx}
       >
-        <span className={iconClassName}><Map aria-hidden="true" /></span>
+        <span className={iconClassName}><Bookmark aria-hidden="true" /></span>
         <QuickActionLabel word="Enregistrer" />
       </Button>
       {onResume ? (
