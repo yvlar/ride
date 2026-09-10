@@ -35,11 +35,6 @@ export type WeatherMapOverlay = {
 export const RADAR_LAYER_OPACITY = 0.6;
 export const RADAR_UNAVAILABLE_MESSAGE = "Radar indisponible pour cette zone ou cette heure.";
 
-export type WeatherOverlayOptions = {
-  /** Radar frame to draw. Defaults to the most recent observed frame. */
-  frameId?: string | null;
-};
-
 /**
  * FR-043 — turn one observation into what the map draws. A `clear` sample gets
  * no marker: a cloudless sky is told by the absence of a cloud. With the field
@@ -48,13 +43,12 @@ export type WeatherOverlayOptions = {
  */
 export function toWeatherMapOverlay(
   observation: WeatherObservation | null,
-  options: WeatherOverlayOptions = {},
 ): WeatherMapOverlay | null {
   if (!observation) {
     return null;
   }
 
-  const frame = selectRadarFrame(observation.radar.frames, options.frameId);
+  const frame = selectRadarFrame(observation.radar.frames);
 
   return {
     radarTileUrlTemplate: frame?.tileUrlTemplate ?? null,
@@ -82,51 +76,11 @@ export function toWeatherMapOverlay(
   };
 }
 
-/** The latest observation, unless the rider stepped to another frame. */
-export function selectRadarFrame(
-  frames: RadarFrame[],
-  frameId?: string | null,
-): RadarFrame | null {
+/** The latest observed frame, or the first one when none is in the past. */
+export function selectRadarFrame(frames: RadarFrame[]): RadarFrame | null {
   if (frames.length === 0) {
     return null;
   }
-  if (frameId) {
-    const chosen = frames.find((frame) => frame.id === frameId);
-    if (chosen) {
-      return chosen;
-    }
-  }
   const past = frames.filter((frame) => frame.kind === "past");
   return past[past.length - 1] ?? frames[0];
-}
-
-/**
- * FR-043 — a frame reads as a time, not an epoch: "Maintenant" for the latest
- * observation, "−10 min" behind it, "+20 min" for the nowcast that shows where
- * the cell is heading.
- */
-export function radarFrameLabel(
-  frame: RadarFrame,
-  frames: RadarFrame[],
-): string {
-  const reference = latestPastTime(frames) ?? Date.parse(frame.timeIso);
-  const minutes = Math.round((Date.parse(frame.timeIso) - reference) / 60_000);
-  if (!Number.isFinite(minutes) || minutes === 0) {
-    return "Maintenant";
-  }
-  return minutes > 0 ? `+${minutes} min` : `−${Math.abs(minutes)} min`;
-}
-
-function latestPastTime(frames: RadarFrame[]): number | null {
-  let latest: number | null = null;
-  for (const frame of frames) {
-    if (frame.kind !== "past") {
-      continue;
-    }
-    const time = Date.parse(frame.timeIso);
-    if (Number.isFinite(time) && (latest === null || time > latest)) {
-      latest = time;
-    }
-  }
-  return latest;
 }

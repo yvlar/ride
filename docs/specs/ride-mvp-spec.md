@@ -1154,11 +1154,11 @@ Règles :
 
 ### FR-043 — Météo et radar sur la carte
 
-La carte porte le ciel autant que la route. Objectif : savoir **en temps réel dans quelle direction éviter le mauvais temps**, sans quitter la carte ni interpréter un bulletin.
+La carte porte le ciel autant que la route. Objectif : **voir en temps réel où se tient le mauvais temps**, sans quitter la carte, sans interpréter un bulletin et sans qu’une vue vienne se poser dessus.
 
 #### Activation
 
-Un bouton **Météo** superposé à la carte (cible ≥ 44 px, état `aria-pressed`) allume et éteint la couche. Elle est **éteinte au démarrage** : aucune requête météo n’est émise tant que le pilote ne la demande pas. Une fois allumée, elle reste disponible pendant la navigation, où l’information sert le plus.
+La couche n’a **ni interrupteur ni panneau** : elle est **toujours active**, sur la carte de l’explorateur comme pendant la navigation, où l’information sert le plus. Aucun bouton **Météo** ne se superpose à la carte, et aucune vue ne recouvre le ciel qu’elle décrit : la couche s’exprime **entièrement par ses nuages**. Le pourcentage de risque n’est donc affiché nulle part — ni sur la carte, ni dans un encadré au-dessus d’elle — et reste porté par le seul nom accessible de chaque marqueur.
 
 #### Échantillonnage
 
@@ -1174,7 +1174,7 @@ Le nuage est un **personnage**, sur tous les thèmes de carte : un corps plein c
 
 #### Images radar
 
-Les tuiles radar sont dessinées **sous** le tracé du trajet, jamais au-dessus : une cellule ne masque pas la route. Le pilote peut passer d’une image observée à la prévision immédiate (« Maintenant », « +20 min »), qui est ce qui montre **où va** la cellule. L’attribution du fournisseur d’imagerie est affichée avec la couche.
+Les tuiles radar sont dessinées **sous** le tracé du trajet, jamais au-dessus : une cellule ne masque pas la route. La couche dessine la **dernière image observée**; faute de vue à laquelle accrocher un sélecteur d’heure, le pilote ne choisit pas de trame. L’attribution du fournisseur d’imagerie est portée par le contrôle d’attribution de la carte, avec celle du fond.
 
 Dans **Kart Arcade**, toute l’imagerie radar est représentée par des **nuages à visage**, sans aplats radar continus ni pourcentages sous les nuages. Les nuages sont calculés depuis les pixels de la trame sélectionnée, sur toute la zone visible, y compris hors du champ des prévisions. Les cellules transparentes restent vides. La couleur du corps reprend celle d’un écho radar; elle ne permet pas de déduire une probabilité de pluie ou la présence d’un orage. Comme les nuages des prévisions, la couche est translucide et laisse voir la carte au travers, à teinte inchangée. Les nuages des prévisions actuelles ne sont pas superposés à une autre heure radar. Si aucune trame n’est disponible, ou si son chargement échoue, les prévisions reprennent le relais avec un message explicite.
 
@@ -1182,11 +1182,13 @@ Le rendu conserve une densité de quatre nuages maximum par tuile de 256 pixels,
 
 #### Direction à éviter
 
-À partir du champ échantillonné, l’application calcule pour chacun des huit secteurs (N à NO) le **pire** risque observé — une moyenne laisserait un point sec lointain annuler une cellule proche — et en tire deux phrases : la direction du mauvais temps et la direction encore ouverte (« Mauvais temps vers le sud-ouest (78 %). Évitez le sud-ouest. Le ciel reste ouvert vers le nord-est (12 %). »). À risque égal, la direction proposée est la plus opposée à la cellule. Aucune échappée n’est proposée lorsqu’aucune direction n’est nettement plus dégagée; la couche le dit alors explicitement. L’avis est recalculé depuis la **position exacte** du pilote, même si l’échantillonnage a été fait pour la cellule.
+À partir du champ échantillonné, l’application calcule pour chacun des huit secteurs (N à NO) le **pire** risque observé — une moyenne laisserait un point sec lointain annuler une cellule proche — et en tire deux phrases : la direction du mauvais temps et la direction encore ouverte (« Mauvais temps vers le sud-ouest (78 %). Évitez le sud-ouest. Le ciel reste ouvert vers le nord-est (12 %). »). À risque égal, la direction proposée est la plus opposée à la cellule. Aucune échappée n’est proposée lorsqu’aucune direction n’est nettement plus dégagée. L’avis est recalculé depuis la **position exacte** du pilote, même si l’échantillonnage a été fait pour la cellule.
+
+Cet avis reste un **calcul du domaine**, servi avec le champ par `/api/weather`; **aucune vue ne l’affiche** sur la carte. C’est lui qui portait le pourcentage de mauvais temps, et il disparaît de l’écran avec le panneau qui l’énonçait.
 
 #### États et dégradation
 
-États explicites, comme partout ailleurs (`FR-042`) : couche éteinte, lecture en cours, données affichées, service indisponible. Une panne de l’**imagerie radar** n’empêche pas les nuages ni l’avis de direction : la couche se replie sur les prévisions et le dit. Une panne du fournisseur de **prévisions** est annoncée; elle ne vide jamais la carte ni n’interrompt la navigation.
+La couche étant muette, ses états se lisent sur la carte elle-même : un ciel encore inconnu ne porte simplement aucun nuage. Une panne de l’**imagerie radar** n’empêche pas les nuages : la couche se replie sur les prévisions. Une panne du fournisseur de **prévisions** laisse la carte sans nuages; elle ne vide jamais le tracé ni n’interrompt la navigation, et n’affiche aucun message par-dessus la carte.
 
 #### Fournisseurs
 

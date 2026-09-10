@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { RadarFrame, WeatherObservation } from "@/domain/weather/types";
 import {
   RADAR_LAYER_OPACITY,
-  radarFrameLabel,
   selectRadarFrame,
   toWeatherMapOverlay,
 } from "./weather-overlay";
@@ -97,16 +96,6 @@ describe("toWeatherMapOverlay (FR-043)", () => {
     expect(overlay?.attribution).toBe("Images radar © Test");
   });
 
-  it("follows the rider to a nowcast frame", () => {
-    const overlay = toWeatherMapOverlay(observation(), {
-      frameId: "forecast-1",
-    });
-
-    expect(overlay?.radarTileUrlTemplate).toBe(
-      "https://tiles.test/next/{z}/{x}/{y}.png",
-    );
-  });
-
   it("keeps the clouds when there is no imagery at all", () => {
     const overlay = toWeatherMapOverlay(
       observation({ radar: { frames: [], attribution: null, maxZoom: null } }),
@@ -118,8 +107,8 @@ describe("toWeatherMapOverlay (FR-043)", () => {
 });
 
 describe("selectRadarFrame (FR-043)", () => {
-  it("falls back to the latest observation for an unknown id", () => {
-    expect(selectRadarFrame(frames, "gone")?.id).toBe("past-latest");
+  it("draws the latest observation", () => {
+    expect(selectRadarFrame(frames)?.id).toBe("past-latest");
   });
 
   it("uses the first frame when the provider sends only a nowcast", () => {
@@ -128,19 +117,5 @@ describe("selectRadarFrame (FR-043)", () => {
 
   it("has nothing to select from an empty list", () => {
     expect(selectRadarFrame([])).toBeNull();
-  });
-});
-
-describe("radarFrameLabel (FR-043)", () => {
-  it("calls the latest observation the present", () => {
-    expect(radarFrameLabel(frames[1]!, frames)).toBe("Maintenant");
-  });
-
-  it("counts a past frame backwards", () => {
-    expect(radarFrameLabel(frames[0]!, frames)).toBe("−20 min");
-  });
-
-  it("counts a nowcast frame forwards, which is where the cell is going", () => {
-    expect(radarFrameLabel(frames[2]!, frames)).toBe("+20 min");
   });
 });

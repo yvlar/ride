@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppearanceProvider } from "@/components/theme/appearance-provider";
 import type { MapEngine, MapEngineHandle } from "@/components/map/map-engine";
@@ -83,7 +83,7 @@ afterEach(() => {
 });
 
 describe("RideApp weather layer (FR-043)", () => {
-  it("opens the explorer with the live weather layer visible", async () => {
+  it("opens the explorer with the live weather layer and no switch", async () => {
     const fetcher = stubFetch();
     const { engine, overlays } = weatherEngine();
 
@@ -93,16 +93,16 @@ describe("RideApp weather layer (FR-043)", () => {
       </AppearanceProvider>,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Météo" }),
-    ).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => {
       expect(fetcher).toHaveBeenCalledTimes(1);
       expect(overlays.at(-1)?.clouds).toHaveLength(1);
     });
+    expect(
+      screen.queryByRole("button", { name: "Météo" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("draws the clouds and names the direction to avoid", async () => {
+  it("draws the clouds without a panel over the map", async () => {
     const fetcher = stubFetch();
     const { engine, overlays } = weatherEngine();
 
@@ -125,30 +125,9 @@ describe("RideApp weather layer (FR-043)", () => {
       level: "rain",
       probability: 88,
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Afficher les détails météo" }),
-    );
-    expect(await screen.findByText(/sud/)).toBeInTheDocument();
-  });
-
-  it("clears the layer from the map when it is switched off", async () => {
-    stubFetch();
-    const { engine, overlays } = weatherEngine();
-
-    render(
-      <AppearanceProvider>
-        <RideApp mapEngine={engine} />
-      </AppearanceProvider>,
-    );
-
-    await waitFor(() => {
-      expect(overlays.at(-1)?.clouds).toHaveLength(1);
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Météo" }));
-
-    await waitFor(() => {
-      expect(overlays.at(-1)).toBeNull();
-    });
+    // The advice sentence, and the risk percentage it carried, no longer has a
+    // view: the clouds are the whole weather layer.
+    expect(screen.queryByText(/Mauvais temps/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
   });
 });

@@ -191,48 +191,6 @@
   overflow: hidden;
 }
 
-:root[data-map-theme="kart-arcade"] .ride-weather-dock {
-  top: max(0.875rem, env(safe-area-inset-top));
-  left: max(0.875rem, env(safe-area-inset-left));
-  width: min(22rem, calc(100% - 4rem));
-}
-
-:root[data-map-theme="kart-arcade"] .ride-weather-control {
-  gap: 0.75rem;
-}
-
-:root[data-map-theme="kart-arcade"] .ride-weather-toggle {
-  min-height: 3rem;
-  border: 2px solid rgb(23 50 77 / 18%);
-  border-radius: 1.35rem;
-  padding-inline: 1.125rem;
-  font-weight: 750;
-  letter-spacing: -0.015em;
-  box-shadow: 0 4px 0 rgb(23 50 77 / 28%);
-}
-
-:root[data-map-theme="kart-arcade"] .ride-weather-toggle[aria-pressed="true"] {
-  background: #ff665a;
-  color: #17324d;
-}
-
-:root[data-map-theme="kart-arcade"] .ride-weather-panel {
-  width: 100%;
-  max-width: none;
-  border-radius: 1.75rem;
-  background: #405267;
-  padding: 0.75rem 0.875rem;
-}
-
-:root[data-map-theme="kart-arcade"] .ride-weather-panel[data-expanded="false"] {
-  min-height: 3.5rem;
-}
-
-:root[data-map-theme="kart-arcade"] .ride-weather-headline {
-  text-wrap: balance;
-  letter-spacing: -0.012em;
-}
-
 :root[data-map-theme="kart-arcade"] .ride-home-controls {
   bottom: max(0.875rem, env(safe-area-inset-bottom));
   gap: clamp(0.65rem, 1.6dvh, 0.9rem);
