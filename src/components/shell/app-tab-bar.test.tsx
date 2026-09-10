@@ -15,7 +15,7 @@ describe("AppTabBar", () => {
       "maplibregl-ctrl-group",
       "fixed",
       "right-[max(0.75rem,env(safe-area-inset-right))]",
-      "top-[max(0.75rem,env(safe-area-inset-top))]",
+      "top-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)]",
       "size-11",
     );
 
